@@ -59,16 +59,34 @@ RSpec.describe 'Kanban Stages API', type: :request do
   end
 
   describe 'DELETE /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages/{id}' do
-    it 'deletes a stage through its board' do
+    it 'deactivates a stage through its board' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
 
       expect do
         delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
                headers: administrator.create_new_auth_token,
                as: :json
-      end.to change(KanbanStage, :count).by(-1)
+      end.not_to change(KanbanStage, :count)
 
       expect(response).to have_http_status(:no_content)
+      expect(stage.reload).not_to be_active
+    end
+
+    it 'does not deactivate a stage with cards' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage
+      )
+
+      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+             headers: administrator.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(stage.reload).to be_active
     end
   end
 end

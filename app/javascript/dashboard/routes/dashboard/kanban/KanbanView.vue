@@ -18,14 +18,24 @@ const isFetchingBoards = ref(false);
 const isFetchingBoard = ref(false);
 const isCreatingBoard = ref(false);
 const isCreatingStage = ref(false);
+const isUpdatingBoard = ref(false);
+const isDeletingBoard = ref(false);
 const activeActionKey = ref('');
 const hasError = ref(false);
 const actionError = ref('');
 const newBoardName = ref('');
 const newStageName = ref('');
+const isEditingBoard = ref(false);
+const boardForm = ref({ name: '', description: '' });
+const editingStageId = ref(null);
+const stageNames = ref({});
 const cardConversationIds = ref({});
 const cardPendingRemoval = ref(null);
+const boardPendingRemoval = ref(null);
+const stagePendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
+const showRemoveBoardConfirmation = ref(false);
+const showRemoveStageConfirmation = ref(false);
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
@@ -72,6 +82,111 @@ const refreshSelectedBoard = async () => {
   if (!selectedBoard.value?.id) return;
 
   await showBoard(selectedBoard.value.id);
+};
+
+const startEditingBoard = () => {
+  if (!selectedBoard.value) return;
+
+  boardForm.value = {
+    name: selectedBoard.value.name || '',
+    description: selectedBoard.value.description || '',
+  };
+  isEditingBoard.value = true;
+};
+
+const cancelEditingBoard = () => {
+  isEditingBoard.value = false;
+  boardForm.value = { name: '', description: '' };
+};
+
+const updateBoard = async () => {
+  const name = boardForm.value.name.trim();
+  if (!selectedBoard.value?.id || !name || isUpdatingBoard.value) return;
+
+  isUpdatingBoard.value = true;
+  actionError.value = '';
+
+  try {
+    const response = await KanbanBoardsAPI.update(selectedBoard.value.id, {
+      kanban_board: {
+        name,
+        description: boardForm.value.description.trim(),
+      },
+    });
+    const board = normalizePayload(response.data);
+    selectedBoard.value = { ...selectedBoard.value, ...board };
+    boards.value = boards.value.map(existingBoard =>
+      existingBoard.id === board.id ? board : existingBoard
+    );
+    cancelEditingBoard();
+    useAlert(t('KANBAN.ACTIONS.UPDATE_BOARD_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.UPDATE_BOARD_ERROR'));
+  } finally {
+    isUpdatingBoard.value = false;
+  }
+};
+
+const openRemoveBoardConfirmation = () => {
+  if (!selectedBoard.value) return;
+
+  boardPendingRemoval.value = selectedBoard.value;
+  showRemoveBoardConfirmation.value = true;
+};
+
+const closeRemoveBoardConfirmation = () => {
+  showRemoveBoardConfirmation.value = false;
+  boardPendingRemoval.value = null;
+};
+
+const removeBoard = async board => {
+  if (!board?.id || isDeletingBoard.value) return;
+
+  isDeletingBoard.value = true;
+  actionError.value = '';
+
+  try {
+    await KanbanBoardsAPI.delete(board.id);
+    boards.value = boards.value.filter(
+      existingBoard => existingBoard.id !== board.id
+    );
+    const nextBoard = boards.value[0];
+
+    if (nextBoard) {
+      await router.replace({
+        name: 'kanban_board_show',
+        params: {
+          accountId: route.params.accountId,
+          boardId: nextBoard.id,
+        },
+      });
+      await showBoard(nextBoard.id);
+    } else {
+      selectedBoard.value = null;
+      await router.replace({
+        name: 'kanban_boards',
+        params: {
+          accountId: route.params.accountId,
+        },
+      });
+    }
+
+    cancelEditingBoard();
+    useAlert(t('KANBAN.ACTIONS.REMOVE_BOARD_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.REMOVE_BOARD_ERROR'));
+  } finally {
+    isDeletingBoard.value = false;
+  }
+};
+
+const confirmRemoveBoard = async () => {
+  const board = boardPendingRemoval.value;
+  closeRemoveBoardConfirmation();
+
+  if (!board) return;
+
+  await removeBoard(board);
 };
 
 const createBoard = async () => {
@@ -129,6 +244,82 @@ const createStage = async () => {
   } finally {
     isCreatingStage.value = false;
   }
+};
+
+const startEditingStage = stage => {
+  editingStageId.value = stage.id;
+  stageNames.value = {
+    ...stageNames.value,
+    [stage.id]: stage.name,
+  };
+};
+
+const cancelEditingStage = () => {
+  editingStageId.value = null;
+};
+
+const updateStage = async stage => {
+  const name = String(stageNames.value[stage.id] || '').trim();
+  if (!selectedBoard.value?.id || !name || activeActionKey.value) return;
+
+  activeActionKey.value = `update-stage-${stage.id}`;
+  actionError.value = '';
+
+  try {
+    await KanbanBoardsAPI.updateStage(selectedBoard.value.id, stage.id, {
+      stage: {
+        name,
+      },
+    });
+    cancelEditingStage();
+    await refreshSelectedBoard();
+    useAlert(t('KANBAN.ACTIONS.UPDATE_STAGE_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.UPDATE_STAGE_ERROR'));
+  } finally {
+    activeActionKey.value = '';
+  }
+};
+
+const openRemoveStageConfirmation = stage => {
+  if (stage.cards.length > 0) {
+    showActionError(null, t('KANBAN.ACTIONS.REMOVE_STAGE_NOT_EMPTY'));
+    return;
+  }
+
+  stagePendingRemoval.value = stage;
+  showRemoveStageConfirmation.value = true;
+};
+
+const closeRemoveStageConfirmation = () => {
+  showRemoveStageConfirmation.value = false;
+  stagePendingRemoval.value = null;
+};
+
+const removeStage = async stage => {
+  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+
+  activeActionKey.value = `remove-stage-${stage.id}`;
+  actionError.value = '';
+
+  try {
+    await KanbanBoardsAPI.deleteStage(selectedBoard.value.id, stage.id);
+    await refreshSelectedBoard();
+    useAlert(t('KANBAN.ACTIONS.REMOVE_STAGE_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.REMOVE_STAGE_ERROR'));
+  } finally {
+    activeActionKey.value = '';
+  }
+};
+
+const confirmRemoveStage = async () => {
+  const stage = stagePendingRemoval.value;
+  closeRemoveStageConfirmation();
+
+  if (!stage) return;
+
+  await removeStage(stage);
 };
 
 const addCard = async stage => {
@@ -292,6 +483,13 @@ const removeCardMessageValue = computed(() => {
   return getContactName(cardPendingRemoval.value);
 });
 
+const removeBoardMessageValue = computed(
+  () => boardPendingRemoval.value?.name || ''
+);
+const removeStageMessageValue = computed(
+  () => stagePendingRemoval.value?.name || ''
+);
+
 const openConversation = (card, event) => {
   const path = frontendURL(
     conversationUrl({
@@ -374,18 +572,72 @@ onMounted(fetchBoards);
 
     <section class="flex min-w-0 flex-1 flex-col">
       <header
-        class="flex min-h-16 items-center justify-between gap-4 border-b border-n-weak px-6"
+        class="flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-n-weak px-6 py-3"
       >
-        <div class="min-w-0">
-          <h2 class="truncate text-xl font-medium text-n-slate-12">
-            {{ selectedBoard?.name || t('KANBAN.NO_BOARD_SELECTED') }}
-          </h2>
-          <p
-            v-if="selectedBoard?.description"
-            class="truncate text-sm text-n-slate-11"
+        <div class="min-w-0 flex-1">
+          <form
+            v-if="selectedBoard && isEditingBoard"
+            class="grid max-w-xl gap-2"
+            @submit.prevent="updateBoard"
           >
-            {{ selectedBoard.description }}
-          </p>
+            <input
+              v-model="boardForm.name"
+              type="text"
+              class="min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+              :placeholder="t('KANBAN.ACTIONS.BOARD_NAME_PLACEHOLDER')"
+            />
+            <input
+              v-model="boardForm.description"
+              type="text"
+              class="min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+              :placeholder="t('KANBAN.ACTIONS.BOARD_DESCRIPTION_PLACEHOLDER')"
+            />
+            <div class="flex gap-2">
+              <button
+                type="submit"
+                class="rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!boardForm.name.trim() || isUpdatingBoard"
+              >
+                {{ t('KANBAN.ACTIONS.SAVE_BOARD') }}
+              </button>
+              <button
+                type="button"
+                class="rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
+                @click="cancelEditingBoard"
+              >
+                {{ t('KANBAN.ACTIONS.CANCEL') }}
+              </button>
+            </div>
+          </form>
+          <template v-else>
+            <h2 class="truncate text-xl font-medium text-n-slate-12">
+              {{ selectedBoard?.name || t('KANBAN.NO_BOARD_SELECTED') }}
+            </h2>
+            <p
+              v-if="selectedBoard?.description"
+              class="truncate text-sm text-n-slate-11"
+            >
+              {{ selectedBoard.description }}
+            </p>
+          </template>
+        </div>
+        <div v-if="selectedBoard && !isEditingBoard" class="flex gap-2">
+          <button
+            type="button"
+            class="rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="isDeletingBoard"
+            @click="startEditingBoard"
+          >
+            {{ t('KANBAN.ACTIONS.EDIT_BOARD') }}
+          </button>
+          <button
+            type="button"
+            class="rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="isDeletingBoard"
+            @click="openRemoveBoardConfirmation"
+          >
+            {{ t('KANBAN.ACTIONS.REMOVE_BOARD') }}
+          </button>
         </div>
         <form
           v-if="selectedBoard"
@@ -464,14 +716,65 @@ onMounted(fetchBoards);
           class="flex w-80 flex-shrink-0 flex-col rounded-lg border border-n-weak bg-n-surface-2"
         >
           <header
-            class="flex min-h-12 items-center justify-between border-b border-n-weak px-3"
+            class="flex min-h-12 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
           >
-            <h3 class="truncate text-sm font-medium text-n-slate-12">
-              {{ stage.name }}
-            </h3>
-            <span class="text-xs text-n-slate-10">
-              {{ stage.cards.length }}
-            </span>
+            <form
+              v-if="editingStageId === stage.id"
+              class="flex min-w-0 flex-1 gap-2"
+              @submit.prevent="updateStage(stage)"
+            >
+              <input
+                v-model="stageNames[stage.id]"
+                type="text"
+                class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+              />
+              <button
+                type="submit"
+                class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="
+                  !String(stageNames[stage.id] || '').trim() ||
+                  !!activeActionKey
+                "
+              >
+                {{ t('KANBAN.ACTIONS.SAVE_STAGE') }}
+              </button>
+              <button
+                type="button"
+                class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12"
+                @click="cancelEditingStage"
+              >
+                {{ t('KANBAN.ACTIONS.CANCEL') }}
+              </button>
+            </form>
+            <template v-else>
+              <div class="min-w-0 flex-1">
+                <h3 class="truncate text-sm font-medium text-n-slate-12">
+                  {{ stage.name }}
+                </h3>
+                <span class="text-xs text-n-slate-10">
+                  {{ stage.cards.length }}
+                </span>
+              </div>
+              <div class="flex flex-shrink-0 gap-1">
+                <button
+                  type="button"
+                  class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!!activeActionKey"
+                  @click="startEditingStage(stage)"
+                >
+                  {{ t('KANBAN.ACTIONS.EDIT_STAGE') }}
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!!activeActionKey"
+                  @click="openRemoveStageConfirmation(stage)"
+                >
+                  {{ t('KANBAN.ACTIONS.REMOVE_STAGE') }}
+                </button>
+              </div>
+            </template>
           </header>
 
           <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
@@ -592,6 +895,26 @@ onMounted(fetchBoards);
       :message-value="removeCardMessageValue"
       :confirm-text="t('KANBAN.REMOVE_CARD.CONFIRM')"
       :reject-text="t('KANBAN.REMOVE_CARD.CANCEL')"
+    />
+    <woot-delete-modal
+      v-model:show="showRemoveBoardConfirmation"
+      :on-close="closeRemoveBoardConfirmation"
+      :on-confirm="confirmRemoveBoard"
+      :title="t('KANBAN.REMOVE_BOARD.TITLE')"
+      :message="t('KANBAN.REMOVE_BOARD.MESSAGE')"
+      :message-value="removeBoardMessageValue"
+      :confirm-text="t('KANBAN.REMOVE_BOARD.CONFIRM')"
+      :reject-text="t('KANBAN.REMOVE_BOARD.CANCEL')"
+    />
+    <woot-delete-modal
+      v-model:show="showRemoveStageConfirmation"
+      :on-close="closeRemoveStageConfirmation"
+      :on-confirm="confirmRemoveStage"
+      :title="t('KANBAN.REMOVE_STAGE.TITLE')"
+      :message="t('KANBAN.REMOVE_STAGE.MESSAGE')"
+      :message-value="removeStageMessageValue"
+      :confirm-text="t('KANBAN.REMOVE_STAGE.CONFIRM')"
+      :reject-text="t('KANBAN.REMOVE_STAGE.CANCEL')"
     />
   </main>
 </template>

@@ -21,6 +21,17 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body.first['name']).to eq('Sales')
     end
+
+    it 'does not return inactive boards' do
+      create(:kanban_board, account: account, active: false)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body.pluck('active')).to all be(true)
+    end
   end
 
   describe 'GET /api/v1/accounts/{account.id}/kanban_boards/{id}' do
@@ -95,14 +106,15 @@ RSpec.describe 'Kanban Boards API', type: :request do
   end
 
   describe 'DELETE /api/v1/accounts/{account.id}/kanban_boards/{id}' do
-    it 'deletes a board for administrators' do
+    it 'deactivates a board for administrators' do
       expect do
         delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
                headers: administrator.create_new_auth_token,
                as: :json
-      end.to change(KanbanBoard, :count).by(-1)
+      end.not_to change(KanbanBoard, :count)
 
       expect(response).to have_http_status(:no_content)
+      expect(kanban_board.reload).not_to be_active
     end
   end
 end

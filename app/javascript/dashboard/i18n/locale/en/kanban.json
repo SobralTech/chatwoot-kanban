@@ -13,8 +13,16 @@
     "ACTIONS": {
       "CREATE_BOARD": "Add",
       "BOARD_NAME_PLACEHOLDER": "Board name",
+      "BOARD_DESCRIPTION_PLACEHOLDER": "Board description",
+      "EDIT_BOARD": "Edit",
+      "SAVE_BOARD": "Save board",
+      "REMOVE_BOARD": "Remove board",
       "CREATE_STAGE": "Add stage",
       "STAGE_NAME_PLACEHOLDER": "Stage name",
+      "EDIT_STAGE": "Edit",
+      "SAVE_STAGE": "Save",
+      "REMOVE_STAGE": "Remove",
+      "CANCEL": "Cancel",
       "ADD_CARD": "Add",
       "CONVERSATION_ID_PLACEHOLDER": "Conversation ID",
       "MOVE_CARD": "Move card",
@@ -29,7 +37,28 @@
       "MOVE_CARD_SUCCESS": "Card moved.",
       "MOVE_CARD_ERROR": "Could not move the card.",
       "REMOVE_CARD_SUCCESS": "Card removed from the board.",
-      "REMOVE_CARD_ERROR": "Could not remove the card."
+      "REMOVE_CARD_ERROR": "Could not remove the card.",
+      "UPDATE_BOARD_SUCCESS": "Kanban board updated.",
+      "UPDATE_BOARD_ERROR": "Could not update the kanban board.",
+      "REMOVE_BOARD_SUCCESS": "Kanban board removed.",
+      "REMOVE_BOARD_ERROR": "Could not remove the kanban board.",
+      "UPDATE_STAGE_SUCCESS": "Kanban stage updated.",
+      "UPDATE_STAGE_ERROR": "Could not update the kanban stage.",
+      "REMOVE_STAGE_SUCCESS": "Kanban stage removed.",
+      "REMOVE_STAGE_ERROR": "Could not remove the kanban stage.",
+      "REMOVE_STAGE_NOT_EMPTY": "Move or remove all cards before removing this stage."
+    },
+    "REMOVE_BOARD": {
+      "TITLE": "Remove board",
+      "MESSAGE": "Remove this kanban board?",
+      "CONFIRM": "Remove",
+      "CANCEL": "Cancel"
+    },
+    "REMOVE_STAGE": {
+      "TITLE": "Remove stage",
+      "MESSAGE": "Remove this stage?",
+      "CONFIRM": "Remove",
+      "CANCEL": "Cancel"
     },
     "REMOVE_CARD": {
       "TITLE": "Remove card",

@@ -3,7 +3,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
   before_action :fetch_kanban_board, only: [:show, :update, :destroy]
 
   def index
-    @kanban_boards = KanbanBoard.where(account_id: Current.account.id).ordered
+    @kanban_boards = KanbanBoard.where(account_id: Current.account.id).active.ordered
   end
 
   def show
@@ -24,14 +24,14 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
   end
 
   def destroy
-    @kanban_board.destroy!
+    @kanban_board.update!(active: false)
     head :no_content
   end
 
   private
 
   def fetch_kanban_board
-    @kanban_board = KanbanBoard.where(account_id: Current.account.id).find(params[:id])
+    @kanban_board = KanbanBoard.where(account_id: Current.account.id).active.find(params[:id])
   end
 
   def kanban_board_params

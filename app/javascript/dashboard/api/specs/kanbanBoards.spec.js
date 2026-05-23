@@ -10,6 +10,8 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('update');
     expect(kanbanBoards).toHaveProperty('delete');
     expect(kanbanBoards).toHaveProperty('createStage');
+    expect(kanbanBoards).toHaveProperty('updateStage');
+    expect(kanbanBoards).toHaveProperty('deleteStage');
     expect(kanbanBoards).toHaveProperty('createCard');
     expect(kanbanBoards).toHaveProperty('updateCard');
     expect(kanbanBoards).toHaveProperty('deleteCard');
@@ -43,6 +45,24 @@ describe('#KanbanBoardsAPI', () => {
       expect(axiosMock.post).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/stages',
         payload
+      );
+    });
+
+    it('#updateStage', () => {
+      const payload = { stage: { name: 'Won' } };
+      kanbanBoards.updateStage(2, 3, payload);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/stages/3',
+        payload
+      );
+    });
+
+    it('#deleteStage', () => {
+      kanbanBoards.deleteStage(2, 3);
+
+      expect(axiosMock.delete).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/stages/3'
       );
     });
 

@@ -10,6 +10,14 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.post(`${this.url}/${boardId}/stages`, payload);
   }
 
+  updateStage(boardId, stageId, payload) {
+    return axios.patch(`${this.url}/${boardId}/stages/${stageId}`, payload);
+  }
+
+  deleteStage(boardId, stageId) {
+    return axios.delete(`${this.url}/${boardId}/stages/${stageId}`);
+  }
+
   createCard(boardId, payload) {
     return axios.post(`${this.url}/${boardId}/cards`, payload);
   }

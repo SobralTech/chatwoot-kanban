@@ -12,14 +12,19 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def destroy
-    @kanban_stage.destroy!
+    if @kanban_stage.conversation_kanban_states.exists?
+      render json: { error: 'Kanban stage must be empty before it can be removed.' }, status: :unprocessable_content
+      return
+    end
+
+    @kanban_stage.update!(active: false)
     head :no_content
   end
 
   private
 
   def fetch_kanban_board
-    @kanban_board = KanbanBoard.where(account_id: Current.account.id).find(params[:kanban_board_id])
+    @kanban_board = KanbanBoard.where(account_id: Current.account.id).active.find(params[:kanban_board_id])
   end
 
   def authorize_kanban_board_update
@@ -27,7 +32,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def fetch_kanban_stage
-    @kanban_stage = @kanban_board.kanban_stages.find(params[:id])
+    @kanban_stage = @kanban_board.kanban_stages.active.find(params[:id])
   end
 
   def kanban_stage_params
