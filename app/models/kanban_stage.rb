@@ -13,10 +13,10 @@
 #
 # Indexes
 #
+#  index_active_kanban_stages_on_board_id_and_name      (kanban_board_id,name) UNIQUE WHERE (active = true)
 #  index_kanban_stages_on_account_id                    (account_id)
 #  index_kanban_stages_on_account_id_and_active         (account_id,active)
 #  index_kanban_stages_on_kanban_board_id               (kanban_board_id)
-#  index_kanban_stages_on_kanban_board_id_and_name      (kanban_board_id,name) UNIQUE
 #  index_kanban_stages_on_kanban_board_id_and_position  (kanban_board_id,position)
 #
 class KanbanStage < ApplicationRecord
@@ -26,7 +26,7 @@ class KanbanStage < ApplicationRecord
   has_many :conversation_kanban_states, dependent: :destroy_async
 
   validates :account_id, presence: true
-  validates :name, presence: true, uniqueness: { scope: :kanban_board_id }
+  validates :name, presence: true, uniqueness: { scope: :kanban_board_id, conditions: -> { active } }, if: :active?
   validates :position, presence: true, numericality: { only_integer: true }
   validate :validate_board_account
 

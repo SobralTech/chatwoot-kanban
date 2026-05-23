@@ -13,10 +13,10 @@
 #
 # Indexes
 #
-#  index_kanban_boards_on_account_id               (account_id)
-#  index_kanban_boards_on_account_id_and_active    (account_id,active)
-#  index_kanban_boards_on_account_id_and_name      (account_id,name) UNIQUE
-#  index_kanban_boards_on_account_id_and_position  (account_id,position)
+#  index_active_kanban_boards_on_account_id_and_name  (account_id,name) UNIQUE WHERE (active = true)
+#  index_kanban_boards_on_account_id                  (account_id)
+#  index_kanban_boards_on_account_id_and_active       (account_id,active)
+#  index_kanban_boards_on_account_id_and_position     (account_id,position)
 #
 class KanbanBoard < ApplicationRecord
   belongs_to :account
@@ -25,7 +25,7 @@ class KanbanBoard < ApplicationRecord
   has_many :conversation_kanban_states, dependent: :destroy_async
 
   validates :account_id, presence: true
-  validates :name, presence: true, uniqueness: { scope: :account_id }
+  validates :name, presence: true, uniqueness: { scope: :account_id, conditions: -> { active } }, if: :active?
   validates :position, presence: true, numericality: { only_integer: true }
 
   scope :active, -> { where(active: true) }

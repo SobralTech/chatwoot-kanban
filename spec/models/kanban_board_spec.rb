@@ -2,7 +2,7 @@ require 'rails_helper'
 
 RSpec.describe KanbanBoard do
   describe 'validations' do
-    it 'validates name uniqueness inside an account' do
+    it 'prevents duplicate active names inside an account' do
       account = create(:account)
       create(:kanban_board, account: account, name: 'Sales')
 
@@ -10,6 +10,15 @@ RSpec.describe KanbanBoard do
 
       expect(board).not_to be_valid
       expect(board.errors[:name]).to be_present
+    end
+
+    it 'allows the same name when the previous board is inactive' do
+      account = create(:account)
+      create(:kanban_board, account: account, name: 'Sales', active: false)
+
+      board = build(:kanban_board, account: account, name: 'Sales')
+
+      expect(board).to be_valid
     end
 
     it 'allows the same name in another account' do
