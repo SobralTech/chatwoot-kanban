@@ -3,9 +3,11 @@
     "HEADER": "Kanban",
     "LOADING_BOARDS": "Loading boards...",
     "LOADING_BOARD": "Loading board...",
-    "EMPTY_BOARDS": "No kanban boards found.",
-    "EMPTY_STAGES": "No stages found for this board.",
-    "EMPTY_CARDS": "No cards",
+    "EMPTY_BOARDS": "No kanban boards yet",
+    "EMPTY_BOARDS_DESCRIPTION": "Create your first board to organize conversations into a manual workflow.",
+    "EMPTY_STAGES": "No stages in this board yet",
+    "EMPTY_STAGES_DESCRIPTION": "Add the first stage to start placing conversations in this board.",
+    "EMPTY_CARDS": "No cards in this stage.",
     "NO_BOARD_SELECTED": "Select a board",
     "ERROR": "Could not load kanban data.",
     "ACTIONS": {
@@ -17,7 +19,23 @@
       "CONVERSATION_ID_PLACEHOLDER": "Conversation ID",
       "MOVE_CARD": "Move card",
       "REMOVE_CARD": "Remove",
-      "ERROR": "Could not complete the kanban action."
+      "ERROR": "Could not complete the kanban action.",
+      "CREATE_BOARD_SUCCESS": "Kanban board created.",
+      "CREATE_BOARD_ERROR": "Could not create the kanban board.",
+      "CREATE_STAGE_SUCCESS": "Kanban stage created.",
+      "CREATE_STAGE_ERROR": "Could not create the kanban stage.",
+      "ADD_CARD_SUCCESS": "Conversation added to the board.",
+      "ADD_CARD_ERROR": "Could not add the conversation. Check the conversation ID and try again.",
+      "MOVE_CARD_SUCCESS": "Card moved.",
+      "MOVE_CARD_ERROR": "Could not move the card.",
+      "REMOVE_CARD_SUCCESS": "Card removed from the board.",
+      "REMOVE_CARD_ERROR": "Could not remove the card."
+    },
+    "REMOVE_CARD": {
+      "TITLE": "Remove card",
+      "MESSAGE": "Remove this conversation from the board?",
+      "CONFIRM": "Remove",
+      "CANCEL": "Cancel"
     },
     "CARD": {
       "UNKNOWN_CONTACT": "Unknown contact",

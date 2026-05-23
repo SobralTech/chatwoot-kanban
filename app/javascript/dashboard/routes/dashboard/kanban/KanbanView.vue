@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
 
+import { useAlert } from 'dashboard/composables';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 
@@ -23,6 +24,8 @@ const actionError = ref('');
 const newBoardName = ref('');
 const newStageName = ref('');
 const cardConversationIds = ref({});
+const cardPendingRemoval = ref(null);
+const showRemoveCardConfirmation = ref(false);
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
@@ -33,8 +36,16 @@ const isInitialLoading = computed(
 
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
-const setActionError = () => {
-  actionError.value = t('KANBAN.ACTIONS.ERROR');
+const getErrorMessage = (error, fallbackMessage) =>
+  error?.response?.data?.error ||
+  error?.response?.data?.message ||
+  error?.message ||
+  fallbackMessage;
+
+const showActionError = (error, fallbackMessage) => {
+  const message = getErrorMessage(error, fallbackMessage);
+  actionError.value = message;
+  useAlert(message);
 };
 
 const showBoard = async boardId => {
@@ -88,8 +99,9 @@ const createBoard = async () => {
         boardId: board.id,
       },
     });
-  } catch {
-    setActionError();
+    useAlert(t('KANBAN.ACTIONS.CREATE_BOARD_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.CREATE_BOARD_ERROR'));
   } finally {
     isCreatingBoard.value = false;
   }
@@ -111,8 +123,9 @@ const createStage = async () => {
     });
     newStageName.value = '';
     await refreshSelectedBoard();
-  } catch {
-    setActionError();
+    useAlert(t('KANBAN.ACTIONS.CREATE_STAGE_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.CREATE_STAGE_ERROR'));
   } finally {
     isCreatingStage.value = false;
   }
@@ -142,8 +155,9 @@ const addCard = async stage => {
       [stage.id]: '',
     };
     await refreshSelectedBoard();
-  } catch {
-    setActionError();
+    useAlert(t('KANBAN.ACTIONS.ADD_CARD_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.ADD_CARD_ERROR'));
   } finally {
     activeActionKey.value = '';
   }
@@ -174,11 +188,22 @@ const moveCard = async (card, kanbanStageId) => {
       }
     );
     await refreshSelectedBoard();
-  } catch {
-    setActionError();
+    useAlert(t('KANBAN.ACTIONS.MOVE_CARD_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.MOVE_CARD_ERROR'));
   } finally {
     activeActionKey.value = '';
   }
+};
+
+const openRemoveCardConfirmation = card => {
+  cardPendingRemoval.value = card;
+  showRemoveCardConfirmation.value = true;
+};
+
+const closeRemoveCardConfirmation = () => {
+  showRemoveCardConfirmation.value = false;
+  cardPendingRemoval.value = null;
 };
 
 const removeCard = async card => {
@@ -193,11 +218,21 @@ const removeCard = async card => {
       card.conversationId
     );
     await refreshSelectedBoard();
-  } catch {
-    setActionError();
+    useAlert(t('KANBAN.ACTIONS.REMOVE_CARD_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.REMOVE_CARD_ERROR'));
   } finally {
     activeActionKey.value = '';
   }
+};
+
+const confirmRemoveCard = async () => {
+  const card = cardPendingRemoval.value;
+  closeRemoveCardConfirmation();
+
+  if (!card) return;
+
+  await removeCard(card);
 };
 
 const selectBoard = boardId => {
@@ -250,6 +285,12 @@ const getLastMessage = card =>
 
 const getConversationStatus = card =>
   card.conversation?.status || t('KANBAN.CARD.UNKNOWN_STATUS');
+
+const removeCardMessageValue = computed(() => {
+  if (!cardPendingRemoval.value) return '';
+
+  return getContactName(cardPendingRemoval.value);
+});
 
 const openConversation = (card, event) => {
   const path = frontendURL(
@@ -310,7 +351,7 @@ onMounted(fetchBoards);
       </div>
 
       <div v-else-if="!hasBoards" class="px-4 py-3 text-sm text-n-slate-11">
-        {{ t('KANBAN.EMPTY_BOARDS') }}
+        {{ t('KANBAN.EMPTY_BOARDS_DESCRIPTION') }}
       </div>
 
       <nav v-else class="flex flex-col gap-1 overflow-y-auto p-2">
@@ -390,16 +431,30 @@ onMounted(fetchBoards);
 
       <div
         v-else-if="!hasBoards"
-        class="flex flex-1 items-center justify-center p-6 text-sm text-n-slate-11"
+        class="flex flex-1 items-center justify-center p-6 text-center"
       >
-        {{ t('KANBAN.EMPTY_BOARDS') }}
+        <div class="max-w-md">
+          <h3 class="text-base font-medium text-n-slate-12">
+            {{ t('KANBAN.EMPTY_BOARDS') }}
+          </h3>
+          <p class="mt-2 text-sm text-n-slate-11">
+            {{ t('KANBAN.EMPTY_BOARDS_DESCRIPTION') }}
+          </p>
+        </div>
       </div>
 
       <div
         v-else-if="hasBoards && stages.length === 0"
-        class="flex flex-1 items-center justify-center p-6 text-sm text-n-slate-11"
+        class="flex flex-1 items-center justify-center p-6 text-center"
       >
-        {{ t('KANBAN.EMPTY_STAGES') }}
+        <div class="max-w-md">
+          <h3 class="text-base font-medium text-n-slate-12">
+            {{ t('KANBAN.EMPTY_STAGES') }}
+          </h3>
+          <p class="mt-2 text-sm text-n-slate-11">
+            {{ t('KANBAN.EMPTY_STAGES_DESCRIPTION') }}
+          </p>
+        </div>
       </div>
 
       <div v-else class="flex min-h-0 flex-1 gap-4 overflow-x-auto p-4">
@@ -517,7 +572,7 @@ onMounted(fetchBoards);
                   type="button"
                   class="flex-shrink-0 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="!!activeActionKey"
-                  @click="removeCard(card)"
+                  @click="openRemoveCardConfirmation(card)"
                 >
                   {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
                 </button>
@@ -527,5 +582,16 @@ onMounted(fetchBoards);
         </section>
       </div>
     </section>
+
+    <woot-delete-modal
+      v-model:show="showRemoveCardConfirmation"
+      :on-close="closeRemoveCardConfirmation"
+      :on-confirm="confirmRemoveCard"
+      :title="t('KANBAN.REMOVE_CARD.TITLE')"
+      :message="t('KANBAN.REMOVE_CARD.MESSAGE')"
+      :message-value="removeCardMessageValue"
+      :confirm-text="t('KANBAN.REMOVE_CARD.CONFIRM')"
+      :reject-text="t('KANBAN.REMOVE_CARD.CANCEL')"
+    />
   </main>
 </template>
