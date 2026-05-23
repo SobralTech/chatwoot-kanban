@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_15_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_22_090002) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -669,6 +669,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_15_000000) do
     t.index ["phone_number", "account_id"], name: "index_contacts_on_phone_number_and_account_id"
   end
 
+  create_table "conversation_kanban_states", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "kanban_board_id", null: false
+    t.bigint "kanban_stage_id", null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "moved_by_id"
+    t.datetime "moved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "kanban_board_id"], name: "idx_on_account_id_kanban_board_id_f57807836f"
+    t.index ["account_id"], name: "index_conversation_kanban_states_on_account_id"
+    t.index ["conversation_id", "kanban_board_id"], name: "index_conversation_kanban_states_on_conversation_and_board", unique: true
+    t.index ["conversation_id"], name: "index_conversation_kanban_states_on_conversation_id"
+    t.index ["kanban_board_id", "kanban_stage_id", "position"], name: "index_conversation_kanban_states_on_board_stage_position"
+    t.index ["kanban_board_id"], name: "index_conversation_kanban_states_on_kanban_board_id"
+    t.index ["kanban_stage_id"], name: "index_conversation_kanban_states_on_kanban_stage_id"
+    t.index ["moved_by_id"], name: "index_conversation_kanban_states_on_moved_by_id"
+  end
+
   create_table "conversation_participants", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -930,6 +950,35 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_15_000000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "settings", default: {}
+  end
+
+  create_table "kanban_boards", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.integer "position", default: 0, null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "active"], name: "index_kanban_boards_on_account_id_and_active"
+    t.index ["account_id", "name"], name: "index_kanban_boards_on_account_id_and_name", unique: true
+    t.index ["account_id", "position"], name: "index_kanban_boards_on_account_id_and_position"
+    t.index ["account_id"], name: "index_kanban_boards_on_account_id"
+  end
+
+  create_table "kanban_stages", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_board_id", null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "active"], name: "index_kanban_stages_on_account_id_and_active"
+    t.index ["account_id"], name: "index_kanban_stages_on_account_id"
+    t.index ["kanban_board_id", "name"], name: "index_kanban_stages_on_kanban_board_id_and_name", unique: true
+    t.index ["kanban_board_id", "position"], name: "index_kanban_stages_on_kanban_board_id_and_position"
+    t.index ["kanban_board_id"], name: "index_kanban_stages_on_kanban_board_id"
   end
 
   create_table "labels", force: :cascade do |t|

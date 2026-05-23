@@ -126,6 +126,18 @@ Rails.application.routes.draw do
           end
           resources :campaigns, only: [:index, :create, :show, :update, :destroy]
           resources :dashboard_apps, only: [:index, :show, :create, :update, :destroy]
+          resources :kanban_boards, only: [:index, :create, :show, :destroy] do
+            patch '', on: :member, action: :update
+
+            scope module: :kanban_boards do
+              resources :stages, only: [:create, :destroy] do
+                patch '', on: :member, action: :update
+              end
+              resources :cards, only: [:create, :destroy], param: :conversation_id do
+                patch '', on: :member, action: :update
+              end
+            end
+          end
           namespace :channels do
             resource :twilio_channel, only: [:create]
           end
