@@ -68,10 +68,30 @@
     },
     "CARD": {
       "UNKNOWN_CONTACT": "Unknown contact",
+      "UNKNOWN_INBOX": "Unknown inbox",
       "NO_MESSAGES": "No messages yet",
       "UNKNOWN_STATUS": "Unknown",
+      "UNKNOWN_LAST_ACTIVITY": "No activity",
+      "UNASSIGNED": "Unassigned",
       "CONVERSATION_ID": "#{id}",
-      "OPEN_CONVERSATION": "Open conversation with {contactName}"
+      "OPEN_CONVERSATION": "Open conversation with {contactName}",
+      "INBOX": "Inbox: {inbox}",
+      "ASSIGNEE": "Assignee: {assignee}",
+      "PRIORITY": "Priority: {priority}",
+      "LAST_ACTIVITY": "Last activity: {time}"
+    },
+    "NOTES": {
+      "SHOW": "Show notes",
+      "HIDE": "Hide notes",
+      "LOADING": "Loading notes...",
+      "EMPTY": "No notes yet.",
+      "NO_CONTACT": "No contact is linked to this conversation.",
+      "PLACEHOLDER": "Add a contact note",
+      "ADD": "Add note",
+      "BOT": "Bot",
+      "CREATE_SUCCESS": "Contact note added.",
+      "CREATE_ERROR": "Could not add the contact note.",
+      "FETCH_ERROR": "Could not load contact notes."
     }
   }
 }

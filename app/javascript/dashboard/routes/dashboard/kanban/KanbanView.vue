@@ -7,6 +7,7 @@ import camelcaseKeys from 'camelcase-keys';
 import { useAlert } from 'dashboard/composables';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
+import KanbanConversationCard from './KanbanConversationCard.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -471,12 +472,6 @@ const fetchBoards = async () => {
 const getContactName = card =>
   card.conversation?.meta?.sender?.name || t('KANBAN.CARD.UNKNOWN_CONTACT');
 
-const getLastMessage = card =>
-  card.conversation?.messages?.[0]?.content || t('KANBAN.CARD.NO_MESSAGES');
-
-const getConversationStatus = card =>
-  card.conversation?.status || t('KANBAN.CARD.UNKNOWN_STATUS');
-
 const removeCardMessageValue = computed(() => {
   if (!cardPendingRemoval.value) return '';
 
@@ -805,82 +800,16 @@ onMounted(fetchBoards);
               {{ t('KANBAN.EMPTY_CARDS') }}
             </p>
 
-            <article
+            <KanbanConversationCard
               v-for="card in stage.cards"
               :key="card.id"
-              class="rounded-lg border border-n-weak bg-n-surface-1 p-3"
-            >
-              <button
-                type="button"
-                class="w-full text-left"
-                :aria-label="
-                  t('KANBAN.CARD.OPEN_CONVERSATION', {
-                    contactName: getContactName(card),
-                  })
-                "
-                @click="openConversation(card, $event)"
-              >
-                <div class="flex items-start justify-between gap-2">
-                  <h4
-                    class="min-w-0 truncate text-sm font-medium text-n-slate-12"
-                  >
-                    {{ getContactName(card) }}
-                  </h4>
-                  <span class="flex-shrink-0 text-xs text-n-slate-10">
-                    {{
-                      t('KANBAN.CARD.CONVERSATION_ID', {
-                        id: card.conversationId,
-                      })
-                    }}
-                  </span>
-                </div>
-
-                <p class="mt-2 line-clamp-2 text-sm text-n-slate-11">
-                  {{ getLastMessage(card) }}
-                </p>
-              </button>
-
-              <div class="mt-3 flex items-center justify-between gap-2">
-                <span
-                  class="rounded-md bg-n-alpha-2 px-2 py-1 text-xs text-n-slate-11"
-                >
-                  {{ getConversationStatus(card) }}
-                </span>
-                <span
-                  v-if="card.conversation?.priority"
-                  class="truncate text-xs text-n-slate-10"
-                >
-                  {{ card.conversation.priority }}
-                </span>
-              </div>
-
-              <div class="mt-3 flex items-center gap-2">
-                <select
-                  class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-                  :value="card.kanbanStageId"
-                  :disabled="!!activeActionKey"
-                  :aria-label="t('KANBAN.ACTIONS.MOVE_CARD')"
-                  @change="moveCard(card, $event.target.value)"
-                >
-                  <option
-                    v-for="targetStage in stages"
-                    :key="targetStage.id"
-                    :value="targetStage.id"
-                  >
-                    {{ targetStage.name }}
-                  </option>
-                </select>
-
-                <button
-                  type="button"
-                  class="flex-shrink-0 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!!activeActionKey"
-                  @click="openRemoveCardConfirmation(card)"
-                >
-                  {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
-                </button>
-              </div>
-            </article>
+              :card="card"
+              :stages="stages"
+              :active-action-key="activeActionKey"
+              @move-card="moveCard"
+              @open-conversation="openConversation"
+              @remove-card="openRemoveCardConfirmation"
+            />
           </div>
         </section>
       </div>
