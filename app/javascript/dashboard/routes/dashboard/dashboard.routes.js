@@ -5,6 +5,7 @@ import { routes as contactRoutes } from './contacts/routes';
 import { routes as companyRoutes } from './companies/routes';
 import { routes as notificationRoutes } from './notifications/routes';
 import { routes as inboxRoutes } from './inbox/routes';
+import { routes as kanbanRoutes } from './kanban/routes';
 import { frontendURL } from '../../helper/URLHelper';
 import helpcenterRoutes from './helpcenter/helpcenter.routes';
 import campaignsRoutes from './campaigns/campaigns.routes';
@@ -26,6 +27,7 @@ export default {
         ...settings.routes,
         ...contactRoutes,
         ...companyRoutes,
+        ...kanbanRoutes,
         ...searchRoutes,
         ...notificationRoutes,
         ...helpcenterRoutes.routes,
