@@ -55,7 +55,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def kanban_stage_params
-    params.require(:stage).permit(:name, :position, :active)
+    params.require(:stage).permit(:name, :position, :active, :color)
   end
 
   def sibling_stage_for_reorder

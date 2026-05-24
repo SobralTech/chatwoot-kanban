@@ -31,6 +31,7 @@ const isEditingBoard = ref(false);
 const boardForm = ref({ name: '', description: '' });
 const editingStageId = ref(null);
 const stageNames = ref({});
+const stageColors = ref({});
 const cardConversationIds = ref({});
 const cardPendingRemoval = ref(null);
 const boardPendingRemoval = ref(null);
@@ -38,6 +39,41 @@ const stagePendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
 const showRemoveBoardConfirmation = ref(false);
 const showRemoveStageConfirmation = ref(false);
+const defaultStageColor = 'blue';
+const newStageColor = ref(defaultStageColor);
+
+const stageColorOptions = [
+  {
+    value: 'blue',
+    headerClass: 'bg-n-blue-9',
+    swatchClass: 'bg-n-blue-9',
+  },
+  {
+    value: 'teal',
+    headerClass: 'bg-n-teal-9',
+    swatchClass: 'bg-n-teal-9',
+  },
+  {
+    value: 'amber',
+    headerClass: 'bg-n-amber-9',
+    swatchClass: 'bg-n-amber-9',
+  },
+  {
+    value: 'ruby',
+    headerClass: 'bg-n-ruby-9',
+    swatchClass: 'bg-n-ruby-9',
+  },
+  {
+    value: 'iris',
+    headerClass: 'bg-n-iris-9',
+    swatchClass: 'bg-n-iris-9',
+  },
+  {
+    value: 'violet',
+    headerClass: 'bg-n-violet-9',
+    swatchClass: 'bg-n-violet-9',
+  },
+];
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
@@ -67,6 +103,31 @@ const showActionError = (error, fallbackMessage) => {
   actionError.value = message;
   useAlert(message);
 };
+
+const getStageColorOption = color =>
+  stageColorOptions.find(option => option.value === color) ||
+  stageColorOptions[0];
+
+const getStageHeaderClass = stage =>
+  getStageColorOption(stage.color).headerClass;
+
+const getStageColorLabel = colorOption => {
+  const labels = {
+    blue: t('KANBAN.COLORS.BLUE'),
+    teal: t('KANBAN.COLORS.TEAL'),
+    amber: t('KANBAN.COLORS.AMBER'),
+    ruby: t('KANBAN.COLORS.RUBY'),
+    iris: t('KANBAN.COLORS.IRIS'),
+    violet: t('KANBAN.COLORS.VIOLET'),
+  };
+
+  return labels[colorOption.value];
+};
+
+const getSelectStageColorLabel = colorOption =>
+  t('KANBAN.ACTIONS.SELECT_STAGE_COLOR', {
+    color: getStageColorLabel(colorOption),
+  });
 
 const showBoard = async boardId => {
   if (!boardId) {
@@ -243,10 +304,12 @@ const createStage = async () => {
     await KanbanBoardsAPI.createStage(selectedBoard.value.id, {
       stage: {
         name,
+        color: newStageColor.value,
         position: stages.value.length,
       },
     });
     newStageName.value = '';
+    newStageColor.value = defaultStageColor;
     await refreshSelectedBoard();
     useAlert(t('KANBAN.ACTIONS.CREATE_STAGE_SUCCESS'));
   } catch (error) {
@@ -262,6 +325,10 @@ const startEditingStage = stage => {
     ...stageNames.value,
     [stage.id]: stage.name,
   };
+  stageColors.value = {
+    ...stageColors.value,
+    [stage.id]: getStageColorOption(stage.color).value,
+  };
 };
 
 const cancelEditingStage = () => {
@@ -270,6 +337,7 @@ const cancelEditingStage = () => {
 
 const updateStage = async stage => {
   const name = String(stageNames.value[stage.id] || '').trim();
+  const color = stageColors.value[stage.id] || defaultStageColor;
   if (!selectedBoard.value?.id || !name || activeActionKey.value) return;
 
   activeActionKey.value = `update-stage-${stage.id}`;
@@ -279,6 +347,7 @@ const updateStage = async stage => {
     await KanbanBoardsAPI.updateStage(selectedBoard.value.id, stage.id, {
       stage: {
         name,
+        color,
       },
     });
     cancelEditingStage();
@@ -318,27 +387,6 @@ const removeStage = async stage => {
     useAlert(t('KANBAN.ACTIONS.REMOVE_STAGE_SUCCESS'));
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REMOVE_STAGE_ERROR'));
-  } finally {
-    activeActionKey.value = '';
-  }
-};
-
-const reorderStage = async (stage, direction) => {
-  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
-
-  activeActionKey.value = `reorder-stage-${stage.id}`;
-  actionError.value = '';
-
-  try {
-    await KanbanBoardsAPI.reorderStage(
-      selectedBoard.value.id,
-      stage.id,
-      direction
-    );
-    await refreshSelectedBoard();
-    useAlert(t('KANBAN.ACTIONS.REORDER_STAGE_SUCCESS'));
-  } catch (error) {
-    showActionError(error, t('KANBAN.ACTIONS.REORDER_STAGE_ERROR'));
   } finally {
     activeActionKey.value = '';
   }
@@ -633,10 +681,6 @@ const openConversation = (card, event) => {
   router.push({ path });
 };
 
-const isFirstStage = stage => stages.value[0]?.id === stage.id;
-const isLastStage = stage =>
-  stages.value[stages.value.length - 1]?.id === stage.id;
-
 watch(activeBoardId, boardId => {
   if (!boards.value.length) return;
   showBoard(boardId);
@@ -768,22 +812,43 @@ onMounted(fetchBoards);
         </div>
         <form
           v-if="selectedBoard"
-          class="flex w-full max-w-md flex-shrink-0 gap-2"
+          class="grid w-full max-w-md flex-shrink-0 gap-2"
           @submit.prevent="createStage"
         >
-          <input
-            v-model="newStageName"
-            type="text"
-            class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-            :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-          />
-          <button
-            type="submit"
-            class="flex-shrink-0 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!newStageName.trim() || isCreatingStage"
+          <div class="flex gap-2">
+            <input
+              v-model="newStageName"
+              type="text"
+              class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+              :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+            />
+            <button
+              type="submit"
+              class="flex-shrink-0 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="!newStageName.trim() || isCreatingStage"
+            >
+              {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
+            </button>
+          </div>
+          <div
+            class="flex items-center gap-1.5"
+            :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
           >
-            {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
-          </button>
+            <button
+              v-for="colorOption in stageColorOptions"
+              :key="colorOption.value"
+              type="button"
+              class="size-5 rounded-full border border-n-weak ring-offset-2 ring-offset-n-surface-1"
+              :class="[
+                colorOption.swatchClass,
+                newStageColor === colorOption.value
+                  ? 'ring-2 ring-n-slate-12'
+                  : 'hover:ring-2 hover:ring-n-slate-8',
+              ]"
+              :aria-label="getSelectStageColorLabel(colorOption)"
+              @click="newStageColor = colorOption.value"
+            />
+          </div>
         </form>
       </header>
 
@@ -850,116 +915,123 @@ onMounted(fetchBoards);
           <template #item="{ element: stage }">
             <section
               :data-stage-id="stage.id"
-              class="flex w-80 flex-shrink-0 flex-col rounded-lg border border-n-weak bg-n-surface-2"
+              class="flex w-80 flex-shrink-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
             >
               <header
-                class="flex min-h-12 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
+                class="flex min-h-14 items-center justify-between gap-2 px-3 py-2 text-white"
+                :class="getStageHeaderClass(stage)"
               >
                 <form
                   v-if="editingStageId === stage.id"
-                  class="flex min-w-0 flex-1 gap-2"
+                  class="grid min-w-0 flex-1 gap-2"
                   @submit.prevent="updateStage(stage)"
                 >
-                  <input
-                    v-model="stageNames[stage.id]"
-                    type="text"
-                    class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-                    :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-                  />
-                  <button
-                    type="submit"
-                    class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="
-                      !String(stageNames[stage.id] || '').trim() ||
-                      !!activeActionKey
-                    "
+                  <div class="flex min-w-0 gap-2">
+                    <input
+                      v-model="stageNames[stage.id]"
+                      type="text"
+                      class="min-w-0 flex-1 rounded-md border border-white/30 bg-white/90 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-white"
+                      :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+                    />
+                    <button
+                      type="submit"
+                      class="rounded-md border border-white/30 bg-white/10 px-2 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="
+                        !String(stageNames[stage.id] || '').trim() ||
+                        !!activeActionKey
+                      "
+                    >
+                      {{ t('KANBAN.ACTIONS.SAVE_STAGE') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-md border border-white/30 bg-white/10 px-2 py-1.5 text-xs font-medium text-white"
+                      @click="cancelEditingStage"
+                    >
+                      {{ t('KANBAN.ACTIONS.CANCEL') }}
+                    </button>
+                  </div>
+                  <div
+                    class="flex items-center gap-1.5"
+                    :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
                   >
-                    {{ t('KANBAN.ACTIONS.SAVE_STAGE') }}
-                  </button>
-                  <button
-                    type="button"
-                    class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12"
-                    @click="cancelEditingStage"
-                  >
-                    {{ t('KANBAN.ACTIONS.CANCEL') }}
-                  </button>
+                    <button
+                      v-for="colorOption in stageColorOptions"
+                      :key="colorOption.value"
+                      type="button"
+                      class="size-5 rounded-full border border-white/40 ring-offset-2"
+                      :class="[
+                        colorOption.swatchClass,
+                        stageColors[stage.id] === colorOption.value
+                          ? 'ring-2 ring-white'
+                          : 'hover:ring-2 hover:ring-white/70',
+                      ]"
+                      :aria-label="getSelectStageColorLabel(colorOption)"
+                      @click="stageColors[stage.id] = colorOption.value"
+                    />
+                  </div>
                 </form>
                 <template v-else>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-1.5">
-                      <span
-                        class="stage-drag-handle cursor-grab rounded border border-n-weak p-1 text-n-slate-10"
-                      >
-                        <i class="i-lucide-grip-horizontal size-3.5" />
-                      </span>
-                      <h3 class="truncate text-sm font-medium text-n-slate-12">
-                        {{ stage.name }}
-                      </h3>
-                    </div>
-                    <span class="text-xs text-n-slate-10">
+                  <div class="flex min-w-0 flex-1 items-center gap-2">
+                    <span
+                      class="stage-drag-handle flex-shrink-0 cursor-grab rounded border border-white/30 bg-white/10 p-1 text-white/80"
+                    >
+                      <i class="i-lucide-grip-horizontal size-3.5" />
+                    </span>
+                    <h3 class="truncate text-sm font-medium">
+                      {{ stage.name }}
+                    </h3>
+                    <span
+                      class="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
+                    >
                       {{ stage.cards.length }}
                     </span>
                   </div>
                   <div class="flex flex-shrink-0 gap-1">
                     <button
                       type="button"
-                      class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                      :disabled="isFirstStage(stage) || !!activeActionKey"
-                      :aria-label="t('KANBAN.ACTIONS.MOVE_STAGE_LEFT')"
-                      @click="reorderStage(stage, 'left')"
-                    >
-                      <i class="i-lucide-chevron-left size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                      :disabled="isLastStage(stage) || !!activeActionKey"
-                      :aria-label="t('KANBAN.ACTIONS.MOVE_STAGE_RIGHT')"
-                      @click="reorderStage(stage, 'right')"
-                    >
-                      <i class="i-lucide-chevron-right size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                      class="flex size-8 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
                       :disabled="!!activeActionKey"
+                      :aria-label="t('KANBAN.ACTIONS.EDIT_STAGE')"
                       @click="startEditingStage(stage)"
                     >
-                      {{ t('KANBAN.ACTIONS.EDIT_STAGE') }}
+                      <i class="i-lucide-pencil size-4" />
                     </button>
                     <button
                       type="button"
-                      class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
+                      class="flex size-8 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
                       :disabled="!!activeActionKey"
+                      :aria-label="t('KANBAN.ACTIONS.REMOVE_STAGE')"
                       @click="openRemoveStageConfirmation(stage)"
                     >
-                      {{ t('KANBAN.ACTIONS.REMOVE_STAGE') }}
+                      <i class="i-lucide-x size-4" />
                     </button>
                   </div>
                 </template>
               </header>
 
               <div
-                class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
+                class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto bg-n-solid-1 p-3"
               >
                 <form class="flex gap-2" @submit.prevent="addCard(stage)">
                   <input
                     v-model="cardConversationIds[stage.id]"
                     type="number"
                     min="1"
-                    class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                    class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
                     :placeholder="
                       t('KANBAN.ACTIONS.CONVERSATION_ID_PLACEHOLDER')
                     "
                   />
                   <button
                     type="submit"
-                    class="flex-shrink-0 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                    class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
                     :disabled="
                       !String(cardConversationIds[stage.id] || '').trim() ||
                       !!activeActionKey
                     "
                   >
+                    <i class="i-lucide-plus size-4" />
                     {{ t('KANBAN.ACTIONS.ADD_CARD') }}
                   </button>
                 </form>

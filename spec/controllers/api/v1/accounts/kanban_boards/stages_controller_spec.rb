@@ -7,7 +7,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
   let(:kanban_board) { create(:kanban_board, account: account) }
 
   describe 'POST /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages' do
-    let(:payload) { { stage: { name: 'Proposal', position: 1 } } }
+    let(:payload) { { stage: { name: 'Proposal', position: 1, color: 'teal' } } }
 
     it 'creates a stage for administrators' do
       expect do
@@ -19,6 +19,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['name']).to eq('Proposal')
+      expect(response.parsed_body['color']).to eq('teal')
     end
 
     it 'returns unauthorized for agents' do
@@ -37,11 +38,12 @@ RSpec.describe 'Kanban Stages API', type: :request do
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
             headers: administrator.create_new_auth_token,
-            params: { stage: { name: 'Won', active: false } },
+            params: { stage: { name: 'Won', active: false, color: 'ruby' } },
             as: :json
 
       expect(response).to have_http_status(:success)
       expect(stage.reload.name).to eq('Won')
+      expect(stage.color).to eq('ruby')
       expect(stage).not_to be_active
     end
 
