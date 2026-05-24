@@ -12,8 +12,18 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def reorder
-    sibling_stage = sibling_stage_for_reorder
-    swap_positions(@kanban_stage, sibling_stage) if sibling_stage
+    return render :update unless %w[left right].include?(params[:direction])
+
+    KanbanStage.transaction do
+      KanbanStage.normalize_positions_for_board!(@kanban_board)
+      @kanban_stage.reload
+
+      sibling_stage = sibling_stage_for_reorder
+      swap_positions(@kanban_stage, sibling_stage) if sibling_stage
+
+      KanbanStage.normalize_positions_for_board!(@kanban_board)
+      @kanban_stage.reload
+    end
 
     render :update
   end
@@ -47,8 +57,6 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def sibling_stage_for_reorder
-    return unless %w[left right].include?(params[:direction])
-
     ordered_stages = @kanban_board.kanban_stages.active.ordered.to_a
     stage_index = ordered_stages.index(@kanban_stage)
     offset = params[:direction] == 'left' ? -1 : 1

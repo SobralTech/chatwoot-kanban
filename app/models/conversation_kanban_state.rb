@@ -36,7 +36,15 @@ class ConversationKanbanState < ApplicationRecord
   validates :position, presence: true, numericality: { only_integer: true }
   validate :validate_account_consistency
 
-  scope :ordered, -> { order(position: :asc, id: :asc) }
+  scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
+
+  def self.normalize_positions_for_stage!(kanban_board:, kanban_stage:)
+    transaction do
+      where(kanban_board: kanban_board, kanban_stage: kanban_stage).ordered.each.with_index(1) do |state, position|
+        state.update!(position: position) if state.position != position
+      end
+    end
+  end
 
   private
 

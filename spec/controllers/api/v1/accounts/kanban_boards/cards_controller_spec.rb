@@ -67,14 +67,57 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{conversation.display_id}",
             headers: agent.create_new_auth_token,
-            params: { card: { kanban_stage_id: next_stage.id, position: 3 } },
+            params: { card: { kanban_stage_id: next_stage.id } },
             as: :json
 
       expect(response).to have_http_status(:success)
       expect(card.reload.kanban_stage).to eq(next_stage)
-      expect(card.position).to eq(3)
+      expect(card.position).to eq(1)
       expect(card.moved_by).to eq(agent)
       expect(card.moved_at).to be_present
+    end
+
+    it 'normalizes source and destination stages when moving a card' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      source_conversation = create(:conversation, account: account)
+      destination_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: source_conversation.inbox)
+      create(:inbox_member, user: agent, inbox: destination_conversation.inbox)
+      moving_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      source_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: source_conversation,
+        position: 1
+      )
+      destination_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: next_stage,
+        conversation: destination_conversation,
+        position: 7
+      )
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{conversation.display_id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(source_card.reload.position).to eq(1)
+      expect(destination_card.reload.position).to eq(1)
+      expect(moving_card.reload.position).to eq(2)
+      expect(moving_card.kanban_stage).to eq(next_stage)
     end
   end
 
@@ -139,6 +182,47 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(second_card.reload.position).to eq(1)
     end
 
+    it 'normalizes duplicated card positions before moving' do
+      second_conversation = create(:conversation, account: account)
+      third_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: second_conversation.inbox)
+      create(:inbox_member, user: agent, inbox: third_conversation.inbox)
+      first_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      second_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: second_conversation,
+        position: 1
+      )
+      third_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: third_conversation,
+        position: 1
+      )
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{third_conversation.display_id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { direction: 'up' },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(first_card.reload.position).to eq(1)
+      expect(third_card.reload.position).to eq(2)
+      expect(second_card.reload.position).to eq(3)
+    end
+
     it 'does not reorder cards from another stage' do
       next_conversation = create(:conversation, account: account)
       third_conversation = create(:conversation, account: account)
@@ -176,7 +260,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
             as: :json
 
       expect(response).to have_http_status(:success)
-      expect(first_card.reload.position).to eq(3)
+      expect(first_card.reload.position).to eq(2)
       expect(third_card.reload.position).to eq(1)
       expect(other_stage_card.reload.position).to eq(2)
     end

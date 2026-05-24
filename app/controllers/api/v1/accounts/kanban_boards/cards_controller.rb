@@ -13,12 +13,34 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def update
-    @conversation_kanban_state.update!(conversation_kanban_state_attributes)
+    previous_stage = @conversation_kanban_state.kanban_stage
+
+    ConversationKanbanState.transaction do
+      normalize_cards_for_stage(previous_stage)
+      normalize_cards_for_stage(@kanban_stage) if previous_stage != @kanban_stage
+
+      @conversation_kanban_state.reload
+      @conversation_kanban_state.update!(conversation_kanban_state_attributes)
+
+      normalize_cards_for_stage(previous_stage)
+      normalize_cards_for_stage(@kanban_stage) if previous_stage != @kanban_stage
+      @conversation_kanban_state.reload
+    end
   end
 
   def reorder
-    sibling_state = sibling_state_for_reorder
-    swap_positions(@conversation_kanban_state, sibling_state) if sibling_state
+    return render :update unless %w[up down].include?(params[:direction])
+
+    ConversationKanbanState.transaction do
+      normalize_cards_for_stage(@conversation_kanban_state.kanban_stage)
+      @conversation_kanban_state.reload
+
+      sibling_state = sibling_state_for_reorder
+      swap_positions(@conversation_kanban_state, sibling_state) if sibling_state
+
+      normalize_cards_for_stage(@conversation_kanban_state.kanban_stage)
+      @conversation_kanban_state.reload
+    end
 
     render :update
   end
@@ -75,8 +97,6 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def sibling_state_for_reorder
-    return unless %w[up down].include?(params[:direction])
-
     ordered_states = @kanban_board
                      .conversation_kanban_states
                      .where(kanban_stage_id: @conversation_kanban_state.kanban_stage_id)
@@ -94,5 +114,9 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       state.update!(position: sibling_state.position)
       sibling_state.update!(position: state_position)
     end
+  end
+
+  def normalize_cards_for_stage(kanban_stage)
+    ConversationKanbanState.normalize_positions_for_stage!(kanban_board: @kanban_board, kanban_stage: kanban_stage)
   end
 end

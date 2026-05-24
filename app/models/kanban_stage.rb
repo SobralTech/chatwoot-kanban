@@ -31,7 +31,15 @@ class KanbanStage < ApplicationRecord
   validate :validate_board_account
 
   scope :active, -> { where(active: true) }
-  scope :ordered, -> { order(position: :asc, id: :asc) }
+  scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
+
+  def self.normalize_positions_for_board!(kanban_board)
+    transaction do
+      kanban_board.kanban_stages.active.ordered.each.with_index(1) do |stage, position|
+        stage.update!(position: position) if stage.position != position
+      end
+    end
+  end
 
   private
 

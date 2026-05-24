@@ -87,6 +87,22 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(second_stage.reload.position).to eq(1)
     end
 
+    it 'normalizes duplicated stage positions before moving' do
+      first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+      second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+      third_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{third_stage.id}/reorder",
+            headers: administrator.create_new_auth_token,
+            params: { direction: 'left' },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(first_stage.reload.position).to eq(1)
+      expect(third_stage.reload.position).to eq(2)
+      expect(second_stage.reload.position).to eq(3)
+    end
+
     it 'does not reorder a stage from another board' do
       other_board = create(:kanban_board, account: account)
       other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
