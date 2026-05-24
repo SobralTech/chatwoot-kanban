@@ -132,9 +132,11 @@ Rails.application.routes.draw do
             scope module: :kanban_boards do
               resources :stages, only: [:create, :destroy] do
                 patch '', on: :member, action: :update
+                patch :reorder, on: :member
               end
               resources :cards, only: [:create, :destroy], param: :conversation_id do
                 patch '', on: :member, action: :update
+                patch :reorder, on: :member
               end
             end
           end

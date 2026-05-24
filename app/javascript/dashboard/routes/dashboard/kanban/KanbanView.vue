@@ -314,6 +314,27 @@ const removeStage = async stage => {
   }
 };
 
+const reorderStage = async (stage, direction) => {
+  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+
+  activeActionKey.value = `reorder-stage-${stage.id}`;
+  actionError.value = '';
+
+  try {
+    await KanbanBoardsAPI.reorderStage(
+      selectedBoard.value.id,
+      stage.id,
+      direction
+    );
+    await refreshSelectedBoard();
+    useAlert(t('KANBAN.ACTIONS.REORDER_STAGE_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.REORDER_STAGE_ERROR'));
+  } finally {
+    activeActionKey.value = '';
+  }
+};
+
 const confirmRemoveStage = async () => {
   const stage = stagePendingRemoval.value;
   closeRemoveStageConfirmation();
@@ -383,6 +404,33 @@ const moveCard = async (card, kanbanStageId) => {
     useAlert(t('KANBAN.ACTIONS.MOVE_CARD_SUCCESS'));
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.MOVE_CARD_ERROR'));
+  } finally {
+    activeActionKey.value = '';
+  }
+};
+
+const reorderCard = async (card, direction) => {
+  if (
+    !selectedBoard.value?.id ||
+    !card?.conversationId ||
+    activeActionKey.value
+  ) {
+    return;
+  }
+
+  activeActionKey.value = `reorder-card-${card.id}`;
+  actionError.value = '';
+
+  try {
+    await KanbanBoardsAPI.reorderCard(
+      selectedBoard.value.id,
+      card.conversationId,
+      direction
+    );
+    await refreshSelectedBoard();
+    useAlert(t('KANBAN.ACTIONS.REORDER_CARD_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
   } finally {
     activeActionKey.value = '';
   }
@@ -504,6 +552,10 @@ const openConversation = (card, event) => {
 
   router.push({ path });
 };
+
+const isFirstStage = stage => stages.value[0]?.id === stage.id;
+const isLastStage = stage =>
+  stages.value[stages.value.length - 1]?.id === stage.id;
 
 watch(activeBoardId, boardId => {
   if (!boards.value.length) return;
@@ -754,6 +806,24 @@ onMounted(fetchBoards);
               <div class="flex flex-shrink-0 gap-1">
                 <button
                   type="button"
+                  class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="isFirstStage(stage) || !!activeActionKey"
+                  :aria-label="t('KANBAN.ACTIONS.MOVE_STAGE_LEFT')"
+                  @click="reorderStage(stage, 'left')"
+                >
+                  <i class="i-lucide-chevron-left size-4" />
+                </button>
+                <button
+                  type="button"
+                  class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="isLastStage(stage) || !!activeActionKey"
+                  :aria-label="t('KANBAN.ACTIONS.MOVE_STAGE_RIGHT')"
+                  @click="reorderStage(stage, 'right')"
+                >
+                  <i class="i-lucide-chevron-right size-4" />
+                </button>
+                <button
+                  type="button"
                   class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="!!activeActionKey"
                   @click="startEditingStage(stage)"
@@ -801,14 +871,17 @@ onMounted(fetchBoards);
             </p>
 
             <KanbanConversationCard
-              v-for="card in stage.cards"
+              v-for="(card, cardIndex) in stage.cards"
               :key="card.id"
               :card="card"
               :stages="stages"
               :active-action-key="activeActionKey"
+              :is-first="cardIndex === 0"
+              :is-last="cardIndex === stage.cards.length - 1"
               @move-card="moveCard"
               @open-conversation="openConversation"
               @remove-card="openRemoveCardConfirmation"
+              @reorder-card="reorderCard"
             />
           </div>
         </section>

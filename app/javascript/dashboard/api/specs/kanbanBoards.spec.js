@@ -11,9 +11,11 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('delete');
     expect(kanbanBoards).toHaveProperty('createStage');
     expect(kanbanBoards).toHaveProperty('updateStage');
+    expect(kanbanBoards).toHaveProperty('reorderStage');
     expect(kanbanBoards).toHaveProperty('deleteStage');
     expect(kanbanBoards).toHaveProperty('createCard');
     expect(kanbanBoards).toHaveProperty('updateCard');
+    expect(kanbanBoards).toHaveProperty('reorderCard');
     expect(kanbanBoards).toHaveProperty('deleteCard');
   });
 
@@ -66,6 +68,15 @@ describe('#KanbanBoardsAPI', () => {
       );
     });
 
+    it('#reorderStage', () => {
+      kanbanBoards.reorderStage(2, 3, 'left');
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/stages/3/reorder',
+        { direction: 'left' }
+      );
+    });
+
     it('#createCard', () => {
       const payload = { card: { conversation_id: 10, kanban_stage_id: 3 } };
       kanbanBoards.createCard(2, payload);
@@ -91,6 +102,15 @@ describe('#KanbanBoardsAPI', () => {
 
       expect(axiosMock.delete).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/10'
+      );
+    });
+
+    it('#reorderCard', () => {
+      kanbanBoards.reorderCard(2, 10, 'up');
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/10/reorder',
+        { direction: 'up' }
       );
     });
   });

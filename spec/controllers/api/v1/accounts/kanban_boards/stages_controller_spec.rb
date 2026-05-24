@@ -58,6 +58,48 @@ RSpec.describe 'Kanban Stages API', type: :request do
     end
   end
 
+  describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages/{id}/reorder' do
+    it 'moves a stage left within its board' do
+      first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+      second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{second_stage.id}/reorder",
+            headers: administrator.create_new_auth_token,
+            params: { direction: 'left' },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(second_stage.reload.position).to eq(1)
+      expect(first_stage.reload.position).to eq(2)
+    end
+
+    it 'moves a stage right within its board' do
+      first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+      second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{first_stage.id}/reorder",
+            headers: administrator.create_new_auth_token,
+            params: { direction: 'right' },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(first_stage.reload.position).to eq(2)
+      expect(second_stage.reload.position).to eq(1)
+    end
+
+    it 'does not reorder a stage from another board' do
+      other_board = create(:kanban_board, account: account)
+      other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{other_stage.id}/reorder",
+            headers: administrator.create_new_auth_token,
+            params: { direction: 'left' },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe 'DELETE /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages/{id}' do
     it 'deactivates a stage through its board' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)

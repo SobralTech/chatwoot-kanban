@@ -1,7 +1,7 @@
 class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::BaseController
   before_action :fetch_kanban_board
   before_action :authorize_kanban_board_update
-  before_action :fetch_kanban_stage, only: [:update, :destroy]
+  before_action :fetch_kanban_stage, only: [:update, :destroy, :reorder]
 
   def create
     @kanban_stage = @kanban_board.kanban_stages.create!(kanban_stage_params.merge(account: Current.account))
@@ -9,6 +9,13 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
 
   def update
     @kanban_stage.update!(kanban_stage_params)
+  end
+
+  def reorder
+    sibling_stage = sibling_stage_for_reorder
+    swap_positions(@kanban_stage, sibling_stage) if sibling_stage
+
+    render :update
   end
 
   def destroy
@@ -37,5 +44,23 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
 
   def kanban_stage_params
     params.require(:stage).permit(:name, :position, :active)
+  end
+
+  def sibling_stage_for_reorder
+    return unless %w[left right].include?(params[:direction])
+
+    ordered_stages = @kanban_board.kanban_stages.active.ordered.to_a
+    stage_index = ordered_stages.index(@kanban_stage)
+    offset = params[:direction] == 'left' ? -1 : 1
+
+    ordered_stages[stage_index + offset] if stage_index && (stage_index + offset).between?(0, ordered_stages.length - 1)
+  end
+
+  def swap_positions(stage, sibling_stage)
+    KanbanStage.transaction do
+      stage_position = stage.position
+      stage.update!(position: sibling_stage.position)
+      sibling_stage.update!(position: stage_position)
+    end
   end
 end

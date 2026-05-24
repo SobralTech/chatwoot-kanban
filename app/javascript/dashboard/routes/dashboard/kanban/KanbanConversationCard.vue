@@ -22,9 +22,22 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  isFirst: {
+    type: Boolean,
+    default: false,
+  },
+  isLast: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(['moveCard', 'openConversation', 'removeCard']);
+const emit = defineEmits([
+  'moveCard',
+  'openConversation',
+  'removeCard',
+  'reorderCard',
+]);
 
 const { t } = useI18n();
 const store = useStore();
@@ -184,6 +197,27 @@ const onMove = event => {
     </div>
 
     <div class="mt-3 flex items-center gap-2">
+      <div class="flex flex-shrink-0 gap-1">
+        <button
+          type="button"
+          class="flex size-9 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="isFirst || !!activeActionKey"
+          :aria-label="t('KANBAN.ACTIONS.MOVE_CARD_UP')"
+          @click="emit('reorderCard', card, 'up')"
+        >
+          <i class="i-lucide-chevron-up size-4" />
+        </button>
+        <button
+          type="button"
+          class="flex size-9 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="isLast || !!activeActionKey"
+          :aria-label="t('KANBAN.ACTIONS.MOVE_CARD_DOWN')"
+          @click="emit('reorderCard', card, 'down')"
+        >
+          <i class="i-lucide-chevron-down size-4" />
+        </button>
+      </div>
+
       <select
         class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
         :value="card.kanbanStageId"

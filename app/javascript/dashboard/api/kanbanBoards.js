@@ -14,6 +14,12 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.patch(`${this.url}/${boardId}/stages/${stageId}`, payload);
   }
 
+  reorderStage(boardId, stageId, direction) {
+    return axios.patch(`${this.url}/${boardId}/stages/${stageId}/reorder`, {
+      direction,
+    });
+  }
+
   deleteStage(boardId, stageId) {
     return axios.delete(`${this.url}/${boardId}/stages/${stageId}`);
   }
@@ -26,6 +32,13 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.patch(
       `${this.url}/${boardId}/cards/${conversationId}`,
       payload
+    );
+  }
+
+  reorderCard(boardId, conversationId, direction) {
+    return axios.patch(
+      `${this.url}/${boardId}/cards/${conversationId}/reorder`,
+      { direction }
     );
   }
 

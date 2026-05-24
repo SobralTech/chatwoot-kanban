@@ -65,6 +65,41 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it 'returns stages and cards ordered by position' do
+      later_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Later', position: 2)
+      earlier_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Earlier', position: 1)
+      later_conversation = create(:conversation, account: account)
+      earlier_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: later_conversation.inbox)
+      create(:inbox_member, user: agent, inbox: earlier_conversation.inbox)
+      create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: earlier_stage,
+        conversation: later_conversation,
+        position: 2
+      )
+      create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: earlier_stage,
+        conversation: earlier_conversation,
+        position: 1
+      )
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['stages'].pluck('id')).to eq([earlier_stage.id, later_stage.id])
+      expect(response.parsed_body['stages'].first['cards'].pluck('conversation_id')).to eq(
+        [earlier_conversation.display_id, later_conversation.display_id]
+      )
+    end
   end
 
   describe 'POST /api/v1/accounts/{account.id}/kanban_boards' do

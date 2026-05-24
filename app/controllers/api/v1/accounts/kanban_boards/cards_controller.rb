@@ -3,7 +3,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   before_action :authorize_kanban_board_show
   before_action :fetch_conversation
   before_action :authorize_conversation
-  before_action :fetch_conversation_kanban_state, only: [:update, :destroy]
+  before_action :fetch_conversation_kanban_state, only: [:update, :destroy, :reorder]
   before_action :fetch_kanban_stage, only: [:create, :update]
 
   def create
@@ -14,6 +14,13 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def update
     @conversation_kanban_state.update!(conversation_kanban_state_attributes)
+  end
+
+  def reorder
+    sibling_state = sibling_state_for_reorder
+    swap_positions(@conversation_kanban_state, sibling_state) if sibling_state
+
+    render :update
   end
 
   def destroy
@@ -65,5 +72,27 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def card_params
     params.require(:card).permit(:conversation_id, :kanban_stage_id, :position)
+  end
+
+  def sibling_state_for_reorder
+    return unless %w[up down].include?(params[:direction])
+
+    ordered_states = @kanban_board
+                     .conversation_kanban_states
+                     .where(kanban_stage_id: @conversation_kanban_state.kanban_stage_id)
+                     .ordered
+                     .to_a
+    state_index = ordered_states.index(@conversation_kanban_state)
+    offset = params[:direction] == 'up' ? -1 : 1
+
+    ordered_states[state_index + offset] if state_index && (state_index + offset).between?(0, ordered_states.length - 1)
+  end
+
+  def swap_positions(state, sibling_state)
+    ConversationKanbanState.transaction do
+      state_position = state.position
+      state.update!(position: sibling_state.position)
+      sibling_state.update!(position: state_position)
+    end
   end
 end
