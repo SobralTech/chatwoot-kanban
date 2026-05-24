@@ -284,6 +284,110 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it 'reorders a card by explicit position within the same stage' do
+      second_conversation = create(:conversation, account: account)
+      third_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: second_conversation.inbox)
+      create(:inbox_member, user: agent, inbox: third_conversation.inbox)
+      first_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      second_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: second_conversation,
+        position: 2
+      )
+      third_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: third_conversation,
+        position: 3
+      )
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{third_conversation.display_id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(third_card.reload.position).to eq(1)
+      expect(first_card.reload.position).to eq(2)
+      expect(second_card.reload.position).to eq(3)
+    end
+
+    it 'moves a card to another stage by explicit stage and position' do
+      destination_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+      destination_conversation = create(:conversation, account: account)
+      source_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: destination_conversation.inbox)
+      create(:inbox_member, user: agent, inbox: source_conversation.inbox)
+      moving_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      source_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: source_conversation,
+        position: 2
+      )
+      destination_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: destination_stage,
+        conversation: destination_conversation,
+        position: 1
+      )
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{conversation.display_id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: destination_stage.id, position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(moving_card.reload.kanban_stage).to eq(destination_stage)
+      expect(moving_card.position).to eq(1)
+      expect(source_card.reload.position).to eq(1)
+      expect(destination_card.reload.position).to eq(2)
+    end
+
+    it 'does not move a card to a stage from another board with explicit payload' do
+      other_board = create(:kanban_board, account: account)
+      other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
+      create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{conversation.display_id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: other_stage.id, position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   describe 'DELETE /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/{conversation_id}' do

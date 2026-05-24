@@ -46,7 +46,61 @@ class ConversationKanbanState < ApplicationRecord
     end
   end
 
+  def reorder_to_position!(target_stage:, target_position:, moved_by:, moved_at:)
+    previous_stage = kanban_stage
+
+    normalize_reorder_stages!(previous_stage, target_stage)
+    reload
+
+    reordered_states = reordered_stage_states(target_stage, target_position)
+    update_stage_positions!(reordered_states, target_stage, moved_by: moved_by, moved_at: moved_at)
+    normalize_previous_stage!(previous_stage, target_stage)
+    reload
+  end
+
   private
+
+  def normalize_reorder_stages!(previous_stage, target_stage)
+    self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: previous_stage)
+    return if previous_stage == target_stage
+
+    self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: target_stage)
+  end
+
+  def reordered_stage_states(target_stage, target_position)
+    states = stage_states_without_self(target_stage)
+    clamped_position = target_position.to_i.clamp(1, states.length + 1)
+
+    states.insert(clamped_position - 1, self)
+  end
+
+  def stage_states_without_self(stage)
+    self.class.where(kanban_board: kanban_board, kanban_stage: stage).where.not(id: id).ordered.to_a
+  end
+
+  def update_stage_positions!(states, target_stage, moved_by:, moved_at:)
+    states.each_with_index do |state, index|
+      attributes = changed_position_attributes_for(state, target_stage, index + 1, moved_by, moved_at)
+      state.update!(attributes) if attributes.present?
+    end
+  end
+
+  def changed_position_attributes_for(state, target_stage, position, moved_by, moved_at)
+    attributes = {}
+    attributes[:position] = position if state.position != position
+    return attributes if state != self
+
+    attributes[:kanban_stage] = target_stage if state.kanban_stage != target_stage
+    attributes[:moved_by] = moved_by
+    attributes[:moved_at] = moved_at
+    attributes
+  end
+
+  def normalize_previous_stage!(previous_stage, target_stage)
+    return if previous_stage == target_stage
+
+    self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: previous_stage)
+  end
 
   def validate_account_consistency
     validate_account_for(:conversation)

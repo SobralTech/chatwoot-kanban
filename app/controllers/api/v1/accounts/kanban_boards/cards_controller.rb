@@ -29,17 +29,19 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def reorder
-    return render :update unless %w[up down].include?(params[:direction])
-
     ConversationKanbanState.transaction do
-      normalize_cards_for_stage(@conversation_kanban_state.kanban_stage)
-      @conversation_kanban_state.reload
+      if reorder_with_position?
+        reorder_to_position!
+      elsif %w[up down].include?(params[:direction])
+        normalize_cards_for_stage(@conversation_kanban_state.kanban_stage)
+        @conversation_kanban_state.reload
 
-      sibling_state = sibling_state_for_reorder
-      swap_positions(@conversation_kanban_state, sibling_state) if sibling_state
+        sibling_state = sibling_state_for_reorder
+        swap_positions(@conversation_kanban_state, sibling_state) if sibling_state
 
-      normalize_cards_for_stage(@conversation_kanban_state.kanban_stage)
-      @conversation_kanban_state.reload
+        normalize_cards_for_stage(@conversation_kanban_state.kanban_stage)
+        @conversation_kanban_state.reload
+      end
     end
 
     render :update
@@ -118,5 +120,25 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def normalize_cards_for_stage(kanban_stage)
     ConversationKanbanState.normalize_positions_for_stage!(kanban_board: @kanban_board, kanban_stage: kanban_stage)
+  end
+
+  def reorder_with_position?
+    params[:card].present? && (params.dig(:card, :position).present? || params.dig(:card, :kanban_stage_id).present?)
+  end
+
+  def reorder_to_position!
+    @conversation_kanban_state.reorder_to_position!(
+      target_stage: target_stage_for_reorder,
+      target_position: params.dig(:card, :position),
+      moved_by: Current.user.is_a?(User) ? Current.user : nil,
+      moved_at: Time.current
+    )
+  end
+
+  def target_stage_for_reorder
+    stage_id = params.dig(:card, :kanban_stage_id)
+    return @conversation_kanban_state.kanban_stage if stage_id.blank?
+
+    @kanban_board.kanban_stages.active.find(stage_id)
   end
 end

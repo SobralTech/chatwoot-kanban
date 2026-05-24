@@ -114,6 +114,22 @@ RSpec.describe 'Kanban Stages API', type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it 'reorders a stage by explicit position' do
+      first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+      second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+      third_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 3)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{third_stage.id}/reorder",
+            headers: administrator.create_new_auth_token,
+            params: { position: 1 },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(third_stage.reload.position).to eq(1)
+      expect(first_stage.reload.position).to eq(2)
+      expect(second_stage.reload.position).to eq(3)
+    end
   end
 
   describe 'DELETE /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages/{id}' do

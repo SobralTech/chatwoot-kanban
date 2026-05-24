@@ -12,14 +12,16 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def reorder
-    return render :update unless %w[left right].include?(params[:direction])
-
     KanbanStage.transaction do
       KanbanStage.normalize_positions_for_board!(@kanban_board)
       @kanban_stage.reload
 
-      sibling_stage = sibling_stage_for_reorder
-      swap_positions(@kanban_stage, sibling_stage) if sibling_stage
+      if params[:position].present?
+        move_stage_to_position
+      elsif %w[left right].include?(params[:direction])
+        sibling_stage = sibling_stage_for_reorder
+        swap_positions(@kanban_stage, sibling_stage) if sibling_stage
+      end
 
       KanbanStage.normalize_positions_for_board!(@kanban_board)
       @kanban_stage.reload
@@ -69,6 +71,25 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
       stage_position = stage.position
       stage.update!(position: sibling_stage.position)
       sibling_stage.update!(position: stage_position)
+    end
+  end
+
+  def move_stage_to_position
+    ordered_stages = @kanban_board.kanban_stages.active.ordered.to_a
+    current_index = ordered_stages.index(@kanban_stage)
+    return unless current_index
+
+    target_position = params[:position].to_i
+    clamped_index = (target_position - 1).clamp(0, ordered_stages.length - 1)
+    return if clamped_index == current_index
+
+    ordered_stages.delete_at(current_index)
+    ordered_stages.insert(clamped_index, @kanban_stage)
+
+    ordered_stages.each_with_index do |stage, index|
+      next if stage.position == index + 1
+
+      stage.update!(position: index + 1)
     end
   end
 end

@@ -149,7 +149,11 @@ const onMove = event => {
 </script>
 
 <template>
-  <article class="rounded-lg border border-n-weak bg-n-surface-1 p-3">
+  <article
+    class="rounded-lg border border-n-weak bg-n-surface-1 p-3"
+    :data-card-id="card.id"
+    :data-conversation-id="card.conversationId"
+  >
     <button
       type="button"
       class="w-full text-left"
@@ -164,9 +168,19 @@ const onMove = event => {
         <h4 class="min-w-0 truncate text-sm font-medium text-n-slate-12">
           {{ contactName }}
         </h4>
-        <span class="flex-shrink-0 text-xs text-n-slate-10">
-          {{ displayId }}
-        </span>
+        <div class="flex items-center gap-2">
+          <span class="flex-shrink-0 text-xs text-n-slate-10">
+            {{ displayId }}
+          </span>
+          <span
+            class="card-drag-handle cursor-grab rounded border border-n-weak p-1 text-n-slate-10"
+            :aria-label="t('KANBAN.ACTIONS.MOVE_CARD')"
+            role="button"
+            @click.stop
+          >
+            <i class="i-lucide-grip-vertical size-3.5" />
+          </span>
+        </div>
       </div>
 
       <p class="mt-2 line-clamp-2 text-sm leading-5 text-n-slate-11">

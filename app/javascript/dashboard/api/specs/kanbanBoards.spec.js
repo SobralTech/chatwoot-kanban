@@ -77,6 +77,16 @@ describe('#KanbanBoardsAPI', () => {
       );
     });
 
+    it('#reorderStage with payload object', () => {
+      const payload = { position: 2 };
+      kanbanBoards.reorderStage(2, 3, payload);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/stages/3/reorder',
+        payload
+      );
+    });
+
     it('#createCard', () => {
       const payload = { card: { conversation_id: 10, kanban_stage_id: 3 } };
       kanbanBoards.createCard(2, payload);
@@ -111,6 +121,16 @@ describe('#KanbanBoardsAPI', () => {
       expect(axiosMock.patch).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/10/reorder',
         { direction: 'up' }
+      );
+    });
+
+    it('#reorderCard with payload object', () => {
+      const payload = { card: { kanban_stage_id: 4, position: 1 } };
+      kanbanBoards.reorderCard(2, 10, payload);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/10/reorder',
+        payload
       );
     });
   });

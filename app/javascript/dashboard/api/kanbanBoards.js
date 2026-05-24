@@ -14,10 +14,15 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.patch(`${this.url}/${boardId}/stages/${stageId}`, payload);
   }
 
-  reorderStage(boardId, stageId, direction) {
-    return axios.patch(`${this.url}/${boardId}/stages/${stageId}/reorder`, {
-      direction,
-    });
+  reorderStage(boardId, stageId, payloadOrDirection) {
+    const payload =
+      typeof payloadOrDirection === 'string'
+        ? { direction: payloadOrDirection }
+        : payloadOrDirection;
+    return axios.patch(
+      `${this.url}/${boardId}/stages/${stageId}/reorder`,
+      payload
+    );
   }
 
   deleteStage(boardId, stageId) {
@@ -35,10 +40,14 @@ class KanbanBoardsAPI extends ApiClient {
     );
   }
 
-  reorderCard(boardId, conversationId, direction) {
+  reorderCard(boardId, conversationId, payloadOrDirection) {
+    const payload =
+      typeof payloadOrDirection === 'string'
+        ? { direction: payloadOrDirection }
+        : payloadOrDirection;
     return axios.patch(
       `${this.url}/${boardId}/cards/${conversationId}/reorder`,
-      { direction }
+      payload
     );
   }
 

@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
+import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
@@ -44,6 +45,14 @@ const hasBoards = computed(() => boards.value.length > 0);
 const isInitialLoading = computed(
   () => isFetchingBoards.value && !selectedBoard.value
 );
+const stageListModel = computed({
+  get: () => selectedBoard.value?.stages || [],
+  set: nextStages => {
+    if (!selectedBoard.value) return;
+
+    selectedBoard.value = { ...selectedBoard.value, stages: nextStages };
+  },
+});
 
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
@@ -436,6 +445,77 @@ const reorderCard = async (card, direction) => {
   }
 };
 
+const reorderStageByPosition = async (stage, position) => {
+  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+
+  activeActionKey.value = `reorder-stage-${stage.id}`;
+  actionError.value = '';
+
+  try {
+    await KanbanBoardsAPI.reorderStage(selectedBoard.value.id, stage.id, {
+      position,
+    });
+    await refreshSelectedBoard();
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.REORDER_STAGE_ERROR'));
+    await refreshSelectedBoard();
+  } finally {
+    activeActionKey.value = '';
+  }
+};
+
+const onStageDragEnd = async event => {
+  const stageId = Number(event?.item?.dataset?.stageId);
+  const newIndex = event?.newIndex;
+  const oldIndex = event?.oldIndex;
+  if (!stageId || oldIndex === newIndex || newIndex === undefined) return;
+
+  const stage = stages.value.find(item => item.id === stageId);
+  if (!stage) return;
+
+  await reorderStageByPosition(stage, newIndex + 1);
+};
+
+const onCardDragChange = async (stage, event) => {
+  const card = event?.added?.element || event?.moved?.element;
+  const targetIndex = event?.added?.newIndex ?? event?.moved?.newIndex;
+  if (
+    !selectedBoard.value?.id ||
+    !stage?.id ||
+    !card ||
+    targetIndex === undefined
+  ) {
+    return;
+  }
+
+  const destinationPosition = targetIndex + 1;
+  const stageChanged = card.kanbanStageId !== stage.id;
+  const positionChanged = card.position !== destinationPosition;
+  if (!stageChanged && !positionChanged) return;
+
+  activeActionKey.value = `reorder-card-${card.id}`;
+  actionError.value = '';
+
+  try {
+    await KanbanBoardsAPI.reorderCard(
+      selectedBoard.value.id,
+      card.conversationId,
+      {
+        card: {
+          kanban_stage_id: stage.id,
+          position: destinationPosition,
+        },
+      }
+    );
+    await refreshSelectedBoard();
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
+    await refreshSelectedBoard();
+  } finally {
+    activeActionKey.value = '';
+  }
+};
+
 const openRemoveCardConfirmation = card => {
   cardPendingRemoval.value = card;
   showRemoveCardConfirmation.value = true;
@@ -756,135 +836,169 @@ onMounted(fetchBoards);
         </div>
       </div>
 
-      <div v-else class="flex min-h-0 flex-1 gap-4 overflow-x-auto p-4">
-        <section
-          v-for="stage in stages"
-          :key="stage.id"
-          class="flex w-80 flex-shrink-0 flex-col rounded-lg border border-n-weak bg-n-surface-2"
+      <div v-else class="flex min-h-0 flex-1 overflow-x-auto p-4">
+        <Draggable
+          v-model="stageListModel"
+          item-key="id"
+          class="flex min-h-0 gap-4"
+          handle=".stage-drag-handle"
+          ghost-class="opacity-60"
+          chosen-class="opacity-90"
+          :animation="180"
+          @end="onStageDragEnd"
         >
-          <header
-            class="flex min-h-12 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
-          >
-            <form
-              v-if="editingStageId === stage.id"
-              class="flex min-w-0 flex-1 gap-2"
-              @submit.prevent="updateStage(stage)"
+          <template #item="{ element: stage }">
+            <section
+              :data-stage-id="stage.id"
+              class="flex w-80 flex-shrink-0 flex-col rounded-lg border border-n-weak bg-n-surface-2"
             >
-              <input
-                v-model="stageNames[stage.id]"
-                type="text"
-                class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-                :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-              />
-              <button
-                type="submit"
-                class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="
-                  !String(stageNames[stage.id] || '').trim() ||
-                  !!activeActionKey
-                "
+              <header
+                class="flex min-h-12 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
               >
-                {{ t('KANBAN.ACTIONS.SAVE_STAGE') }}
-              </button>
-              <button
-                type="button"
-                class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12"
-                @click="cancelEditingStage"
+                <form
+                  v-if="editingStageId === stage.id"
+                  class="flex min-w-0 flex-1 gap-2"
+                  @submit.prevent="updateStage(stage)"
+                >
+                  <input
+                    v-model="stageNames[stage.id]"
+                    type="text"
+                    class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                    :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+                  />
+                  <button
+                    type="submit"
+                    class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="
+                      !String(stageNames[stage.id] || '').trim() ||
+                      !!activeActionKey
+                    "
+                  >
+                    {{ t('KANBAN.ACTIONS.SAVE_STAGE') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12"
+                    @click="cancelEditingStage"
+                  >
+                    {{ t('KANBAN.ACTIONS.CANCEL') }}
+                  </button>
+                </form>
+                <template v-else>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5">
+                      <span
+                        class="stage-drag-handle cursor-grab rounded border border-n-weak p-1 text-n-slate-10"
+                      >
+                        <i class="i-lucide-grip-horizontal size-3.5" />
+                      </span>
+                      <h3 class="truncate text-sm font-medium text-n-slate-12">
+                        {{ stage.name }}
+                      </h3>
+                    </div>
+                    <span class="text-xs text-n-slate-10">
+                      {{ stage.cards.length }}
+                    </span>
+                  </div>
+                  <div class="flex flex-shrink-0 gap-1">
+                    <button
+                      type="button"
+                      class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="isFirstStage(stage) || !!activeActionKey"
+                      :aria-label="t('KANBAN.ACTIONS.MOVE_STAGE_LEFT')"
+                      @click="reorderStage(stage, 'left')"
+                    >
+                      <i class="i-lucide-chevron-left size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="isLastStage(stage) || !!activeActionKey"
+                      :aria-label="t('KANBAN.ACTIONS.MOVE_STAGE_RIGHT')"
+                      @click="reorderStage(stage, 'right')"
+                    >
+                      <i class="i-lucide-chevron-right size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="!!activeActionKey"
+                      @click="startEditingStage(stage)"
+                    >
+                      {{ t('KANBAN.ACTIONS.EDIT_STAGE') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="!!activeActionKey"
+                      @click="openRemoveStageConfirmation(stage)"
+                    >
+                      {{ t('KANBAN.ACTIONS.REMOVE_STAGE') }}
+                    </button>
+                  </div>
+                </template>
+              </header>
+
+              <div
+                class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
               >
-                {{ t('KANBAN.ACTIONS.CANCEL') }}
-              </button>
-            </form>
-            <template v-else>
-              <div class="min-w-0 flex-1">
-                <h3 class="truncate text-sm font-medium text-n-slate-12">
-                  {{ stage.name }}
-                </h3>
-                <span class="text-xs text-n-slate-10">
-                  {{ stage.cards.length }}
-                </span>
+                <form class="flex gap-2" @submit.prevent="addCard(stage)">
+                  <input
+                    v-model="cardConversationIds[stage.id]"
+                    type="number"
+                    min="1"
+                    class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                    :placeholder="
+                      t('KANBAN.ACTIONS.CONVERSATION_ID_PLACEHOLDER')
+                    "
+                  />
+                  <button
+                    type="submit"
+                    class="flex-shrink-0 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="
+                      !String(cardConversationIds[stage.id] || '').trim() ||
+                      !!activeActionKey
+                    "
+                  >
+                    {{ t('KANBAN.ACTIONS.ADD_CARD') }}
+                  </button>
+                </form>
+
+                <p
+                  v-if="stage.cards.length === 0"
+                  class="px-1 py-2 text-sm text-n-slate-10"
+                >
+                  {{ t('KANBAN.EMPTY_CARDS') }}
+                </p>
+
+                <Draggable
+                  :list="stage.cards"
+                  item-key="id"
+                  :group="{ name: 'kanban-cards' }"
+                  handle=".card-drag-handle"
+                  ghost-class="opacity-60"
+                  chosen-class="opacity-90"
+                  :animation="180"
+                  @change="onCardDragChange(stage, $event)"
+                >
+                  <template #item="{ element: card, index: cardIndex }">
+                    <KanbanConversationCard
+                      :card="card"
+                      :stages="stages"
+                      :active-action-key="activeActionKey"
+                      :is-first="cardIndex === 0"
+                      :is-last="cardIndex === stage.cards.length - 1"
+                      @move-card="moveCard"
+                      @open-conversation="openConversation"
+                      @remove-card="openRemoveCardConfirmation"
+                      @reorder-card="reorderCard"
+                    />
+                  </template>
+                </Draggable>
               </div>
-              <div class="flex flex-shrink-0 gap-1">
-                <button
-                  type="button"
-                  class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="isFirstStage(stage) || !!activeActionKey"
-                  :aria-label="t('KANBAN.ACTIONS.MOVE_STAGE_LEFT')"
-                  @click="reorderStage(stage, 'left')"
-                >
-                  <i class="i-lucide-chevron-left size-4" />
-                </button>
-                <button
-                  type="button"
-                  class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="isLastStage(stage) || !!activeActionKey"
-                  :aria-label="t('KANBAN.ACTIONS.MOVE_STAGE_RIGHT')"
-                  @click="reorderStage(stage, 'right')"
-                >
-                  <i class="i-lucide-chevron-right size-4" />
-                </button>
-                <button
-                  type="button"
-                  class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!!activeActionKey"
-                  @click="startEditingStage(stage)"
-                >
-                  {{ t('KANBAN.ACTIONS.EDIT_STAGE') }}
-                </button>
-                <button
-                  type="button"
-                  class="rounded-md border border-n-weak px-2 py-1.5 text-xs font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!!activeActionKey"
-                  @click="openRemoveStageConfirmation(stage)"
-                >
-                  {{ t('KANBAN.ACTIONS.REMOVE_STAGE') }}
-                </button>
-              </div>
-            </template>
-          </header>
-
-          <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
-            <form class="flex gap-2" @submit.prevent="addCard(stage)">
-              <input
-                v-model="cardConversationIds[stage.id]"
-                type="number"
-                min="1"
-                class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                :placeholder="t('KANBAN.ACTIONS.CONVERSATION_ID_PLACEHOLDER')"
-              />
-              <button
-                type="submit"
-                class="flex-shrink-0 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="
-                  !String(cardConversationIds[stage.id] || '').trim() ||
-                  !!activeActionKey
-                "
-              >
-                {{ t('KANBAN.ACTIONS.ADD_CARD') }}
-              </button>
-            </form>
-
-            <p
-              v-if="stage.cards.length === 0"
-              class="px-1 py-2 text-sm text-n-slate-10"
-            >
-              {{ t('KANBAN.EMPTY_CARDS') }}
-            </p>
-
-            <KanbanConversationCard
-              v-for="(card, cardIndex) in stage.cards"
-              :key="card.id"
-              :card="card"
-              :stages="stages"
-              :active-action-key="activeActionKey"
-              :is-first="cardIndex === 0"
-              :is-last="cardIndex === stage.cards.length - 1"
-              @move-card="moveCard"
-              @open-conversation="openConversation"
-              @remove-card="openRemoveCardConfirmation"
-              @reorder-card="reorderCard"
-            />
-          </div>
-        </section>
+            </section>
+          </template>
+        </Draggable>
       </div>
     </section>
 
