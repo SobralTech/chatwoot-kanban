@@ -197,40 +197,6 @@ describe('KanbanView drag and drop', () => {
     });
   });
 
-  it('keeps manual card reorder controls working', async () => {
-    const wrapper = await mountView();
-    const cardComponent = wrapper.findComponent({
-      name: 'KanbanConversationCard',
-    });
-
-    cardComponent.vm.$emit(
-      'reorderCard',
-      { id: 501, conversationId: 123 },
-      'up'
-    );
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.reorderCard).toHaveBeenCalledWith(10, 123, 'up');
-  });
-
-  it('keeps manual stage-select move control working', async () => {
-    const wrapper = await mountView();
-    const cardComponent = wrapper.findComponent({
-      name: 'KanbanConversationCard',
-    });
-
-    cardComponent.vm.$emit(
-      'moveCard',
-      { id: 501, conversationId: 123, kanbanStageId: 100 },
-      200
-    );
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.updateCard).toHaveBeenCalledWith(10, 123, {
-      card: { kanban_stage_id: 200 },
-    });
-  });
-
   it('keeps card click navigation working', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({

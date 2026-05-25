@@ -433,66 +433,6 @@ const addCard = async stage => {
   }
 };
 
-const moveCard = async (card, kanbanStageId) => {
-  const nextStageId = Number(kanbanStageId);
-  if (
-    !selectedBoard.value?.id ||
-    !nextStageId ||
-    nextStageId === card.kanbanStageId ||
-    activeActionKey.value
-  ) {
-    return;
-  }
-
-  activeActionKey.value = `move-card-${card.id}`;
-  actionError.value = '';
-
-  try {
-    await KanbanBoardsAPI.updateCard(
-      selectedBoard.value.id,
-      card.conversationId,
-      {
-        card: {
-          kanban_stage_id: nextStageId,
-        },
-      }
-    );
-    await refreshSelectedBoard();
-    useAlert(t('KANBAN.ACTIONS.MOVE_CARD_SUCCESS'));
-  } catch (error) {
-    showActionError(error, t('KANBAN.ACTIONS.MOVE_CARD_ERROR'));
-  } finally {
-    activeActionKey.value = '';
-  }
-};
-
-const reorderCard = async (card, direction) => {
-  if (
-    !selectedBoard.value?.id ||
-    !card?.conversationId ||
-    activeActionKey.value
-  ) {
-    return;
-  }
-
-  activeActionKey.value = `reorder-card-${card.id}`;
-  actionError.value = '';
-
-  try {
-    await KanbanBoardsAPI.reorderCard(
-      selectedBoard.value.id,
-      card.conversationId,
-      direction
-    );
-    await refreshSelectedBoard();
-    useAlert(t('KANBAN.ACTIONS.REORDER_CARD_SUCCESS'));
-  } catch (error) {
-    showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
-  } finally {
-    activeActionKey.value = '';
-  }
-};
-
 const reorderStageByPosition = async (stage, position) => {
   if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
 
@@ -707,9 +647,10 @@ onMounted(fetchBoards);
           />
           <button
             type="submit"
-            class="flex-shrink-0 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex flex-shrink-0 items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="!newBoardName.trim() || isCreatingBoard"
           >
+            <i class="i-lucide-plus size-4" />
             {{ t('KANBAN.ACTIONS.CREATE_BOARD') }}
           </button>
         </form>
@@ -766,16 +707,18 @@ onMounted(fetchBoards);
             <div class="flex gap-2">
               <button
                 type="submit"
-                class="rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                class="flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="!boardForm.name.trim() || isUpdatingBoard"
               >
+                <i class="i-lucide-check size-4" />
                 {{ t('KANBAN.ACTIONS.SAVE_BOARD') }}
               </button>
               <button
                 type="button"
-                class="rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
+                class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
                 @click="cancelEditingBoard"
               >
+                <i class="i-lucide-x size-4" />
                 {{ t('KANBAN.ACTIONS.CANCEL') }}
               </button>
             </div>
@@ -795,18 +738,20 @@ onMounted(fetchBoards);
         <div v-if="selectedBoard && !isEditingBoard" class="flex gap-2">
           <button
             type="button"
-            class="rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isDeletingBoard"
             @click="startEditingBoard"
           >
+            <i class="i-lucide-pencil size-4" />
             {{ t('KANBAN.ACTIONS.EDIT_BOARD') }}
           </button>
           <button
             type="button"
-            class="rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isDeletingBoard"
             @click="openRemoveBoardConfirmation"
           >
+            <i class="i-lucide-trash size-4" />
             {{ t('KANBAN.ACTIONS.REMOVE_BOARD') }}
           </button>
         </div>
@@ -824,30 +769,12 @@ onMounted(fetchBoards);
             />
             <button
               type="submit"
-              class="flex-shrink-0 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+              class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="!newStageName.trim() || isCreatingStage"
             >
+              <i class="i-lucide-plus size-4" />
               {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
             </button>
-          </div>
-          <div
-            class="flex items-center gap-1.5"
-            :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
-          >
-            <button
-              v-for="colorOption in stageColorOptions"
-              :key="colorOption.value"
-              type="button"
-              class="size-5 rounded-full border border-n-weak ring-offset-2 ring-offset-n-surface-1"
-              :class="[
-                colorOption.swatchClass,
-                newStageColor === colorOption.value
-                  ? 'ring-2 ring-n-slate-12'
-                  : 'hover:ring-2 hover:ring-n-slate-8',
-              ]"
-              :aria-label="getSelectStageColorLabel(colorOption)"
-              @click="newStageColor = colorOption.value"
-            />
           </div>
         </form>
       </header>
@@ -918,7 +845,7 @@ onMounted(fetchBoards);
               class="flex w-80 flex-shrink-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
             >
               <header
-                class="flex min-h-14 items-center justify-between gap-2 px-3 py-2 text-white"
+                class="stage-drag-handle cursor-grab flex min-h-14 items-center justify-between gap-2 px-3 py-2 text-white"
                 :class="getStageHeaderClass(stage)"
               >
                 <form
@@ -935,20 +862,24 @@ onMounted(fetchBoards);
                     />
                     <button
                       type="submit"
-                      class="rounded-md border border-white/30 bg-white/10 px-2 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
                       :disabled="
                         !String(stageNames[stage.id] || '').trim() ||
                         !!activeActionKey
                       "
+                      :aria-label="t('KANBAN.ACTIONS.SAVE_STAGE')"
+                      :title="t('KANBAN.ACTIONS.SAVE_STAGE')"
                     >
-                      {{ t('KANBAN.ACTIONS.SAVE_STAGE') }}
+                      <i class="i-lucide-check size-4" />
                     </button>
                     <button
                       type="button"
-                      class="rounded-md border border-white/30 bg-white/10 px-2 py-1.5 text-xs font-medium text-white"
+                      class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20"
+                      :aria-label="t('KANBAN.ACTIONS.CANCEL')"
+                      :title="t('KANBAN.ACTIONS.CANCEL')"
                       @click="cancelEditingStage"
                     >
-                      {{ t('KANBAN.ACTIONS.CANCEL') }}
+                      <i class="i-lucide-x size-4" />
                     </button>
                   </div>
                   <div
@@ -973,11 +904,6 @@ onMounted(fetchBoards);
                 </form>
                 <template v-else>
                   <div class="flex min-w-0 flex-1 items-center gap-2">
-                    <span
-                      class="stage-drag-handle flex-shrink-0 cursor-grab rounded border border-white/30 bg-white/10 p-1 text-white/80"
-                    >
-                      <i class="i-lucide-grip-horizontal size-3.5" />
-                    </span>
                     <h3 class="truncate text-sm font-medium">
                       {{ stage.name }}
                     </h3>
@@ -1053,17 +979,12 @@ onMounted(fetchBoards);
                   :animation="180"
                   @change="onCardDragChange(stage, $event)"
                 >
-                  <template #item="{ element: card, index: cardIndex }">
+                  <template #item="{ element: card }">
                     <KanbanConversationCard
                       :card="card"
-                      :stages="stages"
                       :active-action-key="activeActionKey"
-                      :is-first="cardIndex === 0"
-                      :is-last="cardIndex === stage.cards.length - 1"
-                      @move-card="moveCard"
                       @open-conversation="openConversation"
                       @remove-card="openRemoveCardConfirmation"
-                      @reorder-card="reorderCard"
                     />
                   </template>
                 </Draggable>

@@ -83,21 +83,11 @@ describe('KanbanConversationCard', () => {
   it('does not emit openConversation for card controls and notes actions', async () => {
     const wrapper = mountCard();
 
-    await wrapper
-      .find('button[aria-label="KANBAN.ACTIONS.MOVE_CARD_UP"]')
-      .trigger('click');
-    await wrapper
-      .find('button[aria-label="KANBAN.ACTIONS.MOVE_CARD_DOWN"]')
-      .trigger('click');
-    await wrapper
-      .find('select[aria-label="KANBAN.ACTIONS.MOVE_CARD"]')
-      .setValue('2');
-    await wrapper.find('.card-drag-handle').trigger('click');
     await wrapper.find('button[type="button"].text-xs').trigger('click');
+    await wrapper.find('button.text-n-ruby-11').trigger('click');
 
     expect(wrapper.emitted('openConversation')).toBeUndefined();
-    expect(wrapper.emitted('reorderCard')).toHaveLength(2);
-    expect(wrapper.emitted('moveCard')).toHaveLength(1);
+    expect(wrapper.emitted('removeCard')).toHaveLength(1);
   });
 
   it('fetches notes when opening notes panel and creates a note', async () => {

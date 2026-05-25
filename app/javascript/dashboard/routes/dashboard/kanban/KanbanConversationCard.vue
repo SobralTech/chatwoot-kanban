@@ -14,30 +14,13 @@ const props = defineProps({
     type: Object,
     required: true,
   },
-  stages: {
-    type: Array,
-    required: true,
-  },
   activeActionKey: {
     type: String,
     default: '',
   },
-  isFirst: {
-    type: Boolean,
-    default: false,
-  },
-  isLast: {
-    type: Boolean,
-    default: false,
-  },
 });
 
-const emit = defineEmits([
-  'moveCard',
-  'openConversation',
-  'removeCard',
-  'reorderCard',
-]);
+const emit = defineEmits(['openConversation', 'removeCard']);
 
 const { t } = useI18n();
 const store = useStore();
@@ -142,15 +125,11 @@ const createNote = async () => {
     isCreatingNote.value = false;
   }
 };
-
-const onMove = event => {
-  emit('moveCard', props.card, event.target.value);
-};
 </script>
 
 <template>
   <article
-    class="rounded-lg border border-n-weak bg-n-surface-1 p-3"
+    class="card-drag-handle cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-3"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
   >
@@ -171,14 +150,6 @@ const onMove = event => {
         <div class="flex items-center gap-2">
           <span class="flex-shrink-0 text-xs text-n-slate-10">
             {{ displayId }}
-          </span>
-          <span
-            class="card-drag-handle cursor-grab rounded border border-n-weak p-1 text-n-slate-10"
-            :aria-label="t('KANBAN.ACTIONS.MOVE_CARD')"
-            role="button"
-            @click.stop
-          >
-            <i class="i-lucide-grip-vertical size-3.5" />
           </span>
         </div>
       </div>
@@ -210,50 +181,14 @@ const onMove = event => {
       </span>
     </div>
 
-    <div class="mt-3 flex items-center gap-2">
-      <div class="flex flex-shrink-0 gap-1">
-        <button
-          type="button"
-          class="flex size-9 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isFirst || !!activeActionKey"
-          :aria-label="t('KANBAN.ACTIONS.MOVE_CARD_UP')"
-          @click="emit('reorderCard', card, 'up')"
-        >
-          <i class="i-lucide-chevron-up size-4" />
-        </button>
-        <button
-          type="button"
-          class="flex size-9 items-center justify-center rounded-md border border-n-weak text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isLast || !!activeActionKey"
-          :aria-label="t('KANBAN.ACTIONS.MOVE_CARD_DOWN')"
-          @click="emit('reorderCard', card, 'down')"
-        >
-          <i class="i-lucide-chevron-down size-4" />
-        </button>
-      </div>
-
-      <select
-        class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-        :value="card.kanbanStageId"
-        :disabled="!!activeActionKey"
-        :aria-label="t('KANBAN.ACTIONS.MOVE_CARD')"
-        @change="onMove"
-      >
-        <option
-          v-for="targetStage in stages"
-          :key="targetStage.id"
-          :value="targetStage.id"
-        >
-          {{ targetStage.name }}
-        </option>
-      </select>
-
+    <div class="mt-3 flex items-center justify-end">
       <button
         type="button"
-        class="flex-shrink-0 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
+        class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="!!activeActionKey"
         @click="emit('removeCard', card)"
       >
+        <i class="i-lucide-trash size-4" />
         {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
       </button>
     </div>
@@ -261,10 +196,11 @@ const onMove = event => {
     <div class="mt-3 border-t border-n-weak pt-3">
       <button
         type="button"
-        class="text-xs font-medium text-n-brand"
+        class="flex items-center gap-1 text-xs font-medium text-n-brand"
         :disabled="!contactId"
         @click="toggleNotes"
       >
+        <i class="i-lucide-message-square size-3.5" />
         {{ isNotesOpen ? t('KANBAN.NOTES.HIDE') : t('KANBAN.NOTES.SHOW') }}
       </button>
 
@@ -283,9 +219,10 @@ const onMove = event => {
             />
             <button
               type="submit"
-              class="justify-self-start rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+              class="flex items-center gap-1 justify-self-start rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="!noteContent.trim() || isCreatingNote"
             >
+              <i class="i-lucide-plus size-4" />
               {{ t('KANBAN.NOTES.ADD') }}
             </button>
           </form>

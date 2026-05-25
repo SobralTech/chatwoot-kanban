@@ -20,6 +20,52 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['name']).to eq('Proposal')
       expect(response.parsed_body['color']).to eq('teal')
+      expect(response.parsed_body['position']).to eq(1)
+    end
+
+    it 'inserts the new stage at the beginning and shifts existing active stages' do
+      first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'First', position: 1)
+      second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Second', position: 2)
+
+      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
+           headers: administrator.create_new_auth_token,
+           params: { stage: { name: 'Proposal', position: 99, color: 'teal' } },
+           as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['position']).to eq(1)
+      expect(first_stage.reload.position).to eq(2)
+      expect(second_stage.reload.position).to eq(3)
+    end
+
+    it 'does not shift inactive stages or stages from other boards' do
+      first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'First', position: 1)
+      inactive_stage = create(
+        :kanban_stage,
+        account: account,
+        kanban_board: kanban_board,
+        name: 'Archived',
+        position: 5,
+        active: false
+      )
+      other_board = create(:kanban_board, account: account)
+      other_board_stage = create(
+        :kanban_stage,
+        account: account,
+        kanban_board: other_board,
+        name: 'Other',
+        position: 5
+      )
+
+      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
+           headers: administrator.create_new_auth_token,
+           params: { stage: { name: 'Proposal', position: 99, color: 'teal' } },
+           as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(first_stage.reload.position).to eq(2)
+      expect(inactive_stage.reload.position).to eq(5)
+      expect(other_board_stage.reload.position).to eq(5)
     end
 
     it 'returns unauthorized for agents' do
