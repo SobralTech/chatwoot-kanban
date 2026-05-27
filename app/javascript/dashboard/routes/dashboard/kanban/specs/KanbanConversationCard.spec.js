@@ -44,19 +44,11 @@ const buildCard = () => ({
   },
 });
 
-const stages = [
-  { id: 1, name: 'Todo' },
-  { id: 2, name: 'Doing' },
-];
-
 const mountCard = () =>
   shallowMount(KanbanConversationCard, {
     props: {
       card: buildCard(),
-      stages,
       activeActionKey: '',
-      isFirst: false,
-      isLast: false,
     },
     global: {
       stubs: {

@@ -48,7 +48,6 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     updateStage: vi.fn(),
     deleteStage: vi.fn(),
     createCard: vi.fn(),
-    updateCard: vi.fn(),
     deleteCard: vi.fn(),
   },
 }));
@@ -95,7 +94,6 @@ const mountView = async () => {
   });
   KanbanBoardsAPI.reorderStage.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.reorderCard.mockResolvedValue({ data: {} });
-  KanbanBoardsAPI.updateCard.mockResolvedValue({ data: {} });
 
   const wrapper = shallowMount(KanbanView, {
     global: {
