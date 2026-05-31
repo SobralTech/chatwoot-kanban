@@ -31,7 +31,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
 
       service.perform!
 
-      expect(created_card.subject).to eq('Lead [Maria da Silva] - [WhatsApp Comercial]')
+      expect(created_card.subject).to eq('Maria da Silva - WhatsApp Comercial')
     end
 
     it 'uses fallback names when contact and inbox names are blank' do
@@ -41,7 +41,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
 
       service.perform!
 
-      expect(created_card.subject).to eq("Lead [Contact ##{contact.id}] - [Inbox ##{inbox.id}]")
+      expect(created_card.subject).to eq("Contact ##{contact.id} - Inbox ##{inbox.id}")
     end
 
     it 'sets normalized_subject to nil' do

@@ -73,7 +73,7 @@ class KanbanCards::AutoCreateFromConversationService
   end
 
   def default_subject
-    "Lead [#{contact_display_name}] - [#{inbox_display_name}]"
+    "#{contact_display_name} - #{inbox_display_name}"
   end
 
   def contact_display_name
