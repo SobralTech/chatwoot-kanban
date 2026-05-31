@@ -14,6 +14,46 @@ RSpec.describe KanbanCard do
       expect(card).to be_valid
     end
 
+    it 'allows a card without starts_at and due_at' do
+      card = build(:kanban_card, starts_at: nil, due_at: nil)
+
+      expect(card).to be_valid
+    end
+
+    it 'allows a card with only starts_at' do
+      card = build(:kanban_card, starts_at: 1.day.from_now, due_at: nil)
+
+      expect(card).to be_valid
+    end
+
+    it 'allows a card with only due_at' do
+      card = build(:kanban_card, starts_at: nil, due_at: 1.day.from_now)
+
+      expect(card).to be_valid
+    end
+
+    it 'allows a card with equal starts_at and due_at' do
+      scheduled_at = 1.day.from_now
+      card = build(:kanban_card, starts_at: scheduled_at, due_at: scheduled_at)
+
+      expect(card).to be_valid
+    end
+
+    it 'allows a card with due_at after starts_at' do
+      starts_at = 1.day.from_now
+      card = build(:kanban_card, starts_at: starts_at, due_at: starts_at + 1.hour)
+
+      expect(card).to be_valid
+    end
+
+    it 'rejects a card with due_at before starts_at' do
+      starts_at = 1.day.from_now
+      card = build(:kanban_card, starts_at: starts_at, due_at: starts_at - 1.hour)
+
+      expect(card).not_to be_valid
+      expect(card.errors[:due_at]).to include('must be greater than or equal to starts at')
+    end
+
     it 'requires a subject for manual cards' do
       card = build(:kanban_card, subject: ' ')
 

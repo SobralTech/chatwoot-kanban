@@ -10,6 +10,8 @@ FactoryBot.define do
     origin { 'manual' }
     position { 0 }
     active { true }
+    starts_at { nil }
+    due_at { nil }
 
     trait :conversation_origin do
       account { conversation.account }

@@ -30,6 +30,7 @@ class KanbanCard < ApplicationRecord
               conditions: -> { where(origin: 'conversation') }
             },
             if: :validate_conversation_uniqueness?
+  validate :due_at_after_starts_at
   validate :validate_account_consistency
 
   scope :active, -> { where(active: true) }
@@ -142,6 +143,12 @@ class KanbanCard < ApplicationRecord
 
   def validate_conversation_uniqueness?
     conversation? && conversation_id.present?
+  end
+
+  def due_at_after_starts_at
+    return if starts_at.blank? || due_at.blank? || due_at >= starts_at
+
+    errors.add(:due_at, 'must be greater than or equal to starts at')
   end
 
   def validate_account_consistency
