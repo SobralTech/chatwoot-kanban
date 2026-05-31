@@ -5,9 +5,13 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   before_action :fetch_conversation, only: [:create]
   before_action :authorize_conversation, only: [:create]
   before_action :fetch_manual_card_records, only: [:create_manual]
-  before_action :fetch_mutation_target, only: [:update, :destroy, :reorder]
-  before_action :authorize_mutation_target, only: [:update, :destroy, :reorder]
+  before_action :fetch_mutation_target, only: [:show, :update, :destroy, :reorder]
+  before_action :authorize_mutation_target, only: [:show, :update, :destroy, :reorder]
   before_action :fetch_kanban_stage, only: [:create, :update]
+
+  def show
+    render_card
+  end
 
   def create
     ConversationKanbanState.transaction do
@@ -139,7 +143,10 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def fetch_kanban_stage
-    @kanban_stage = @kanban_board.kanban_stages.active.find(card_params[:kanban_stage_id])
+    stage_id = card_params[:kanban_stage_id]
+    return @kanban_stage = @kanban_card.kanban_stage if stable_card_route? && stage_id.blank?
+
+    @kanban_stage = @kanban_board.kanban_stages.active.find(stage_id)
   end
 
   def fetch_manual_card_records
@@ -164,7 +171,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def card_params
-    params.require(:card).permit(:conversation_id, :kanban_stage_id, :position)
+    params.require(:card).permit(:conversation_id, :kanban_stage_id, :position, :subject, :starts_at, :due_at)
   end
 
   def manual_card_params
@@ -221,10 +228,13 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     source_stage = @kanban_card.kanban_stage
 
     KanbanCard.transaction do
-      @kanban_card.reorder_to_position!(
-        kanban_stage: @kanban_stage,
-        position: card_params[:position] || next_card_position(@kanban_stage)
-      )
+      if stable_card_move_params?
+        @kanban_card.reorder_to_position!(
+          kanban_stage: @kanban_stage,
+          position: card_params[:position] || target_card_position(@kanban_stage)
+        )
+      end
+      @kanban_card.update!(stable_card_update_params)
       sync_legacy_states_for_card_stages(source_stage, @kanban_card.reload.kanban_stage)
     end
 
@@ -261,6 +271,20 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     @kanban_board.kanban_cards.active.where(kanban_stage: kanban_stage).maximum(:position).to_i + 1
   end
 
+  def target_card_position(kanban_stage)
+    return @kanban_card.position if kanban_stage == @kanban_card.kanban_stage
+
+    next_card_position(kanban_stage)
+  end
+
+  def stable_card_update_params
+    card_params.slice(:subject, :starts_at, :due_at)
+  end
+
+  def stable_card_move_params?
+    card_params[:kanban_stage_id].present? || card_params[:position].present?
+  end
+
   def target_card_stage_for_reorder
     stage_id = params.dig(:card, :kanban_stage_id)
     return @kanban_card.kanban_stage if stage_id.blank?
@@ -294,16 +318,10 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def render_card
-    render json: {
-      id: @kanban_card.id,
-      account_id: @kanban_card.account_id,
-      kanban_board_id: @kanban_card.kanban_board_id,
-      kanban_stage_id: @kanban_card.kanban_stage_id,
-      conversation_id: @kanban_card.conversation&.display_id,
-      position: @kanban_card.position,
-      origin: @kanban_card.origin,
-      subject: @kanban_card.subject,
-      active: @kanban_card.active
+    render partial: 'api/v1/accounts/kanban_boards/card', formats: [:json], locals: {
+      card: @kanban_card,
+      conversation_kanban_state: legacy_state_for(@kanban_card),
+      stable_card: true
     }
   end
 

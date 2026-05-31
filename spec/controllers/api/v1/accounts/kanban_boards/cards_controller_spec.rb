@@ -748,6 +748,81 @@ RSpec.describe 'Kanban Cards API', type: :request do
   end
 
   describe 'stable card ID routes' do
+    it 'returns a card detail by stable ID' do
+      card = create_manual_card(subject: 'Cotação de notebooks')
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include(
+        'id' => card.id,
+        'subject' => 'Cotação de notebooks',
+        'starts_at' => nil,
+        'due_at' => nil,
+        'conversation_id' => nil,
+        'conversation' => nil
+      )
+    end
+
+    it 'returns stable detail timestamps as ISO8601' do
+      starts_at = Time.zone.parse('2026-06-01T09:00:00-03:00')
+      due_at = Time.zone.parse('2026-06-05T18:00:00-03:00')
+      card = create_manual_card(starts_at: starts_at, due_at: due_at)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['starts_at']).to eq(starts_at.iso8601)
+      expect(response.parsed_body['due_at']).to eq(due_at.iso8601)
+    end
+
+    it 'returns linked conversation display ID in stable detail' do
+      state = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      card = sync_state(state)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['conversation_id']).to eq(conversation.display_id)
+      expect(response.parsed_body['conversation']).to be_present
+    end
+
+    it 'rejects stable detail for cards from another board' do
+      other_board = create(:kanban_board, account: account)
+      other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
+      card = create_manual_card(kanban_board: other_board, kanban_stage: other_stage)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects unauthorized stable detail cards' do
+      hidden_inbox = create(:inbox, account: account)
+      card = create_manual_card(inbox: hidden_inbox)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
     it 'updates a card by stable ID' do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       card = create_manual_card(position: 1)
@@ -759,6 +834,125 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(card.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+    end
+
+    it 'updates stable scalar card details' do
+      card = create_manual_card(subject: 'Old opportunity')
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: {
+              card: {
+                subject: 'Cotação de notebooks',
+                starts_at: '2026-06-01T09:00:00-03:00',
+                due_at: '2026-06-05T18:00:00-03:00'
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload).to have_attributes(
+        subject: 'Cotação de notebooks',
+        starts_at: Time.zone.parse('2026-06-01T09:00:00-03:00'),
+        due_at: Time.zone.parse('2026-06-05T18:00:00-03:00')
+      )
+      expect(response.parsed_body['starts_at']).to eq(card.starts_at.iso8601)
+      expect(response.parsed_body['due_at']).to eq(card.due_at.iso8601)
+    end
+
+    it 'clears stable card dates' do
+      card = create_manual_card(starts_at: Time.current, due_at: 1.day.from_now)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { starts_at: nil, due_at: nil } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload).to have_attributes(starts_at: nil, due_at: nil)
+      expect(response.parsed_body).to include('starts_at' => nil, 'due_at' => nil)
+    end
+
+    it 'accepts equal stable card start and due timestamps' do
+      card = create_manual_card
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { starts_at: '2026-06-01T09:00:00-03:00', due_at: '2026-06-01T09:00:00-03:00' } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+    end
+
+    it 'rejects stable card due dates before start dates' do
+      card = create_manual_card
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { starts_at: '2026-06-05T18:00:00-03:00', due_at: '2026-06-01T09:00:00-03:00' } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include('Due at must be greater than or equal to starts at')
+    end
+
+    it 'does not permit stable immutable card fields to be mutated' do
+      other_contact = create(:contact, account: account)
+      other_inbox = create(:inbox, account: account)
+      other_conversation = create(:conversation, account: account)
+      card = create_manual_card
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: {
+              card: {
+                origin: 'conversation',
+                contact_id: other_contact.id,
+                inbox_id: other_inbox.id,
+                conversation_id: other_conversation.display_id
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload).to have_attributes(
+        origin: 'manual',
+        contact_id: conversation.contact_id,
+        inbox_id: conversation.inbox_id,
+        conversation_id: nil
+      )
+    end
+
+    it 'updates normalized subject for manual stable cards' do
+      card = create_manual_card(subject: 'Old opportunity')
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { subject: '  Cotação   de notebooks  ' } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload).to have_attributes(subject: 'Cotação de notebooks', normalized_subject: 'cotação de notebooks')
+    end
+
+    it 'keeps normalized subject nil for conversation-origin stable cards' do
+      state = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      card = sync_state(state)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { subject: 'Cotação de notebooks' } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload.normalized_subject).to be_nil
     end
 
     it 'reorders a card by stable ID within the same stage' do

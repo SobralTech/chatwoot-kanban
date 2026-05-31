@@ -139,6 +139,7 @@ Rails.application.routes.draw do
                 patch '', on: :member, action: :update
                 patch :reorder, on: :member
               end
+              get 'cards/by_id/:id', to: 'cards#show'
               patch 'cards/by_id/:id', to: 'cards#update'
               delete 'cards/by_id/:id', to: 'cards#destroy'
               patch 'cards/by_id/:id/reorder', to: 'cards#reorder'

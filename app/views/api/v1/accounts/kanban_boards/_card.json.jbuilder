@@ -1,4 +1,5 @@
 card ||= conversation_kanban_state
+stable_card ||= false
 
 json.id card.id
 json.account_id card.account_id
@@ -12,6 +13,10 @@ json.created_at card.created_at.to_i
 json.updated_at card.updated_at.to_i
 json.origin card.origin if card.respond_to?(:origin)
 json.subject card.subject if card.respond_to?(:subject)
+if stable_card
+  json.starts_at card.starts_at&.iso8601
+  json.due_at card.due_at&.iso8601
+end
 json.active card.active if card.respond_to?(:active)
 if card.respond_to?(:origin)
   json.contact do
