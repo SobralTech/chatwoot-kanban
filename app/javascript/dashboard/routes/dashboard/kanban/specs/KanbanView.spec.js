@@ -2,7 +2,6 @@ import { flushPromises, shallowMount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import KanbanView from '../KanbanView.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
-import ContactAPI from 'dashboard/api/contacts';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -52,12 +51,6 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     createCard: vi.fn(),
     deleteCard: vi.fn(),
     deleteCardById: vi.fn(),
-  },
-}));
-
-vi.mock('dashboard/api/contacts', () => ({
-  default: {
-    search: vi.fn(),
   },
 }));
 
@@ -227,16 +220,8 @@ const findCardDraggables = wrapper =>
 const findAddItemButtons = wrapper =>
   wrapper.findAll('[data-testid="kanban-add-item-button"]');
 
-const findAddItemPanels = wrapper =>
-  wrapper.findAll('[data-testid="kanban-add-item-panel"]');
-
-const openAddItemPicker = async (wrapper, index = 0) => {
-  await findAddItemButtons(wrapper)[index].trigger('click');
-  return findAddItemPanels(wrapper)[0];
-};
-
-const findContactSearchInput = wrapper =>
-  wrapper.find('[data-testid="kanban-contact-search-input"]');
+const findAddItemPicker = wrapper =>
+  wrapper.findComponent({ name: 'KanbanOpportunityPicker' });
 
 const startBoardEdit = async wrapper => {
   await wrapper
@@ -372,28 +357,25 @@ describe('KanbanView drag and drop', () => {
 
     await addItemButtons[1].trigger('click');
 
-    let panels = findAddItemPanels(wrapper);
-    expect(panels).toHaveLength(1);
-    expect(panels[0].attributes('data-stage-id')).toBe('200');
-    expect(
-      panels[0].find('[data-testid="kanban-contact-search-input"]').exists()
-    ).toBe(true);
+    let picker = findAddItemPicker(wrapper);
+    expect(picker.exists()).toBe(true);
+    expect(picker.props('kanbanStageId')).toBe(200);
 
     await addItemButtons[1].trigger('click');
 
-    panels = findAddItemPanels(wrapper);
-    expect(panels).toHaveLength(0);
+    picker = findAddItemPicker(wrapper);
+    expect(picker.exists()).toBe(false);
   });
 
   it('closes the inline add item picker using the close action', async () => {
     const wrapper = await mountView();
 
     await findAddItemButtons(wrapper)[0].trigger('click');
-    expect(findAddItemPanels(wrapper)).toHaveLength(1);
+    expect(findAddItemPicker(wrapper).exists()).toBe(true);
 
-    await wrapper.find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]').trigger('click');
+    await findAddItemPicker(wrapper).vm.$emit('close');
 
-    expect(findAddItemPanels(wrapper)).toHaveLength(0);
+    expect(findAddItemPicker(wrapper).exists()).toBe(false);
   });
 
   it('renders the add item picker outside card draggables', async () => {
@@ -402,10 +384,10 @@ describe('KanbanView drag and drop', () => {
     await findAddItemButtons(wrapper)[0].trigger('click');
 
     const cardDraggables = findCardDraggables(wrapper);
-    expect(findAddItemPanels(wrapper)).toHaveLength(1);
+    expect(findAddItemPicker(wrapper).exists()).toBe(true);
     expect(
       cardDraggables.some(draggable =>
-        draggable.find('[data-testid="kanban-add-item-panel"]').exists()
+        draggable.findComponent({ name: 'KanbanOpportunityPicker' }).exists()
       )
     ).toBe(false);
   });
@@ -414,235 +396,9 @@ describe('KanbanView drag and drop', () => {
     const wrapper = await mountView();
 
     await findAddItemButtons(wrapper)[0].trigger('click');
-    await wrapper.find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]').trigger('click');
+    await findAddItemPicker(wrapper).vm.$emit('close');
 
     expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
-  });
-
-  it('shows a contact search input in the add item picker', async () => {
-    const wrapper = await mountView();
-
-    await openAddItemPicker(wrapper);
-
-    expect(findContactSearchInput(wrapper).exists()).toBe(true);
-    expect(findContactSearchInput(wrapper).attributes('placeholder')).toBe(
-      'KANBAN.ADD_ITEM.PLACEHOLDER'
-    );
-    expect(
-      wrapper
-        .find('[data-testid="kanban-add-item-panel"] .i-lucide-search')
-        .exists()
-    ).toBe(false);
-  });
-
-  it('does not search contacts for queries shorter than three characters', async () => {
-    vi.useFakeTimers();
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-    const input = findContactSearchInput(wrapper);
-
-    await input.setValue('');
-    await input.setValue('J');
-    await input.setValue('Ja');
-    await vi.advanceTimersByTimeAsync(350);
-
-    expect(ContactAPI.search).not.toHaveBeenCalled();
-  });
-
-  it('triggers a debounced contact search for three-character queries', async () => {
-    vi.useFakeTimers();
-    ContactAPI.search.mockResolvedValue({ data: { payload: [] } });
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-
-    await findContactSearchInput(wrapper).setValue('Jan');
-    expect(ContactAPI.search).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(300);
-    await flushPromises();
-
-    expect(ContactAPI.search).toHaveBeenCalledWith('Jan', 1, 'name', '', {
-      signal: expect.any(AbortSignal),
-    });
-  });
-
-  it('aborts stale contact search requests when query changes', async () => {
-    vi.useFakeTimers();
-    const signals = [];
-    ContactAPI.search.mockImplementation((...args) => {
-      signals.push(args[4].signal);
-      return new Promise(() => {});
-    });
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-    const input = findContactSearchInput(wrapper);
-
-    await input.setValue('Jan');
-    await vi.advanceTimersByTimeAsync(300);
-
-    expect(signals[0].aborted).toBe(false);
-
-    await input.setValue('Jane');
-
-    expect(signals[0].aborted).toBe(true);
-  });
-
-  it('shows the contact search loading state', async () => {
-    vi.useFakeTimers();
-    ContactAPI.search.mockReturnValue(new Promise(() => {}));
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-
-    await findContactSearchInput(wrapper).setValue('Jan');
-
-    expect(
-      wrapper.find('[data-testid="kanban-contact-search-loading"]').exists()
-    ).toBe(true);
-  });
-
-  it('shows the contact search empty state', async () => {
-    vi.useFakeTimers();
-    ContactAPI.search.mockResolvedValue({ data: { payload: [] } });
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-
-    await findContactSearchInput(wrapper).setValue('Jan');
-    await vi.advanceTimersByTimeAsync(300);
-    await flushPromises();
-
-    expect(
-      wrapper.find('[data-testid="kanban-contact-search-empty"]').text()
-    ).toContain('KANBAN.ADD_ITEM.NO_CONTACTS');
-  });
-
-  it('shows the contact search error state', async () => {
-    vi.useFakeTimers();
-    ContactAPI.search.mockRejectedValue(new Error('Search failed'));
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-
-    await findContactSearchInput(wrapper).setValue('Jan');
-    await vi.advanceTimersByTimeAsync(300);
-    await flushPromises();
-
-    expect(
-      wrapper.find('[data-testid="kanban-contact-search-error"]').text()
-    ).toContain('KANBAN.ADD_ITEM.SEARCH_ERROR');
-  });
-
-  it('renders compact contact search results', async () => {
-    vi.useFakeTimers();
-    ContactAPI.search.mockResolvedValue({
-      data: {
-        payload: [
-          {
-            id: 1,
-            name: 'Jane Cooper',
-            email: 'jane@example.com',
-            phone_number: '+155501',
-            thumbnail: 'https://example.com/jane.png',
-          },
-          { id: 2, name: 'John Doe', email: '', phone_number: '+155502' },
-        ],
-      },
-    });
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-
-    await findContactSearchInput(wrapper).setValue('Jan');
-    await vi.advanceTimersByTimeAsync(300);
-    await flushPromises();
-
-    const results = wrapper.find(
-      '[data-testid="kanban-contact-search-results"]'
-    );
-    expect(results.text()).toContain('Jane Cooper');
-    expect(results.text()).toContain('jane@example.com');
-    expect(results.text()).toContain('+155501');
-    expect(results.text()).toContain('John Doe');
-    expect(results.text()).toContain('+155502');
-    expect(results.find('img').attributes('src')).toBe(
-      'https://example.com/jane.png'
-    );
-  });
-
-  it('stores selected contact locally and shows the next-step placeholder', async () => {
-    vi.useFakeTimers();
-    ContactAPI.search.mockResolvedValue({
-      data: {
-        payload: [{ id: 1, name: 'Jane Cooper', email: 'jane@example.com' }],
-      },
-    });
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-
-    await findContactSearchInput(wrapper).setValue('Jan');
-    await vi.advanceTimersByTimeAsync(300);
-    await flushPromises();
-    await wrapper
-      .find('[data-testid="kanban-contact-search-results"] button')
-      .trigger('click');
-
-    const selectedContact = wrapper.find(
-      '[data-testid="kanban-selected-contact"]'
-    );
-    expect(selectedContact.text()).toContain('Jane Cooper');
-    expect(selectedContact.text()).toContain(
-      'KANBAN.ADD_ITEM.CONVERSATIONS_NEXT_STEP'
-    );
-  });
-
-  it('clears the selected contact', async () => {
-    vi.useFakeTimers();
-    ContactAPI.search.mockResolvedValue({
-      data: { payload: [{ id: 1, name: 'Jane Cooper' }] },
-    });
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-
-    await findContactSearchInput(wrapper).setValue('Jan');
-    await vi.advanceTimersByTimeAsync(300);
-    await flushPromises();
-    await wrapper
-      .find('[data-testid="kanban-contact-search-results"] button')
-      .trigger('click');
-    await wrapper
-      .find('[aria-label="KANBAN.ADD_ITEM.CLEAR_CONTACT"]')
-      .trigger('click');
-
-    expect(
-      wrapper.find('[data-testid="kanban-selected-contact"]').exists()
-    ).toBe(false);
-    expect(findContactSearchInput(wrapper).exists()).toBe(true);
-  });
-
-  it('resets contact search state and aborts pending requests when closing picker', async () => {
-    vi.useFakeTimers();
-    const signals = [];
-    ContactAPI.search.mockImplementation((...args) => {
-      signals.push(args[4].signal);
-      return new Promise(() => {});
-    });
-    const wrapper = await mountView();
-    await openAddItemPicker(wrapper);
-
-    await findContactSearchInput(wrapper).setValue('Jan');
-    await vi.advanceTimersByTimeAsync(300);
-    expect(signals[0].aborted).toBe(false);
-
-    await wrapper.find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]').trigger('click');
-
-    expect(signals[0].aborted).toBe(true);
-
-    await openAddItemPicker(wrapper);
-
-    expect(findContactSearchInput(wrapper).element.value).toBe('');
-    expect(
-      wrapper.find('[data-testid="kanban-selected-contact"]').exists()
-    ).toBe(false);
-    expect(
-      wrapper.find('[data-testid="kanban-contact-search-loading"]').exists()
-    ).toBe(false);
   });
 
   it('persists same-stage card reorder using updated position', async () => {
