@@ -4,7 +4,8 @@ require 'rake'
 Rake::Task.define_task(:environment) unless Rake::Task.task_defined?(:environment)
 load Rails.root.join('lib/tasks/kanban_cards.rake') unless Rake::Task.task_defined?('kanban_cards:backfill')
 
-RSpec.describe KanbanCardsBackfill do # rubocop:disable RSpec/SpecFilePathFormat
+# rubocop:disable RSpec/MultipleDescribes
+RSpec.describe KanbanCardsBackfill do
   let(:task) { Rake::Task['kanban_cards:backfill'] }
   let(:batch_size) { '2' }
 
@@ -241,3 +242,156 @@ RSpec.describe KanbanCardsBackfill do # rubocop:disable RSpec/SpecFilePathFormat
     999_999_999
   end
 end
+
+RSpec.describe KanbanCardsParityAudit do
+  let(:task) { Rake::Task['kanban_cards:audit_parity'] }
+
+  after do
+    task.reenable
+  end
+
+  describe '#run' do
+    it 'reports clean parity for an empty database' do
+      output = run_audit
+
+      expect(output).to include('legacy_rows: 0')
+      expect(output).to include('matching_rows: 0')
+      expect(output).to include('missing_mirror: 0')
+      expect(output).to include('field_mismatch: 0')
+      expect(output).to include('orphan_active_mirror: 0')
+    end
+
+    it 'reports clean parity for matching legacy and mirror rows' do
+      legacy_state = create_valid_legacy_state
+      create_matching_mirror(legacy_state)
+
+      output = run_audit
+
+      expect(output).to include('legacy_rows: 1')
+      expect(output).to include('matching_rows: 1')
+      expect(output).to include('missing_mirror: 0')
+      expect(output).to include('field_mismatch: 0')
+    end
+
+    it 'detects a missing mirror' do
+      create_valid_legacy_state
+
+      output = run_audit
+
+      expect(output).to include('legacy_rows: 1')
+      expect(output).to include('matching_rows: 0')
+      expect(output).to include('missing_mirror: 1')
+    end
+
+    it 'detects a field mismatch and groups it by field' do
+      legacy_state = create_valid_legacy_state
+      create_matching_mirror(legacy_state, position: legacy_state.position + 1)
+
+      output = run_audit
+
+      expect(output).to include('field_mismatch: 1')
+      expect(output).to include('  position: 1')
+    end
+
+    it 'detects an inactive mirror for an active legacy row' do
+      legacy_state = create_valid_legacy_state
+      create_matching_mirror(legacy_state, active: false)
+
+      output = run_audit
+
+      expect(output).to include('inactive_mirror_for_active_legacy: 1')
+      expect(output).to include('field_mismatch: 1')
+      expect(output).to include('  active: 1')
+    end
+
+    it 'detects an orphan active conversation-origin mirror' do
+      create(:kanban_card, :conversation_origin)
+
+      output = run_audit
+
+      expect(output).to include('legacy_rows: 0')
+      expect(output).to include('orphan_active_mirror: 1')
+    end
+
+    it 'ignores manual cards' do
+      create(:kanban_card)
+
+      output = run_audit
+
+      expect(output).to include('legacy_rows: 0')
+      expect(output).to include('orphan_active_mirror: 0')
+    end
+
+    it 'returns success for a clean audit' do
+      legacy_state = create_valid_legacy_state
+      create_matching_mirror(legacy_state)
+
+      capture_stdout do
+        expect(described_class.new.run).to be(true)
+      end
+    end
+  end
+
+  describe 'rake task exit status' do
+    it 'returns non-zero exit status when drift exists' do
+      create_valid_legacy_state
+
+      expect { capture_stdout { task.invoke } }.to raise_error(SystemExit) do |error|
+        expect(error.status).to eq(1)
+      end
+    end
+
+    it 'returns success when the audit is clean' do
+      legacy_state = create_valid_legacy_state
+      create_matching_mirror(legacy_state)
+
+      expect { capture_stdout { task.invoke } }.not_to raise_error
+    end
+  end
+
+  private
+
+  def run_audit
+    capture_stdout { described_class.new.run }
+  end
+
+  def capture_stdout
+    original_stdout = $stdout
+    $stdout = StringIO.new
+    yield
+    $stdout.string
+  ensure
+    $stdout = original_stdout
+  end
+
+  def create_valid_legacy_state
+    account = create(:account)
+    board = create(:kanban_board, account: account)
+    stage = create(:kanban_stage, account: account, kanban_board: board)
+    conversation = create(:conversation, account: account)
+
+    create(
+      :conversation_kanban_state,
+      account: account,
+      conversation: conversation,
+      kanban_board: board,
+      kanban_stage: stage,
+      position: 1
+    )
+  end
+
+  def create_matching_mirror(legacy_state, attributes = {})
+    create(
+      :kanban_card,
+      :conversation_origin,
+      {
+        account: legacy_state.conversation.account,
+        kanban_board: legacy_state.kanban_board,
+        kanban_stage: legacy_state.kanban_stage,
+        conversation: legacy_state.conversation,
+        position: legacy_state.position
+      }.merge(attributes)
+    )
+  end
+end
+# rubocop:enable RSpec/MultipleDescribes

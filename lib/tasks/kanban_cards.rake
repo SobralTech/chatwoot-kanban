@@ -1,9 +1,214 @@
 # frozen_string_literal: true
 
+# rubocop:disable Style/OneClassPerFile
+
 namespace :kanban_cards do
   desc 'Backfill kanban_cards from conversation_kanban_states'
   task backfill: :environment do
     KanbanCardsBackfill.new.run
+  end
+
+  desc 'Audit parity between conversation_kanban_states and conversation-origin kanban_cards'
+  task audit_parity: :environment do
+    exit(false) unless KanbanCardsParityAudit.new.run
+  end
+end
+
+class KanbanCardsParityAudit
+  SUMMARY_KEYS = %i[
+    legacy_rows
+    matching_rows
+    missing_mirror
+    duplicate_mirror
+    field_mismatch
+    orphan_active_mirror
+    inactive_mirror_for_active_legacy
+  ].freeze
+
+  MISMATCH_FIELDS = %w[
+    account_id
+    kanban_board_id
+    kanban_stage_id
+    contact_id
+    inbox_id
+    position
+    active
+    origin
+    subject
+    normalized_subject
+  ].freeze
+
+  EXAMPLE_LIMIT = 10
+
+  def run
+    summary = fetch_summary
+    mismatches_by_field = fetch_mismatches_by_field
+
+    print_summary(summary, mismatches_by_field)
+    print_examples
+
+    drift_free?(summary)
+  end
+
+  private
+
+  def fetch_summary
+    row = connection.exec_query(summary_sql).first || {}
+
+    SUMMARY_KEYS.index_with { |key| row[key.to_s].to_i }
+  end
+
+  def fetch_mismatches_by_field
+    row = connection.exec_query(mismatches_by_field_sql).first || {}
+
+    MISMATCH_FIELDS.index_with { |field| row[field].to_i }
+  end
+
+  def print_summary(summary, mismatches_by_field)
+    puts 'Kanban cards parity audit summary:'
+    SUMMARY_KEYS.each { |key| puts "#{key}: #{summary[key]}" }
+    puts 'field_mismatch_by_field:'
+    MISMATCH_FIELDS.each { |field| puts "  #{field}: #{mismatches_by_field[field]}" }
+  end
+
+  def print_examples
+    puts 'examples:'
+    example_queries.each do |category, sql|
+      ids = connection.select_values(sql)
+      puts "  #{category}: #{ids.join(', ')}" if ids.present?
+    end
+  end
+
+  def drift_free?(summary)
+    summary.values_at(*SUMMARY_KEYS.without(:legacy_rows, :matching_rows)).all?(&:zero?)
+  end
+
+  def summary_sql
+    <<~SQL.squish
+      WITH legacy_matches AS (#{legacy_matches_sql})
+      SELECT
+        COUNT(*) AS legacy_rows,
+        COUNT(*) FILTER (WHERE mirror_count = 1 AND fields_match) AS matching_rows,
+        COUNT(*) FILTER (WHERE mirror_count = 0) AS missing_mirror,
+        COUNT(*) FILTER (WHERE mirror_count > 1) AS duplicate_mirror,
+        COUNT(*) FILTER (WHERE mirror_count = 1 AND NOT fields_match) AS field_mismatch,
+        (#{orphan_active_mirror_count_sql}) AS orphan_active_mirror,
+        COUNT(*) FILTER (WHERE active_mirror_count = 0 AND inactive_mirror_count > 0) AS inactive_mirror_for_active_legacy
+      FROM legacy_matches
+    SQL
+  end
+
+  def mismatches_by_field_sql
+    <<~SQL.squish
+      WITH legacy_matches AS (#{legacy_matches_sql})
+      SELECT
+        #{mismatch_field_selects}
+      FROM legacy_matches
+      WHERE mirror_count = 1
+    SQL
+  end
+
+  def mismatch_field_selects
+    MISMATCH_FIELDS.map do |field|
+      "COUNT(*) FILTER (WHERE #{field}_mismatch) AS #{field}"
+    end.join(', ')
+  end
+
+  def legacy_matches_sql
+    <<~SQL.squish
+      SELECT
+        cks.id AS legacy_id,
+        COUNT(kc.id) AS mirror_count,
+        COUNT(kc.id) FILTER (WHERE kc.active = TRUE) AS active_mirror_count,
+        COUNT(kc.id) FILTER (WHERE kc.active = FALSE) AS inactive_mirror_count,
+        #{field_mismatch_selects},
+        #{fields_match_sql} AS fields_match
+      FROM conversation_kanban_states cks
+      LEFT JOIN conversations c ON c.id = cks.conversation_id
+      LEFT JOIN kanban_cards kc
+        ON kc.kanban_board_id = cks.kanban_board_id
+       AND kc.conversation_id = cks.conversation_id
+       AND kc.origin = 'conversation'
+      GROUP BY cks.id, c.account_id, c.contact_id, c.inbox_id
+    SQL
+  end
+
+  def field_mismatch_selects
+    field_comparisons.map do |field, comparison|
+      "BOOL_OR(#{comparison}) AS #{field}_mismatch"
+    end.join(', ')
+  end
+
+  def fields_match_sql
+    field_comparisons.values.map { |comparison| "NOT BOOL_OR(#{comparison})" }.join(' AND ')
+  end
+
+  def field_comparisons
+    {
+      'account_id' => 'kc.account_id IS DISTINCT FROM c.account_id',
+      'kanban_board_id' => 'kc.kanban_board_id IS DISTINCT FROM cks.kanban_board_id',
+      'kanban_stage_id' => 'kc.kanban_stage_id IS DISTINCT FROM cks.kanban_stage_id',
+      'contact_id' => 'kc.contact_id IS DISTINCT FROM c.contact_id',
+      'inbox_id' => 'kc.inbox_id IS DISTINCT FROM c.inbox_id',
+      'position' => 'kc.position IS DISTINCT FROM cks.position',
+      'active' => 'kc.active IS DISTINCT FROM TRUE',
+      'origin' => "kc.origin IS DISTINCT FROM 'conversation'",
+      'subject' => 'kc.subject IS DISTINCT FROM NULL',
+      'normalized_subject' => 'kc.normalized_subject IS DISTINCT FROM NULL'
+    }
+  end
+
+  def orphan_active_mirror_count_sql
+    <<~SQL.squish
+      SELECT COUNT(*)
+      FROM kanban_cards kc
+      LEFT JOIN conversation_kanban_states cks
+        ON cks.kanban_board_id = kc.kanban_board_id
+       AND cks.conversation_id = kc.conversation_id
+      WHERE kc.active = TRUE
+        AND kc.origin = 'conversation'
+        AND cks.id IS NULL
+    SQL
+  end
+
+  def example_queries
+    {
+      missing_mirror: example_sql('mirror_count = 0'),
+      duplicate_mirror: example_sql('mirror_count > 1'),
+      field_mismatch: example_sql('mirror_count = 1 AND NOT fields_match'),
+      inactive_mirror_for_active_legacy: example_sql('active_mirror_count = 0 AND inactive_mirror_count > 0'),
+      orphan_active_mirror: orphan_active_mirror_examples_sql
+    }
+  end
+
+  def example_sql(condition)
+    <<~SQL.squish
+      WITH legacy_matches AS (#{legacy_matches_sql})
+      SELECT legacy_id
+      FROM legacy_matches
+      WHERE #{condition}
+      ORDER BY legacy_id
+      LIMIT #{EXAMPLE_LIMIT}
+    SQL
+  end
+
+  def orphan_active_mirror_examples_sql
+    <<~SQL.squish
+      SELECT kc.id
+      FROM kanban_cards kc
+      LEFT JOIN conversation_kanban_states cks
+        ON cks.kanban_board_id = kc.kanban_board_id
+       AND cks.conversation_id = kc.conversation_id
+      WHERE kc.active = TRUE
+        AND kc.origin = 'conversation'
+        AND cks.id IS NULL
+      ORDER BY kc.id
+      LIMIT #{EXAMPLE_LIMIT}
+    SQL
+  end
+
+  def connection
+    ActiveRecord::Base.connection
   end
 end
 
@@ -200,3 +405,5 @@ class KanbanCardsBackfill
     ActiveRecord::Base.sanitize_sql_array(array)
   end
 end
+
+# rubocop:enable Style/OneClassPerFile
