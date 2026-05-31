@@ -192,6 +192,12 @@ const findCardDraggables = wrapper =>
     .findAllComponents({ name: 'Draggable' })
     .filter(draggable => draggable.props('handle') === '.card-drag-handle');
 
+const findAddItemButtons = wrapper =>
+  wrapper.findAll('[data-testid="kanban-add-item-button"]');
+
+const findAddItemPanels = wrapper =>
+  wrapper.findAll('[data-testid="kanban-add-item-panel"]');
+
 describe('KanbanView drag and drop', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -250,11 +256,73 @@ describe('KanbanView drag and drop', () => {
 
     expect(emptyStageDraggable.classes()).toContain('min-h-48');
     expect(emptyStageDraggable.text()).toContain('KANBAN.EMPTY_CARDS');
-    expect(emptyStageDraggable.find('form.no-drag').exists()).toBe(true);
+    expect(
+      emptyStageDraggable.find('[data-testid="kanban-add-item-panel"]').exists()
+    ).toBe(false);
     expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(80);
     expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
     expect(emptyStageDraggable.props('fallbackOnBody')).toBe(true);
     expect(emptyStageDraggable.props('forceFallback')).toBe(true);
+  });
+
+  it('shows an add item action in each stage body', async () => {
+    const wrapper = await mountView();
+    const addItemButtons = findAddItemButtons(wrapper);
+
+    expect(addItemButtons).toHaveLength(2);
+    expect(addItemButtons[0].text()).toContain('KANBAN.ACTIONS.ADD_ITEM');
+    expect(addItemButtons[1].text()).toContain('KANBAN.ACTIONS.ADD_ITEM');
+  });
+
+  it('opens and toggles the inline add item picker for the selected stage', async () => {
+    const wrapper = await mountView();
+    const addItemButtons = findAddItemButtons(wrapper);
+
+    await addItemButtons[1].trigger('click');
+
+    let panels = findAddItemPanels(wrapper);
+    expect(panels).toHaveLength(1);
+    expect(panels[0].attributes('data-stage-id')).toBe('200');
+    expect(panels[0].text()).toContain('KANBAN.ADD_ITEM.PLACEHOLDER');
+
+    await addItemButtons[1].trigger('click');
+
+    panels = findAddItemPanels(wrapper);
+    expect(panels).toHaveLength(0);
+  });
+
+  it('closes the inline add item picker using the close action', async () => {
+    const wrapper = await mountView();
+
+    await findAddItemButtons(wrapper)[0].trigger('click');
+    expect(findAddItemPanels(wrapper)).toHaveLength(1);
+
+    await wrapper.find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]').trigger('click');
+
+    expect(findAddItemPanels(wrapper)).toHaveLength(0);
+  });
+
+  it('renders the add item picker outside card draggables', async () => {
+    const wrapper = await mountView();
+
+    await findAddItemButtons(wrapper)[0].trigger('click');
+
+    const cardDraggables = findCardDraggables(wrapper);
+    expect(findAddItemPanels(wrapper)).toHaveLength(1);
+    expect(
+      cardDraggables.some(draggable =>
+        draggable.find('[data-testid="kanban-add-item-panel"]').exists()
+      )
+    ).toBe(false);
+  });
+
+  it('does not trigger card drag behavior from add item controls', async () => {
+    const wrapper = await mountView();
+
+    await findAddItemButtons(wrapper)[0].trigger('click');
+    await wrapper.find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]').trigger('click');
+
+    expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
   });
 
   it('persists same-stage card reorder using updated position', async () => {

@@ -25,6 +25,7 @@
       "SAVE_STAGE": "Save",
       "REMOVE_STAGE": "Remove",
       "CANCEL": "Cancel",
+      "ADD_ITEM": "Add item",
       "ADD_CARD": "Add",
       "CONVERSATION_ID_PLACEHOLDER": "Conversation ID",
       "REMOVE_CARD": "Remove",
@@ -76,6 +77,10 @@
       "MESSAGE": "Remove this conversation from the board?",
       "CONFIRM": "Remove",
       "CANCEL": "Cancel"
+    },
+    "ADD_ITEM": {
+      "PLACEHOLDER": "Search for a contact to add a conversation",
+      "CLOSE": "Close add item picker"
     },
     "CARD": {
       "UNKNOWN_CONTACT": "Unknown contact",

@@ -32,7 +32,7 @@ const boardForm = ref({ name: '', description: '' });
 const editingStageId = ref(null);
 const stageNames = ref({});
 const stageColors = ref({});
-const cardConversationIds = ref({});
+const activeAddItemStageId = ref(null);
 const cardPendingRemoval = ref(null);
 const boardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
@@ -410,36 +410,13 @@ const confirmRemoveStage = async () => {
   await removeStage(stage);
 };
 
-const addCard = async stage => {
-  const conversationId = String(
-    cardConversationIds.value[stage.id] || ''
-  ).trim();
-  const actionKey = `add-card-${stage.id}`;
-  if (!selectedBoard.value?.id || !conversationId || activeActionKey.value) {
-    return;
-  }
+const toggleAddItemPicker = stage => {
+  activeAddItemStageId.value =
+    activeAddItemStageId.value === stage.id ? null : stage.id;
+};
 
-  activeActionKey.value = actionKey;
-  actionError.value = '';
-
-  try {
-    await KanbanBoardsAPI.createCard(selectedBoard.value.id, {
-      card: {
-        conversation_id: conversationId,
-        kanban_stage_id: stage.id,
-      },
-    });
-    cardConversationIds.value = {
-      ...cardConversationIds.value,
-      [stage.id]: '',
-    };
-    await refreshSelectedBoard();
-    useAlert(t('KANBAN.ACTIONS.ADD_CARD_SUCCESS'));
-  } catch (error) {
-    showActionError(error, t('KANBAN.ACTIONS.ADD_CARD_ERROR'));
-  } finally {
-    activeActionKey.value = '';
-  }
+const closeAddItemPicker = () => {
+  activeAddItemStageId.value = null;
 };
 
 const reorderStageByPosition = async (stage, position) => {
@@ -977,6 +954,42 @@ onMounted(fetchBoards);
               <div
                 class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto bg-n-solid-1 p-3"
               >
+                <button
+                  type="button"
+                  data-testid="kanban-add-item-button"
+                  :data-stage-id="stage.id"
+                  class="no-drag flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!!activeActionKey"
+                  :aria-expanded="activeAddItemStageId === stage.id"
+                  :aria-controls="`kanban-add-item-panel-${stage.id}`"
+                  @click="toggleAddItemPicker(stage)"
+                >
+                  <i class="i-lucide-plus size-4" />
+                  {{ t('KANBAN.ACTIONS.ADD_ITEM') }}
+                </button>
+
+                <div
+                  v-if="activeAddItemStageId === stage.id"
+                  :id="`kanban-add-item-panel-${stage.id}`"
+                  data-testid="kanban-add-item-panel"
+                  :data-stage-id="stage.id"
+                  class="no-drag rounded-lg border border-n-weak bg-n-surface-2 p-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <p class="mb-0 text-sm text-n-slate-11">
+                      {{ t('KANBAN.ADD_ITEM.PLACEHOLDER') }}
+                    </p>
+                    <button
+                      type="button"
+                      class="flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                      :aria-label="t('KANBAN.ADD_ITEM.CLOSE')"
+                      @click="closeAddItemPicker"
+                    >
+                      <i class="i-lucide-x size-4" />
+                    </button>
+                  </div>
+                </div>
+
                 <Draggable
                   :list="stage.cards"
                   item-key="id"
@@ -997,32 +1010,6 @@ onMounted(fetchBoards);
                   @change="onCardDragChange(stage, $event)"
                   @end="onCardDragEnd"
                 >
-                  <form
-                    class="no-drag flex gap-2"
-                    @submit.prevent="addCard(stage)"
-                  >
-                    <input
-                      v-model="cardConversationIds[stage.id]"
-                      type="number"
-                      min="1"
-                      class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                      :placeholder="
-                        t('KANBAN.ACTIONS.CONVERSATION_ID_PLACEHOLDER')
-                      "
-                    />
-                    <button
-                      type="submit"
-                      class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      :disabled="
-                        !String(cardConversationIds[stage.id] || '').trim() ||
-                        !!activeActionKey
-                      "
-                    >
-                      <i class="i-lucide-plus size-4" />
-                      {{ t('KANBAN.ACTIONS.ADD_CARD') }}
-                    </button>
-                  </form>
-
                   <p
                     v-if="stage.cards.length === 0"
                     class="pointer-events-none px-1 py-2 text-sm text-n-slate-10"

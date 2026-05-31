@@ -23,6 +23,7 @@
       "SAVE_STAGE": "Salvar",
       "REMOVE_STAGE": "Remover",
       "CANCEL": "Cancelar",
+      "ADD_ITEM": "Adicionar item",
       "ADD_CARD": "Adicionar",
       "CONVERSATION_ID_PLACEHOLDER": "ID da conversa",
       "REMOVE_CARD": "Remover",
@@ -66,6 +67,10 @@
       "MESSAGE": "Remover esta conversa do quadro?",
       "CONFIRM": "Remover",
       "CANCEL": "Cancelar"
+    },
+    "ADD_ITEM": {
+      "PLACEHOLDER": "Pesquise um contato para adicionar uma conversa",
+      "CLOSE": "Fechar seletor de item"
     },
     "CARD": {
       "UNKNOWN_CONTACT": "Contato desconhecido",
