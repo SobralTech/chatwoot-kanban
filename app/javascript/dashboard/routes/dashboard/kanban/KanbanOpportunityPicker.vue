@@ -3,6 +3,7 @@ import { computed, ref, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 import { debounce } from '@chatwoot/utils';
+import { useStore } from 'dashboard/composables/store';
 import ContactAPI from 'dashboard/api/contacts';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
@@ -20,6 +21,7 @@ const props = defineProps({
 const emit = defineEmits(['created', 'close']);
 
 const { t } = useI18n();
+const store = useStore();
 
 const contactSearchQuery = ref('');
 const contactSearchResults = ref([]);
@@ -152,13 +154,23 @@ const getErrorMessage = error =>
 
 const deriveInboxesFromConversations = conversations => {
   const inboxesById = new Map();
+  const getInboxById = store.getters?.['inboxes/getInboxById'];
 
   (conversations || []).forEach(conversation => {
-    if (!conversation.inbox?.id || inboxesById.has(conversation.inbox.id)) {
+    const inboxId = conversation.inboxId;
+
+    if (!inboxId || inboxesById.has(inboxId)) {
       return;
     }
 
-    inboxesById.set(conversation.inbox.id, conversation.inbox);
+    const storeInbox = getInboxById?.(inboxId) || {};
+
+    inboxesById.set(inboxId, {
+      ...storeInbox,
+      id: inboxId,
+      name: storeInbox.name || `Inbox #${inboxId}`,
+      channelType: storeInbox.channelType || conversation.meta?.channel || '',
+    });
   });
 
   return Array.from(inboxesById.values());

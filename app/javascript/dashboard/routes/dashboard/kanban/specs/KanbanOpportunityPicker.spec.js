@@ -3,6 +3,10 @@ import KanbanOpportunityPicker from '../KanbanOpportunityPicker.vue';
 import ContactAPI from 'dashboard/api/contacts';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
+const storeMock = vi.hoisted(() => ({
+  inboxesById: {},
+}));
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: key => key,
@@ -21,6 +25,14 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     createManualCard: vi.fn(),
   },
+}));
+
+vi.mock('dashboard/composables/store', () => ({
+  useStore: () => ({
+    getters: {
+      'inboxes/getInboxById': inboxId => storeMock.inboxesById[inboxId] || {},
+    },
+  }),
 }));
 
 const mountPicker = () =>
@@ -55,10 +67,9 @@ const buildInbox = overrides => ({
 
 const buildConversation = overrides => ({
   id: 1000,
-  inbox: {
-    id: 10,
-    name: 'Email Inbox',
-    channel_type: 'Channel::Email',
+  inboxId: 10,
+  meta: {
+    channel: 'Channel::Email',
   },
   ...overrides,
 });
@@ -89,6 +100,18 @@ describe('KanbanOpportunityPicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    storeMock.inboxesById = {
+      10: {
+        id: 10,
+        name: 'Email Inbox',
+        channelType: 'Channel::Email',
+      },
+      11: {
+        id: 11,
+        name: 'WhatsApp Inbox',
+        channelType: 'Channel::Whatsapp',
+      },
+    };
     ContactAPI.getConversations.mockResolvedValue({ data: { payload: [] } });
   });
 
@@ -259,7 +282,7 @@ describe('KanbanOpportunityPicker', () => {
       });
     });
 
-    it('derives unique inboxes from conversations', async () => {
+    it('derives unique inboxes from conversation inbox ids', async () => {
       vi.useFakeTimers();
       ContactAPI.getConversations.mockResolvedValue({
         data: {
@@ -268,10 +291,9 @@ describe('KanbanOpportunityPicker', () => {
             buildConversation({ id: 1001 }),
             buildConversation({
               id: 1002,
-              inbox: {
-                id: 11,
-                name: 'WhatsApp Inbox',
-                channel_type: 'Channel::Whatsapp',
+              inboxId: 11,
+              meta: {
+                channel: 'Channel::Whatsapp',
               },
             }),
           ],
@@ -292,6 +314,32 @@ describe('KanbanOpportunityPicker', () => {
       expect(inboxes.text()).toContain('Whatsapp');
     });
 
+    it('falls back to inbox id and conversation channel without store data', async () => {
+      vi.useFakeTimers();
+      storeMock.inboxesById = {};
+      ContactAPI.getConversations.mockResolvedValue({
+        data: {
+          payload: [
+            buildConversation({
+              id: 10,
+              inboxId: 3,
+              meta: {
+                channel: 'Channel::Whatsapp',
+              },
+            }),
+          ],
+        },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstContact(wrapper, 'Jan');
+
+      const inboxes = wrapper.find('[data-testid="kanban-inboxes"]');
+      expect(inboxes.text()).toContain('Inbox #3');
+      expect(inboxes.text()).toContain('Whatsapp');
+      expect(ContactAPI.getContactableInboxes).not.toHaveBeenCalled();
+    });
+
     it('does not call fallback when conversations provide inboxes', async () => {
       vi.useFakeTimers();
       ContactAPI.getConversations.mockResolvedValue({
@@ -307,7 +355,7 @@ describe('KanbanOpportunityPicker', () => {
     it('calls fallback when conversations have no inboxes', async () => {
       vi.useFakeTimers();
       ContactAPI.getConversations.mockResolvedValue({
-        data: { payload: [buildConversation({ inbox: null })] },
+        data: { payload: [buildConversation({ inboxId: null })] },
       });
       ContactAPI.getContactableInboxes.mockResolvedValue({
         data: { payload: [buildInbox()] },
@@ -362,10 +410,9 @@ describe('KanbanOpportunityPicker', () => {
             buildConversation(),
             buildConversation({
               id: 1001,
-              inbox: {
-                id: 11,
-                name: 'WhatsApp Inbox',
-                channel_type: 'Channel::Whatsapp',
+              inboxId: 11,
+              meta: {
+                channel: 'Channel::Whatsapp',
               },
             }),
           ],
@@ -390,10 +437,9 @@ describe('KanbanOpportunityPicker', () => {
             buildConversation(),
             buildConversation({
               id: 1001,
-              inbox: {
-                id: 11,
-                name: 'SMS Inbox',
-                channel_type: 'Channel::Sms',
+              inboxId: 11,
+              meta: {
+                channel: 'Channel::Sms',
               },
             }),
           ],
