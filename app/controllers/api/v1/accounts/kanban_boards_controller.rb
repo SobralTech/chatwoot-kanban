@@ -8,6 +8,11 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def show
     @kanban_stages = @kanban_board.kanban_stages.active.ordered
+    if kanban_card_board_reads_enabled?
+      fetch_kanban_cards
+      return
+    end
+
     @conversation_kanban_states = @kanban_board
                                   .conversation_kanban_states
                                   .includes(conversation: [:contact, :inbox, :assignee, :team])
@@ -36,5 +41,24 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def kanban_board_params
     params.require(:kanban_board).permit(:name, :description, :position, :active, :auto_create_cards_from_conversations, :default_stage_id)
+  end
+
+  def kanban_card_board_reads_enabled?
+    Current.account.feature_enabled?('kanban_card_board_reads')
+  end
+
+  def fetch_kanban_cards
+    @kanban_cards = @kanban_board
+                    .kanban_cards
+                    .active
+                    .conversation
+                    .where.not(conversation_id: nil)
+                    .includes(conversation: [:contact, :contact_inbox, :inbox, :assignee, :team])
+                    .ordered
+                    .select { |card| policy(card.conversation).show? }
+    @conversation_kanban_states_by_conversation_id = @kanban_board
+                                                     .conversation_kanban_states
+                                                     .where(conversation_id: @kanban_cards.map(&:conversation_id))
+                                                     .index_by(&:conversation_id)
   end
 end
