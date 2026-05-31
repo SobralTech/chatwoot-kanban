@@ -261,9 +261,9 @@ RSpec.describe KanbanCardsParityAudit do
       expect(output).to include('orphan_active_mirror: 0')
     end
 
-    it 'reports clean parity for matching legacy and mirror rows' do
+    it 'reports clean parity for matching legacy and mirror rows with nil subject' do
       legacy_state = create_valid_legacy_state
-      create_matching_mirror(legacy_state)
+      create_matching_mirror(legacy_state, subject: nil)
 
       output = run_audit
 
@@ -271,6 +271,18 @@ RSpec.describe KanbanCardsParityAudit do
       expect(output).to include('matching_rows: 1')
       expect(output).to include('missing_mirror: 0')
       expect(output).to include('field_mismatch: 0')
+    end
+
+    it 'reports clean parity for matching conversation-origin mirrors with generated subjects' do
+      legacy_state = create_valid_legacy_state
+      create_matching_mirror(legacy_state, subject: 'Lead [Maria da Silva] - [WhatsApp Comercial]')
+
+      output = run_audit
+
+      expect(output).to include('legacy_rows: 1')
+      expect(output).to include('matching_rows: 1')
+      expect(output).to include('field_mismatch: 0')
+      expect(output).not_to include('  subject:')
     end
 
     it 'detects a missing mirror' do
@@ -291,6 +303,27 @@ RSpec.describe KanbanCardsParityAudit do
 
       expect(output).to include('field_mismatch: 1')
       expect(output).to include('  position: 1')
+    end
+
+    it 'detects stage drift and groups it by field' do
+      legacy_state = create_valid_legacy_state
+      other_stage = create(:kanban_stage, account: legacy_state.account, kanban_board: legacy_state.kanban_board)
+      create_matching_mirror(legacy_state, kanban_stage: other_stage)
+
+      output = run_audit
+
+      expect(output).to include('field_mismatch: 1')
+      expect(output).to include('  kanban_stage_id: 1')
+    end
+
+    it 'detects non-null normalized subject and groups it by field' do
+      legacy_state = create_valid_legacy_state
+      create_matching_mirror(legacy_state, subject: 'Lead [Maria da Silva] - [WhatsApp Comercial]')
+      KanbanCard.last.update_column(:normalized_subject, 'lead maria') # rubocop:disable Rails/SkipsModelValidations
+
+      output = run_audit
+      expect(output).to include('field_mismatch: 1')
+      expect(output).to include('  normalized_subject: 1')
     end
 
     it 'detects an inactive mirror for an active legacy row' do

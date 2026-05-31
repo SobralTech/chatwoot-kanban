@@ -34,7 +34,6 @@ class KanbanCardsParityAudit
     position
     active
     origin
-    subject
     normalized_subject
   ].freeze
 
@@ -153,7 +152,6 @@ class KanbanCardsParityAudit
       'position' => 'kc.position IS DISTINCT FROM cks.position',
       'active' => 'kc.active IS DISTINCT FROM TRUE',
       'origin' => "kc.origin IS DISTINCT FROM 'conversation'",
-      'subject' => 'kc.subject IS DISTINCT FROM NULL',
       'normalized_subject' => 'kc.normalized_subject IS DISTINCT FROM NULL'
     }
   end
