@@ -25,6 +25,7 @@ class KanbanStage < ApplicationRecord
   belongs_to :kanban_board
 
   has_many :conversation_kanban_states, dependent: :destroy_async
+  has_many :kanban_cards, dependent: nil
 
   validates :account_id, presence: true
   validates :name, presence: true, uniqueness: { scope: :kanban_board_id, conditions: -> { active } }, if: :active?
