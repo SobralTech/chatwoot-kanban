@@ -15,6 +15,7 @@ class AsyncDispatcher < BaseDispatcher
       CsatSurveyListener.instance,
       HookListener.instance,
       InstallationWebhookListener.instance,
+      KanbanCardListener.instance,
       NotificationListener.instance,
       ParticipationListener.instance,
       Conversations::UnreadCounts::Listener.instance,
