@@ -30,7 +30,12 @@ const actionError = ref('');
 const newBoardName = ref('');
 const newStageName = ref('');
 const isEditingBoard = ref(false);
-const boardForm = ref({ name: '', description: '' });
+const boardForm = ref({
+  name: '',
+  description: '',
+  autoCreateCardsFromConversations: false,
+  defaultStageId: '',
+});
 const editingStageId = ref(null);
 const stageNames = ref({});
 const stageColors = ref({});
@@ -93,6 +98,10 @@ const stageColorOptions = [
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
+const activeStages = computed(() =>
+  stages.value.filter(stage => stage.active !== false)
+);
+const hasActiveStages = computed(() => activeStages.value.length > 0);
 const hasBoards = computed(() => boards.value.length > 0);
 const isInitialLoading = computed(
   () => isFetchingBoards.value && !selectedBoard.value
@@ -180,13 +189,21 @@ const startEditingBoard = () => {
   boardForm.value = {
     name: selectedBoard.value.name || '',
     description: selectedBoard.value.description || '',
+    autoCreateCardsFromConversations:
+      selectedBoard.value.autoCreateCardsFromConversations || false,
+    defaultStageId: selectedBoard.value.defaultStageId || '',
   };
   isEditingBoard.value = true;
 };
 
 const cancelEditingBoard = () => {
   isEditingBoard.value = false;
-  boardForm.value = { name: '', description: '' };
+  boardForm.value = {
+    name: '',
+    description: '',
+    autoCreateCardsFromConversations: false,
+    defaultStageId: '',
+  };
 };
 
 const updateBoard = async () => {
@@ -201,6 +218,10 @@ const updateBoard = async () => {
       kanban_board: {
         name,
         description: boardForm.value.description.trim(),
+        auto_create_cards_from_conversations:
+          hasActiveStages.value &&
+          boardForm.value.autoCreateCardsFromConversations,
+        default_stage_id: boardForm.value.defaultStageId,
       },
     });
     const board = normalizePayload(response.data);
@@ -808,6 +829,7 @@ onMounted(fetchBoards);
         <div class="min-w-0 flex-1">
           <form
             v-if="selectedBoard && isEditingBoard"
+            data-testid="kanban-board-edit-form"
             class="grid max-w-xl gap-2"
             @submit.prevent="updateBoard"
           >
@@ -823,6 +845,44 @@ onMounted(fetchBoards);
               class="min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
               :placeholder="t('KANBAN.ACTIONS.BOARD_DESCRIPTION_PLACEHOLDER')"
             />
+            <label
+              class="flex items-start gap-3 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12"
+            >
+              <input
+                v-model="boardForm.autoCreateCardsFromConversations"
+                type="checkbox"
+                data-testid="kanban-auto-create-toggle"
+                class="mt-1 size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
+                :disabled="!hasActiveStages"
+              />
+              <span>
+                <span class="block font-medium">
+                  {{ t('KANBAN.BOARD_FORM.AUTO_CREATE_CARDS') }}
+                </span>
+                <span v-if="!hasActiveStages" class="block text-n-slate-11">
+                  {{ t('KANBAN.BOARD_FORM.NO_STAGES_HELP') }}
+                </span>
+              </span>
+            </label>
+            <label class="grid gap-1 text-sm text-n-slate-12">
+              <span class="font-medium">
+                {{ t('KANBAN.BOARD_FORM.DEFAULT_STAGE') }}
+              </span>
+              <select
+                v-model.number="boardForm.defaultStageId"
+                data-testid="kanban-default-stage-select"
+                class="min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!hasActiveStages"
+              >
+                <option
+                  v-for="stage in activeStages"
+                  :key="stage.id"
+                  :value="stage.id"
+                >
+                  {{ stage.name }}
+                </option>
+              </select>
+            </label>
             <div class="flex gap-2">
               <button
                 type="submit"

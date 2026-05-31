@@ -10,6 +10,11 @@
     "EMPTY_CARDS": "Não há cartões nesta etapa.",
     "NO_BOARD_SELECTED": "Selecione um quadro",
     "ERROR": "Não foi possível carregar os dados do kanban.",
+    "BOARD_FORM": {
+      "AUTO_CREATE_CARDS": "Criar cartões automaticamente para novas conversas",
+      "DEFAULT_STAGE": "Etapa padrão para novas conversas",
+      "NO_STAGES_HELP": "Adicione uma etapa antes de habilitar a criação automática de cartões."
+    },
     "ACTIONS": {
       "CREATE_BOARD": "Adicionar",
       "BOARD_NAME_PLACEHOLDER": "Nome do quadro",

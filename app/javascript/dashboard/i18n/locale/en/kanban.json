@@ -10,6 +10,11 @@
     "EMPTY_CARDS": "No cards in this stage.",
     "NO_BOARD_SELECTED": "Select a board",
     "ERROR": "Could not load kanban data.",
+    "BOARD_FORM": {
+      "AUTO_CREATE_CARDS": "Create cards automatically for new conversations",
+      "DEFAULT_STAGE": "Default stage for new conversations",
+      "NO_STAGES_HELP": "Add a stage before enabling automatic card creation."
+    },
     "ACTIONS": {
       "CREATE_BOARD": "Add",
       "BOARD_NAME_PLACEHOLDER": "Board name",
