@@ -98,6 +98,7 @@
     "CARD": {
       "UNKNOWN_CONTACT": "Unknown contact",
       "UNKNOWN_INBOX": "Unknown inbox",
+      "NO_LINKED_CONVERSATION": "No linked conversation",
       "NO_MESSAGES": "No messages yet",
       "UNKNOWN_STATUS": "Unknown",
       "UNKNOWN_LAST_ACTIVITY": "No activity",

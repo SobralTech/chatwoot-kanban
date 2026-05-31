@@ -33,11 +33,16 @@ const notes = ref([]);
 const noteContent = ref('');
 
 const conversation = computed(() => props.card.conversation || {});
-const contact = computed(() => conversation.value?.meta?.sender || {});
-const inbox = computed(() =>
-  store.getters['inboxes/getInboxById'](conversation.value.inboxId)
+const contact = computed(
+  () => props.card.contact || conversation.value?.meta?.sender || {}
+);
+const inbox = computed(
+  () =>
+    props.card.inbox ||
+    store.getters['inboxes/getInboxById'](conversation.value.inboxId)
 );
 
+const hasConversation = computed(() => !!props.card.conversationId);
 const contactId = computed(() => contact.value?.id);
 const contactName = computed(
   () => contact.value?.name || t('KANBAN.CARD.UNKNOWN_CONTACT')
@@ -66,6 +71,7 @@ const lastActivity = computed(() =>
 );
 const lastMessage = computed(
   () =>
+    (!hasConversation.value && t('KANBAN.CARD.NO_LINKED_CONVERSATION')) ||
     conversation.value?.messages?.[0]?.content ||
     conversation.value?.lastNonActivityMessage?.content ||
     t('KANBAN.CARD.NO_MESSAGES')
@@ -127,6 +133,8 @@ const createNote = async () => {
 };
 
 const openConversation = event => {
+  if (!hasConversation.value) return;
+
   emit('openConversation', props.card, event);
 };
 </script>
@@ -140,11 +148,25 @@ const openConversation = event => {
   >
     <div class="text-left">
       <div class="flex items-start justify-between gap-2">
-        <h4 class="min-w-0 truncate text-sm font-medium text-n-slate-12">
-          {{ contactName }}
-        </h4>
+        <div class="min-w-0">
+          <p
+            v-if="card.subject"
+            class="truncate text-sm font-medium text-n-slate-12"
+          >
+            {{ card.subject }}
+          </p>
+          <h4
+            class="min-w-0 truncate text-sm text-n-slate-12"
+            :class="{ 'font-medium': !card.subject }"
+          >
+            {{ contactName }}
+          </h4>
+        </div>
         <div class="flex items-center gap-2">
-          <span class="flex-shrink-0 text-xs text-n-slate-10">
+          <span
+            v-if="hasConversation"
+            class="flex-shrink-0 text-xs text-n-slate-10"
+          >
             {{ displayId }}
           </span>
         </div>
