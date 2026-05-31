@@ -1079,7 +1079,7 @@ onMounted(fetchBoards);
                   :data-stage-id="stage.id"
                   class="no-drag rounded-lg border border-n-weak bg-n-surface-2 p-3"
                 >
-                  <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0 flex-1">
                       <label
                         :for="`kanban-contact-search-${stage.id}`"
@@ -1096,7 +1096,7 @@ onMounted(fetchBoards);
                           v-model="contactSearchQuery"
                           type="search"
                           data-testid="kanban-contact-search-input"
-                          class="no-drag min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 py-2 pl-10 pr-3 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                          class="no-drag min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 py-2 pl-9 pr-3 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
                           :placeholder="t('KANBAN.ADD_ITEM.PLACEHOLDER')"
                           @input="onContactSearchInput"
                         />
@@ -1104,11 +1104,11 @@ onMounted(fetchBoards);
                     </div>
                     <button
                       type="button"
-                      class="flex size-10 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                      class="mt-1 flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
                       :aria-label="t('KANBAN.ADD_ITEM.CLOSE')"
                       @click="closeAddItemPicker"
                     >
-                      <i class="i-lucide-x size-5" />
+                      <i class="i-lucide-x size-4" />
                     </button>
                   </div>
 
