@@ -143,6 +143,8 @@ Rails.application.routes.draw do
               patch 'cards/by_id/:id', to: 'cards#update'
               delete 'cards/by_id/:id', to: 'cards#destroy'
               patch 'cards/by_id/:id/reorder', to: 'cards#reorder'
+              get 'cards/by_id/:id/labels', to: 'cards/labels#index'
+              put 'cards/by_id/:id/labels', to: 'cards/labels#update'
             end
           end
           namespace :channels do
