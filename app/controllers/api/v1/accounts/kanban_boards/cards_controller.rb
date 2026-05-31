@@ -4,6 +4,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   before_action :authorize_kanban_board_show
   before_action :fetch_conversation, only: [:create]
   before_action :authorize_conversation, only: [:create]
+  before_action :fetch_manual_card_records, only: [:create_manual]
   before_action :fetch_mutation_target, only: [:update, :destroy, :reorder]
   before_action :authorize_mutation_target, only: [:update, :destroy, :reorder]
   before_action :fetch_kanban_stage, only: [:create, :update]
@@ -17,6 +18,20 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       @conversation_kanban_state.reload
       sync_service_for(@conversation_kanban_state).sync!
     end
+  end
+
+  def create_manual
+    @kanban_card = KanbanCards::CreateManualCardService.new(
+      account: Current.account,
+      user: Current.user,
+      kanban_board: @kanban_board,
+      kanban_stage: @kanban_stage,
+      contact: @contact,
+      inbox: @inbox,
+      subject: manual_card_params[:subject]
+    ).perform!
+
+    render :create_manual, status: :created
   end
 
   def update
@@ -127,6 +142,12 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     @kanban_stage = @kanban_board.kanban_stages.active.find(card_params[:kanban_stage_id])
   end
 
+  def fetch_manual_card_records
+    @kanban_stage = @kanban_board.kanban_stages.find(manual_card_params[:kanban_stage_id])
+    @contact = Current.account.contacts.find(manual_card_params[:contact_id])
+    @inbox = Current.account.inboxes.find(manual_card_params[:inbox_id])
+  end
+
   def conversation_kanban_state_attributes
     {
       account: Current.account,
@@ -144,6 +165,10 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def card_params
     params.require(:card).permit(:conversation_id, :kanban_stage_id, :position)
+  end
+
+  def manual_card_params
+    params.require(:card).permit(:kanban_stage_id, :contact_id, :inbox_id, :subject)
   end
 
   def stable_card_route?

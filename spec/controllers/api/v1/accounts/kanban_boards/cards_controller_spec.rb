@@ -114,6 +114,169 @@ RSpec.describe 'Kanban Cards API', type: :request do
     end
   end
 
+  describe 'POST /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/manual' do
+    let(:manual_contact) { create(:contact, account: account) }
+    let(:manual_inbox) { create(:inbox, account: account) }
+
+    before do
+      kanban_board.update!(use_opportunity_card_reads: true)
+      create(:inbox_member, user: agent, inbox: manual_inbox)
+    end
+
+    it 'creates a manual card with valid payload' do
+      expect do
+        post_manual_card
+      end.to change(KanbanCard.manual, :count).by(1)
+
+      expect(KanbanCard.last).to have_attributes(
+        kanban_stage_id: stage.id,
+        contact_id: manual_contact.id,
+        inbox_id: manual_inbox.id,
+        subject: 'Cotação de notebooks'
+      )
+    end
+
+    it 'returns created status' do
+      post_manual_card
+
+      expect(response).to have_http_status(:created)
+    end
+
+    it 'sets origin as manual server-side' do
+      post_manual_card(params: manual_card_payload.merge(origin: 'conversation'))
+
+      expect(KanbanCard.last).to be_manual
+      expect(response.parsed_body['origin']).to eq('manual')
+    end
+
+    it 'does not create ConversationKanbanState' do
+      expect do
+        post_manual_card
+      end.not_to change(ConversationKanbanState, :count)
+    end
+
+    it 'returns the stable card payload' do
+      post_manual_card
+
+      expect(response.parsed_body.keys).to include(
+        'id', 'origin', 'subject', 'active', 'kanban_stage_id', 'position', 'contact', 'inbox', 'conversation_id', 'conversation',
+        'moved_by_id', 'moved_at'
+      )
+    end
+
+    it 'supports a card without linked conversation' do
+      post_manual_card
+
+      expect(response.parsed_body['conversation_id']).to be_nil
+      expect(response.parsed_body['conversation']).to be_nil
+      expect(response.parsed_body['moved_by_id']).to be_nil
+      expect(response.parsed_body['moved_at']).to be_nil
+    end
+
+    it 'links the recent permitted conversation when available' do
+      matching_conversation = create(:conversation, account: account, contact: manual_contact, inbox: manual_inbox, last_activity_at: 1.day.ago)
+
+      post_manual_card
+
+      expect(response.parsed_body['conversation_id']).to eq(matching_conversation.display_id)
+      expect(response.parsed_body['conversation']).to be_present
+    end
+
+    it 'rejects blank subject' do
+      post_manual_card(params: manual_card_payload.merge(subject: '  '))
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include("Subject can't be blank")
+    end
+
+    it 'rejects normalized duplicate subject' do
+      create(
+        :kanban_card,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        contact: manual_contact,
+        inbox: manual_inbox,
+        subject: 'cotação   de notebooks'
+      )
+
+      post_manual_card
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include('Manual opportunity with this subject already exists')
+    end
+
+    it 'rejects stage from another board' do
+      other_board = create(:kanban_board, account: account)
+      other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
+
+      post_manual_card(params: manual_card_payload.merge(kanban_stage_id: other_stage.id))
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects contact from another account' do
+      post_manual_card(params: manual_card_payload.merge(contact_id: create(:contact).id))
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects inbox from another account' do
+      post_manual_card(params: manual_card_payload.merge(inbox_id: create(:inbox).id))
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects inactive stage' do
+      stage.update!(active: false)
+
+      post_manual_card
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include('Stage must be active')
+    end
+
+    it 'rejects a board with opportunity-card reads disabled' do
+      kanban_board.update!(use_opportunity_card_reads: false)
+
+      post_manual_card
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include('Board must use opportunity card reads')
+    end
+
+    it 'rejects an agent without inbox access' do
+      agent.inbox_members.where(inbox: manual_inbox).destroy_all
+
+      post_manual_card
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include('User cannot access inbox')
+    end
+
+    it 'allows an admin to create without inbox membership' do
+      admin = create(:user, account: account, role: :administrator)
+      agent.inbox_members.where(inbox: manual_inbox).destroy_all
+
+      expect do
+        post_manual_card(headers: admin.create_new_auth_token)
+      end.to change(KanbanCard.manual, :count).by(1)
+      expect(response).to have_http_status(:created)
+    end
+
+    it 'keeps legacy POST /cards behavior unchanged' do
+      expect do
+        post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards",
+             headers: agent.create_new_auth_token,
+             params: { card: { conversation_id: conversation.display_id, kanban_stage_id: stage.id, position: 2 } },
+             as: :json
+      end.to change(ConversationKanbanState, :count).by(1)
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body.keys).to contain_exactly(
+        'id', 'account_id', 'kanban_board_id', 'kanban_stage_id', 'conversation_id', 'position', 'moved_by_id', 'moved_at',
+        'created_at', 'updated_at', 'conversation'
+      )
+    end
+  end
+
   describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/{conversation_id}' do
     it 'moves an existing card' do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
@@ -894,5 +1057,21 @@ RSpec.describe 'Kanban Cards API', type: :request do
         inbox: conversation.inbox
       }.merge(attributes)
     )
+  end
+
+  def post_manual_card(params: manual_card_payload, headers: agent.create_new_auth_token)
+    post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/manual",
+         headers: headers,
+         params: { card: params },
+         as: :json
+  end
+
+  def manual_card_payload
+    {
+      kanban_stage_id: stage.id,
+      contact_id: manual_contact.id,
+      inbox_id: manual_inbox.id,
+      subject: 'Cotação de notebooks'
+    }
   end
 end
