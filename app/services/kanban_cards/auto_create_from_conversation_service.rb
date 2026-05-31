@@ -51,7 +51,7 @@ class KanbanCards::AutoCreateFromConversationService
   end
 
   def create_card!(kanban_board, stage)
-    KanbanCard.create!(
+    card = KanbanCard.create!(
       account_id: conversation.account_id,
       kanban_board: kanban_board,
       kanban_stage: stage,
@@ -61,17 +61,15 @@ class KanbanCards::AutoCreateFromConversationService
       subject: default_subject,
       normalized_subject: nil,
       origin: 'conversation',
-      position: next_position(kanban_board, stage),
+      position: 1,
       active: true
     )
+
+    card.reorder_to_position!(kanban_stage: stage, position: 1)
   end
 
   def automatic_card_exists?(kanban_board)
     KanbanCard.conversation.exists?(kanban_board: kanban_board, conversation_id: conversation.id)
-  end
-
-  def next_position(kanban_board, stage)
-    kanban_board.kanban_cards.active.where(kanban_stage: stage).maximum(:position).to_i + 1
   end
 
   def default_subject

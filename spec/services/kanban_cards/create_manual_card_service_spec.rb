@@ -37,14 +37,41 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect(card).to be_manual
     end
 
-    it 'assigns the next active position in the selected stage' do
+    it 'inserts the card at the top of the selected stage' do
       create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1)
-      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 5)
-      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 6, active: false)
 
       card = service.perform!
 
-      expect(card.position).to eq(6)
+      expect(card.position).to eq(1)
+    end
+
+    it 'shifts existing active cards down in the selected stage' do
+      first_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1)
+      second_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 2)
+
+      service.perform!
+
+      expect(first_card.reload.position).to eq(2)
+      expect(second_card.reload.position).to eq(3)
+    end
+
+    it 'leaves inactive cards untouched when inserting at the top' do
+      inactive_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1, active: false)
+
+      card = service.perform!
+
+      expect(card.position).to eq(1)
+      expect(inactive_card.reload.position).to eq(1)
+    end
+
+    it 'leaves cards in other stages untouched when inserting at the top' do
+      other_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      other_stage_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: other_stage, position: 1)
+
+      card = service.perform!
+
+      expect(card.position).to eq(1)
+      expect(other_stage_card.reload.position).to eq(1)
     end
 
     it 'normalizes subject through the KanbanCard model' do

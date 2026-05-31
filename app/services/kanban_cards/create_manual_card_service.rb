@@ -58,7 +58,7 @@ class KanbanCards::CreateManualCardService
   end
 
   def create_card!
-    KanbanCard.create!(
+    card = KanbanCard.create!(
       account: account,
       kanban_board: kanban_board,
       kanban_stage: kanban_stage,
@@ -67,13 +67,11 @@ class KanbanCards::CreateManualCardService
       conversation: permitted_conversation,
       subject: normalized_subject,
       origin: 'manual',
-      position: next_position,
+      position: 1,
       active: true
     )
-  end
 
-  def next_position
-    kanban_board.kanban_cards.active.where(kanban_stage: kanban_stage).maximum(:position).to_i + 1
+    card.reorder_to_position!(kanban_stage: kanban_stage, position: 1)
   end
 
   def duplicate_subject?
