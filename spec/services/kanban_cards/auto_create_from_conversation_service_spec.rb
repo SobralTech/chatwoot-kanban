@@ -20,7 +20,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
         contact_id: contact.id,
         inbox_id: inbox.id,
         kanban_board_id: board.id,
-        kanban_stage_id: board.default_stage_id,
+        kanban_stage_id: first_stage.id,
         position: 1,
         active: true
       )
@@ -52,9 +52,9 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect(created_card.normalized_subject).to be_nil
     end
 
-    it 'assigns the next active position in the default stage' do
-      create(:kanban_card, account: account, kanban_board: board, kanban_stage: board.default_stage, position: 1)
-      create(:kanban_card, account: account, kanban_board: board, kanban_stage: board.default_stage, position: 5)
+    it 'assigns the next active position in the first active stage' do
+      create(:kanban_card, account: account, kanban_board: board, kanban_stage: first_stage, position: 1)
+      create(:kanban_card, account: account, kanban_board: board, kanban_stage: first_stage, position: 5)
 
       service.perform!
 
@@ -62,7 +62,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
     end
 
     it 'ignores inactive cards when calculating position' do
-      create(:kanban_card, account: account, kanban_board: board, kanban_stage: board.default_stage, position: 8, active: false)
+      create(:kanban_card, account: account, kanban_board: board, kanban_stage: first_stage, position: 8, active: false)
 
       service.perform!
 
@@ -96,14 +96,38 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect { service.perform! }.not_to change(KanbanCard, :count)
     end
 
-    it 'does not create without a default stage' do
-      board.update!(default_stage: nil)
+    it 'creates the card in the first active stage ordered by position, created_at, and id' do
+      timestamp = 3.days.ago.change(usec: 0)
+      create(:kanban_stage, account: account, kanban_board: board, position: 2, created_at: timestamp - 1.day)
+      destination_stage = create(:kanban_stage, account: account, kanban_board: board, position: 1, created_at: timestamp)
+      create(:kanban_stage, account: account, kanban_board: board, position: 1, created_at: timestamp + 1.day)
 
-      expect { service.perform! }.not_to change(KanbanCard, :count)
+      service.perform!
+
+      expect(created_card.kanban_stage_id).to eq(destination_stage.id)
     end
 
-    it 'does not create when the default stage is inactive' do
-      board.default_stage.update!(active: false)
+    it 'uses the reordered first stage for future automatic cards' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: board, position: 2)
+      first_stage.update!(position: 3)
+      next_stage.update!(position: 1)
+
+      service.perform!
+
+      expect(created_card.kanban_stage_id).to eq(next_stage.id)
+    end
+
+    it 'ignores inactive first stages' do
+      inactive_stage = create(:kanban_stage, account: account, kanban_board: board, position: 0, active: false)
+
+      service.perform!
+
+      expect(created_card.kanban_stage_id).to eq(first_stage.id)
+      expect(created_card.kanban_stage_id).not_to eq(inactive_stage.id)
+    end
+
+    it 'does not create without an active stage' do
+      first_stage.update!(active: false)
 
       expect { service.perform! }.not_to change(KanbanCard, :count)
     end
@@ -153,14 +177,14 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       existing_board = board
       create_automatic_card(kanban_board: existing_board)
       invalid_board = create_eligible_board
-      invalid_board.update!(default_stage: nil)
+      invalid_board.kanban_stages.update_all(active: false) # rubocop:disable Rails/SkipsModelValidations
       create_eligible_board
 
       expect(service.perform!).to eq(
         created: 1,
         skipped: {
           existing_card: 1,
-          invalid_default_stage: 1
+          without_active_stage: 1
         }
       )
     end
@@ -173,18 +197,19 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       auto_create_cards_from_conversations: true,
       use_opportunity_card_reads: true
     )
-    stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-    kanban_board.update!(default_stage: stage)
+    create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
     kanban_board
   end
 
   def create_automatic_card(kanban_board: board, active: true)
+    stage = kanban_board.kanban_stages.active.ordered.first
+
     create(
       :kanban_card,
       :conversation_origin,
       account: account,
       kanban_board: kanban_board,
-      kanban_stage: kanban_board.default_stage,
+      kanban_stage: stage,
       conversation: conversation,
       active: active
     )
@@ -192,5 +217,9 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
 
   def created_card
     KanbanCard.conversation.find_by!(conversation: conversation)
+  end
+
+  def first_stage
+    board.kanban_stages.active.ordered.first
   end
 end

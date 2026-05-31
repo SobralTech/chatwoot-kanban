@@ -25,41 +25,43 @@ class KanbanCards::AutoCreateFromConversationService
 
   def create_for_board(kanban_board)
     KanbanCard.transaction do
-      default_stage = kanban_board.default_stage
-      if default_stage.blank?
-        skip_invalid_default_stage
+      stage = first_active_stage(kanban_board)
+      if stage.blank?
+        skip_without_active_stage
       else
-        default_stage.lock!
-        create_for_active_stage(kanban_board, default_stage)
+        stage.lock!
+        create_for_stage(kanban_board, stage)
       end
     end
   rescue ActiveRecord::RecordNotUnique
     skip_existing_card
   end
 
-  def create_for_active_stage(kanban_board, default_stage)
-    if !default_stage.active?
-      skip_invalid_default_stage
-    elsif automatic_card_exists?(kanban_board)
+  def first_active_stage(kanban_board)
+    kanban_board.kanban_stages.active.ordered.first
+  end
+
+  def create_for_stage(kanban_board, stage)
+    if automatic_card_exists?(kanban_board)
       skip_existing_card
     else
-      create_card!(kanban_board, default_stage)
+      create_card!(kanban_board, stage)
       summary[:created] += 1
     end
   end
 
-  def create_card!(kanban_board, default_stage)
+  def create_card!(kanban_board, stage)
     KanbanCard.create!(
       account_id: conversation.account_id,
       kanban_board: kanban_board,
-      kanban_stage: default_stage,
+      kanban_stage: stage,
       contact: contact,
       inbox: inbox,
       conversation: conversation,
       subject: default_subject,
       normalized_subject: nil,
       origin: 'conversation',
-      position: next_position(kanban_board, default_stage),
+      position: next_position(kanban_board, stage),
       active: true
     )
   end
@@ -68,8 +70,8 @@ class KanbanCards::AutoCreateFromConversationService
     KanbanCard.conversation.exists?(kanban_board: kanban_board, conversation_id: conversation.id)
   end
 
-  def next_position(kanban_board, default_stage)
-    kanban_board.kanban_cards.active.where(kanban_stage: default_stage).maximum(:position).to_i + 1
+  def next_position(kanban_board, stage)
+    kanban_board.kanban_cards.active.where(kanban_stage: stage).maximum(:position).to_i + 1
   end
 
   def default_subject
@@ -96,8 +98,8 @@ class KanbanCards::AutoCreateFromConversationService
     summary[:skipped][:existing_card] += 1
   end
 
-  def skip_invalid_default_stage
-    summary[:skipped][:invalid_default_stage] += 1
+  def skip_without_active_stage
+    summary[:skipped][:without_active_stage] += 1
   end
 
   def summary_hash
@@ -105,7 +107,7 @@ class KanbanCards::AutoCreateFromConversationService
       created: 0,
       skipped: {
         existing_card: 0,
-        invalid_default_stage: 0
+        without_active_stage: 0
       }
     }
   end

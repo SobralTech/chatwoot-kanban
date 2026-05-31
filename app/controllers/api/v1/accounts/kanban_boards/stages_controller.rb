@@ -14,7 +14,6 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
       @kanban_stage = @kanban_board.kanban_stages.create!(
         kanban_stage_params.except(:position).merge(account: Current.account, position: 1)
       )
-      @kanban_board.update!(default_stage: @kanban_stage) if @kanban_board.default_stage_id.blank?
 
       KanbanStage.normalize_positions_for_board!(@kanban_board)
       @kanban_stage.reload
@@ -45,12 +44,6 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def destroy
-    if @kanban_board.default_stage_id == @kanban_stage.id
-      render json: { error: 'Default kanban stage cannot be removed. Choose another default stage before removing it.' },
-             status: :unprocessable_content
-      return
-    end
-
     if @kanban_stage.conversation_kanban_states.exists? || @kanban_stage.kanban_cards.active.exists?
       render json: { error: 'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.' },
              status: :unprocessable_content

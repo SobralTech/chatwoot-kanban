@@ -6,6 +6,5 @@ json.position kanban_board.position
 json.active kanban_board.active
 json.auto_create_cards_from_conversations kanban_board.auto_create_cards_from_conversations
 json.use_opportunity_card_reads kanban_board.use_opportunity_card_reads
-json.default_stage_id kanban_board.default_stage_id
 json.created_at kanban_board.created_at.to_i
 json.updated_at kanban_board.updated_at.to_i

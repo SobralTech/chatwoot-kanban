@@ -38,29 +38,6 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(second_stage.reload.position).to eq(3)
     end
 
-    it 'assigns the first created stage as the board default' do
-      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
-           headers: administrator.create_new_auth_token,
-           params: payload,
-           as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(kanban_board.reload.default_stage_id).to eq(response.parsed_body['id'])
-    end
-
-    it 'does not replace an existing default stage' do
-      default_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      kanban_board.update!(default_stage: default_stage)
-
-      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
-           headers: administrator.create_new_auth_token,
-           params: payload,
-           as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(kanban_board.reload.default_stage_id).to eq(default_stage.id)
-    end
-
     it 'does not shift inactive stages or stages from other boards' do
       first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'First', position: 1)
       inactive_stage = create(
@@ -202,10 +179,9 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(second_stage.reload.position).to eq(3)
     end
 
-    it 'preserves the board default stage' do
-      first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+    it 'reorders without changing stage membership' do
+      create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
       second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
-      kanban_board.update!(default_stage: first_stage)
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{second_stage.id}/reorder",
             headers: administrator.create_new_auth_token,
@@ -213,7 +189,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
             as: :json
 
       expect(response).to have_http_status(:success)
-      expect(kanban_board.reload.default_stage_id).to eq(first_stage.id)
+      expect(kanban_board.kanban_stages.active.count).to eq(2)
     end
   end
 
@@ -231,23 +207,8 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(stage.reload).not_to be_active
     end
 
-    it 'does not deactivate the default stage' do
-      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      kanban_board.update!(default_stage: stage)
-
-      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
-             headers: administrator.create_new_auth_token,
-             as: :json
-
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(response.parsed_body['error']).to eq('Default kanban stage cannot be removed. Choose another default stage before removing it.')
-      expect(stage.reload).to be_active
-    end
-
     it 'does not deactivate a stage with legacy conversation state' do
-      default_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      kanban_board.update!(default_stage: default_stage)
       create(
         :conversation_kanban_state,
         account: account,
@@ -267,9 +228,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
     end
 
     it 'does not deactivate a stage with active kanban cards' do
-      default_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      kanban_board.update!(default_stage: default_stage)
       create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage)
 
       delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
@@ -284,9 +243,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
     end
 
     it 'does not deactivate a stage with manual active kanban cards' do
-      default_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      kanban_board.update!(default_stage: default_stage)
       create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage, origin: 'manual')
 
       delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
@@ -301,10 +258,8 @@ RSpec.describe 'Kanban Stages API', type: :request do
     end
 
     it 'does not deactivate a stage with conversation-origin active kanban cards' do
-      default_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       conversation = create(:conversation, account: account)
-      kanban_board.update!(default_stage: default_stage)
       create(
         :kanban_card,
         :conversation_origin,
@@ -326,9 +281,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
     end
 
     it 'deactivates a stage with only inactive kanban cards' do
-      default_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      kanban_board.update!(default_stage: default_stage)
       create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage, active: false)
 
       delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
@@ -339,10 +292,8 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(stage.reload).not_to be_active
     end
 
-    it 'deactivates a non-default empty stage' do
-      default_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+    it 'deactivates an empty stage' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      kanban_board.update!(default_stage: default_stage)
 
       delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
              headers: administrator.create_new_auth_token,
@@ -353,10 +304,8 @@ RSpec.describe 'Kanban Stages API', type: :request do
     end
 
     it 'deactivates a stage when active kanban cards belong to another stage' do
-      default_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       other_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      kanban_board.update!(default_stage: default_stage)
       create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: other_stage)
 
       delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",

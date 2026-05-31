@@ -616,54 +616,15 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body['auto_create_cards_from_conversations']).to be(false)
     end
 
-    it 'accepts an active default stage from the same board' do
-      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
-            headers: administrator.create_new_auth_token,
-            params: { kanban_board: { default_stage_id: stage.id } },
-            as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(kanban_board.reload.default_stage_id).to eq(stage.id)
-    end
-
-    it 'rejects a default stage from another board' do
-      other_board = create(:kanban_board, account: account)
-      stage = create(:kanban_stage, account: account, kanban_board: other_board)
-
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
-            headers: administrator.create_new_auth_token,
-            params: { kanban_board: { default_stage_id: stage.id } },
-            as: :json
-
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(kanban_board.reload.default_stage_id).to be_nil
-    end
-
-    it 'rejects an inactive default stage' do
-      stage = create(:kanban_stage, account: account, kanban_board: kanban_board, active: false)
-
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
-            headers: administrator.create_new_auth_token,
-            params: { kanban_board: { default_stage_id: stage.id } },
-            as: :json
-
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(kanban_board.reload.default_stage_id).to be_nil
-    end
-
-    it 'returns the default stage id' do
-      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      kanban_board.update!(default_stage: stage)
-
+    it 'does not return a default stage id' do
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
             headers: administrator.create_new_auth_token,
             params: { kanban_board: { name: 'Updated Sales' } },
             as: :json
 
       expect(response).to have_http_status(:success)
-      expect(response.parsed_body['default_stage_id']).to eq(stage.id)
+      expect(kanban_board.reload.name).to eq('Updated Sales')
+      expect(response.parsed_body).not_to have_key('default_stage_id')
     end
   end
 
