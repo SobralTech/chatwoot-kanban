@@ -1,6 +1,14 @@
 require 'rails_helper'
 
 RSpec.describe KanbanBoard do
+  describe 'defaults' do
+    it 'disables automatic card creation for new boards' do
+      board = described_class.new
+
+      expect(board.auto_create_cards_from_conversations).to be(false)
+    end
+  end
+
   describe 'validations' do
     it 'prevents duplicate active names inside an account' do
       account = create(:account)

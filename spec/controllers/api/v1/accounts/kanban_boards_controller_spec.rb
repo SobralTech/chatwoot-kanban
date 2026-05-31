@@ -20,6 +20,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body.first['name']).to eq('Sales')
+      expect(response.parsed_body.first['auto_create_cards_from_conversations']).to be(false)
     end
 
     it 'does not return inactive boards' do
@@ -115,6 +116,18 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['name']).to eq('Support')
+      expect(response.parsed_body['auto_create_cards_from_conversations']).to be(false)
+    end
+
+    it 'accepts automatic card creation setting' do
+      post "/api/v1/accounts/#{account.id}/kanban_boards",
+           headers: administrator.create_new_auth_token,
+           params: { kanban_board: payload[:kanban_board].merge(auto_create_cards_from_conversations: true) },
+           as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(KanbanBoard.last.auto_create_cards_from_conversations).to be(true)
+      expect(response.parsed_body['auto_create_cards_from_conversations']).to be(true)
     end
 
     it 'returns unauthorized for agents' do
@@ -137,6 +150,30 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(kanban_board.reload.name).to eq('Updated Sales')
       expect(kanban_board).not_to be_active
+    end
+
+    it 'updates automatic card creation from false to true' do
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: administrator.create_new_auth_token,
+            params: { kanban_board: { auto_create_cards_from_conversations: true } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(kanban_board.reload.auto_create_cards_from_conversations).to be(true)
+      expect(response.parsed_body['auto_create_cards_from_conversations']).to be(true)
+    end
+
+    it 'updates automatic card creation from true to false' do
+      kanban_board.update!(auto_create_cards_from_conversations: true)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: administrator.create_new_auth_token,
+            params: { kanban_board: { auto_create_cards_from_conversations: false } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(kanban_board.reload.auto_create_cards_from_conversations).to be(false)
+      expect(response.parsed_body['auto_create_cards_from_conversations']).to be(false)
     end
   end
 

@@ -35,6 +35,6 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
   end
 
   def kanban_board_params
-    params.require(:kanban_board).permit(:name, :description, :position, :active)
+    params.require(:kanban_board).permit(:name, :description, :position, :active, :auto_create_cards_from_conversations)
   end
 end
