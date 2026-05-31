@@ -47,11 +47,9 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
     @kanban_cards = @kanban_board
                     .kanban_cards
                     .active
-                    .conversation
-                    .where.not(conversation_id: nil)
-                    .includes(conversation: [:contact, :contact_inbox, :inbox, :assignee, :team])
+                    .includes(:contact, :inbox, conversation: [:contact, :contact_inbox, :inbox, :assignee, :team])
                     .ordered
-                    .select { |card| policy(card.conversation).show? }
+                    .select { |card| policy(card).show? }
     @conversation_kanban_states_by_conversation_id = @kanban_board
                                                      .conversation_kanban_states
                                                      .where(conversation_id: @kanban_cards.map(&:conversation_id))

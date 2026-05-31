@@ -153,7 +153,75 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(response_card['conversation']['id']).to eq(conversation.display_id)
       end
 
-      it 'excludes manual, inactive, orphan, and unauthorized cards' do
+      it 'returns active manual kanban cards without conversations with nullable conversation fields' do
+        stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New')
+        contact = create(:contact, account: account)
+        inbox = create(:inbox, account: account)
+        create(:inbox_member, user: agent, inbox: inbox)
+        card = create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          contact: contact,
+          inbox: inbox,
+          subject: 'Expansion opportunity',
+          position: 1
+        )
+
+        get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        response_card = response.parsed_body['stages'].first['cards'].first
+        expect(response).to have_http_status(:success)
+        expect(response_card).to include(
+          'id' => card.id,
+          'origin' => 'manual',
+          'subject' => 'Expansion opportunity',
+          'active' => true,
+          'kanban_stage_id' => stage.id,
+          'position' => 1,
+          'conversation_id' => nil,
+          'conversation' => nil,
+          'moved_by_id' => nil,
+          'moved_at' => nil
+        )
+        expect(response_card['contact']['id']).to eq(contact.id)
+        expect(response_card['inbox']['id']).to eq(inbox.id)
+      end
+
+      it 'returns active manual kanban cards with optional conversation payloads' do
+        stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New')
+        conversation = create(:conversation, account: account)
+        create(:inbox_member, user: agent, inbox: conversation.inbox)
+        card = create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          contact: conversation.contact,
+          inbox: conversation.inbox,
+          conversation: conversation,
+          subject: 'Renewal opportunity'
+        )
+
+        get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        response_card = response.parsed_body['stages'].first['cards'].first
+        expect(response).to have_http_status(:success)
+        expect(response_card).to include(
+          'id' => card.id,
+          'origin' => 'manual',
+          'subject' => 'Renewal opportunity',
+          'conversation_id' => conversation.display_id
+        )
+        expect(response_card['conversation']['id']).to eq(conversation.display_id)
+      end
+
+      it 'excludes inactive, orphan, and unauthorized cards' do
         stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
         permitted_conversation = create(:conversation, account: account)
         unauthorized_conversation = create(:conversation, account: account)
@@ -202,6 +270,78 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([permitted_card.id])
+      end
+
+      it 'filters manual kanban cards when the agent lacks inbox access' do
+        stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+        permitted_inbox = create(:inbox, account: account)
+        unauthorized_inbox = create(:inbox, account: account)
+        create(:inbox_member, user: agent, inbox: permitted_inbox)
+        permitted_card = create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          inbox: permitted_inbox,
+          contact: create(:contact, account: account)
+        )
+        create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          inbox: unauthorized_inbox,
+          contact: create(:contact, account: account)
+        )
+
+        get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([permitted_card.id])
+      end
+
+      it 'allows administrators to see valid manual kanban cards' do
+        stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+        card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage)
+
+        get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: administrator.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
+      end
+
+      it 'excludes inactive manual kanban cards' do
+        stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+        inbox = create(:inbox, account: account)
+        create(:inbox_member, user: agent, inbox: inbox)
+        active_card = create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          inbox: inbox,
+          contact: create(:contact, account: account)
+        )
+        create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          inbox: inbox,
+          contact: create(:contact, account: account),
+          active: false
+        )
+
+        get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([active_card.id])
       end
 
       it 'allows administrators to see permitted kanban cards' do
@@ -275,6 +415,71 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([first_card.id, second_card.id])
         expect(response.parsed_body['stages'].second['cards'].pluck('id')).to eq([later_stage_card.id])
       end
+
+      it 'groups and orders manual and conversation-origin kanban cards together' do
+        later_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+        earlier_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+        conversation = create(:conversation, account: account)
+        manual_inbox = create(:inbox, account: account)
+        create(:inbox_member, user: agent, inbox: conversation.inbox)
+        create(:inbox_member, user: agent, inbox: manual_inbox)
+        conversation_card = create(
+          :kanban_card,
+          :conversation_origin,
+          kanban_board: kanban_board,
+          kanban_stage: earlier_stage,
+          conversation: conversation,
+          position: 2
+        )
+        manual_card = create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: earlier_stage,
+          inbox: manual_inbox,
+          contact: create(:contact, account: account),
+          position: 1
+        )
+        later_stage_card = create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: later_stage,
+          inbox: manual_inbox,
+          contact: create(:contact, account: account),
+          position: 1
+        )
+
+        get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['stages'].pluck('id')).to eq([earlier_stage.id, later_stage.id])
+        expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([manual_card.id, conversation_card.id])
+        expect(response.parsed_body['stages'].second['cards'].pluck('id')).to eq([later_stage_card.id])
+      end
+    end
+
+    it 'does not expose manual kanban cards in legacy read mode' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      legacy_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: legacy_conversation.inbox)
+      legacy_state = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: legacy_conversation
+      )
+      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([legacy_state.id])
     end
 
     it 'keeps legacy reads when board reads are disabled and restores them immediately after disabling' do
