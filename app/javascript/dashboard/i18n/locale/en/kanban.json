@@ -79,7 +79,7 @@
       "CANCEL": "Cancel"
     },
     "ADD_ITEM": {
-      "PLACEHOLDER": "Search for a contact to add a conversation",
+      "PLACEHOLDER": "Search by name, email, or phone",
       "SEARCH_LABEL": "Search contacts",
       "SEARCHING": "Searching contacts...",
       "SEARCH_ERROR": "Could not search contacts. Try again.",

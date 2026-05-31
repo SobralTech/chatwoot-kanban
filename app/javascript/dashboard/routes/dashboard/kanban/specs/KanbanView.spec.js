@@ -356,9 +356,14 @@ describe('KanbanView drag and drop', () => {
     expect(findContactSearchInput(wrapper).attributes('placeholder')).toBe(
       'KANBAN.ADD_ITEM.PLACEHOLDER'
     );
+    expect(
+      wrapper
+        .find('[data-testid="kanban-add-item-panel"] .i-lucide-search')
+        .exists()
+    ).toBe(false);
   });
 
-  it('does not search contacts for blank or one-character queries', async () => {
+  it('does not search contacts for queries shorter than three characters', async () => {
     vi.useFakeTimers();
     const wrapper = await mountView();
     await openAddItemPicker(wrapper);
@@ -366,24 +371,25 @@ describe('KanbanView drag and drop', () => {
 
     await input.setValue('');
     await input.setValue('J');
+    await input.setValue('Ja');
     await vi.advanceTimersByTimeAsync(350);
 
     expect(ContactAPI.search).not.toHaveBeenCalled();
   });
 
-  it('triggers a debounced contact search for two-character queries', async () => {
+  it('triggers a debounced contact search for three-character queries', async () => {
     vi.useFakeTimers();
     ContactAPI.search.mockResolvedValue({ data: { payload: [] } });
     const wrapper = await mountView();
     await openAddItemPicker(wrapper);
 
-    await findContactSearchInput(wrapper).setValue('Ja');
+    await findContactSearchInput(wrapper).setValue('Jan');
     expect(ContactAPI.search).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(300);
     await flushPromises();
 
-    expect(ContactAPI.search).toHaveBeenCalledWith('Ja', 1, 'name', '', {
+    expect(ContactAPI.search).toHaveBeenCalledWith('Jan', 1, 'name', '', {
       signal: expect.any(AbortSignal),
     });
   });
@@ -399,12 +405,12 @@ describe('KanbanView drag and drop', () => {
     await openAddItemPicker(wrapper);
     const input = findContactSearchInput(wrapper);
 
-    await input.setValue('Ja');
+    await input.setValue('Jan');
     await vi.advanceTimersByTimeAsync(300);
 
     expect(signals[0].aborted).toBe(false);
 
-    await input.setValue('Jan');
+    await input.setValue('Jane');
 
     expect(signals[0].aborted).toBe(true);
   });
@@ -415,7 +421,7 @@ describe('KanbanView drag and drop', () => {
     const wrapper = await mountView();
     await openAddItemPicker(wrapper);
 
-    await findContactSearchInput(wrapper).setValue('Ja');
+    await findContactSearchInput(wrapper).setValue('Jan');
 
     expect(
       wrapper.find('[data-testid="kanban-contact-search-loading"]').exists()
@@ -428,7 +434,7 @@ describe('KanbanView drag and drop', () => {
     const wrapper = await mountView();
     await openAddItemPicker(wrapper);
 
-    await findContactSearchInput(wrapper).setValue('Ja');
+    await findContactSearchInput(wrapper).setValue('Jan');
     await vi.advanceTimersByTimeAsync(300);
     await flushPromises();
 
@@ -443,7 +449,7 @@ describe('KanbanView drag and drop', () => {
     const wrapper = await mountView();
     await openAddItemPicker(wrapper);
 
-    await findContactSearchInput(wrapper).setValue('Ja');
+    await findContactSearchInput(wrapper).setValue('Jan');
     await vi.advanceTimersByTimeAsync(300);
     await flushPromises();
 
@@ -471,7 +477,7 @@ describe('KanbanView drag and drop', () => {
     const wrapper = await mountView();
     await openAddItemPicker(wrapper);
 
-    await findContactSearchInput(wrapper).setValue('Ja');
+    await findContactSearchInput(wrapper).setValue('Jan');
     await vi.advanceTimersByTimeAsync(300);
     await flushPromises();
 
@@ -498,7 +504,7 @@ describe('KanbanView drag and drop', () => {
     const wrapper = await mountView();
     await openAddItemPicker(wrapper);
 
-    await findContactSearchInput(wrapper).setValue('Ja');
+    await findContactSearchInput(wrapper).setValue('Jan');
     await vi.advanceTimersByTimeAsync(300);
     await flushPromises();
     await wrapper
@@ -522,7 +528,7 @@ describe('KanbanView drag and drop', () => {
     const wrapper = await mountView();
     await openAddItemPicker(wrapper);
 
-    await findContactSearchInput(wrapper).setValue('Ja');
+    await findContactSearchInput(wrapper).setValue('Jan');
     await vi.advanceTimersByTimeAsync(300);
     await flushPromises();
     await wrapper
@@ -548,7 +554,7 @@ describe('KanbanView drag and drop', () => {
     const wrapper = await mountView();
     await openAddItemPicker(wrapper);
 
-    await findContactSearchInput(wrapper).setValue('Ja');
+    await findContactSearchInput(wrapper).setValue('Jan');
     await vi.advanceTimersByTimeAsync(300);
     expect(signals[0].aborted).toBe(false);
 

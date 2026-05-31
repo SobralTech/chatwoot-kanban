@@ -56,7 +56,7 @@ const defaultStageColor = 'blue';
 const newStageColor = ref(defaultStageColor);
 const cardDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
-const contactSearchMinimumLength = 2;
+const contactSearchMinimumLength = 3;
 
 const stageColorOptions = [
   {
@@ -1087,16 +1087,13 @@ onMounted(fetchBoards);
                       >
                         {{ t('KANBAN.ADD_ITEM.SEARCH_LABEL') }}
                       </label>
-                      <div class="relative">
-                        <i
-                          class="i-lucide-search pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-10"
-                        />
+                      <div>
                         <input
                           :id="`kanban-contact-search-${stage.id}`"
                           v-model="contactSearchQuery"
                           type="search"
                           data-testid="kanban-contact-search-input"
-                          class="no-drag min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 py-2 pl-9 pr-3 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                          class="no-drag min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
                           :placeholder="t('KANBAN.ADD_ITEM.PLACEHOLDER')"
                           @input="onContactSearchInput"
                         />

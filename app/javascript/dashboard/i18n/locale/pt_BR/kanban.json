@@ -69,7 +69,7 @@
       "CANCEL": "Cancelar"
     },
     "ADD_ITEM": {
-      "PLACEHOLDER": "Pesquise um contato para adicionar uma conversa",
+      "PLACEHOLDER": "Buscar por nome, e-mail ou telefone",
       "SEARCH_LABEL": "Pesquisar contatos",
       "SEARCHING": "Pesquisando contatos...",
       "SEARCH_ERROR": "Não foi possível pesquisar contatos. Tente novamente.",
