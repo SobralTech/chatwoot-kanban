@@ -12,7 +12,6 @@
     "ERROR": "Could not load kanban data.",
     "BOARD_FORM": {
       "AUTO_CREATE_CARDS": "Create cards automatically for new conversations",
-      "DEFAULT_STAGE": "Default stage for new conversations",
       "NO_STAGES_HELP": "Add a stage before enabling automatic card creation."
     },
     "ACTIONS": {

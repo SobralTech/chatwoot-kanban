@@ -12,7 +12,6 @@
     "ERROR": "Não foi possível carregar os dados do kanban.",
     "BOARD_FORM": {
       "AUTO_CREATE_CARDS": "Criar cartões automaticamente para novas conversas",
-      "DEFAULT_STAGE": "Etapa padrão para novas conversas",
       "NO_STAGES_HELP": "Adicione uma etapa antes de habilitar a criação automática de cartões."
     },
     "ACTIONS": {

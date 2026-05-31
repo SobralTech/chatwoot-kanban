@@ -58,7 +58,6 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
   id: 10,
   name: 'Sales Board',
   description: '',
-  default_stage_id: 200,
   auto_create_cards_from_conversations: true,
   use_opportunity_card_reads: false,
   stages: [
@@ -236,9 +235,6 @@ const findBoardEditForm = wrapper =>
 
 const findAutoCreateToggle = wrapper =>
   wrapper.find('[data-testid="kanban-auto-create-toggle"]');
-
-const findDefaultStageSelect = wrapper =>
-  wrapper.find('[data-testid="kanban-default-stage-select"]');
 
 describe('KanbanView drag and drop', () => {
   beforeEach(() => {
@@ -685,31 +681,6 @@ describe('KanbanView board edit form', () => {
     expect(wrapper.text()).toContain('KANBAN.BOARD_FORM.AUTO_CREATE_CARDS');
   });
 
-  it('renders active stage options', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], {
-        stages: [
-          { id: 100, name: 'Stage A', active: true, position: 1, cards: [] },
-          { id: 200, name: 'Stage B', active: false, position: 2, cards: [] },
-        ],
-      })
-    );
-
-    await startBoardEdit(wrapper);
-
-    const options = findDefaultStageSelect(wrapper).findAll('option');
-    expect(options).toHaveLength(1);
-    expect(options[0].text()).toBe('Stage A');
-  });
-
-  it('selects the existing default stage', async () => {
-    const wrapper = await mountView();
-
-    await startBoardEdit(wrapper);
-
-    expect(findDefaultStageSelect(wrapper).element.value).toBe('200');
-  });
-
   it('sends automation configuration when saving', async () => {
     KanbanBoardsAPI.update.mockResolvedValue({
       data: {
@@ -717,14 +688,12 @@ describe('KanbanView board edit form', () => {
         name: 'Sales Board',
         description: '',
         auto_create_cards_from_conversations: false,
-        default_stage_id: 100,
       },
     });
     const wrapper = await mountView();
 
     await startBoardEdit(wrapper);
     await findAutoCreateToggle(wrapper).setValue(false);
-    await findDefaultStageSelect(wrapper).setValue('100');
     await findBoardEditForm(wrapper).trigger('submit.prevent');
     await flushPromises();
 
@@ -733,7 +702,6 @@ describe('KanbanView board edit form', () => {
         name: 'Sales Board',
         description: '',
         auto_create_cards_from_conversations: false,
-        default_stage_id: 100,
       },
     });
   });
@@ -741,7 +709,6 @@ describe('KanbanView board edit form', () => {
   it('does not allow boards without stages to enable automation', async () => {
     const wrapper = await mountView(
       buildBoardResponse([], {
-        default_stage_id: null,
         auto_create_cards_from_conversations: false,
         stages: [],
       })
@@ -750,27 +717,7 @@ describe('KanbanView board edit form', () => {
     await startBoardEdit(wrapper);
 
     expect(findAutoCreateToggle(wrapper).attributes('disabled')).toBeDefined();
-    expect(
-      findDefaultStageSelect(wrapper).attributes('disabled')
-    ).toBeDefined();
     expect(wrapper.text()).toContain('KANBAN.BOARD_FORM.NO_STAGES_HELP');
-  });
-
-  it('keeps the selected default stage when stages are reordered', async () => {
-    const wrapper = await mountView();
-
-    await startBoardEdit(wrapper);
-    await findDefaultStageSelect(wrapper).setValue('200');
-
-    const draggables = wrapper.findAllComponents({ name: 'Draggable' });
-    await draggables[0].vm.$emit('end', {
-      item: { dataset: { stageId: '200' } },
-      oldIndex: 1,
-      newIndex: 0,
-    });
-    await flushPromises();
-
-    expect(findDefaultStageSelect(wrapper).element.value).toBe('200');
   });
 
   it('keeps existing board edit behavior working', async () => {
@@ -780,7 +727,6 @@ describe('KanbanView board edit form', () => {
         name: 'Updated Sales Board',
         description: 'Updated description',
         auto_create_cards_from_conversations: true,
-        default_stage_id: 200,
       },
     });
     const wrapper = await mountView();
@@ -797,7 +743,6 @@ describe('KanbanView board edit form', () => {
         name: 'Updated Sales Board',
         description: 'Updated description',
         auto_create_cards_from_conversations: true,
-        default_stage_id: 200,
       },
     });
   });

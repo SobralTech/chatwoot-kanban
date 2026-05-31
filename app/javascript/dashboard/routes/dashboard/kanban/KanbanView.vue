@@ -33,7 +33,6 @@ const boardForm = ref({
   name: '',
   description: '',
   autoCreateCardsFromConversations: false,
-  defaultStageId: '',
 });
 const editingStageId = ref(null);
 const stageNames = ref({});
@@ -185,7 +184,6 @@ const startEditingBoard = () => {
     description: selectedBoard.value.description || '',
     autoCreateCardsFromConversations:
       selectedBoard.value.autoCreateCardsFromConversations || false,
-    defaultStageId: selectedBoard.value.defaultStageId || '',
   };
   isEditingBoard.value = true;
 };
@@ -196,7 +194,6 @@ const cancelEditingBoard = () => {
     name: '',
     description: '',
     autoCreateCardsFromConversations: false,
-    defaultStageId: '',
   };
 };
 
@@ -215,7 +212,6 @@ const updateBoard = async () => {
         auto_create_cards_from_conversations:
           hasActiveStages.value &&
           boardForm.value.autoCreateCardsFromConversations,
-        default_stage_id: boardForm.value.defaultStageId,
       },
     });
     const board = normalizePayload(response.data);
@@ -785,25 +781,6 @@ onMounted(fetchBoards);
                   {{ t('KANBAN.BOARD_FORM.NO_STAGES_HELP') }}
                 </span>
               </span>
-            </label>
-            <label class="grid gap-1 text-sm text-n-slate-12">
-              <span class="font-medium">
-                {{ t('KANBAN.BOARD_FORM.DEFAULT_STAGE') }}
-              </span>
-              <select
-                v-model.number="boardForm.defaultStageId"
-                data-testid="kanban-default-stage-select"
-                class="min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="!hasActiveStages"
-              >
-                <option
-                  v-for="stage in activeStages"
-                  :key="stage.id"
-                  :value="stage.id"
-                >
-                  {{ stage.name }}
-                </option>
-              </select>
             </label>
             <div class="flex gap-2">
               <button
