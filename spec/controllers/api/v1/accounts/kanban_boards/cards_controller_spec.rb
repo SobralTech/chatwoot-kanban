@@ -571,6 +571,144 @@ RSpec.describe 'Kanban Cards API', type: :request do
     end
   end
 
+  describe 'stable card ID routes' do
+    it 'updates a card by stable ID' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      card = create_manual_card(position: 1)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+    end
+
+    it 'reorders a card by stable ID within the same stage' do
+      first_card = create_manual_card(position: 1)
+      second_card = create_manual_card(position: 2, subject: 'Second opportunity')
+      third_card = create_manual_card(position: 3, subject: 'Third opportunity')
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{third_card.id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(third_card.reload.position).to eq(1)
+      expect(first_card.reload.position).to eq(2)
+      expect(second_card.reload.position).to eq(3)
+    end
+
+    it 'reorders a card by stable ID across stages' do
+      destination_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      moving_card = create_manual_card(position: 1)
+      source_card = create_manual_card(position: 2, subject: 'Source opportunity')
+      destination_card = create_manual_card(kanban_stage: destination_stage, position: 1, subject: 'Destination opportunity')
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{moving_card.id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: destination_stage.id, position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(moving_card.reload).to have_attributes(kanban_stage_id: destination_stage.id, position: 1)
+      expect(source_card.reload.position).to eq(1)
+      expect(destination_card.reload.position).to eq(2)
+    end
+
+    it 'soft-deletes a card by stable ID' do
+      card = create_manual_card
+
+      expect do
+        delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+               headers: agent.create_new_auth_token,
+               as: :json
+      end.not_to change(KanbanCard, :count)
+
+      expect(response).to have_http_status(:no_content)
+      expect(card.reload).not_to be_active
+    end
+
+    it 'updates, reorders, and deletes a manual card without a conversation' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      card = create_manual_card(position: 1)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id } },
+            as: :json
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { position: 1 } },
+            as: :json
+      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:no_content)
+      expect(card.reload).to have_attributes(conversation_id: nil, kanban_stage_id: next_stage.id, position: 1, active: false)
+    end
+
+    it 'mirrors conversation-origin card mutations back to legacy state' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      state = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      card = sync_state(state)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id, position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(state.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+    end
+
+    it 'rejects inactive cards' do
+      card = create_manual_card(active: false)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: stage.id } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects cards from another board' do
+      other_board = create(:kanban_board, account: account)
+      other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
+      card = create_manual_card(kanban_board: other_board, kanban_stage: other_stage)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: stage.id } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects unauthorized cards' do
+      hidden_inbox = create(:inbox, account: account)
+      card = create_manual_card(inbox: hidden_inbox)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: stage.id } },
+            as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   describe 'DELETE /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/{conversation_id}' do
     it 'removes a card from the board' do
       create(
@@ -688,5 +826,18 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
   def sync_state(state)
     KanbanCards::SyncConversationStateService.new(state).sync!
+  end
+
+  def create_manual_card(attributes = {})
+    create(
+      :kanban_card,
+      {
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        contact: conversation.contact,
+        inbox: conversation.inbox
+      }.merge(attributes)
+    )
   end
 end

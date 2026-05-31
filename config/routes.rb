@@ -138,6 +138,9 @@ Rails.application.routes.draw do
                 patch '', on: :member, action: :update
                 patch :reorder, on: :member
               end
+              patch 'cards/:id', to: 'cards#update'
+              delete 'cards/:id', to: 'cards#destroy'
+              patch 'cards/:id/reorder', to: 'cards#reorder'
             end
           end
           namespace :channels do

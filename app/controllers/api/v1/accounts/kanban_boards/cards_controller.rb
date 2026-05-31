@@ -1,9 +1,11 @@
+# rubocop:disable Metrics/ClassLength
 class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::BaseController
   before_action :fetch_kanban_board
   before_action :authorize_kanban_board_show
-  before_action :fetch_conversation
-  before_action :authorize_conversation
-  before_action :fetch_conversation_kanban_state, only: [:update, :destroy, :reorder]
+  before_action :fetch_conversation, only: [:create]
+  before_action :authorize_conversation, only: [:create]
+  before_action :fetch_mutation_target, only: [:update, :destroy, :reorder]
+  before_action :authorize_mutation_target, only: [:update, :destroy, :reorder]
   before_action :fetch_kanban_stage, only: [:create, :update]
 
   def create
@@ -18,6 +20,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def update
+    return update_kanban_card if stable_card_route?
+
     previous_stage = @conversation_kanban_state.kanban_stage
 
     ConversationKanbanState.transaction do
@@ -35,6 +39,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def reorder
+    return reorder_kanban_card if stable_card_route?
+
     ConversationKanbanState.transaction do
       previous_stage = @conversation_kanban_state.kanban_stage
 
@@ -58,6 +64,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def destroy
+    return destroy_kanban_card if stable_card_route?
+
     source_stage = @conversation_kanban_state.kanban_stage
 
     ConversationKanbanState.transaction do
@@ -90,8 +98,35 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     authorize @conversation, :show?
   end
 
+  def fetch_mutation_target
+    return fetch_kanban_card || fetch_legacy_mutation_target if params[:id].present?
+
+    fetch_legacy_mutation_target
+  rescue ActiveRecord::RecordNotFound
+    fetch_kanban_card || raise
+  end
+
+  def fetch_kanban_card
+    @kanban_card = @kanban_board.kanban_cards.active.find_by(id: card_identifier)
+    return true if @kanban_card
+    raise ActiveRecord::RecordNotFound if KanbanCard.exists?(id: card_identifier)
+
+    false
+  end
+
+  def fetch_legacy_mutation_target
+    fetch_conversation
+    fetch_conversation_kanban_state
+  end
+
   def fetch_conversation_kanban_state
     @conversation_kanban_state = @kanban_board.conversation_kanban_states.find_by!(conversation: @conversation)
+  end
+
+  def authorize_mutation_target
+    return authorize @kanban_card, action_name_policy if stable_card_route?
+
+    authorize_conversation
   end
 
   def fetch_kanban_stage
@@ -115,6 +150,18 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def card_params
     params.require(:card).permit(:conversation_id, :kanban_stage_id, :position)
+  end
+
+  def card_identifier
+    params[:id] || params[:conversation_id]
+  end
+
+  def stable_card_route?
+    @kanban_card.present?
+  end
+
+  def action_name_policy
+    "#{action_name}?".to_sym
   end
 
   def sibling_state_for_reorder
@@ -155,6 +202,96 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     KanbanCards::SyncConversationStateService.new(conversation_kanban_state)
   end
 
+  def update_kanban_card
+    source_stage = @kanban_card.kanban_stage
+
+    KanbanCard.transaction do
+      @kanban_card.reorder_to_position!(
+        kanban_stage: @kanban_stage,
+        position: card_params[:position] || next_card_position(@kanban_stage)
+      )
+      sync_legacy_states_for_card_stages(source_stage, @kanban_card.reload.kanban_stage)
+    end
+
+    render_card
+  end
+
+  def reorder_kanban_card
+    source_stage = @kanban_card.kanban_stage
+
+    KanbanCard.transaction do
+      @kanban_card.reorder_to_position!(
+        kanban_stage: target_card_stage_for_reorder,
+        position: params.dig(:card, :position) || @kanban_card.position
+      )
+      sync_legacy_states_for_card_stages(source_stage, @kanban_card.reload.kanban_stage)
+    end
+
+    render_card
+  end
+
+  def destroy_kanban_card
+    source_stage = @kanban_card.kanban_stage
+
+    KanbanCard.transaction do
+      @kanban_card.update!(active: false)
+      legacy_state_for(@kanban_card)&.destroy! if @kanban_card.conversation?
+      sync_legacy_states_for_card_stages(source_stage)
+    end
+
+    head :no_content
+  end
+
+  def next_card_position(kanban_stage)
+    @kanban_board.kanban_cards.active.where(kanban_stage: kanban_stage).maximum(:position).to_i + 1
+  end
+
+  def target_card_stage_for_reorder
+    stage_id = params.dig(:card, :kanban_stage_id)
+    return @kanban_card.kanban_stage if stage_id.blank?
+
+    @kanban_board.kanban_stages.active.find(stage_id)
+  end
+
+  def sync_legacy_states_for_card_stages(*kanban_stages)
+    kanban_stages.uniq.each do |kanban_stage|
+      @kanban_board.kanban_cards.conversation.active.where(kanban_stage: kanban_stage).ordered.each do |card|
+        sync_legacy_state_for_card(card)
+      end
+    end
+  end
+
+  def sync_legacy_state_for_card(card)
+    state = @kanban_board.conversation_kanban_states.find_or_initialize_by(conversation: card.conversation)
+    state.assign_attributes(
+      account: Current.account,
+      kanban_board: @kanban_board,
+      kanban_stage: card.kanban_stage,
+      position: card.position,
+      moved_by: Current.user.is_a?(User) ? Current.user : nil,
+      moved_at: Time.current
+    )
+    state.save!
+  end
+
+  def legacy_state_for(card)
+    @kanban_board.conversation_kanban_states.find_by(conversation: card.conversation)
+  end
+
+  def render_card
+    render json: {
+      id: @kanban_card.id,
+      account_id: @kanban_card.account_id,
+      kanban_board_id: @kanban_card.kanban_board_id,
+      kanban_stage_id: @kanban_card.kanban_stage_id,
+      conversation_id: @kanban_card.conversation&.display_id,
+      position: @kanban_card.position,
+      origin: @kanban_card.origin,
+      subject: @kanban_card.subject,
+      active: @kanban_card.active
+    }
+  end
+
   def reorder_with_position?
     params[:card].present? && (params.dig(:card, :position).present? || params.dig(:card, :kanban_stage_id).present?)
   end
@@ -175,3 +312,4 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     @kanban_board.kanban_stages.active.find(stage_id)
   end
 end
+# rubocop:enable Metrics/ClassLength
