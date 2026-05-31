@@ -102,8 +102,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
       )
     end
 
-    context 'when kanban_card_board_reads is enabled' do
-      before { account.enable_features!('kanban_card_board_reads') }
+    context 'when opportunity card reads are enabled for the board' do
+      before { kanban_board.update!(use_opportunity_card_reads: true) }
 
       it 'returns active conversation-origin kanban cards with the frontend-compatible payload' do
         stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New')
@@ -274,7 +274,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       end
     end
 
-    it 'keeps legacy reads when the flag is disabled and restores them immediately after disabling' do
+    it 'keeps legacy reads when board reads are disabled and restores them immediately after disabling' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       legacy_conversation = create(:conversation, account: account)
       card_conversation = create(:conversation, account: account)
@@ -295,14 +295,14 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([legacy_state.id])
 
-      account.enable_features!('kanban_card_board_reads')
+      kanban_board.update!(use_opportunity_card_reads: true)
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
           headers: agent.create_new_auth_token,
           as: :json
 
       expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
 
-      account.disable_features!('kanban_card_board_reads')
+      kanban_board.update!(use_opportunity_card_reads: false)
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
           headers: agent.create_new_auth_token,
           as: :json
@@ -310,7 +310,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([legacy_state.id])
     end
 
-    it 'keeps the feature flag account-scoped' do
+    it 'keeps the switch scoped to the board' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       legacy_conversation = create(:conversation, account: account)
       card_conversation = create(:conversation, account: account)
@@ -324,8 +324,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
         conversation: legacy_conversation
       )
       create(:kanban_card, :conversation_origin, kanban_board: kanban_board, kanban_stage: stage, conversation: card_conversation)
-      other_account = create(:account)
-      other_account.enable_features!('kanban_card_board_reads')
+      create(:kanban_board, account: account, use_opportunity_card_reads: true)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
           headers: agent.create_new_auth_token,

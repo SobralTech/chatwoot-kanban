@@ -8,7 +8,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def show
     @kanban_stages = @kanban_board.kanban_stages.active.ordered
-    if kanban_card_board_reads_enabled?
+    if @kanban_board.use_opportunity_card_reads?
       fetch_kanban_cards
       return
     end
@@ -41,10 +41,6 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def kanban_board_params
     params.require(:kanban_board).permit(:name, :description, :position, :active, :auto_create_cards_from_conversations, :default_stage_id)
-  end
-
-  def kanban_card_board_reads_enabled?
-    Current.account.feature_enabled?('kanban_card_board_reads')
   end
 
   def fetch_kanban_cards

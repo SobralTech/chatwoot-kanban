@@ -1,9 +1,6 @@
 module Featurable
   extend ActiveSupport::Concern
 
-  MAX_BIGINT_FEATURE_INDEX = 63
-  INTERNAL_FEATURE_FLAGS_KEY = 'feature_flags'.freeze
-
   QUERY_MODE = {
     flag_query_mode: :bit_operator,
     check_for_column: false
@@ -24,11 +21,6 @@ module Featurable
 
   def enable_features(*names)
     names.each do |name|
-      if overflow_feature?(name)
-        set_internal_feature(name, true)
-        next
-      end
-
       send("feature_#{name}=", true)
     end
   end
@@ -40,11 +32,6 @@ module Featurable
 
   def disable_features(*names)
     names.each do |name|
-      if overflow_feature?(name)
-        set_internal_feature(name, false)
-        next
-      end
-
       send("feature_#{name}=", false)
     end
   end
@@ -55,8 +42,6 @@ module Featurable
   end
 
   def feature_enabled?(name)
-    return internal_feature_enabled?(name) if overflow_feature?(name)
-
     send("feature_#{name}?")
   end
 
@@ -75,29 +60,6 @@ module Featurable
   end
 
   private
-
-  def overflow_feature?(name)
-    feature_index(name).to_i > MAX_BIGINT_FEATURE_INDEX
-  end
-
-  def feature_index(name)
-    FEATURES.key("feature_#{name}".to_sym)
-  end
-
-  def internal_feature_enabled?(name)
-    internal_feature_flags[name.to_s] == true
-  end
-
-  def set_internal_feature(name, enabled)
-    attributes = internal_attributes.to_h.deep_dup
-    attributes[INTERNAL_FEATURE_FLAGS_KEY] ||= {}
-    attributes[INTERNAL_FEATURE_FLAGS_KEY][name.to_s] = enabled
-    self.internal_attributes = attributes
-  end
-
-  def internal_feature_flags
-    internal_attributes.to_h.fetch(INTERNAL_FEATURE_FLAGS_KEY, {})
-  end
 
   def enable_default_features
     config = InstallationConfig.find_by(name: 'ACCOUNT_LEVEL_FEATURE_DEFAULTS')

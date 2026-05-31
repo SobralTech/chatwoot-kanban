@@ -242,7 +242,3 @@
   display_name: Advanced Assignment
   enabled: false
   premium: true
-- name: kanban_card_board_reads
-  display_name: Kanban Card Board Reads
-  enabled: false
-  chatwoot_internal: true
