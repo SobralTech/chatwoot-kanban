@@ -4,7 +4,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
   let(:account) { create(:account) }
   let(:administrator) { create(:user, account: account, role: :administrator) }
   let(:agent) { create(:user, account: account, role: :agent) }
-  let!(:kanban_board) { create(:kanban_board, account: account, name: 'Sales') }
+  let!(:kanban_board) { create(:kanban_board, account: account, name: 'Sales', use_opportunity_card_reads: false) }
 
   describe 'GET /api/v1/accounts/{account.id}/kanban_boards' do
     it 'returns unauthorized for unauthenticated users' do
@@ -557,6 +557,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['name']).to eq('Support')
       expect(response.parsed_body['auto_create_cards_from_conversations']).to be(false)
+      expect(response.parsed_body['use_opportunity_card_reads']).to be(true)
+      expect(KanbanBoard.last.use_opportunity_card_reads).to be(true)
     end
 
     it 'accepts automatic card creation setting' do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_31_140000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_31_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -961,7 +961,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_31_140000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "auto_create_cards_from_conversations", default: false, null: false
-    t.boolean "use_opportunity_card_reads", default: false, null: false
+    t.boolean "use_opportunity_card_reads", default: true, null: false
     t.index ["account_id", "active"], name: "index_kanban_boards_on_account_id_and_active"
     t.index ["account_id", "name"], name: "index_active_kanban_boards_on_account_id_and_name", unique: true, where: "(active = true)"
     t.index ["account_id", "position"], name: "index_kanban_boards_on_account_id_and_position"
