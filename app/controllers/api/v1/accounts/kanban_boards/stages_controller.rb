@@ -51,8 +51,9 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
       return
     end
 
-    if @kanban_stage.conversation_kanban_states.exists?
-      render json: { error: 'Kanban stage must be empty before it can be removed.' }, status: :unprocessable_content
+    if @kanban_stage.conversation_kanban_states.exists? || @kanban_stage.kanban_cards.active.exists?
+      render json: { error: 'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.' },
+             status: :unprocessable_content
       return
     end
 
