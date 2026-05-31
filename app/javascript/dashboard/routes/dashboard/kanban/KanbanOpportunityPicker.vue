@@ -1,18 +1,23 @@
 <script setup>
-import { ref, onUnmounted } from 'vue';
+import { computed, ref, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 import { debounce } from '@chatwoot/utils';
 import ContactAPI from 'dashboard/api/contacts';
+import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
-defineProps({
+const props = defineProps({
+  kanbanBoardId: {
+    type: Number,
+    required: true,
+  },
   kanbanStageId: {
     type: Number,
     required: true,
   },
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['created', 'close']);
 
 const { t } = useI18n();
 
@@ -30,6 +35,12 @@ const isLoadingInboxes = ref(false);
 const inboxesError = ref(false);
 const selectedInbox = ref(null);
 const inboxesController = ref(null);
+const subject = ref('');
+const subjectError = ref('');
+const creationError = ref('');
+const isSaving = ref(false);
+
+const trimmedSubject = computed(() => subject.value.trim());
 
 const isAbortError = error =>
   error?.name === 'AbortError' || error?.name === 'CanceledError';
@@ -114,6 +125,31 @@ const resetInboxes = () => {
   selectedInbox.value = null;
 };
 
+const resetSubmission = () => {
+  subject.value = '';
+  subjectError.value = '';
+  creationError.value = '';
+  isSaving.value = false;
+};
+
+const resetPicker = () => {
+  abortContactSearch();
+  resetInboxes();
+  resetSubmission();
+  contactSearchQuery.value = '';
+  contactSearchResults.value = [];
+  selectedContact.value = null;
+  isSearchingContacts.value = false;
+  hasSearchedContacts.value = false;
+  contactSearchError.value = false;
+};
+
+const getErrorMessage = error =>
+  error?.response?.data?.error ||
+  error?.response?.data?.message ||
+  error?.message ||
+  t('KANBAN.ADD_ITEM.CREATION_ERROR');
+
 const loadContactableInboxes = async contact => {
   resetInboxes();
 
@@ -148,10 +184,12 @@ const loadContactableInboxes = async contact => {
 
 const selectInbox = inbox => {
   selectedInbox.value = inbox;
+  subjectError.value = '';
+  creationError.value = '';
 };
 
 const handleClose = () => {
-  resetInboxes();
+  resetPicker();
   emit('close');
 };
 
@@ -166,7 +204,40 @@ const selectContact = contact => {
 
 const clearSelectedContact = () => {
   resetInboxes();
+  resetSubmission();
   selectedContact.value = null;
+};
+
+const createManualOpportunity = async () => {
+  if (isSaving.value) return;
+
+  subjectError.value = '';
+  creationError.value = '';
+
+  if (!trimmedSubject.value) {
+    subjectError.value = t('KANBAN.ADD_ITEM.SUBJECT_REQUIRED');
+    return;
+  }
+
+  isSaving.value = true;
+
+  try {
+    await KanbanBoardsAPI.createManualCard(props.kanbanBoardId, {
+      card: {
+        kanban_stage_id: props.kanbanStageId,
+        contact_id: selectedContact.value.id,
+        inbox_id: selectedInbox.value.id,
+        subject: trimmedSubject.value,
+      },
+    });
+    emit('created');
+    resetPicker();
+    emit('close');
+  } catch (error) {
+    creationError.value = getErrorMessage(error);
+  } finally {
+    isSaving.value = false;
+  }
 };
 
 onUnmounted(() => {
@@ -290,6 +361,55 @@ onUnmounted(() => {
             </span>
           </button>
         </div>
+
+        <form
+          v-if="selectedInbox"
+          data-testid="kanban-manual-card-form"
+          class="mt-3 grid gap-2"
+          @submit.prevent="createManualOpportunity"
+        >
+          <label
+            :for="`kanban-subject-${kanbanStageId}`"
+            class="text-sm font-medium text-n-slate-12"
+          >
+            {{ t('KANBAN.ADD_ITEM.SUBJECT') }}
+          </label>
+          <input
+            :id="`kanban-subject-${kanbanStageId}`"
+            v-model="subject"
+            type="text"
+            data-testid="kanban-manual-card-subject"
+            class="no-drag min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+            :aria-invalid="!!subjectError"
+            @input="subjectError = ''"
+          />
+          <p
+            v-if="subjectError"
+            data-testid="kanban-manual-card-subject-error"
+            class="mb-0 text-sm text-n-ruby-11"
+          >
+            {{ subjectError }}
+          </p>
+          <p
+            v-if="creationError"
+            data-testid="kanban-manual-card-error"
+            class="mb-0 text-sm text-n-ruby-11"
+          >
+            {{ creationError }}
+          </p>
+          <button
+            type="submit"
+            data-testid="kanban-manual-card-submit"
+            class="no-drag flex min-h-10 items-center justify-center rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="isSaving"
+          >
+            {{
+              isSaving
+                ? t('KANBAN.ADD_ITEM.SAVING')
+                : t('KANBAN.ADD_ITEM.CREATE_OPPORTUNITY')
+            }}
+          </button>
+        </form>
       </div>
 
       <p

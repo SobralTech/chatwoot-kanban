@@ -1,6 +1,7 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import KanbanOpportunityPicker from '../KanbanOpportunityPicker.vue';
 import ContactAPI from 'dashboard/api/contacts';
+import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -15,9 +16,16 @@ vi.mock('dashboard/api/contacts', () => ({
   },
 }));
 
+vi.mock('dashboard/api/kanbanBoards', () => ({
+  default: {
+    createManualCard: vi.fn(),
+  },
+}));
+
 const mountPicker = () =>
   mount(KanbanOpportunityPicker, {
     props: {
+      kanbanBoardId: 10,
       kanbanStageId: 100,
     },
   });
@@ -58,6 +66,13 @@ const searchAndSelectContact = async (wrapper, query, contactIndex = 0) => {
 
 const searchAndSelectFirstContact = async (wrapper, query) =>
   searchAndSelectContact(wrapper, query, 0);
+
+const searchAndSelectFirstInbox = async wrapper => {
+  await searchAndSelectFirstContact(wrapper, 'Jan');
+
+  const inboxButtons = wrapper.findAll('[data-testid="kanban-inboxes"] button');
+  await inboxButtons[0].trigger('click');
+};
 
 describe('KanbanOpportunityPicker', () => {
   beforeEach(() => {
@@ -297,6 +312,184 @@ describe('KanbanOpportunityPicker', () => {
 
       expect(inboxButtons[0].classes()).not.toContain('bg-n-alpha-2');
       expect(inboxButtons[1].classes()).toContain('bg-n-alpha-2');
+    });
+
+    it('renders subject input after selecting an inbox', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getContactableInboxes.mockResolvedValue({
+        data: { payload: [buildInbox()] },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+
+      expect(
+        wrapper.find('[data-testid="kanban-manual-card-subject"]').exists()
+      ).toBe(true);
+    });
+
+    it('does not submit a blank subject', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getContactableInboxes.mockResolvedValue({
+        data: { payload: [buildInbox()] },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await wrapper
+        .find('[data-testid="kanban-manual-card-subject"]')
+        .setValue('   ');
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+
+      expect(KanbanBoardsAPI.createManualCard).not.toHaveBeenCalled();
+      expect(
+        wrapper.find('[data-testid="kanban-manual-card-subject-error"]').text()
+      ).toContain('KANBAN.ADD_ITEM.SUBJECT_REQUIRED');
+    });
+
+    it('sends the trimmed subject when creating a manual card', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getContactableInboxes.mockResolvedValue({
+        data: { payload: [buildInbox()] },
+      });
+      KanbanBoardsAPI.createManualCard.mockResolvedValue({ data: {} });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await wrapper
+        .find('[data-testid="kanban-manual-card-subject"]')
+        .setValue('  Cotação de notebooks  ');
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+
+      expect(KanbanBoardsAPI.createManualCard).toHaveBeenCalledWith(10, {
+        card: {
+          kanban_stage_id: 100,
+          contact_id: 1,
+          inbox_id: 10,
+          subject: 'Cotação de notebooks',
+        },
+      });
+    });
+
+    it('submits manual cards with board, stage, contact, inbox, and subject', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getContactableInboxes.mockResolvedValue({
+        data: { payload: [buildInbox()] },
+      });
+      KanbanBoardsAPI.createManualCard.mockResolvedValue({ data: {} });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await wrapper
+        .find('[data-testid="kanban-manual-card-subject"]')
+        .setValue('Notebook quote');
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+
+      expect(KanbanBoardsAPI.createManualCard).toHaveBeenCalledWith(10, {
+        card: {
+          kanban_stage_id: 100,
+          contact_id: 1,
+          inbox_id: 10,
+          subject: 'Notebook quote',
+        },
+      });
+    });
+
+    it('disables submit while saving', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getContactableInboxes.mockResolvedValue({
+        data: { payload: [buildInbox()] },
+      });
+      KanbanBoardsAPI.createManualCard.mockReturnValue(new Promise(() => {}));
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await wrapper
+        .find('[data-testid="kanban-manual-card-subject"]')
+        .setValue('Notebook quote');
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+
+      const submit = wrapper.find('[data-testid="kanban-manual-card-submit"]');
+      expect(submit.attributes('disabled')).toBeDefined();
+      expect(submit.text()).toContain('KANBAN.ADD_ITEM.SAVING');
+    });
+
+    it('prevents duplicate submits while saving', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getContactableInboxes.mockResolvedValue({
+        data: { payload: [buildInbox()] },
+      });
+      KanbanBoardsAPI.createManualCard.mockReturnValue(new Promise(() => {}));
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await wrapper
+        .find('[data-testid="kanban-manual-card-subject"]')
+        .setValue('Notebook quote');
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+
+      expect(KanbanBoardsAPI.createManualCard).toHaveBeenCalledTimes(1);
+    });
+
+    it('renders API errors', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getContactableInboxes.mockResolvedValue({
+        data: { payload: [buildInbox()] },
+      });
+      KanbanBoardsAPI.createManualCard.mockRejectedValue({
+        response: { data: { message: 'Subject already exists' } },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await wrapper
+        .find('[data-testid="kanban-manual-card-subject"]')
+        .setValue('Notebook quote');
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+      await flushPromises();
+
+      expect(
+        wrapper.find('[data-testid="kanban-manual-card-error"]').text()
+      ).toContain('Subject already exists');
+    });
+
+    it('emits created and close on success', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getContactableInboxes.mockResolvedValue({
+        data: { payload: [buildInbox()] },
+      });
+      KanbanBoardsAPI.createManualCard.mockResolvedValue({ data: {} });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await wrapper
+        .find('[data-testid="kanban-manual-card-subject"]')
+        .setValue('Notebook quote');
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+      await flushPromises();
+
+      expect(wrapper.emitted('created')).toBeTruthy();
+      expect(wrapper.emitted('close')).toBeTruthy();
+      expect(
+        wrapper.find('[data-testid="kanban-manual-card-form"]').exists()
+      ).toBe(false);
     });
 
     it('shows empty state when no inboxes are available', async () => {

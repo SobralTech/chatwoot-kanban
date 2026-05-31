@@ -352,13 +352,16 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('opens and toggles the inline add item picker for the selected stage', async () => {
-    const wrapper = await mountView();
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
     const addItemButtons = findAddItemButtons(wrapper);
 
     await addItemButtons[1].trigger('click');
 
     let picker = findAddItemPicker(wrapper);
     expect(picker.exists()).toBe(true);
+    expect(picker.props('kanbanBoardId')).toBe(10);
     expect(picker.props('kanbanStageId')).toBe(200);
 
     await addItemButtons[1].trigger('click');
@@ -368,7 +371,9 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('closes the inline add item picker using the close action', async () => {
-    const wrapper = await mountView();
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
 
     await findAddItemButtons(wrapper)[0].trigger('click');
     expect(findAddItemPicker(wrapper).exists()).toBe(true);
@@ -379,7 +384,9 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('renders the add item picker outside card draggables', async () => {
-    const wrapper = await mountView();
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
 
     await findAddItemButtons(wrapper)[0].trigger('click');
 
@@ -393,12 +400,51 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('does not trigger card drag behavior from add item controls', async () => {
-    const wrapper = await mountView();
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
 
     await findAddItemButtons(wrapper)[0].trigger('click');
     await findAddItemPicker(wrapper).vm.$emit('close');
 
     expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
+  });
+
+  it('refetches the current board after a manual opportunity is created', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+
+    await findAddItemButtons(wrapper)[0].trigger('click');
+    KanbanBoardsAPI.show.mockClear();
+
+    await findAddItemPicker(wrapper).vm.$emit('created');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+  });
+
+  it('does not open the manual picker for legacy-read boards', async () => {
+    const wrapper = await mountView();
+
+    await findAddItemButtons(wrapper)[0].trigger('click');
+
+    expect(findAddItemPicker(wrapper).exists()).toBe(false);
+    expect(
+      wrapper
+        .find('[data-testid="kanban-manual-card-legacy-unavailable"]')
+        .text()
+    ).toContain('KANBAN.ADD_ITEM.LEGACY_UNAVAILABLE');
+  });
+
+  it('opens the manual picker for opportunity-read boards', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+
+    await findAddItemButtons(wrapper)[0].trigger('click');
+
+    expect(findAddItemPicker(wrapper).exists()).toBe(true);
   });
 
   it('persists same-stage card reorder using updated position', async () => {

@@ -14,6 +14,7 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('reorderStage');
     expect(kanbanBoards).toHaveProperty('deleteStage');
     expect(kanbanBoards).toHaveProperty('createCard');
+    expect(kanbanBoards).toHaveProperty('createManualCard');
     expect(kanbanBoards).toHaveProperty('updateCard');
     expect(kanbanBoards).toHaveProperty('updateCardById');
     expect(kanbanBoards).toHaveProperty('reorderCard');
@@ -96,6 +97,23 @@ describe('#KanbanBoardsAPI', () => {
 
       expect(axiosMock.post).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards',
+        payload
+      );
+    });
+
+    it('#createManualCard', () => {
+      const payload = {
+        card: {
+          kanban_stage_id: 3,
+          contact_id: 123,
+          inbox_id: 5,
+          subject: 'Cotação de notebooks',
+        },
+      };
+      kanbanBoards.createManualCard(2, payload);
+
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/manual',
         payload
       );
     });

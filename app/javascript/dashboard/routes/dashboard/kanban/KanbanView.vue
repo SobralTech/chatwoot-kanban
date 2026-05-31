@@ -436,6 +436,8 @@ const confirmRemoveStage = async () => {
 };
 
 const toggleAddItemPicker = stage => {
+  if (!useStableCardMutations.value) return;
+
   if (activeAddItemStageId.value === stage.id) {
     activeAddItemStageId.value = null;
     return;
@@ -1043,18 +1045,32 @@ onMounted(fetchBoards);
                   data-testid="kanban-add-item-button"
                   :data-stage-id="stage.id"
                   class="no-drag flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!!activeActionKey"
+                  :disabled="!!activeActionKey || !useStableCardMutations"
                   :aria-expanded="activeAddItemStageId === stage.id"
                   :aria-controls="`kanban-add-item-panel-${stage.id}`"
+                  :title="
+                    useStableCardMutations
+                      ? t('KANBAN.ACTIONS.ADD_ITEM')
+                      : t('KANBAN.ADD_ITEM.LEGACY_UNAVAILABLE')
+                  "
                   @click="toggleAddItemPicker(stage)"
                 >
                   <i class="i-lucide-plus size-4" />
                   {{ t('KANBAN.ACTIONS.ADD_ITEM') }}
                 </button>
+                <p
+                  v-if="!useStableCardMutations"
+                  data-testid="kanban-manual-card-legacy-unavailable"
+                  class="mb-0 text-xs text-n-slate-11"
+                >
+                  {{ t('KANBAN.ADD_ITEM.LEGACY_UNAVAILABLE') }}
+                </p>
 
                 <KanbanOpportunityPicker
                   v-if="activeAddItemStageId === stage.id"
+                  :kanban-board-id="selectedBoard.id"
                   :kanban-stage-id="stage.id"
+                  @created="refreshSelectedBoard"
                   @close="closeAddItemPicker"
                 />
 

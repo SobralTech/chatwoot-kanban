@@ -84,6 +84,12 @@
       "LOADING_INBOXES": "Carregando caixas de entrada do contato...",
       "INBOXES_ERROR": "Não foi possível carregar as caixas de entrada. Tente novamente.",
       "NO_INBOXES": "Nenhuma caixa de entrada disponível para este contato.",
+      "SUBJECT": "Assunto",
+      "CREATE_OPPORTUNITY": "Criar oportunidade",
+      "SAVING": "Salvando...",
+      "SUBJECT_REQUIRED": "Informe um assunto para criar a oportunidade.",
+      "CREATION_ERROR": "Não foi possível criar a oportunidade. Tente novamente.",
+      "LEGACY_UNAVAILABLE": "Oportunidades manuais não estão disponíveis para quadros em modo legado.",
       "CLEAR_CONTACT": "Limpar contato selecionado",
       "CLOSE": "Fechar seletor de item"
     },

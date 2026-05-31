@@ -94,6 +94,12 @@
       "LOADING_INBOXES": "Loading contact inboxes...",
       "INBOXES_ERROR": "Could not load inboxes. Try again.",
       "NO_INBOXES": "No available inboxes for this contact.",
+      "SUBJECT": "Subject",
+      "CREATE_OPPORTUNITY": "Create opportunity",
+      "SAVING": "Saving...",
+      "SUBJECT_REQUIRED": "Enter a subject to create the opportunity.",
+      "CREATION_ERROR": "Could not create the opportunity. Try again.",
+      "LEGACY_UNAVAILABLE": "Manual opportunities are unavailable for legacy-read boards.",
       "CLEAR_CONTACT": "Clear selected contact",
       "CLOSE": "Close add item picker"
     },
