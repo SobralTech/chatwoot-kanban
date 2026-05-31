@@ -12,6 +12,7 @@ vi.mock('vue-i18n', () => ({
 vi.mock('dashboard/api/contacts', () => ({
   default: {
     search: vi.fn(),
+    getConversations: vi.fn(),
     getContactableInboxes: vi.fn(),
   },
 }));
@@ -52,6 +53,16 @@ const buildInbox = overrides => ({
   ...overrides,
 });
 
+const buildConversation = overrides => ({
+  id: 1000,
+  inbox: {
+    id: 10,
+    name: 'Email Inbox',
+    channel_type: 'Channel::Email',
+  },
+  ...overrides,
+});
+
 const searchAndSelectContact = async (wrapper, query, contactIndex = 0) => {
   const input = wrapper.find('[data-testid="kanban-contact-search-input"]');
   await input.setValue(query);
@@ -78,6 +89,7 @@ describe('KanbanOpportunityPicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    ContactAPI.getConversations.mockResolvedValue({ data: { payload: [] } });
   });
 
   afterEach(() => {
@@ -188,6 +200,9 @@ describe('KanbanOpportunityPicker', () => {
     ContactAPI.search.mockResolvedValue({
       data: { payload: [buildContact()] },
     });
+    ContactAPI.getConversations.mockResolvedValue({
+      data: { payload: [buildConversation()] },
+    });
     ContactAPI.getContactableInboxes.mockResolvedValue({
       data: { payload: [buildInbox()] },
     });
@@ -223,15 +238,77 @@ describe('KanbanOpportunityPicker', () => {
     expect(signals[0].aborted).toBe(true);
   });
 
-  describe('contactable inboxes', () => {
+  describe('contact inboxes', () => {
     beforeEach(() => {
       ContactAPI.search.mockResolvedValue({
         data: { payload: [buildContact()] },
       });
     });
 
-    it('loads contactable inboxes after selecting a contact', async () => {
+    it('loads conversations after selecting a contact', async () => {
       vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstContact(wrapper, 'Jan');
+
+      expect(ContactAPI.getConversations).toHaveBeenCalledWith(1, {
+        signal: expect.any(AbortSignal),
+      });
+    });
+
+    it('derives unique inboxes from conversations', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: {
+          payload: [
+            buildConversation(),
+            buildConversation({ id: 1001 }),
+            buildConversation({
+              id: 1002,
+              inbox: {
+                id: 11,
+                name: 'WhatsApp Inbox',
+                channel_type: 'Channel::Whatsapp',
+              },
+            }),
+          ],
+        },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstContact(wrapper, 'Jan');
+
+      const inboxButtons = wrapper.findAll(
+        '[data-testid="kanban-inboxes"] button'
+      );
+      const inboxes = wrapper.find('[data-testid="kanban-inboxes"]');
+      expect(inboxButtons).toHaveLength(2);
+      expect(inboxes.text()).toContain('Email Inbox');
+      expect(inboxes.text()).toContain('Email');
+      expect(inboxes.text()).toContain('WhatsApp Inbox');
+      expect(inboxes.text()).toContain('Whatsapp');
+    });
+
+    it('does not call fallback when conversations provide inboxes', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstContact(wrapper, 'Jan');
+
+      expect(ContactAPI.getContactableInboxes).not.toHaveBeenCalled();
+    });
+
+    it('calls fallback when conversations have no inboxes', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation({ inbox: null })] },
+      });
       ContactAPI.getContactableInboxes.mockResolvedValue({
         data: { payload: [buildInbox()] },
       });
@@ -242,11 +319,32 @@ describe('KanbanOpportunityPicker', () => {
       expect(ContactAPI.getContactableInboxes).toHaveBeenCalledWith(1, {
         signal: expect.any(AbortSignal),
       });
+      expect(wrapper.find('[data-testid="kanban-inboxes"]').text()).toContain(
+        'Email Inbox'
+      );
+    });
+
+    it('calls fallback when conversations fail', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockRejectedValue(new Error('Failed'));
+      ContactAPI.getContactableInboxes.mockResolvedValue({
+        data: { payload: [buildInbox()] },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstContact(wrapper, 'Jan');
+
+      expect(ContactAPI.getContactableInboxes).toHaveBeenCalledWith(1, {
+        signal: expect.any(AbortSignal),
+      });
+      expect(wrapper.find('[data-testid="kanban-inboxes"]').text()).toContain(
+        'Email Inbox'
+      );
     });
 
     it('shows loading state while fetching inboxes', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockReturnValue(new Promise(() => {}));
+      ContactAPI.getConversations.mockReturnValue(new Promise(() => {}));
       const wrapper = mountPicker();
 
       await searchAndSelectFirstContact(wrapper, 'Jan');
@@ -258,18 +356,18 @@ describe('KanbanOpportunityPicker', () => {
 
     it('renders inbox results with name and channel type', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockResolvedValue({
+      ContactAPI.getConversations.mockResolvedValue({
         data: {
           payload: [
-            buildInbox(),
-            {
-              source_id: 'src-2',
+            buildConversation(),
+            buildConversation({
+              id: 1001,
               inbox: {
                 id: 11,
                 name: 'WhatsApp Inbox',
                 channel_type: 'Channel::Whatsapp',
               },
-            },
+            }),
           ],
         },
       });
@@ -286,12 +384,12 @@ describe('KanbanOpportunityPicker', () => {
 
     it('allows selecting an inbox', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockResolvedValue({
+      ContactAPI.getConversations.mockResolvedValue({
         data: {
           payload: [
-            buildInbox(),
-            buildInbox({
-              source_id: 'src-2',
+            buildConversation(),
+            buildConversation({
+              id: 1001,
               inbox: {
                 id: 11,
                 name: 'SMS Inbox',
@@ -316,8 +414,8 @@ describe('KanbanOpportunityPicker', () => {
 
     it('renders subject input after selecting an inbox', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockResolvedValue({
-        data: { payload: [buildInbox()] },
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
       });
       const wrapper = mountPicker();
 
@@ -330,8 +428,8 @@ describe('KanbanOpportunityPicker', () => {
 
     it('does not submit a blank subject', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockResolvedValue({
-        data: { payload: [buildInbox()] },
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
       });
       const wrapper = mountPicker();
 
@@ -351,8 +449,8 @@ describe('KanbanOpportunityPicker', () => {
 
     it('sends the trimmed subject when creating a manual card', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockResolvedValue({
-        data: { payload: [buildInbox()] },
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
       });
       KanbanBoardsAPI.createManualCard.mockResolvedValue({ data: {} });
       const wrapper = mountPicker();
@@ -377,8 +475,8 @@ describe('KanbanOpportunityPicker', () => {
 
     it('submits manual cards with board, stage, contact, inbox, and subject', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockResolvedValue({
-        data: { payload: [buildInbox()] },
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
       });
       KanbanBoardsAPI.createManualCard.mockResolvedValue({ data: {} });
       const wrapper = mountPicker();
@@ -403,8 +501,8 @@ describe('KanbanOpportunityPicker', () => {
 
     it('disables submit while saving', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockResolvedValue({
-        data: { payload: [buildInbox()] },
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
       });
       KanbanBoardsAPI.createManualCard.mockReturnValue(new Promise(() => {}));
       const wrapper = mountPicker();
@@ -424,8 +522,8 @@ describe('KanbanOpportunityPicker', () => {
 
     it('prevents duplicate submits while saving', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockResolvedValue({
-        data: { payload: [buildInbox()] },
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
       });
       KanbanBoardsAPI.createManualCard.mockReturnValue(new Promise(() => {}));
       const wrapper = mountPicker();
@@ -446,8 +544,8 @@ describe('KanbanOpportunityPicker', () => {
 
     it('renders API errors', async () => {
       vi.useFakeTimers();
-      ContactAPI.getContactableInboxes.mockResolvedValue({
-        data: { payload: [buildInbox()] },
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
       });
       KanbanBoardsAPI.createManualCard.mockRejectedValue({
         response: { data: { message: 'Subject already exists' } },
@@ -494,6 +592,7 @@ describe('KanbanOpportunityPicker', () => {
 
     it('shows empty state when no inboxes are available', async () => {
       vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({ data: { payload: [] } });
       ContactAPI.getContactableInboxes.mockResolvedValue({
         data: { payload: [] },
       });
@@ -511,6 +610,9 @@ describe('KanbanOpportunityPicker', () => {
 
     it('shows error state when inbox fetch fails', async () => {
       vi.useFakeTimers();
+      ContactAPI.getConversations.mockRejectedValue(
+        new Error('Conversation fetch failed')
+      );
       ContactAPI.getContactableInboxes.mockRejectedValue(
         new Error('Inbox fetch failed')
       );
@@ -528,22 +630,22 @@ describe('KanbanOpportunityPicker', () => {
 
     it('resets inbox state when clearing the selected contact', async () => {
       vi.useFakeTimers();
-      const inboxSignals = [];
-      ContactAPI.getContactableInboxes.mockImplementation((...args) => {
-        inboxSignals.push(args[1].signal);
+      const conversationSignals = [];
+      ContactAPI.getConversations.mockImplementation((...args) => {
+        conversationSignals.push(args[1].signal);
         return new Promise(() => {});
       });
       const wrapper = mountPicker();
 
       await searchAndSelectFirstContact(wrapper, 'Jan');
 
-      expect(inboxSignals[0].aborted).toBe(false);
+      expect(conversationSignals[0].aborted).toBe(false);
 
       await wrapper
         .find('[aria-label="KANBAN.ADD_ITEM.CLEAR_CONTACT"]')
         .trigger('click');
 
-      expect(inboxSignals[0].aborted).toBe(true);
+      expect(conversationSignals[0].aborted).toBe(true);
       expect(
         wrapper.find('[data-testid="kanban-inboxes-loading"]').exists()
       ).toBe(false);
@@ -551,9 +653,9 @@ describe('KanbanOpportunityPicker', () => {
 
     it('resets inbox state when selecting another contact', async () => {
       vi.useFakeTimers();
-      const inboxSignals = [];
-      ContactAPI.getContactableInboxes.mockImplementation((...args) => {
-        inboxSignals.push(args[1].signal);
+      const conversationSignals = [];
+      ContactAPI.getConversations.mockImplementation((...args) => {
+        conversationSignals.push(args[1].signal);
         return new Promise(() => {});
       });
       ContactAPI.search
@@ -568,7 +670,7 @@ describe('KanbanOpportunityPicker', () => {
 
       // Select Alice
       await searchAndSelectFirstContact(wrapper, 'Ali');
-      expect(inboxSignals[0].aborted).toBe(false);
+      expect(conversationSignals[0].aborted).toBe(false);
 
       // Clear Alice
       await wrapper
@@ -578,35 +680,35 @@ describe('KanbanOpportunityPicker', () => {
       // Select Bob
       await searchAndSelectFirstContact(wrapper, 'Bob');
 
-      expect(inboxSignals[0].aborted).toBe(true);
-      expect(inboxSignals[1].aborted).toBe(false);
+      expect(conversationSignals[0].aborted).toBe(true);
+      expect(conversationSignals[1].aborted).toBe(false);
     });
 
     it('resets inbox state when picker closes', async () => {
       vi.useFakeTimers();
-      const inboxSignals = [];
-      ContactAPI.getContactableInboxes.mockImplementation((...args) => {
-        inboxSignals.push(args[1].signal);
+      const conversationSignals = [];
+      ContactAPI.getConversations.mockImplementation((...args) => {
+        conversationSignals.push(args[1].signal);
         return new Promise(() => {});
       });
       const wrapper = mountPicker();
 
       await searchAndSelectFirstContact(wrapper, 'Jan');
-      expect(inboxSignals[0].aborted).toBe(false);
+      expect(conversationSignals[0].aborted).toBe(false);
 
       await wrapper
         .find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]')
         .trigger('click');
 
-      expect(inboxSignals[0].aborted).toBe(true);
+      expect(conversationSignals[0].aborted).toBe(true);
       expect(wrapper.emitted('close')).toBeTruthy();
     });
 
     it('aborts stale inbox request when contact changes before resolution', async () => {
       vi.useFakeTimers();
-      const inboxSignals = [];
-      ContactAPI.getContactableInboxes.mockImplementation((...args) => {
-        inboxSignals.push(args[1].signal);
+      const conversationSignals = [];
+      ContactAPI.getConversations.mockImplementation((...args) => {
+        conversationSignals.push(args[1].signal);
         return new Promise(() => {});
       });
       ContactAPI.search
@@ -621,7 +723,7 @@ describe('KanbanOpportunityPicker', () => {
 
       // Start loading inboxes for Alice
       await searchAndSelectFirstContact(wrapper, 'Ali');
-      expect(inboxSignals[0].aborted).toBe(false);
+      expect(conversationSignals[0].aborted).toBe(false);
 
       // Clear Alice
       await wrapper
@@ -632,8 +734,8 @@ describe('KanbanOpportunityPicker', () => {
       await searchAndSelectFirstContact(wrapper, 'Bob');
 
       // Alice's request should be aborted, Bob's should be active
-      expect(inboxSignals[0].aborted).toBe(true);
-      expect(inboxSignals[1].aborted).toBe(false);
+      expect(conversationSignals[0].aborted).toBe(true);
+      expect(conversationSignals[1].aborted).toBe(false);
     });
 
     it('renders with no-drag class for Draggable compatibility', () => {

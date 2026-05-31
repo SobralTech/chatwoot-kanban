@@ -35,15 +35,19 @@ class ContactAPI extends ApiClient {
     return axios.patch(`${this.url}/${id}?include_contact_inboxes=false`, data);
   }
 
-  getConversations(contactId, { inboxId } = {}) {
+  getConversations(contactId, { inboxId, signal } = {}) {
     const params = inboxId ? { inbox_id: inboxId } : {};
-    return axios.get(`${this.url}/${contactId}/conversations`, { params });
+    const config = { params };
+    if (signal) config.signal = signal;
+
+    return axios.get(`${this.url}/${contactId}/conversations`, config);
   }
 
   getContactableInboxes(contactId, { signal } = {}) {
-    return axios.get(`${this.url}/${contactId}/contactable_inboxes`, {
-      signal,
-    });
+    const requestURL = `${this.url}/${contactId}/contactable_inboxes`;
+    if (signal) return axios.get(requestURL, { signal });
+
+    return axios.get(requestURL);
   }
 
   getContactLabels(contactId) {

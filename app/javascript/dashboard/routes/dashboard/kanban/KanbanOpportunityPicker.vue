@@ -150,7 +150,36 @@ const getErrorMessage = error =>
   error?.message ||
   t('KANBAN.ADD_ITEM.CREATION_ERROR');
 
-const loadContactableInboxes = async contact => {
+const deriveInboxesFromConversations = conversations => {
+  const inboxesById = new Map();
+
+  (conversations || []).forEach(conversation => {
+    if (!conversation.inbox?.id || inboxesById.has(conversation.inbox.id)) {
+      return;
+    }
+
+    inboxesById.set(conversation.inbox.id, conversation.inbox);
+  });
+
+  return Array.from(inboxesById.values());
+};
+
+const loadFallbackInboxes = async (contact, controller) => {
+  const {
+    data: { payload: rawInboxes = [] },
+  } = await ContactAPI.getContactableInboxes(contact.id, {
+    signal: controller.signal,
+  });
+
+  if (controller.signal.aborted) return;
+
+  contactableInboxes.value = (rawInboxes || []).map(item => ({
+    ...camelcaseKeys(item.inbox, { deep: true }),
+    sourceId: item.source_id,
+  }));
+};
+
+const loadContactInboxes = async contact => {
   resetInboxes();
 
   const controller = new AbortController();
@@ -159,21 +188,32 @@ const loadContactableInboxes = async contact => {
 
   try {
     const {
-      data: { payload: rawInboxes = [] },
-    } = await ContactAPI.getContactableInboxes(contact.id, {
+      data: { payload: rawConversations = [] },
+    } = await ContactAPI.getConversations(contact.id, {
       signal: controller.signal,
     });
 
     if (controller.signal.aborted) return;
 
-    contactableInboxes.value = (rawInboxes || []).map(item => ({
-      ...camelcaseKeys(item.inbox, { deep: true }),
-      sourceId: item.source_id,
-    }));
+    const conversations = camelcaseKeys(rawConversations || [], { deep: true });
+    const conversationInboxes = deriveInboxesFromConversations(conversations);
+
+    if (conversationInboxes.length > 0) {
+      contactableInboxes.value = conversationInboxes;
+      return;
+    }
+
+    await loadFallbackInboxes(contact, controller);
   } catch (error) {
     if (!isAbortError(error)) {
-      inboxesError.value = true;
-      contactableInboxes.value = [];
+      try {
+        await loadFallbackInboxes(contact, controller);
+      } catch (fallbackError) {
+        if (!isAbortError(fallbackError)) {
+          inboxesError.value = true;
+          contactableInboxes.value = [];
+        }
+      }
     }
   } finally {
     if (inboxesController.value === controller) {
@@ -199,7 +239,7 @@ const selectContact = contact => {
   contactSearchResults.value = [];
   isSearchingContacts.value = false;
   contactSearchError.value = false;
-  loadContactableInboxes(contact);
+  loadContactInboxes(contact);
 };
 
 const clearSelectedContact = () => {
