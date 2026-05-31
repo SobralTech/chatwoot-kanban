@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_31_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_31_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -990,7 +990,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_31_120000) do
     t.index ["conversation_id"], name: "index_kanban_cards_on_conversation_id"
     t.index ["kanban_board_id", "active"], name: "index_kanban_cards_on_kanban_board_id_and_active"
     t.index ["kanban_board_id", "contact_id", "inbox_id", "normalized_subject"], name: "index_active_manual_kanban_cards_unique_subject", unique: true, where: "((active = true) AND ((origin)::text = 'manual'::text) AND (normalized_subject IS NOT NULL))"
-    t.index ["kanban_board_id", "conversation_id"], name: "index_active_kanban_cards_on_board_and_conversation", unique: true, where: "((active = true) AND (conversation_id IS NOT NULL) AND ((origin)::text = 'conversation'::text))"
+    t.index ["kanban_board_id", "conversation_id"], name: "index_kanban_cards_on_board_and_conversation_origin_unique", unique: true, where: "(((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL))"
     t.index ["kanban_board_id", "kanban_stage_id", "position"], name: "index_kanban_cards_on_board_stage_position"
   end
 

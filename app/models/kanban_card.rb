@@ -27,7 +27,7 @@ class KanbanCard < ApplicationRecord
   validates :conversation_id,
             uniqueness: {
               scope: :kanban_board_id,
-              conditions: -> { where(active: true, origin: 'conversation') }
+              conditions: -> { where(origin: 'conversation') }
             },
             if: :validate_conversation_uniqueness?
   validate :validate_account_consistency
@@ -141,7 +141,7 @@ class KanbanCard < ApplicationRecord
   end
 
   def validate_conversation_uniqueness?
-    active? && conversation? && conversation_id.present?
+    conversation? && conversation_id.present?
   end
 
   def validate_account_consistency

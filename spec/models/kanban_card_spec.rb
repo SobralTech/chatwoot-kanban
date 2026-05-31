@@ -114,7 +114,7 @@ RSpec.describe KanbanCard do
       expect(card.errors[:conversation_id]).to be_present
     end
 
-    it 'allows active conversation card recreation when existing card is inactive' do
+    it 'rejects conversation card recreation when existing card is inactive' do
       existing_card = create(:kanban_card, :conversation_origin, active: false)
       card = build(
         :kanban_card,
@@ -125,7 +125,74 @@ RSpec.describe KanbanCard do
         conversation: existing_card.conversation
       )
 
+      expect(card).not_to be_valid
+      expect(card.errors[:conversation_id]).to be_present
+    end
+
+    it 'allows the same conversation card in different boards' do
+      existing_card = create(:kanban_card, :conversation_origin)
+      other_board = create(:kanban_board, account: existing_card.account)
+      other_stage = create(:kanban_stage, account: existing_card.account, kanban_board: other_board)
+      card = build(
+        :kanban_card,
+        :conversation_origin,
+        account: existing_card.account,
+        kanban_board: other_board,
+        kanban_stage: other_stage,
+        conversation: existing_card.conversation
+      )
+
       expect(card).to be_valid
+    end
+
+    it 'does not apply conversation uniqueness to manual cards' do
+      conversation = create(:conversation)
+      board = create(:kanban_board, account: conversation.account)
+      stage = create(:kanban_stage, account: conversation.account, kanban_board: board)
+      create(
+        :kanban_card,
+        account: conversation.account,
+        kanban_board: board,
+        kanban_stage: stage,
+        contact: conversation.contact,
+        inbox: conversation.inbox,
+        conversation: conversation,
+        subject: 'First opportunity'
+      )
+      card = build(
+        :kanban_card,
+        account: conversation.account,
+        kanban_board: board,
+        kanban_stage: stage,
+        contact: conversation.contact,
+        inbox: conversation.inbox,
+        conversation: conversation,
+        subject: 'Second opportunity'
+      )
+
+      expect(card).to be_valid
+    end
+
+    it 'blocks duplicate historical conversation cards at the database index' do
+      existing_card = create(:kanban_card, :conversation_origin)
+      duplicate_attributes = existing_card.attributes.slice(
+        'account_id',
+        'kanban_board_id',
+        'kanban_stage_id',
+        'contact_id',
+        'inbox_id',
+        'conversation_id',
+        'origin'
+      ).merge(
+        'position' => existing_card.position + 1,
+        'active' => false,
+        'created_at' => Time.current,
+        'updated_at' => Time.current
+      )
+
+      expect do
+        described_class.insert_all!([duplicate_attributes]) # rubocop:disable Rails/SkipsModelValidations
+      end.to raise_error(ActiveRecord::RecordNotUnique)
     end
 
     it 'rejects a stage from another board' do
