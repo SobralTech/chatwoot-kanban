@@ -80,6 +80,14 @@
     },
     "ADD_ITEM": {
       "PLACEHOLDER": "Search for a contact to add a conversation",
+      "SEARCH_LABEL": "Search contacts",
+      "SEARCHING": "Searching contacts...",
+      "SEARCH_ERROR": "Could not search contacts. Try again.",
+      "NO_CONTACTS": "No contacts found.",
+      "UNKNOWN_CONTACT": "Unknown contact",
+      "NO_CONTACT_DETAILS": "No email or phone",
+      "CONVERSATIONS_NEXT_STEP": "Conversations will be loaded in the next step.",
+      "CLEAR_CONTACT": "Clear selected contact",
       "CLOSE": "Close add item picker"
     },
     "CARD": {

@@ -3,10 +3,12 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
+import { debounce } from '@chatwoot/utils';
 import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import ContactAPI from 'dashboard/api/contacts';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import KanbanConversationCard from './KanbanConversationCard.vue';
 
@@ -33,6 +35,13 @@ const editingStageId = ref(null);
 const stageNames = ref({});
 const stageColors = ref({});
 const activeAddItemStageId = ref(null);
+const contactSearchQuery = ref('');
+const contactSearchResults = ref([]);
+const selectedContact = ref(null);
+const isSearchingContacts = ref(false);
+const hasSearchedContacts = ref(false);
+const contactSearchError = ref(false);
+const contactSearchController = ref(null);
 const cardPendingRemoval = ref(null);
 const boardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
@@ -47,6 +56,7 @@ const defaultStageColor = 'blue';
 const newStageColor = ref(defaultStageColor);
 const cardDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
+const contactSearchMinimumLength = 2;
 
 const stageColorOptions = [
   {
@@ -410,13 +420,107 @@ const confirmRemoveStage = async () => {
   await removeStage(stage);
 };
 
+const isAbortError = error =>
+  error?.name === 'AbortError' || error?.name === 'CanceledError';
+
+const abortContactSearch = () => {
+  contactSearchController.value?.abort();
+  contactSearchController.value = null;
+};
+
+const resetAddItemPickerState = () => {
+  abortContactSearch();
+  contactSearchQuery.value = '';
+  contactSearchResults.value = [];
+  selectedContact.value = null;
+  isSearchingContacts.value = false;
+  hasSearchedContacts.value = false;
+  contactSearchError.value = false;
+};
+
+const searchContacts = async query => {
+  const trimmedQuery = query.trim();
+  if (
+    trimmedQuery.length < contactSearchMinimumLength ||
+    trimmedQuery !== contactSearchQuery.value.trim()
+  ) {
+    return;
+  }
+
+  const controller = new AbortController();
+  contactSearchController.value = controller;
+  isSearchingContacts.value = true;
+  hasSearchedContacts.value = true;
+  contactSearchError.value = false;
+
+  try {
+    const {
+      data: { payload },
+    } = await ContactAPI.search(trimmedQuery, 1, 'name', '', {
+      signal: controller.signal,
+    });
+
+    if (controller.signal.aborted) return;
+
+    contactSearchResults.value = camelcaseKeys(payload || [], { deep: true });
+  } catch (error) {
+    if (!isAbortError(error)) {
+      contactSearchError.value = true;
+      contactSearchResults.value = [];
+    }
+  } finally {
+    if (contactSearchController.value === controller) {
+      contactSearchController.value = null;
+      isSearchingContacts.value = false;
+    }
+  }
+};
+
+const debouncedSearchContacts = debounce(searchContacts, 300, false);
+
+const onContactSearchInput = () => {
+  abortContactSearch();
+  selectedContact.value = null;
+  contactSearchError.value = false;
+
+  const trimmedQuery = contactSearchQuery.value.trim();
+  if (trimmedQuery.length < contactSearchMinimumLength) {
+    contactSearchResults.value = [];
+    hasSearchedContacts.value = false;
+    isSearchingContacts.value = false;
+    return;
+  }
+
+  isSearchingContacts.value = true;
+  debouncedSearchContacts(trimmedQuery);
+};
+
+const selectContact = contact => {
+  abortContactSearch();
+  selectedContact.value = contact;
+  contactSearchResults.value = [];
+  isSearchingContacts.value = false;
+  contactSearchError.value = false;
+};
+
+const clearSelectedContact = () => {
+  selectedContact.value = null;
+};
+
 const toggleAddItemPicker = stage => {
-  activeAddItemStageId.value =
-    activeAddItemStageId.value === stage.id ? null : stage.id;
+  if (activeAddItemStageId.value === stage.id) {
+    activeAddItemStageId.value = null;
+    resetAddItemPickerState();
+    return;
+  }
+
+  resetAddItemPickerState();
+  activeAddItemStageId.value = stage.id;
 };
 
 const closeAddItemPicker = () => {
   activeAddItemStageId.value = null;
+  resetAddItemPickerState();
 };
 
 const reorderStageByPosition = async (stage, position) => {
@@ -976,9 +1080,28 @@ onMounted(fetchBoards);
                   class="no-drag rounded-lg border border-n-weak bg-n-surface-2 p-3"
                 >
                   <div class="flex items-start justify-between gap-3">
-                    <p class="mb-0 text-sm text-n-slate-11">
-                      {{ t('KANBAN.ADD_ITEM.PLACEHOLDER') }}
-                    </p>
+                    <div class="min-w-0 flex-1">
+                      <label
+                        :for="`kanban-contact-search-${stage.id}`"
+                        class="sr-only"
+                      >
+                        {{ t('KANBAN.ADD_ITEM.SEARCH_LABEL') }}
+                      </label>
+                      <div class="relative">
+                        <i
+                          class="i-lucide-search pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-10"
+                        />
+                        <input
+                          :id="`kanban-contact-search-${stage.id}`"
+                          v-model="contactSearchQuery"
+                          type="search"
+                          data-testid="kanban-contact-search-input"
+                          class="no-drag min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 py-2 pl-9 pr-3 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                          :placeholder="t('KANBAN.ADD_ITEM.PLACEHOLDER')"
+                          @input="onContactSearchInput"
+                        />
+                      </div>
+                    </div>
                     <button
                       type="button"
                       class="flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
@@ -987,6 +1110,114 @@ onMounted(fetchBoards);
                     >
                       <i class="i-lucide-x size-4" />
                     </button>
+                  </div>
+
+                  <div class="mt-3">
+                    <div
+                      v-if="selectedContact"
+                      data-testid="kanban-selected-contact"
+                      class="rounded-md border border-n-weak bg-n-surface-1 p-3"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <p
+                            class="mb-0 truncate text-sm font-medium text-n-slate-12"
+                          >
+                            {{ selectedContact.name }}
+                          </p>
+                          <p class="mb-0 mt-1 text-sm text-n-slate-11">
+                            {{ t('KANBAN.ADD_ITEM.CONVERSATIONS_NEXT_STEP') }}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          class="flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                          :aria-label="t('KANBAN.ADD_ITEM.CLEAR_CONTACT')"
+                          @click="clearSelectedContact"
+                        >
+                          <i class="i-lucide-x size-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <p
+                      v-else-if="isSearchingContacts"
+                      data-testid="kanban-contact-search-loading"
+                      class="mb-0 text-sm text-n-slate-11"
+                    >
+                      {{ t('KANBAN.ADD_ITEM.SEARCHING') }}
+                    </p>
+
+                    <p
+                      v-else-if="contactSearchError"
+                      data-testid="kanban-contact-search-error"
+                      class="mb-0 text-sm text-n-ruby-11"
+                    >
+                      {{ t('KANBAN.ADD_ITEM.SEARCH_ERROR') }}
+                    </p>
+
+                    <div
+                      v-else-if="contactSearchResults.length > 0"
+                      data-testid="kanban-contact-search-results"
+                      class="grid gap-1"
+                    >
+                      <button
+                        v-for="contact in contactSearchResults"
+                        :key="contact.id"
+                        type="button"
+                        class="no-drag flex min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-n-alpha-2"
+                        @click="selectContact(contact)"
+                      >
+                        <img
+                          v-if="contact.thumbnail"
+                          :src="contact.thumbnail"
+                          :alt="contact.name"
+                          class="size-8 flex-shrink-0 rounded-full object-cover"
+                        />
+                        <span
+                          v-else
+                          class="flex size-8 flex-shrink-0 items-center justify-center rounded-full bg-n-alpha-2 text-xs font-medium text-n-slate-11"
+                        >
+                          {{ contact.name?.charAt(0) || '?' }}
+                        </span>
+                        <span class="min-w-0">
+                          <span
+                            class="block truncate text-sm font-medium text-n-slate-12"
+                          >
+                            {{
+                              contact.name ||
+                              t('KANBAN.ADD_ITEM.UNKNOWN_CONTACT')
+                            }}
+                          </span>
+                          <span
+                            v-if="contact.email"
+                            class="block truncate text-xs text-n-slate-11"
+                          >
+                            {{ contact.email }}
+                          </span>
+                          <span
+                            v-if="contact.phoneNumber"
+                            class="block truncate text-xs text-n-slate-11"
+                          >
+                            {{ contact.phoneNumber }}
+                          </span>
+                          <span
+                            v-if="!contact.email && !contact.phoneNumber"
+                            class="block truncate text-xs text-n-slate-11"
+                          >
+                            {{ t('KANBAN.ADD_ITEM.NO_CONTACT_DETAILS') }}
+                          </span>
+                        </span>
+                      </button>
+                    </div>
+
+                    <p
+                      v-else-if="hasSearchedContacts"
+                      data-testid="kanban-contact-search-empty"
+                      class="mb-0 text-sm text-n-slate-11"
+                    >
+                      {{ t('KANBAN.ADD_ITEM.NO_CONTACTS') }}
+                    </p>
                   </div>
                 </div>
 

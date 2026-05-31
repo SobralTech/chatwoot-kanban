@@ -70,6 +70,14 @@
     },
     "ADD_ITEM": {
       "PLACEHOLDER": "Pesquise um contato para adicionar uma conversa",
+      "SEARCH_LABEL": "Pesquisar contatos",
+      "SEARCHING": "Pesquisando contatos...",
+      "SEARCH_ERROR": "Não foi possível pesquisar contatos. Tente novamente.",
+      "NO_CONTACTS": "Nenhum contato encontrado.",
+      "UNKNOWN_CONTACT": "Contato desconhecido",
+      "NO_CONTACT_DETAILS": "Sem email ou telefone",
+      "CONVERSATIONS_NEXT_STEP": "As conversas serão carregadas na próxima etapa.",
+      "CLEAR_CONTACT": "Limpar contato selecionado",
       "CLOSE": "Fechar seletor de item"
     },
     "CARD": {
