@@ -1,4 +1,6 @@
 class KanbanCard < ApplicationRecord
+  include Labelable
+
   belongs_to :account
   belongs_to :kanban_board
   belongs_to :kanban_stage

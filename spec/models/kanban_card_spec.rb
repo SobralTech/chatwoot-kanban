@@ -1,6 +1,16 @@
 require 'rails_helper'
 
 RSpec.describe KanbanCard do
+  describe 'labels' do
+    it 'can receive labels through Labelable' do
+      card = create(:kanban_card)
+
+      card.update_labels(%w[hot enterprise])
+
+      expect(card.reload.label_list).to match_array(%w[hot enterprise])
+    end
+  end
+
   describe 'validations' do
     it 'allows a valid manual card' do
       card = build(:kanban_card)

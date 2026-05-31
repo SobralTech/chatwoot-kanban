@@ -5,6 +5,7 @@ describe Labels::UpdateService do
   let(:conversation) { create(:conversation, account: account) }
   let(:label) { create(:label, account: account) }
   let(:contact) { conversation.contact }
+  let(:kanban_card) { create(:kanban_card, account: account) }
 
   before do
     conversation.label_list.add(label.title)
@@ -12,12 +13,16 @@ describe Labels::UpdateService do
 
     contact.label_list.add(label.title)
     contact.save!
+
+    kanban_card.label_list.add(label.title)
+    kanban_card.save!
   end
 
   describe '#perform' do
-    it 'updates associated conversations/contacts labels' do
+    it 'updates associated conversations, contacts, and kanban card labels' do
       expect(conversation.label_list).to eq([label.title])
       expect(contact.label_list).to eq([label.title])
+      expect(kanban_card.label_list).to eq([label.title])
 
       described_class.new(
         new_label_title: 'updated-label-title',
@@ -27,6 +32,7 @@ describe Labels::UpdateService do
 
       expect(conversation.reload.label_list).to eq(['updated-label-title'])
       expect(contact.reload.label_list).to eq(['updated-label-title'])
+      expect(kanban_card.reload.label_list).to eq(['updated-label-title'])
     end
   end
 end

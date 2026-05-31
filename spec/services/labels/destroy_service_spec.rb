@@ -5,6 +5,7 @@ describe Labels::DestroyService do
   let(:conversation) { create(:conversation, account: account) }
   let(:label) { create(:label, account: account) }
   let(:contact) { conversation.contact }
+  let(:kanban_card) { create(:kanban_card, account: account) }
   let(:label_deleted_at) { Time.zone.parse('2026-05-07 10:00:00 UTC') }
 
   before do
@@ -16,12 +17,17 @@ describe Labels::DestroyService do
     contact.label_list.add('vip')
     contact.save!
 
+    kanban_card.label_list.add(label.title)
+    kanban_card.label_list.add('enterprise')
+    kanban_card.save!
+
     set_label_tagging_created_at(conversation, label_deleted_at - 1.minute)
     set_label_tagging_created_at(contact, label_deleted_at - 1.minute)
+    set_label_tagging_created_at(kanban_card, label_deleted_at - 1.minute)
   end
 
   describe '#perform' do
-    it 'removes label from associated conversations and contacts' do
+    it 'removes label from associated conversations, contacts, and kanban cards' do
       described_class.new(
         label_title: label.title,
         account_id: account.id,
@@ -31,6 +37,7 @@ describe Labels::DestroyService do
       expect(conversation.reload.label_list).to eq(['billing'])
       expect(conversation.cached_label_list).to eq('billing')
       expect(contact.reload.label_list).to eq(['vip'])
+      expect(kanban_card.reload.label_list).to eq(['enterprise'])
     end
 
     it 'removes label associations after the label record is destroyed' do
@@ -46,6 +53,7 @@ describe Labels::DestroyService do
       expect(conversation.reload.label_list).to eq(['billing'])
       expect(conversation.cached_label_list).to eq('billing')
       expect(contact.reload.label_list).to eq(['vip'])
+      expect(kanban_card.reload.label_list).to eq(['enterprise'])
     end
 
     it 'does not remove labels from other accounts' do
@@ -89,6 +97,7 @@ describe Labels::DestroyService do
       expect(conversation.reload.label_list).to eq(['billing'])
       expect(conversation.cached_label_list).to eq('billing')
       expect(contact.reload.label_list).to eq(['vip'])
+      expect(kanban_card.reload.label_list).to eq(['enterprise'])
       expect(other_conversation.reload.label_list).to eq([label.title])
     end
   end
