@@ -1,0 +1,121 @@
+class KanbanCards::CreateManualCardService
+  DUPLICATE_SUBJECT_ERROR = 'Manual opportunity with this subject already exists for this contact and inbox'.freeze
+
+  # rubocop:disable Metrics/ParameterLists
+  def initialize(account:, user:, kanban_board:, kanban_stage:, contact:, inbox:, subject:)
+    @account = account
+    @user = user
+    @kanban_board = kanban_board
+    @kanban_stage = kanban_stage
+    @contact = contact
+    @inbox = inbox
+    @subject = subject
+  end
+  # rubocop:enable Metrics/ParameterLists
+
+  def perform!
+    validate_scope!
+
+    KanbanCard.transaction do
+      kanban_stage.lock!
+      create_card!
+    end
+  rescue ActiveRecord::RecordNotUnique
+    raise_validation_error(DUPLICATE_SUBJECT_ERROR, :subject)
+  end
+
+  private
+
+  attr_reader :account, :user, :kanban_board, :kanban_stage, :contact, :inbox, :subject
+
+  def validate_scope!
+    validate_board!
+    validate_stage!
+    validate_records!
+    validate_subject!
+  end
+
+  def validate_board!
+    raise_validation_error('Board must belong to account', :kanban_board) unless kanban_board.account_id == account.id
+    raise_validation_error('Board must be active', :kanban_board) unless kanban_board.active?
+    raise_validation_error('Board must use opportunity card reads', :kanban_board) unless kanban_board.use_opportunity_card_reads?
+  end
+
+  def validate_stage!
+    raise_validation_error('Stage must belong to board', :kanban_stage) unless kanban_stage.kanban_board_id == kanban_board.id
+    raise_validation_error('Stage must be active', :kanban_stage) unless kanban_stage.active?
+  end
+
+  def validate_records!
+    raise_validation_error('Contact must belong to account', :contact) unless contact.account_id == account.id
+    raise_validation_error('Inbox must belong to account', :inbox) unless inbox.account_id == account.id
+    raise_validation_error('User cannot access inbox', :inbox) unless user_can_access_inbox?
+  end
+
+  def validate_subject!
+    raise_validation_error("Subject can't be blank", :subject) if normalized_subject.blank?
+    raise_validation_error(DUPLICATE_SUBJECT_ERROR, :subject) if duplicate_subject?
+  end
+
+  def create_card!
+    KanbanCard.create!(
+      account: account,
+      kanban_board: kanban_board,
+      kanban_stage: kanban_stage,
+      contact: contact,
+      inbox: inbox,
+      conversation: permitted_conversation,
+      subject: normalized_subject,
+      origin: 'manual',
+      position: next_position,
+      active: true
+    )
+  end
+
+  def next_position
+    kanban_board.kanban_cards.active.where(kanban_stage: kanban_stage).maximum(:position).to_i + 1
+  end
+
+  def duplicate_subject?
+    KanbanCard.manual.active.exists?(
+      kanban_board: kanban_board,
+      contact: contact,
+      inbox: inbox,
+      normalized_subject: normalized_subject.downcase
+    )
+  end
+
+  def normalized_subject
+    @normalized_subject ||= subject.to_s.strip.gsub(/\s+/, ' ')
+  end
+
+  def permitted_conversation
+    @permitted_conversation ||= matching_conversations.find { |conversation| ConversationPolicy.new(user_context, conversation).show? }
+  end
+
+  def matching_conversations
+    Conversation.where(account_id: account.id, contact_id: contact.id, inbox_id: inbox.id).order(last_activity_at: :desc, id: :desc)
+  end
+
+  def user_can_access_inbox?
+    administrator? || user.inboxes.where(account_id: account.id).exists?(id: inbox.id)
+  end
+
+  def administrator?
+    account_user&.administrator?
+  end
+
+  def user_context
+    @user_context ||= { user: user, account: account, account_user: account_user }
+  end
+
+  def account_user
+    @account_user ||= user.account_users.find_by(account: account)
+  end
+
+  def raise_validation_error(message, attribute = :base)
+    card = KanbanCard.new
+    card.errors.add(attribute, message)
+    raise ActiveRecord::RecordInvalid, card
+  end
+end
