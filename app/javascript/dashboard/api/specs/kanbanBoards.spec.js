@@ -17,6 +17,10 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('createManualCard');
     expect(kanbanBoards).toHaveProperty('updateCard');
     expect(kanbanBoards).toHaveProperty('updateCardById');
+    expect(kanbanBoards).toHaveProperty('showCardById');
+    expect(kanbanBoards).toHaveProperty('updateCardDetailsById');
+    expect(kanbanBoards).toHaveProperty('getCardLabels');
+    expect(kanbanBoards).toHaveProperty('updateCardLabels');
     expect(kanbanBoards).toHaveProperty('reorderCard');
     expect(kanbanBoards).toHaveProperty('reorderCardById');
     expect(kanbanBoards).toHaveProperty('deleteCard');
@@ -27,7 +31,9 @@ describe('#KanbanBoardsAPI', () => {
     const originalAxios = window.axios;
     const axiosMock = {
       post: vi.fn(() => Promise.resolve()),
+      get: vi.fn(() => Promise.resolve()),
       patch: vi.fn(() => Promise.resolve()),
+      put: vi.fn(() => Promise.resolve()),
       delete: vi.fn(() => Promise.resolve()),
     };
 
@@ -135,6 +141,60 @@ describe('#KanbanBoardsAPI', () => {
       expect(axiosMock.patch).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501',
         payload
+      );
+    });
+
+    it('#showCardById', () => {
+      kanbanBoards.showCardById(2, 501);
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501'
+      );
+    });
+
+    it('#updateCardDetailsById', () => {
+      const payload = {
+        subject: 'Cotação de notebooks',
+        starts_at: '2026-06-01T09:00:00-03:00',
+        due_at: '2026-06-05T18:00:00-03:00',
+      };
+      kanbanBoards.updateCardDetailsById(2, 501, payload);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501',
+        { card: payload }
+      );
+    });
+
+    it('#updateCardDetailsById with null dates', () => {
+      const payload = {
+        subject: 'Cotação de notebooks',
+        starts_at: null,
+        due_at: null,
+      };
+      kanbanBoards.updateCardDetailsById(2, 501, payload);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501',
+        { card: payload }
+      );
+    });
+
+    it('#getCardLabels', () => {
+      kanbanBoards.getCardLabels(2, 501);
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/labels'
+      );
+    });
+
+    it('#updateCardLabels', () => {
+      const labels = ['hot', 'enterprise'];
+      kanbanBoards.updateCardLabels(2, 501, labels);
+
+      expect(axiosMock.put).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/labels',
+        { labels }
       );
     });
 

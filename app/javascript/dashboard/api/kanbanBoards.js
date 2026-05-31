@@ -48,6 +48,26 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.patch(`${this.url}/${boardId}/cards/by_id/${cardId}`, payload);
   }
 
+  showCardById(boardId, cardId) {
+    return axios.get(`${this.url}/${boardId}/cards/by_id/${cardId}`);
+  }
+
+  updateCardDetailsById(boardId, cardId, payload) {
+    return axios.patch(`${this.url}/${boardId}/cards/by_id/${cardId}`, {
+      card: payload,
+    });
+  }
+
+  getCardLabels(boardId, cardId) {
+    return axios.get(`${this.url}/${boardId}/cards/by_id/${cardId}/labels`);
+  }
+
+  updateCardLabels(boardId, cardId, labels) {
+    return axios.put(`${this.url}/${boardId}/cards/by_id/${cardId}/labels`, {
+      labels,
+    });
+  }
+
   reorderCard(boardId, conversationId, payloadOrDirection) {
     const payload =
       typeof payloadOrDirection === 'string'
