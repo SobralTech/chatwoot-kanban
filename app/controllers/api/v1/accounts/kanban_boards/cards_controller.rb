@@ -99,19 +99,13 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def fetch_mutation_target
-    return fetch_kanban_card || fetch_legacy_mutation_target if params[:id].present?
+    return fetch_kanban_card if stable_card_route?
 
     fetch_legacy_mutation_target
-  rescue ActiveRecord::RecordNotFound
-    fetch_kanban_card || raise
   end
 
   def fetch_kanban_card
-    @kanban_card = @kanban_board.kanban_cards.active.find_by(id: card_identifier)
-    return true if @kanban_card
-    raise ActiveRecord::RecordNotFound if KanbanCard.exists?(id: card_identifier)
-
-    false
+    @kanban_card = @kanban_board.kanban_cards.active.find(params[:id])
   end
 
   def fetch_legacy_mutation_target
@@ -152,12 +146,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     params.require(:card).permit(:conversation_id, :kanban_stage_id, :position)
   end
 
-  def card_identifier
-    params[:id] || params[:conversation_id]
-  end
-
   def stable_card_route?
-    @kanban_card.present?
+    params[:id].present?
   end
 
   def action_name_policy

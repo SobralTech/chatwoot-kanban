@@ -228,6 +228,19 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:internal_server_error)
       expect(card.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
     end
+
+    it 'does not fall back to stable card ID lookup' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      card = create_manual_card(id: 90_001, position: 1)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(card.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
+    end
   end
 
   describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/{conversation_id}/reorder' do
@@ -576,7 +589,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       card = create_manual_card(position: 1)
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
             headers: agent.create_new_auth_token,
             params: { card: { kanban_stage_id: next_stage.id } },
             as: :json
@@ -590,7 +603,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       second_card = create_manual_card(position: 2, subject: 'Second opportunity')
       third_card = create_manual_card(position: 3, subject: 'Third opportunity')
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{third_card.id}/reorder",
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{third_card.id}/reorder",
             headers: agent.create_new_auth_token,
             params: { card: { position: 1 } },
             as: :json
@@ -607,7 +620,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       source_card = create_manual_card(position: 2, subject: 'Source opportunity')
       destination_card = create_manual_card(kanban_stage: destination_stage, position: 1, subject: 'Destination opportunity')
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{moving_card.id}/reorder",
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{moving_card.id}/reorder",
             headers: agent.create_new_auth_token,
             params: { card: { kanban_stage_id: destination_stage.id, position: 1 } },
             as: :json
@@ -622,7 +635,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       card = create_manual_card
 
       expect do
-        delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+        delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
                headers: agent.create_new_auth_token,
                as: :json
       end.not_to change(KanbanCard, :count)
@@ -635,15 +648,15 @@ RSpec.describe 'Kanban Cards API', type: :request do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       card = create_manual_card(position: 1)
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
             headers: agent.create_new_auth_token,
             params: { card: { kanban_stage_id: next_stage.id } },
             as: :json
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}/reorder",
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}/reorder",
             headers: agent.create_new_auth_token,
             params: { card: { position: 1 } },
             as: :json
-      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
              headers: agent.create_new_auth_token,
              as: :json
 
@@ -663,7 +676,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       )
       card = sync_state(state)
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}/reorder",
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}/reorder",
             headers: agent.create_new_auth_token,
             params: { card: { kanban_stage_id: next_stage.id, position: 1 } },
             as: :json
@@ -675,7 +688,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
     it 'rejects inactive cards' do
       card = create_manual_card(active: false)
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
             headers: agent.create_new_auth_token,
             params: { card: { kanban_stage_id: stage.id } },
             as: :json
@@ -688,7 +701,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
       card = create_manual_card(kanban_board: other_board, kanban_stage: other_stage)
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
             headers: agent.create_new_auth_token,
             params: { card: { kanban_stage_id: stage.id } },
             as: :json
@@ -700,12 +713,54 @@ RSpec.describe 'Kanban Cards API', type: :request do
       hidden_inbox = create(:inbox, account: account)
       card = create_manual_card(inbox: hidden_inbox)
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{card.id}",
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
             headers: agent.create_new_auth_token,
             params: { card: { kanban_stage_id: stage.id } },
             as: :json
 
       expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'does not fall back to conversation display ID lookup' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{conversation.display_id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(card.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
+    end
+
+    it 'uses stable ID when it collides with a conversation display ID' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      legacy_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      stable_card = create_manual_card(id: conversation.display_id, position: 2, subject: 'Collision opportunity')
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{stable_card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(stable_card.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+      expect(legacy_card.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
     end
   end
 
