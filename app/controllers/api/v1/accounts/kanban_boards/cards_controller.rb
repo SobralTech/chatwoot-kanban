@@ -7,9 +7,14 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   before_action :fetch_kanban_stage, only: [:create, :update]
 
   def create
-    @conversation_kanban_state = @kanban_board.conversation_kanban_states.find_or_initialize_by(conversation: @conversation)
-    @conversation_kanban_state.assign_attributes(conversation_kanban_state_attributes)
-    @conversation_kanban_state.save!
+    ConversationKanbanState.transaction do
+      @conversation_kanban_state = @kanban_board.conversation_kanban_states.find_or_initialize_by(conversation: @conversation)
+      @conversation_kanban_state.assign_attributes(conversation_kanban_state_attributes)
+      @conversation_kanban_state.save!
+
+      @conversation_kanban_state.reload
+      sync_service_for(@conversation_kanban_state).sync!
+    end
   end
 
   def update
@@ -25,11 +30,14 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       normalize_cards_for_stage(previous_stage)
       normalize_cards_for_stage(@kanban_stage) if previous_stage != @kanban_stage
       @conversation_kanban_state.reload
+      sync_states_for_stages(previous_stage, @kanban_stage)
     end
   end
 
   def reorder
     ConversationKanbanState.transaction do
+      previous_stage = @conversation_kanban_state.kanban_stage
+
       if reorder_with_position?
         reorder_to_position!
       elsif %w[up down].include?(params[:direction])
@@ -42,13 +50,24 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
         normalize_cards_for_stage(@conversation_kanban_state.kanban_stage)
         @conversation_kanban_state.reload
       end
+
+      sync_states_for_stages(previous_stage, @conversation_kanban_state.kanban_stage)
     end
 
     render :update
   end
 
   def destroy
-    @conversation_kanban_state.destroy!
+    source_stage = @conversation_kanban_state.kanban_stage
+
+    ConversationKanbanState.transaction do
+      sync_service_for(@conversation_kanban_state).deactivate!
+      @conversation_kanban_state.destroy!
+
+      normalize_cards_for_stage(source_stage)
+      sync_states_for_stage(source_stage)
+    end
+
     head :no_content
   end
 
@@ -120,6 +139,20 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def normalize_cards_for_stage(kanban_stage)
     ConversationKanbanState.normalize_positions_for_stage!(kanban_board: @kanban_board, kanban_stage: kanban_stage)
+  end
+
+  def sync_states_for_stages(*kanban_stages)
+    kanban_stages.uniq.each { |kanban_stage| sync_states_for_stage(kanban_stage) }
+  end
+
+  def sync_states_for_stage(kanban_stage)
+    @kanban_board.conversation_kanban_states.where(kanban_stage: kanban_stage).ordered.each do |state|
+      sync_service_for(state).sync!
+    end
+  end
+
+  def sync_service_for(conversation_kanban_state)
+    KanbanCards::SyncConversationStateService.new(conversation_kanban_state)
   end
 
   def reorder_with_position?

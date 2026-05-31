@@ -27,6 +27,67 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(ConversationKanbanState.last.moved_at).to be_present
     end
 
+    it 'mirrors the legacy state into an active kanban card' do
+      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards",
+           headers: agent.create_new_auth_token,
+           params: { card: { conversation_id: conversation.display_id, kanban_stage_id: stage.id, position: 2 } },
+           as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(mirrored_card_for(conversation)).to have_attributes(
+        kanban_stage_id: stage.id,
+        position: 2,
+        active: true,
+        origin: 'conversation'
+      )
+    end
+
+    it 'updates the mirrored kanban card when create is repeated' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+
+      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards",
+           headers: agent.create_new_auth_token,
+           params: { card: { conversation_id: conversation.display_id, kanban_stage_id: stage.id, position: 1 } },
+           as: :json
+
+      expect do
+        post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards",
+             headers: agent.create_new_auth_token,
+             params: { card: { conversation_id: conversation.display_id, kanban_stage_id: next_stage.id, position: 3 } },
+             as: :json
+      end.not_to change(KanbanCard, :count)
+
+      expect(response).to have_http_status(:success)
+      expect(mirrored_card_for(conversation).reload).to have_attributes(kanban_stage_id: next_stage.id, position: 3)
+    end
+
+    it 'rolls back the legacy create when mirroring fails' do
+      allow_any_instance_of(KanbanCards::SyncConversationStateService).to receive(:sync!).and_raise(ActiveRecord::RecordInvalid) # rubocop:disable RSpec/AnyInstance
+
+      expect do
+        post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards",
+             headers: agent.create_new_auth_token,
+             params: { card: { conversation_id: conversation.display_id, kanban_stage_id: stage.id } },
+             as: :json
+      end.to not_change(ConversationKanbanState, :count)
+        .and not_change(KanbanCard, :count)
+
+      expect(response).to have_http_status(:internal_server_error)
+    end
+
+    it 'keeps the API response contract unchanged' do
+      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards",
+           headers: agent.create_new_auth_token,
+           params: { card: { conversation_id: conversation.display_id, kanban_stage_id: stage.id, position: 2 } },
+           as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body.keys).to contain_exactly(
+        'id', 'account_id', 'kanban_board_id', 'kanban_stage_id', 'conversation_id', 'position', 'moved_by_id', 'moved_at',
+        'created_at', 'updated_at', 'conversation'
+      )
+    end
+
     it 'does not create a card for a conversation the agent cannot access' do
       hidden_conversation = create(:conversation, account: account)
 
@@ -77,6 +138,26 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(card.moved_at).to be_present
     end
 
+    it 'mirrors updated stage and position' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{conversation.display_id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id, position: 4 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(mirrored_card_for(conversation)).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+    end
+
     it 'normalizes source and destination stages when moving a card' do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       source_conversation = create(:conversation, account: account)
@@ -118,6 +199,34 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(destination_card.reload.position).to eq(1)
       expect(moving_card.reload.position).to eq(2)
       expect(moving_card.kanban_stage).to eq(next_stage)
+      expect(mirrored_stage_positions_for(conversation, source_conversation, destination_conversation)).to contain_exactly(
+        [conversation.id, next_stage.id, 2],
+        [source_conversation.id, stage.id, 1],
+        [destination_conversation.id, next_stage.id, 1]
+      )
+    end
+
+    it 'rolls back the legacy update when mirroring fails' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      allow_any_instance_of(KanbanCards::SyncConversationStateService).to receive(:sync!).and_raise(ActiveRecord::RecordInvalid) # rubocop:disable RSpec/AnyInstance
+
+      expect do
+        patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{conversation.display_id}",
+              headers: agent.create_new_auth_token,
+              params: { card: { kanban_stage_id: next_stage.id } },
+              as: :json
+      end.not_to change(KanbanCard, :count)
+
+      expect(response).to have_http_status(:internal_server_error)
+      expect(card.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
     end
   end
 
@@ -150,6 +259,8 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(second_card.reload.position).to eq(1)
       expect(first_card.reload.position).to eq(2)
+      expect(mirrored_card_for(next_conversation)).to have_attributes(kanban_stage_id: stage.id, position: 1)
+      expect(mirrored_card_for(conversation)).to have_attributes(kanban_stage_id: stage.id, position: 2)
     end
 
     it 'moves a card down within the same stage' do
@@ -367,6 +478,76 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(moving_card.position).to eq(1)
       expect(source_card.reload.position).to eq(1)
       expect(destination_card.reload.position).to eq(2)
+      expect(mirrored_stage_positions_for(conversation, source_conversation, destination_conversation)).to contain_exactly(
+        [conversation.id, destination_stage.id, 1],
+        [source_conversation.id, stage.id, 1],
+        [destination_conversation.id, destination_stage.id, 2]
+      )
+    end
+
+    it 'mirrors changed sibling positions after explicit same-stage reorder' do
+      second_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: second_conversation.inbox)
+      first_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      second_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: second_conversation,
+        position: 2
+      )
+      sync_state(first_card)
+      sync_state(second_card)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{second_conversation.display_id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(mirrored_card_for(second_conversation).reload.position).to eq(1)
+      expect(mirrored_card_for(conversation).reload.position).to eq(2)
+    end
+
+    it 'rolls back the legacy reorder when mirroring fails' do
+      next_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: next_conversation.inbox)
+      first_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      second_card = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: next_conversation,
+        position: 2
+      )
+      allow_any_instance_of(KanbanCards::SyncConversationStateService).to receive(:sync!).and_raise(ActiveRecord::RecordInvalid) # rubocop:disable RSpec/AnyInstance
+
+      expect do
+        patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{next_conversation.display_id}/reorder",
+              headers: agent.create_new_auth_token,
+              params: { direction: 'up' },
+              as: :json
+      end.not_to change(KanbanCard, :count)
+
+      expect(response).to have_http_status(:internal_server_error)
+      expect(first_card.reload.position).to eq(1)
+      expect(second_card.reload.position).to eq(2)
     end
 
     it 'does not move a card to a stage from another board with explicit payload' do
@@ -408,5 +589,104 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       expect(response).to have_http_status(:no_content)
     end
+
+    it 'deactivates the mirrored kanban card and keeps it stored' do
+      state = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation
+      )
+      mirrored_card = sync_state(state)
+
+      expect do
+        delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{conversation.display_id}",
+               headers: agent.create_new_auth_token,
+               as: :json
+      end.not_to change(KanbanCard, :count)
+
+      expect(response).to have_http_status(:no_content)
+      expect(mirrored_card.reload).not_to be_active
+    end
+
+    it 'mirrors remaining normalized sibling positions' do
+      next_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: next_conversation.inbox)
+      state = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      sibling_state = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: next_conversation,
+        position: 3
+      )
+      sync_state(state)
+      sync_state(sibling_state)
+
+      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{conversation.display_id}",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:no_content)
+      expect(sibling_state.reload.position).to eq(1)
+      expect(mirrored_card_for(next_conversation).reload.position).to eq(1)
+    end
+
+    it 'rolls back the legacy delete when mirroring fails' do
+      next_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: next_conversation.inbox)
+      state = create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: 1
+      )
+      create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: next_conversation,
+        position: 2
+      )
+      mirrored_card = sync_state(state)
+      allow_any_instance_of(KanbanCards::SyncConversationStateService).to receive(:sync!).and_raise(ActiveRecord::RecordInvalid) # rubocop:disable RSpec/AnyInstance
+
+      expect do
+        delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/#{conversation.display_id}",
+               headers: agent.create_new_auth_token,
+               as: :json
+      end.to not_change(ConversationKanbanState, :count)
+
+      expect(response).to have_http_status(:internal_server_error)
+      expect(state.reload).to be_present
+      expect(mirrored_card.reload).to be_active
+    end
+  end
+
+  def mirrored_card_for(conversation)
+    KanbanCard.conversation.find_by(kanban_board: kanban_board, conversation: conversation)
+  end
+
+  def mirrored_stage_positions_for(*conversations)
+    conversations.map do |conversation|
+      card = mirrored_card_for(conversation)
+      [conversation.id, card.kanban_stage_id, card.position]
+    end
+  end
+
+  def sync_state(state)
+    KanbanCards::SyncConversationStateService.new(state).sync!
   end
 end
