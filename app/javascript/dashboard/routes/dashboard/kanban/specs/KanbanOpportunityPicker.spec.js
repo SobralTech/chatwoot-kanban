@@ -96,6 +96,9 @@ const searchAndSelectFirstInbox = async wrapper => {
   await inboxButtons[0].trigger('click');
 };
 
+const subjectInput = wrapper =>
+  wrapper.find('[data-testid="kanban-manual-card-subject"]');
+
 describe('KanbanOpportunityPicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -470,6 +473,180 @@ describe('KanbanOpportunityPicker', () => {
       expect(
         wrapper.find('[data-testid="kanban-manual-card-subject"]').exists()
       ).toBe(true);
+    });
+
+    it('generates a default subject after selecting an inbox', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+
+      expect(subjectInput(wrapper).element.value).toBe(
+        'Jane Cooper - Email Inbox'
+      );
+    });
+
+    it('submits the generated subject unchanged', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
+      });
+      KanbanBoardsAPI.createManualCard.mockResolvedValue({ data: {} });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+
+      expect(KanbanBoardsAPI.createManualCard).toHaveBeenCalledWith(10, {
+        card: {
+          kanban_stage_id: 100,
+          contact_id: 1,
+          inbox_id: 10,
+          subject: 'Jane Cooper - Email Inbox',
+        },
+      });
+    });
+
+    it('allows replacing the generated subject', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
+      });
+      KanbanBoardsAPI.createManualCard.mockResolvedValue({ data: {} });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await subjectInput(wrapper).setValue('Notebook quote');
+      await wrapper
+        .find('[data-testid="kanban-manual-card-form"]')
+        .trigger('submit');
+
+      expect(KanbanBoardsAPI.createManualCard).toHaveBeenCalledWith(10, {
+        card: {
+          kanban_stage_id: 100,
+          contact_id: 1,
+          inbox_id: 10,
+          subject: 'Notebook quote',
+        },
+      });
+    });
+
+    it('updates the generated subject when inbox changes while untouched', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: {
+          payload: [
+            buildConversation(),
+            buildConversation({ id: 1001, inboxId: 11 }),
+          ],
+        },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      const inboxButtons = wrapper.findAll(
+        '[data-testid="kanban-inboxes"] button'
+      );
+      await inboxButtons[1].trigger('click');
+
+      expect(subjectInput(wrapper).element.value).toBe(
+        'Jane Cooper - WhatsApp Inbox'
+      );
+    });
+
+    it('preserves customized subject when inbox changes', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: {
+          payload: [
+            buildConversation(),
+            buildConversation({ id: 1001, inboxId: 11 }),
+          ],
+        },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await subjectInput(wrapper).setValue('Custom opportunity');
+      const inboxButtons = wrapper.findAll(
+        '[data-testid="kanban-inboxes"] button'
+      );
+      await inboxButtons[1].trigger('click');
+
+      expect(subjectInput(wrapper).element.value).toBe('Custom opportunity');
+    });
+
+    it('resets subject when clearing the selected contact', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await subjectInput(wrapper).setValue('Custom opportunity');
+      await wrapper
+        .find('[aria-label="KANBAN.ADD_ITEM.CLEAR_CONTACT"]')
+        .trigger('click');
+      await searchAndSelectFirstInbox(wrapper);
+
+      expect(subjectInput(wrapper).element.value).toBe(
+        'Jane Cooper - Email Inbox'
+      );
+    });
+
+    it('resets subject when selecting another contact', async () => {
+      vi.useFakeTimers();
+      ContactAPI.search
+        .mockResolvedValueOnce({
+          data: { payload: [buildContact({ id: 1, name: 'Alice' })] },
+        })
+        .mockResolvedValueOnce({
+          data: { payload: [buildContact({ id: 2, name: 'Bob' })] },
+        });
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectContact(wrapper, 'Ali');
+      await wrapper
+        .findAll('[data-testid="kanban-inboxes"] button')[0]
+        .trigger('click');
+      await subjectInput(wrapper).setValue('Custom opportunity');
+      await searchAndSelectContact(wrapper, 'Bob');
+      await wrapper
+        .findAll('[data-testid="kanban-inboxes"] button')[0]
+        .trigger('click');
+
+      expect(subjectInput(wrapper).element.value).toBe('Bob - Email Inbox');
+    });
+
+    it('resets subject when picker closes', async () => {
+      vi.useFakeTimers();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: { payload: [buildConversation()] },
+      });
+      ContactAPI.search.mockResolvedValue({
+        data: { payload: [buildContact()] },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectFirstInbox(wrapper);
+      await subjectInput(wrapper).setValue('Custom opportunity');
+      await wrapper
+        .find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]')
+        .trigger('click');
+      await searchAndSelectFirstInbox(wrapper);
+
+      expect(subjectInput(wrapper).element.value).toBe(
+        'Jane Cooper - Email Inbox'
+      );
     });
 
     it('does not submit a blank subject', async () => {

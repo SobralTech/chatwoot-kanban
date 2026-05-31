@@ -38,6 +38,7 @@ const inboxesError = ref(false);
 const selectedInbox = ref(null);
 const inboxesController = ref(null);
 const subject = ref('');
+const generatedSubject = ref('');
 const subjectError = ref('');
 const creationError = ref('');
 const isSaving = ref(false);
@@ -92,23 +93,6 @@ const searchContacts = async query => {
 
 const debouncedSearchContacts = debounce(searchContacts, 300, false);
 
-const onContactSearchInput = () => {
-  abortContactSearch();
-  selectedContact.value = null;
-  contactSearchError.value = false;
-
-  const trimmedQuery = contactSearchQuery.value.trim();
-  if (trimmedQuery.length < contactSearchMinimumLength) {
-    contactSearchResults.value = [];
-    hasSearchedContacts.value = false;
-    isSearchingContacts.value = false;
-    return;
-  }
-
-  isSearchingContacts.value = true;
-  debouncedSearchContacts(trimmedQuery);
-};
-
 const formatChannelType = channelType => {
   if (!channelType) return '';
   return channelType
@@ -129,9 +113,37 @@ const resetInboxes = () => {
 
 const resetSubmission = () => {
   subject.value = '';
+  generatedSubject.value = '';
   subjectError.value = '';
   creationError.value = '';
   isSaving.value = false;
+};
+
+const contactDisplayName = contact =>
+  contact?.name?.trim() || `Contact #${contact?.id}`;
+
+const inboxDisplayName = inbox => inbox?.name?.trim() || `Inbox #${inbox?.id}`;
+
+const defaultSubjectFor = (contact, inbox) =>
+  `${contactDisplayName(contact)} - ${inboxDisplayName(inbox)}`;
+
+const onContactSearchInput = () => {
+  abortContactSearch();
+  resetInboxes();
+  resetSubmission();
+  selectedContact.value = null;
+  contactSearchError.value = false;
+
+  const trimmedQuery = contactSearchQuery.value.trim();
+  if (trimmedQuery.length < contactSearchMinimumLength) {
+    contactSearchResults.value = [];
+    hasSearchedContacts.value = false;
+    isSearchingContacts.value = false;
+    return;
+  }
+
+  isSearchingContacts.value = true;
+  debouncedSearchContacts(trimmedQuery);
 };
 
 const resetPicker = () => {
@@ -235,7 +247,17 @@ const loadContactInboxes = async contact => {
 };
 
 const selectInbox = inbox => {
+  const nextGeneratedSubject = defaultSubjectFor(selectedContact.value, inbox);
+  const shouldUseGeneratedSubject =
+    !subject.value || subject.value === generatedSubject.value;
+
   selectedInbox.value = inbox;
+  generatedSubject.value = nextGeneratedSubject;
+
+  if (shouldUseGeneratedSubject) {
+    subject.value = nextGeneratedSubject;
+  }
+
   subjectError.value = '';
   creationError.value = '';
 };
@@ -247,6 +269,7 @@ const handleClose = () => {
 
 const selectContact = contact => {
   abortContactSearch();
+  resetSubmission();
   selectedContact.value = contact;
   contactSearchResults.value = [];
   isSearchingContacts.value = false;
