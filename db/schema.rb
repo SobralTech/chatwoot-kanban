@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_24_090000) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_31_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -964,6 +964,30 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_24_090000) do
     t.index ["account_id", "name"], name: "index_active_kanban_boards_on_account_id_and_name", unique: true, where: "(active = true)"
     t.index ["account_id", "position"], name: "index_kanban_boards_on_account_id_and_position"
     t.index ["account_id"], name: "index_kanban_boards_on_account_id"
+  end
+
+  create_table "kanban_cards", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_board_id", null: false
+    t.bigint "kanban_stage_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "conversation_id"
+    t.string "subject"
+    t.string "normalized_subject"
+    t.string "origin", null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "active"], name: "index_kanban_cards_on_account_id_and_active"
+    t.index ["account_id", "contact_id"], name: "index_kanban_cards_on_account_id_and_contact_id"
+    t.index ["account_id", "inbox_id"], name: "index_kanban_cards_on_account_id_and_inbox_id"
+    t.index ["conversation_id"], name: "index_kanban_cards_on_conversation_id"
+    t.index ["kanban_board_id", "active"], name: "index_kanban_cards_on_kanban_board_id_and_active"
+    t.index ["kanban_board_id", "contact_id", "inbox_id", "normalized_subject"], name: "index_active_manual_kanban_cards_unique_subject", unique: true, where: "((active = true) AND ((origin)::text = 'manual'::text) AND (normalized_subject IS NOT NULL))"
+    t.index ["kanban_board_id", "conversation_id"], name: "index_active_kanban_cards_on_board_and_conversation", unique: true, where: "((active = true) AND (conversation_id IS NOT NULL) AND ((origin)::text = 'conversation'::text))"
+    t.index ["kanban_board_id", "kanban_stage_id", "position"], name: "index_kanban_cards_on_board_stage_position"
   end
 
   create_table "kanban_stages", force: :cascade do |t|
