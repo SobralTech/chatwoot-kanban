@@ -40,6 +40,10 @@ class KanbanBoardsAPI extends ApiClient {
     );
   }
 
+  updateCardById(boardId, cardId, payload) {
+    return axios.patch(`${this.url}/${boardId}/cards/by_id/${cardId}`, payload);
+  }
+
   reorderCard(boardId, conversationId, payloadOrDirection) {
     const payload =
       typeof payloadOrDirection === 'string'
@@ -51,8 +55,23 @@ class KanbanBoardsAPI extends ApiClient {
     );
   }
 
+  reorderCardById(boardId, cardId, payloadOrDirection) {
+    const payload =
+      typeof payloadOrDirection === 'string'
+        ? { direction: payloadOrDirection }
+        : payloadOrDirection;
+    return axios.patch(
+      `${this.url}/${boardId}/cards/by_id/${cardId}/reorder`,
+      payload
+    );
+  }
+
   deleteCard(boardId, conversationId) {
     return axios.delete(`${this.url}/${boardId}/cards/${conversationId}`);
+  }
+
+  deleteCardById(boardId, cardId) {
+    return axios.delete(`${this.url}/${boardId}/cards/by_id/${cardId}`);
   }
 }
 

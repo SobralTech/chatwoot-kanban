@@ -21,6 +21,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body.first['name']).to eq('Sales')
       expect(response.parsed_body.first['auto_create_cards_from_conversations']).to be(false)
+      expect(response.parsed_body.first['use_opportunity_card_reads']).to be(false)
     end
 
     it 'does not return inactive boards' do
@@ -53,6 +54,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
           as: :json
 
       expect(response).to have_http_status(:success)
+      expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
       expect(response.parsed_body['stages'].first['name']).to eq('New')
       expect(response.parsed_body['stages'].first['cards'].first['conversation_id']).to eq(conversation.display_id)
     end
@@ -136,6 +138,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
         response_card = response.parsed_body['stages'].first['cards'].first
         expect(response).to have_http_status(:success)
+        expect(response.parsed_body['use_opportunity_card_reads']).to be(true)
         expect(response_card).to include(
           'id' => card.id,
           'conversation_id' => conversation.display_id,

@@ -117,6 +117,9 @@ const stageListModel = computed({
 const isCardDragDisabled = computed(
   () => isPersistingCardDrag.value || !!activeActionKey.value
 );
+const useStableCardMutations = computed(
+  () => selectedBoard.value?.useOpportunityCardReads === true
+);
 
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
@@ -605,18 +608,30 @@ const onCardDragChange = async (stage, event) => {
   isPersistingCardDrag.value = true;
   activeActionKey.value = `reorder-card-${card.id}`;
   actionError.value = '';
+  const mutationId = useStableCardMutations.value
+    ? card.id
+    : card.conversationId;
+  const payload = {
+    card: {
+      kanban_stage_id: stage.id,
+      position: destinationPosition,
+    },
+  };
 
   try {
-    await KanbanBoardsAPI.reorderCard(
-      selectedBoard.value.id,
-      card.conversationId,
-      {
-        card: {
-          kanban_stage_id: stage.id,
-          position: destinationPosition,
-        },
-      }
-    );
+    if (useStableCardMutations.value) {
+      await KanbanBoardsAPI.reorderCardById(
+        selectedBoard.value.id,
+        mutationId,
+        payload
+      );
+    } else {
+      await KanbanBoardsAPI.reorderCard(
+        selectedBoard.value.id,
+        mutationId,
+        payload
+      );
+    }
     await refreshSelectedBoard();
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
@@ -654,12 +669,16 @@ const removeCard = async card => {
 
   activeActionKey.value = `remove-card-${card.id}`;
   actionError.value = '';
+  const mutationId = useStableCardMutations.value
+    ? card.id
+    : card.conversationId;
 
   try {
-    await KanbanBoardsAPI.deleteCard(
-      selectedBoard.value.id,
-      card.conversationId
-    );
+    if (useStableCardMutations.value) {
+      await KanbanBoardsAPI.deleteCardById(selectedBoard.value.id, mutationId);
+    } else {
+      await KanbanBoardsAPI.deleteCard(selectedBoard.value.id, mutationId);
+    }
     await refreshSelectedBoard();
     useAlert(t('KANBAN.ACTIONS.REMOVE_CARD_SUCCESS'));
   } catch (error) {

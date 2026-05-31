@@ -42,6 +42,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     show: vi.fn(),
     reorderStage: vi.fn(),
     reorderCard: vi.fn(),
+    reorderCardById: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     deleteStage: vi.fn(),
     createCard: vi.fn(),
     deleteCard: vi.fn(),
+    deleteCardById: vi.fn(),
   },
 }));
 
@@ -65,6 +67,7 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
   description: '',
   default_stage_id: 200,
   auto_create_cards_from_conversations: true,
+  use_opportunity_card_reads: false,
   stages: [
     {
       id: 100,
@@ -120,6 +123,9 @@ const mountView = async (boardResponse = buildBoardResponse()) => {
   });
   KanbanBoardsAPI.reorderStage.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.reorderCard.mockResolvedValue({ data: {} });
+  KanbanBoardsAPI.reorderCardById.mockResolvedValue({ data: {} });
+  KanbanBoardsAPI.deleteCard.mockResolvedValue({ data: {} });
+  KanbanBoardsAPI.deleteCardById.mockResolvedValue({ data: {} });
 
   const wrapper = shallowMount(KanbanView, {
     global: {
@@ -186,7 +192,21 @@ const mountView = async (boardResponse = buildBoardResponse()) => {
           template:
             '<div><slot /><slot name="item" v-for="(element, index) in draggableItems" :key="index" :element="element" :index="index" /></div>',
         },
-        WootDeleteModal: true,
+        WootDeleteModal: {
+          name: 'WootDeleteModal',
+          props: {
+            show: {
+              type: Boolean,
+              default: false,
+            },
+            onConfirm: {
+              type: Function,
+              default: () => {},
+            },
+          },
+          template:
+            '<button v-if="show" data-testid="confirm-delete" @click="onConfirm" />',
+        },
       },
       mocks: {
         window: { chatwootConfig: { hostURL: 'http://localhost:3000' } },
@@ -288,6 +308,36 @@ describe('KanbanView drag and drop', () => {
         position: 1,
       },
     });
+  });
+
+  it('persists flagged cross-stage card drag using stable card id', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+    const targetStageCardDraggable = findCardDraggables(wrapper).find(
+      draggable => draggable.props('list').length === 0
+    );
+
+    targetStageCardDraggable.vm.$emit('change', {
+      added: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 1,
+        },
+        newIndex: 0,
+      },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
+      card: {
+        kanban_stage_id: 200,
+        position: 1,
+      },
+    });
+    expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
   });
 
   it('makes the empty stage card list a configured drop zone', async () => {
@@ -620,6 +670,34 @@ describe('KanbanView drag and drop', () => {
     });
   });
 
+  it('persists flagged same-stage card reorder using stable card id', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+    const sourceStageCardDraggable = findCardDraggables(wrapper)[0];
+
+    sourceStageCardDraggable.vm.$emit('change', {
+      moved: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 2,
+        },
+        newIndex: 0,
+      },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
+      card: {
+        kanban_stage_id: 100,
+        position: 1,
+      },
+    });
+    expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
+  });
+
   it('persists populated-to-populated stage card move', async () => {
     const wrapper = await mountView(buildBoardResponse([buildCard()]));
     const targetStageCardDraggable = findCardDraggables(wrapper)[1];
@@ -729,6 +807,46 @@ describe('KanbanView drag and drop', () => {
 
     resolveReorder({ data: {} });
     await flushPromises();
+  });
+
+  it('removes flagged cards using stable card id', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('removeCard', {
+      id: 501,
+      conversationId: 123,
+      conversation: { meta: { sender: { name: 'Jane' } } },
+    });
+    await nextTick();
+    await wrapper.find('[data-testid="confirm-delete"]').trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.deleteCardById).toHaveBeenCalledWith(10, 501);
+    expect(KanbanBoardsAPI.deleteCard).not.toHaveBeenCalled();
+  });
+
+  it('removes legacy cards using conversation id', async () => {
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('removeCard', {
+      id: 501,
+      conversationId: 123,
+      conversation: { meta: { sender: { name: 'Jane' } } },
+    });
+    await nextTick();
+    await wrapper.find('[data-testid="confirm-delete"]').trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.deleteCard).toHaveBeenCalledWith(10, 123);
+    expect(KanbanBoardsAPI.deleteCardById).not.toHaveBeenCalled();
   });
 
   it('keeps card click navigation working', async () => {
