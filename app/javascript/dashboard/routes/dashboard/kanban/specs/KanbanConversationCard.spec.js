@@ -62,12 +62,10 @@ describe('KanbanConversationCard', () => {
     vi.clearAllMocks();
   });
 
-  it('emits openConversation only when the card header is clicked', async () => {
+  it('emits openConversation when the card surface is clicked', async () => {
     const wrapper = mountCard();
 
-    await wrapper
-      .find('button[aria-label="KANBAN.CARD.OPEN_CONVERSATION"]')
-      .trigger('click');
+    await wrapper.find('article').trigger('click');
 
     expect(wrapper.emitted('openConversation')).toHaveLength(1);
   });
@@ -80,6 +78,23 @@ describe('KanbanConversationCard', () => {
 
     expect(wrapper.emitted('openConversation')).toBeUndefined();
     expect(wrapper.emitted('removeCard')).toHaveLength(1);
+  });
+
+  it('marks internal controls as non-draggable', async () => {
+    const wrapper = mountCard();
+
+    await wrapper.find('button[type="button"].text-xs').trigger('click');
+
+    expect(wrapper.find('button.text-n-ruby-11').classes()).toContain(
+      'no-drag'
+    );
+    expect(wrapper.find('button[type="button"].text-xs').classes()).toContain(
+      'no-drag'
+    );
+    expect(wrapper.find('textarea').classes()).toContain('no-drag');
+    expect(wrapper.find('button[type="submit"]').classes()).toContain(
+      'no-drag'
+    );
   });
 
   it('fetches notes when opening notes panel and creates a note', async () => {

@@ -39,8 +39,14 @@ const stagePendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
 const showRemoveBoardConfirmation = ref(false);
 const showRemoveStageConfirmation = ref(false);
+const isCardDragging = ref(false);
+const hasCardDragChanged = ref(false);
+const suppressNextCardClick = ref(false);
+const isPersistingCardDrag = ref(false);
 const defaultStageColor = 'blue';
 const newStageColor = ref(defaultStageColor);
+const cardDragFilter =
+  'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
 
 const stageColorOptions = [
   {
@@ -89,6 +95,9 @@ const stageListModel = computed({
     selectedBoard.value = { ...selectedBoard.value, stages: nextStages };
   },
 });
+const isCardDragDisabled = computed(
+  () => isPersistingCardDrag.value || !!activeActionKey.value
+);
 
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
@@ -464,14 +473,24 @@ const onStageDragEnd = async event => {
   await reorderStageByPosition(stage, newIndex + 1);
 };
 
+const onCardDragStart = () => {
+  isCardDragging.value = true;
+  hasCardDragChanged.value = false;
+};
+
 const onCardDragChange = async (stage, event) => {
+  if (event?.added || event?.moved || event?.removed) {
+    hasCardDragChanged.value = true;
+  }
+
   const card = event?.added?.element || event?.moved?.element;
   const targetIndex = event?.added?.newIndex ?? event?.moved?.newIndex;
   if (
     !selectedBoard.value?.id ||
     !stage?.id ||
     !card ||
-    targetIndex === undefined
+    targetIndex === undefined ||
+    isPersistingCardDrag.value
   ) {
     return;
   }
@@ -481,6 +500,7 @@ const onCardDragChange = async (stage, event) => {
   const positionChanged = card.position !== destinationPosition;
   if (!stageChanged && !positionChanged) return;
 
+  isPersistingCardDrag.value = true;
   activeActionKey.value = `reorder-card-${card.id}`;
   actionError.value = '';
 
@@ -500,8 +520,21 @@ const onCardDragChange = async (stage, event) => {
     showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
     await refreshSelectedBoard();
   } finally {
+    isPersistingCardDrag.value = false;
     activeActionKey.value = '';
   }
+};
+
+const onCardDragEnd = () => {
+  if (isCardDragging.value || hasCardDragChanged.value) {
+    suppressNextCardClick.value = true;
+    window.setTimeout(() => {
+      suppressNextCardClick.value = false;
+    }, 0);
+  }
+
+  isCardDragging.value = false;
+  hasCardDragChanged.value = false;
 };
 
 const openRemoveCardConfirmation = card => {
@@ -601,7 +634,12 @@ const removeStageMessageValue = computed(
   () => stagePendingRemoval.value?.name || ''
 );
 
-const openConversation = (card, event) => {
+const openConversation = (card, event = {}) => {
+  if (suppressNextCardClick.value) {
+    suppressNextCardClick.value = false;
+    return;
+  }
+
   const path = frontendURL(
     conversationUrl({
       accountId: route.params.accountId,
@@ -939,46 +977,58 @@ onMounted(fetchBoards);
               <div
                 class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto bg-n-solid-1 p-3"
               >
-                <form class="flex gap-2" @submit.prevent="addCard(stage)">
-                  <input
-                    v-model="cardConversationIds[stage.id]"
-                    type="number"
-                    min="1"
-                    class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                    :placeholder="
-                      t('KANBAN.ACTIONS.CONVERSATION_ID_PLACEHOLDER')
-                    "
-                  />
-                  <button
-                    type="submit"
-                    class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="
-                      !String(cardConversationIds[stage.id] || '').trim() ||
-                      !!activeActionKey
-                    "
-                  >
-                    <i class="i-lucide-plus size-4" />
-                    {{ t('KANBAN.ACTIONS.ADD_CARD') }}
-                  </button>
-                </form>
-
-                <p
-                  v-if="stage.cards.length === 0"
-                  class="px-1 py-2 text-sm text-n-slate-10"
-                >
-                  {{ t('KANBAN.EMPTY_CARDS') }}
-                </p>
-
                 <Draggable
                   :list="stage.cards"
                   item-key="id"
+                  class="flex min-h-48 flex-1 flex-col gap-2 rounded-md"
                   :group="{ name: 'kanban-cards' }"
                   handle=".card-drag-handle"
+                  :filter="cardDragFilter"
+                  :prevent-on-filter="false"
+                  :empty-insert-threshold="80"
+                  :swap-threshold="0.65"
+                  fallback-on-body
+                  force-fallback
+                  :disabled="isCardDragDisabled"
                   ghost-class="opacity-60"
                   chosen-class="opacity-90"
                   :animation="180"
+                  @start="onCardDragStart"
                   @change="onCardDragChange(stage, $event)"
+                  @end="onCardDragEnd"
                 >
+                  <form
+                    class="no-drag flex gap-2"
+                    @submit.prevent="addCard(stage)"
+                  >
+                    <input
+                      v-model="cardConversationIds[stage.id]"
+                      type="number"
+                      min="1"
+                      class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                      :placeholder="
+                        t('KANBAN.ACTIONS.CONVERSATION_ID_PLACEHOLDER')
+                      "
+                    />
+                    <button
+                      type="submit"
+                      class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="
+                        !String(cardConversationIds[stage.id] || '').trim() ||
+                        !!activeActionKey
+                      "
+                    >
+                      <i class="i-lucide-plus size-4" />
+                      {{ t('KANBAN.ACTIONS.ADD_CARD') }}
+                    </button>
+                  </form>
+
+                  <p
+                    v-if="stage.cards.length === 0"
+                    class="pointer-events-none px-1 py-2 text-sm text-n-slate-10"
+                  >
+                    {{ t('KANBAN.EMPTY_CARDS') }}
+                  </p>
                   <template #item="{ element: card }">
                     <KanbanConversationCard
                       :card="card"

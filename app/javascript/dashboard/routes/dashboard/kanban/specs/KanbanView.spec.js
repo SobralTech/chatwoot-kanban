@@ -52,7 +52,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   },
 }));
 
-const buildBoardResponse = () => ({
+const buildBoardResponse = (stageBCards = []) => ({
   id: 10,
   name: 'Sales Board',
   description: '',
@@ -80,17 +80,31 @@ const buildBoardResponse = () => ({
       id: 200,
       name: 'Stage B',
       position: 2,
-      cards: [],
+      cards: stageBCards,
     },
   ],
 });
 
-const mountView = async () => {
+const buildCard = overrides => ({
+  id: 502,
+  conversation_id: 456,
+  kanban_stage_id: 200,
+  position: 1,
+  conversation: {
+    inbox_id: 1,
+    status: 'open',
+    meta: { sender: { id: 2, name: 'John' } },
+    messages: [{ content: 'hi' }],
+  },
+  ...overrides,
+});
+
+const mountView = async (boardResponse = buildBoardResponse()) => {
   KanbanBoardsAPI.get.mockResolvedValue({
     data: [{ id: 10, name: 'Sales Board' }],
   });
   KanbanBoardsAPI.show.mockResolvedValue({
-    data: buildBoardResponse(),
+    data: boardResponse,
   });
   KanbanBoardsAPI.reorderStage.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.reorderCard.mockResolvedValue({ data: {} });
@@ -119,6 +133,38 @@ const mountView = async () => {
               type: Array,
               default: () => [],
             },
+            handle: {
+              type: String,
+              default: '',
+            },
+            filter: {
+              type: String,
+              default: '',
+            },
+            preventOnFilter: {
+              type: Boolean,
+              default: true,
+            },
+            emptyInsertThreshold: {
+              type: Number,
+              default: 0,
+            },
+            swapThreshold: {
+              type: Number,
+              default: 1,
+            },
+            fallbackOnBody: {
+              type: Boolean,
+              default: false,
+            },
+            forceFallback: {
+              type: Boolean,
+              default: false,
+            },
+            disabled: {
+              type: Boolean,
+              default: false,
+            },
           },
           computed: {
             draggableItems() {
@@ -140,6 +186,11 @@ const mountView = async () => {
   await nextTick();
   return wrapper;
 };
+
+const findCardDraggables = wrapper =>
+  wrapper
+    .findAllComponents({ name: 'Draggable' })
+    .filter(draggable => draggable.props('handle') === '.card-drag-handle');
 
 describe('KanbanView drag and drop', () => {
   beforeEach(() => {
@@ -164,12 +215,8 @@ describe('KanbanView drag and drop', () => {
 
   it('persists cross-stage card drag using target stage and position payload', async () => {
     const wrapper = await mountView();
-    const draggables = wrapper.findAllComponents({ name: 'Draggable' });
-    const targetStageCardDraggable = draggables.find(
-      draggable =>
-        Array.isArray(draggable.props('list')) &&
-        draggable.props('list').length === 0 &&
-        draggable.props('modelValue').length === 0
+    const targetStageCardDraggable = findCardDraggables(wrapper).find(
+      draggable => draggable.props('list').length === 0
     );
 
     expect(targetStageCardDraggable).toBeDefined();
@@ -193,6 +240,157 @@ describe('KanbanView drag and drop', () => {
         position: 1,
       },
     });
+  });
+
+  it('makes the empty stage card list a configured drop zone', async () => {
+    const wrapper = await mountView();
+    const emptyStageDraggable = findCardDraggables(wrapper).find(
+      draggable => draggable.props('list').length === 0
+    );
+
+    expect(emptyStageDraggable.classes()).toContain('min-h-48');
+    expect(emptyStageDraggable.text()).toContain('KANBAN.EMPTY_CARDS');
+    expect(emptyStageDraggable.find('form.no-drag').exists()).toBe(true);
+    expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(80);
+    expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
+    expect(emptyStageDraggable.props('fallbackOnBody')).toBe(true);
+    expect(emptyStageDraggable.props('forceFallback')).toBe(true);
+  });
+
+  it('persists same-stage card reorder using updated position', async () => {
+    const wrapper = await mountView();
+    const sourceStageCardDraggable = findCardDraggables(wrapper)[0];
+
+    sourceStageCardDraggable.vm.$emit('change', {
+      moved: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 2,
+        },
+        newIndex: 0,
+      },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderCard).toHaveBeenCalledWith(10, 123, {
+      card: {
+        kanban_stage_id: 100,
+        position: 1,
+      },
+    });
+  });
+
+  it('persists populated-to-populated stage card move', async () => {
+    const wrapper = await mountView(buildBoardResponse([buildCard()]));
+    const targetStageCardDraggable = findCardDraggables(wrapper)[1];
+
+    targetStageCardDraggable.vm.$emit('change', {
+      added: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 1,
+        },
+        newIndex: 1,
+      },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderCard).toHaveBeenCalledWith(10, 123, {
+      card: {
+        kanban_stage_id: 200,
+        position: 2,
+      },
+    });
+  });
+
+  it('ignores source removed card drag events', async () => {
+    const wrapper = await mountView();
+    const sourceStageCardDraggable = findCardDraggables(wrapper)[0];
+
+    sourceStageCardDraggable.vm.$emit('change', {
+      removed: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 1,
+        },
+        oldIndex: 0,
+      },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
+  });
+
+  it('filters interactive controls from card drag start', async () => {
+    const wrapper = await mountView();
+    const cardDraggable = findCardDraggables(wrapper)[0];
+
+    expect(cardDraggable.props('filter')).toBe(
+      'button,a,input,textarea,select,[contenteditable="true"],.no-drag'
+    );
+    expect(cardDraggable.props('preventOnFilter')).toBe(false);
+  });
+
+  it('blocks click navigation immediately after card drag', async () => {
+    const wrapper = await mountView();
+    const cardDraggable = findCardDraggables(wrapper)[0];
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardDraggable.vm.$emit('start');
+    cardDraggable.vm.$emit('end');
+    cardComponent.vm.$emit('openConversation', { conversationId: 123 }, {});
+    await flushPromises();
+
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('prevents overlapping card drag persistence requests', async () => {
+    let resolveReorder;
+    KanbanBoardsAPI.reorderCard.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveReorder = resolve;
+      })
+    );
+    const wrapper = await mountView();
+    const sourceStageCardDraggable = findCardDraggables(wrapper)[0];
+
+    sourceStageCardDraggable.vm.$emit('change', {
+      moved: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 2,
+        },
+        newIndex: 0,
+      },
+    });
+    await nextTick();
+
+    sourceStageCardDraggable.vm.$emit('change', {
+      moved: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 2,
+        },
+        newIndex: 0,
+      },
+    });
+
+    expect(KanbanBoardsAPI.reorderCard).toHaveBeenCalledTimes(1);
+
+    resolveReorder({ data: {} });
+    await flushPromises();
   });
 
   it('keeps card click navigation working', async () => {

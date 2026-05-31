@@ -125,6 +125,10 @@ const createNote = async () => {
     isCreatingNote.value = false;
   }
 };
+
+const openConversation = event => {
+  emit('openConversation', props.card, event);
+};
 </script>
 
 <template>
@@ -132,17 +136,9 @@ const createNote = async () => {
     class="card-drag-handle cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-3"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
+    @click="openConversation"
   >
-    <button
-      type="button"
-      class="w-full text-left"
-      :aria-label="
-        t('KANBAN.CARD.OPEN_CONVERSATION', {
-          contactName,
-        })
-      "
-      @click="emit('openConversation', card, $event)"
-    >
+    <div class="text-left">
       <div class="flex items-start justify-between gap-2">
         <h4 class="min-w-0 truncate text-sm font-medium text-n-slate-12">
           {{ contactName }}
@@ -157,7 +153,7 @@ const createNote = async () => {
       <p class="mt-2 line-clamp-2 text-sm leading-5 text-n-slate-11">
         {{ lastMessage }}
       </p>
-    </button>
+    </div>
 
     <div class="mt-3 grid gap-2 text-xs text-n-slate-11">
       <div class="flex items-center justify-between gap-2">
@@ -184,9 +180,9 @@ const createNote = async () => {
     <div class="mt-3 flex items-center justify-end">
       <button
         type="button"
-        class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
+        class="no-drag flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
         :disabled="!!activeActionKey"
-        @click="emit('removeCard', card)"
+        @click.stop="emit('removeCard', card)"
       >
         <i class="i-lucide-trash size-4" />
         {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
@@ -196,15 +192,15 @@ const createNote = async () => {
     <div class="mt-3 border-t border-n-weak pt-3">
       <button
         type="button"
-        class="flex items-center gap-1 text-xs font-medium text-n-brand"
+        class="no-drag flex items-center gap-1 text-xs font-medium text-n-brand"
         :disabled="!contactId"
-        @click="toggleNotes"
+        @click.stop="toggleNotes"
       >
         <i class="i-lucide-message-square size-3.5" />
         {{ isNotesOpen ? t('KANBAN.NOTES.HIDE') : t('KANBAN.NOTES.SHOW') }}
       </button>
 
-      <div v-if="isNotesOpen" class="mt-3 grid gap-3">
+      <div v-if="isNotesOpen" class="no-drag mt-3 grid gap-3" @click.stop>
         <p v-if="!contactId" class="text-sm text-n-slate-10">
           {{ t('KANBAN.NOTES.NO_CONTACT') }}
         </p>
@@ -214,12 +210,12 @@ const createNote = async () => {
             <textarea
               v-model="noteContent"
               rows="3"
-              class="min-w-0 resize-none rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+              class="no-drag min-w-0 resize-none rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
               :placeholder="t('KANBAN.NOTES.PLACEHOLDER')"
             />
             <button
               type="submit"
-              class="flex items-center gap-1 justify-self-start rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+              class="no-drag flex items-center gap-1 justify-self-start rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="!noteContent.trim() || isCreatingNote"
             >
               <i class="i-lucide-plus size-4" />
