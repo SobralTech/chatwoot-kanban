@@ -258,7 +258,7 @@ RSpec.describe KanbanCardsParityAudit do
       expect(output).to include('matching_rows: 0')
       expect(output).to include('missing_mirror: 0')
       expect(output).to include('field_mismatch: 0')
-      expect(output).to include('orphan_active_mirror: 0')
+      expect(output).to include('standalone_conversation_cards: 0')
     end
 
     it 'reports clean parity for matching legacy and mirror rows with nil subject' do
@@ -337,13 +337,21 @@ RSpec.describe KanbanCardsParityAudit do
       expect(output).to include('  active: 1')
     end
 
-    it 'detects an orphan active conversation-origin mirror' do
+    it 'reports a standalone automatic conversation card' do
       create(:kanban_card, :conversation_origin)
 
       output = run_audit
 
       expect(output).to include('legacy_rows: 0')
-      expect(output).to include('orphan_active_mirror: 1')
+      expect(output).to include('standalone_conversation_cards: 1')
+    end
+
+    it 'returns success when only standalone automatic conversation cards exist' do
+      create(:kanban_card, :conversation_origin)
+
+      capture_stdout do
+        expect(described_class.new.run).to be(true)
+      end
     end
 
     it 'ignores manual cards' do
@@ -352,7 +360,7 @@ RSpec.describe KanbanCardsParityAudit do
       output = run_audit
 
       expect(output).to include('legacy_rows: 0')
-      expect(output).to include('orphan_active_mirror: 0')
+      expect(output).to include('standalone_conversation_cards: 0')
     end
 
     it 'returns success for a clean audit' do
@@ -377,6 +385,12 @@ RSpec.describe KanbanCardsParityAudit do
     it 'returns success when the audit is clean' do
       legacy_state = create_valid_legacy_state
       create_matching_mirror(legacy_state)
+
+      expect { capture_stdout { task.invoke } }.not_to raise_error
+    end
+
+    it 'returns success when only standalone automatic conversation cards exist' do
+      create(:kanban_card, :conversation_origin)
 
       expect { capture_stdout { task.invoke } }.not_to raise_error
     end

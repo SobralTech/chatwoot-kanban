@@ -21,9 +21,11 @@ class KanbanCardsParityAudit
     missing_mirror
     duplicate_mirror
     field_mismatch
-    orphan_active_mirror
+    standalone_conversation_cards
     inactive_mirror_for_active_legacy
   ].freeze
+
+  DRIFT_KEYS = SUMMARY_KEYS.without(:legacy_rows, :matching_rows, :standalone_conversation_cards).freeze
 
   MISMATCH_FIELDS = %w[
     account_id
@@ -79,7 +81,7 @@ class KanbanCardsParityAudit
   end
 
   def drift_free?(summary)
-    summary.values_at(*SUMMARY_KEYS.without(:legacy_rows, :matching_rows)).all?(&:zero?)
+    summary.values_at(*DRIFT_KEYS).all?(&:zero?)
   end
 
   def summary_sql
@@ -91,7 +93,7 @@ class KanbanCardsParityAudit
         COUNT(*) FILTER (WHERE mirror_count = 0) AS missing_mirror,
         COUNT(*) FILTER (WHERE mirror_count > 1) AS duplicate_mirror,
         COUNT(*) FILTER (WHERE mirror_count = 1 AND NOT fields_match) AS field_mismatch,
-        (#{orphan_active_mirror_count_sql}) AS orphan_active_mirror,
+        (#{standalone_conversation_cards_count_sql}) AS standalone_conversation_cards,
         COUNT(*) FILTER (WHERE active_mirror_count = 0 AND inactive_mirror_count > 0) AS inactive_mirror_for_active_legacy
       FROM legacy_matches
     SQL
@@ -156,7 +158,7 @@ class KanbanCardsParityAudit
     }
   end
 
-  def orphan_active_mirror_count_sql
+  def standalone_conversation_cards_count_sql
     <<~SQL.squish
       SELECT COUNT(*)
       FROM kanban_cards kc
@@ -175,7 +177,7 @@ class KanbanCardsParityAudit
       duplicate_mirror: example_sql('mirror_count > 1'),
       field_mismatch: example_sql('mirror_count = 1 AND NOT fields_match'),
       inactive_mirror_for_active_legacy: example_sql('active_mirror_count = 0 AND inactive_mirror_count > 0'),
-      orphan_active_mirror: orphan_active_mirror_examples_sql
+      standalone_conversation_cards: standalone_conversation_cards_examples_sql
     }
   end
 
@@ -190,7 +192,7 @@ class KanbanCardsParityAudit
     SQL
   end
 
-  def orphan_active_mirror_examples_sql
+  def standalone_conversation_cards_examples_sql
     <<~SQL.squish
       SELECT kc.id
       FROM kanban_cards kc
