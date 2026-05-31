@@ -81,7 +81,9 @@
       "NO_CONTACTS": "Nenhum contato encontrado.",
       "UNKNOWN_CONTACT": "Contato desconhecido",
       "NO_CONTACT_DETAILS": "Sem email ou telefone",
-      "CONVERSATIONS_NEXT_STEP": "As conversas serão carregadas na próxima etapa.",
+      "LOADING_INBOXES": "Carregando caixas de entrada do contato...",
+      "INBOXES_ERROR": "Não foi possível carregar as caixas de entrada. Tente novamente.",
+      "NO_INBOXES": "Nenhuma caixa de entrada disponível para este contato.",
       "CLEAR_CONTACT": "Limpar contato selecionado",
       "CLOSE": "Fechar seletor de item"
     },

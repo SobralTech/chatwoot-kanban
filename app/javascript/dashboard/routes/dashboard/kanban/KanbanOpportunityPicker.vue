@@ -25,6 +25,12 @@ const contactSearchError = ref(false);
 const contactSearchController = ref(null);
 const contactSearchMinimumLength = 3;
 
+const contactableInboxes = ref([]);
+const isLoadingInboxes = ref(false);
+const inboxesError = ref(false);
+const selectedInbox = ref(null);
+const inboxesController = ref(null);
+
 const isAbortError = error =>
   error?.name === 'AbortError' || error?.name === 'CanceledError';
 
@@ -90,20 +96,82 @@ const onContactSearchInput = () => {
   debouncedSearchContacts(trimmedQuery);
 };
 
+const formatChannelType = channelType => {
+  if (!channelType) return '';
+  return channelType
+    .split('::')
+    .pop()
+    .replace(/([A-Z])/g, ' $1')
+    .trim();
+};
+
+const resetInboxes = () => {
+  inboxesController.value?.abort();
+  inboxesController.value = null;
+  contactableInboxes.value = [];
+  isLoadingInboxes.value = false;
+  inboxesError.value = false;
+  selectedInbox.value = null;
+};
+
+const loadContactableInboxes = async contact => {
+  resetInboxes();
+
+  const controller = new AbortController();
+  inboxesController.value = controller;
+  isLoadingInboxes.value = true;
+
+  try {
+    const {
+      data: { payload: rawInboxes = [] },
+    } = await ContactAPI.getContactableInboxes(contact.id, {
+      signal: controller.signal,
+    });
+
+    if (controller.signal.aborted) return;
+
+    contactableInboxes.value = (rawInboxes || []).map(item => ({
+      ...camelcaseKeys(item.inbox, { deep: true }),
+      sourceId: item.source_id,
+    }));
+  } catch (error) {
+    if (!isAbortError(error)) {
+      inboxesError.value = true;
+      contactableInboxes.value = [];
+    }
+  } finally {
+    if (inboxesController.value === controller) {
+      isLoadingInboxes.value = false;
+    }
+  }
+};
+
+const selectInbox = inbox => {
+  selectedInbox.value = inbox;
+};
+
+const handleClose = () => {
+  resetInboxes();
+  emit('close');
+};
+
 const selectContact = contact => {
   abortContactSearch();
   selectedContact.value = contact;
   contactSearchResults.value = [];
   isSearchingContacts.value = false;
   contactSearchError.value = false;
+  loadContactableInboxes(contact);
 };
 
 const clearSelectedContact = () => {
+  resetInboxes();
   selectedContact.value = null;
 };
 
 onUnmounted(() => {
   abortContactSearch();
+  resetInboxes();
 });
 </script>
 
@@ -134,7 +202,7 @@ onUnmounted(() => {
         type="button"
         class="mt-1 flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
         :aria-label="t('KANBAN.ADD_ITEM.CLOSE')"
-        @click="emit('close')"
+        @click="handleClose"
       >
         <i class="i-lucide-x size-4" />
       </button>
@@ -151,9 +219,6 @@ onUnmounted(() => {
             <p class="mb-0 truncate text-sm font-medium text-n-slate-12">
               {{ selectedContact.name }}
             </p>
-            <p class="mb-0 mt-1 text-sm text-n-slate-11">
-              {{ t('KANBAN.ADD_ITEM.CONVERSATIONS_NEXT_STEP') }}
-            </p>
           </div>
           <button
             type="button"
@@ -162,6 +227,67 @@ onUnmounted(() => {
             @click="clearSelectedContact"
           >
             <i class="i-lucide-x size-4" />
+          </button>
+        </div>
+      </div>
+
+      <div v-if="selectedContact" class="mt-3">
+        <p
+          v-if="isLoadingInboxes"
+          data-testid="kanban-inboxes-loading"
+          class="mb-0 text-sm text-n-slate-11"
+        >
+          {{ t('KANBAN.ADD_ITEM.LOADING_INBOXES') }}
+        </p>
+
+        <p
+          v-else-if="inboxesError"
+          data-testid="kanban-inboxes-error"
+          class="mb-0 text-sm text-n-ruby-11"
+        >
+          {{ t('KANBAN.ADD_ITEM.INBOXES_ERROR') }}
+        </p>
+
+        <p
+          v-else-if="contactableInboxes.length === 0"
+          data-testid="kanban-inboxes-empty"
+          class="mb-0 text-sm text-n-slate-11"
+        >
+          {{ t('KANBAN.ADD_ITEM.NO_INBOXES') }}
+        </p>
+
+        <div v-else data-testid="kanban-inboxes" class="grid gap-1">
+          <button
+            v-for="inbox in contactableInboxes"
+            :key="inbox.id"
+            type="button"
+            class="no-drag flex min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-n-alpha-2"
+            :class="{
+              'bg-n-alpha-2 ring-1 ring-n-brand':
+                selectedInbox?.id === inbox.id,
+            }"
+            @click="selectInbox(inbox)"
+          >
+            <img
+              v-if="inbox.avatarUrl"
+              :src="inbox.avatarUrl"
+              :alt="inbox.name"
+              class="size-8 flex-shrink-0 rounded-full object-cover"
+            />
+            <span
+              v-else
+              class="flex size-8 flex-shrink-0 items-center justify-center rounded-full bg-n-alpha-2 text-xs font-medium text-n-slate-11"
+            >
+              {{ inbox.name?.charAt(0) || '?' }}
+            </span>
+            <span class="min-w-0">
+              <span class="block truncate text-sm font-medium text-n-slate-12">
+                {{ inbox.name }}
+              </span>
+              <span class="block truncate text-xs text-n-slate-11">
+                {{ formatChannelType(inbox.channelType) }}
+              </span>
+            </span>
           </button>
         </div>
       </div>

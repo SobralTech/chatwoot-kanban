@@ -91,7 +91,9 @@
       "NO_CONTACTS": "No contacts found.",
       "UNKNOWN_CONTACT": "Unknown contact",
       "NO_CONTACT_DETAILS": "No email or phone",
-      "CONVERSATIONS_NEXT_STEP": "Conversations will be loaded in the next step.",
+      "LOADING_INBOXES": "Loading contact inboxes...",
+      "INBOXES_ERROR": "Could not load inboxes. Try again.",
+      "NO_INBOXES": "No available inboxes for this contact.",
       "CLEAR_CONTACT": "Clear selected contact",
       "CLOSE": "Close add item picker"
     },

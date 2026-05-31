@@ -40,8 +40,10 @@ class ContactAPI extends ApiClient {
     return axios.get(`${this.url}/${contactId}/conversations`, { params });
   }
 
-  getContactableInboxes(contactId) {
-    return axios.get(`${this.url}/${contactId}/contactable_inboxes`);
+  getContactableInboxes(contactId, { signal } = {}) {
+    return axios.get(`${this.url}/${contactId}/contactable_inboxes`, {
+      signal,
+    });
   }
 
   getContactLabels(contactId) {
