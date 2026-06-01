@@ -139,6 +139,7 @@
       "LAST_ACTIVITY": "Last activity: {time}"
     },
     "NOTES": {
+      "TITLE": "Contact notes",
       "SHOW": "Show notes",
       "HIDE": "Hide notes",
       "LOADING": "Loading notes...",
@@ -146,6 +147,8 @@
       "NO_CONTACT": "No contact is linked to this conversation.",
       "PLACEHOLDER": "Add a contact note",
       "ADD": "Add note",
+      "REFRESH": "Refresh notes",
+      "REQUIRED": "Enter a note before adding it.",
       "BOT": "Bot",
       "CREATE_SUCCESS": "Contact note added.",
       "CREATE_ERROR": "Could not add the contact note.",

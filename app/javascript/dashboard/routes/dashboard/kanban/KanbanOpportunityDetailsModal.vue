@@ -1,8 +1,11 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import camelcaseKeys from 'camelcase-keys';
 
+import ContactNotesAPI from 'dashboard/api/contactNotes';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import ContactNoteItem from 'dashboard/components-next/Contacts/ContactsSidebar/components/ContactNoteItem.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
@@ -38,10 +41,23 @@ const labelsLoadError = ref('');
 const labelsSaveError = ref('');
 const subjectError = ref('');
 const selectedLabelTitles = ref([]);
+const notes = ref([]);
+const noteContent = ref('');
+const isLoadingNotes = ref(false);
+const isCreatingNote = ref(false);
+const notesLoadError = ref('');
+const notesSaveError = ref('');
 
 const hasConversation = computed(() => !!card.value?.conversationId);
+const contactId = computed(() => card.value?.contact?.id);
 const selectedLabelTitleSet = computed(
   () => new Set(selectedLabelTitles.value)
+);
+const formattedNotes = computed(() =>
+  notes.value.map(note => ({
+    ...note,
+    contactId: note.contactId || contactId.value,
+  }))
 );
 
 const normalizeCard = payload => ({
@@ -79,6 +95,8 @@ const getErrorMessage = (error, fallback) => {
   return error?.response?.data?.message || error?.message || fallback;
 };
 
+const getWrittenBy = note => note?.user?.name || t('KANBAN.NOTES.BOT');
+
 const setFormState = payload => {
   card.value = normalizeCard(payload);
   subject.value = card.value.subject || '';
@@ -111,6 +129,28 @@ const loadLabels = async () => {
   }
 };
 
+const loadNotes = async () => {
+  notes.value = [];
+  notesLoadError.value = '';
+  notesSaveError.value = '';
+
+  if (!contactId.value) return;
+
+  isLoadingNotes.value = true;
+
+  try {
+    const response = await ContactNotesAPI.get(contactId.value);
+    notes.value = camelcaseKeys(response.data || [], { deep: true });
+  } catch (error) {
+    notesLoadError.value = getErrorMessage(
+      error,
+      t('KANBAN.NOTES.FETCH_ERROR')
+    );
+  } finally {
+    isLoadingNotes.value = false;
+  }
+};
+
 const loadCard = async () => {
   isLoading.value = true;
   loadError.value = '';
@@ -121,6 +161,7 @@ const loadCard = async () => {
       props.cardId
     );
     setFormState(response.data || {});
+    loadNotes();
   } catch (error) {
     loadError.value = getErrorMessage(
       error,
@@ -128,6 +169,36 @@ const loadCard = async () => {
     );
   } finally {
     isLoading.value = false;
+  }
+};
+
+const createNote = async () => {
+  const content = noteContent.value.trim();
+  notesSaveError.value = '';
+
+  if (!content) {
+    notesSaveError.value = t('KANBAN.NOTES.REQUIRED');
+    return;
+  }
+
+  if (!contactId.value || isCreatingNote.value) return;
+
+  isCreatingNote.value = true;
+
+  try {
+    const response = await ContactNotesAPI.create(contactId.value, content);
+    notes.value = [
+      camelcaseKeys(response.data || {}, { deep: true }),
+      ...notes.value,
+    ];
+    noteContent.value = '';
+  } catch (error) {
+    notesSaveError.value = getErrorMessage(
+      error,
+      t('KANBAN.NOTES.CREATE_ERROR')
+    );
+  } finally {
+    isCreatingNote.value = false;
   }
 };
 
@@ -357,6 +428,101 @@ onMounted(() => {
           >
             {{ labelsSaveError }}
           </p>
+        </section>
+
+        <section class="grid gap-3 rounded-lg border border-n-weak p-3">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+              {{ t('KANBAN.NOTES.TITLE') }}
+            </h3>
+            <button
+              type="button"
+              data-testid="kanban-opportunity-refresh-notes"
+              class="flex size-7 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+              :aria-label="t('KANBAN.NOTES.REFRESH')"
+              :disabled="!contactId || isLoadingNotes"
+              @click="loadNotes"
+            >
+              <i class="i-lucide-refresh-cw size-4" />
+            </button>
+          </div>
+
+          <p
+            v-if="!contactId"
+            data-testid="kanban-opportunity-notes-no-contact"
+            class="mb-0 text-sm text-n-slate-11"
+          >
+            {{ t('KANBAN.NOTES.NO_CONTACT') }}
+          </p>
+
+          <template v-else>
+            <div class="grid gap-2">
+              <textarea
+                v-model="noteContent"
+                rows="3"
+                data-testid="kanban-opportunity-note-content"
+                class="min-w-0 resize-none rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                :placeholder="t('KANBAN.NOTES.PLACEHOLDER')"
+                @input="notesSaveError = ''"
+              />
+              <button
+                type="button"
+                data-testid="kanban-opportunity-add-note"
+                class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :aria-label="t('KANBAN.NOTES.ADD')"
+                :disabled="!noteContent.trim() || isCreatingNote"
+                @click="createNote"
+              >
+                <i class="i-lucide-plus size-4" />
+              </button>
+            </div>
+
+            <p
+              v-if="notesSaveError"
+              data-testid="kanban-opportunity-notes-save-error"
+              class="mb-0 text-sm text-n-ruby-11"
+            >
+              {{ notesSaveError }}
+            </p>
+
+            <p
+              v-if="isLoadingNotes"
+              data-testid="kanban-opportunity-notes-loading"
+              class="mb-0 text-sm text-n-slate-11"
+            >
+              {{ t('KANBAN.NOTES.LOADING') }}
+            </p>
+
+            <p
+              v-else-if="notesLoadError"
+              data-testid="kanban-opportunity-notes-load-error"
+              class="mb-0 text-sm text-n-ruby-11"
+            >
+              {{ notesLoadError }}
+            </p>
+
+            <div
+              v-else-if="formattedNotes.length"
+              data-testid="kanban-opportunity-notes"
+              class="grid gap-3"
+            >
+              <ContactNoteItem
+                v-for="note in formattedNotes"
+                :key="note.id"
+                :note="note"
+                :written-by="getWrittenBy(note)"
+                collapsible
+              />
+            </div>
+
+            <p
+              v-else
+              data-testid="kanban-opportunity-notes-empty"
+              class="mb-0 text-sm text-n-slate-11"
+            >
+              {{ t('KANBAN.NOTES.EMPTY') }}
+            </p>
+          </template>
         </section>
 
         <p

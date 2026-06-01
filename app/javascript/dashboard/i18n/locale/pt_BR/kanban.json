@@ -129,6 +129,7 @@
       "LAST_ACTIVITY": "Última atividade: {time}"
     },
     "NOTES": {
+      "TITLE": "Notas do contato",
       "SHOW": "Mostrar notas",
       "HIDE": "Ocultar notas",
       "LOADING": "Carregando notas...",
@@ -136,6 +137,8 @@
       "NO_CONTACT": "Nenhum contato está vinculado a esta conversa.",
       "PLACEHOLDER": "Adicionar uma nota de contato",
       "ADD": "Adicionar nota",
+      "REFRESH": "Atualizar notas",
+      "REQUIRED": "Informe uma nota antes de adicioná-la.",
       "BOT": "Bot",
       "CREATE_SUCCESS": "Nota de contato adicionada.",
       "CREATE_ERROR": "Não foi possível adicionar a nota de contato.",
