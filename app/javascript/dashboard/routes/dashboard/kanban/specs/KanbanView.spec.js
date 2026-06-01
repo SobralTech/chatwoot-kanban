@@ -56,7 +56,6 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
   name: 'Sales Board',
   description: '',
   auto_create_cards_from_conversations: true,
-  use_opportunity_card_reads: false,
   stages: [
     {
       id: 100,

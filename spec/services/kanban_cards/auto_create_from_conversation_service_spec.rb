@@ -110,10 +110,10 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect { service.perform! }.not_to change(KanbanCard, :count)
     end
 
-    it 'does not create when opportunity-card reads are disabled' do
+    it 'creates when opportunity-card reads are disabled' do
       board.update!(use_opportunity_card_reads: false)
 
-      expect { service.perform! }.not_to change(KanbanCard, :count)
+      expect { service.perform! }.to change(KanbanCard, :count).by(1)
     end
 
     it 'creates the card in the first active stage ordered by position, created_at, and id' do

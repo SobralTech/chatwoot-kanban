@@ -3,7 +3,7 @@ require 'rails_helper'
 RSpec.describe KanbanCards::CreateManualCardService do
   let(:account) { create(:account) }
   let(:user) { create(:user, account: account, role: :agent) }
-  let(:kanban_board) { create(:kanban_board, account: account, use_opportunity_card_reads: true) }
+  let(:kanban_board) { create(:kanban_board, account: account) }
   let(:kanban_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board) }
   let(:contact) { create(:contact, account: account) }
   let(:inbox) { create(:inbox, account: account) }
@@ -130,14 +130,14 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect { service.perform! }.to raise_validation_error('Board must be active')
     end
 
-    it 'rejects a board without opportunity-card reads enabled' do
+    it 'creates a card when opportunity-card reads are disabled' do
       kanban_board.update!(use_opportunity_card_reads: false)
 
-      expect { service.perform! }.to raise_validation_error('Board must use opportunity card reads')
+      expect { service.perform! }.to change(KanbanCard.manual, :count).by(1)
     end
 
     it 'rejects a stage from another board' do
-      other_board = create(:kanban_board, account: account, use_opportunity_card_reads: true)
+      other_board = create(:kanban_board, account: account)
       other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
       service = build_service(kanban_stage: other_stage)
 

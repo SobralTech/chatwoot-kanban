@@ -4,7 +4,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
   let(:account) { create(:account) }
   let(:administrator) { create(:user, account: account, role: :administrator) }
   let(:agent) { create(:user, account: account, role: :agent) }
-  let!(:kanban_board) { create(:kanban_board, account: account, name: 'Sales', use_opportunity_card_reads: false) }
+  let!(:kanban_board) { create(:kanban_board, account: account, name: 'Sales') }
 
   describe 'GET /api/v1/accounts/{account.id}/kanban_boards' do
     it 'returns unauthorized for unauthenticated users' do
@@ -21,7 +21,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body.first['name']).to eq('Sales')
       expect(response.parsed_body.first['auto_create_cards_from_conversations']).to be(false)
-      expect(response.parsed_body.first['use_opportunity_card_reads']).to be(false)
+      expect(response.parsed_body.first).not_to have_key('use_opportunity_card_reads')
     end
 
     it 'does not return inactive boards' do
@@ -54,7 +54,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
           as: :json
 
       expect(response).to have_http_status(:success)
-      expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
+      expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
       expect(response.parsed_body['stages'].first['name']).to eq('New')
       expect(response.parsed_body['stages'].first['cards'].first['conversation_id']).to eq(conversation.display_id)
     end
@@ -136,7 +136,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
         response_card = response.parsed_body['stages'].first['cards'].first
         expect(response).to have_http_status(:success)
-        expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
+        expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
         expect(response_card).to include(
           'id' => card.id,
           'conversation_id' => conversation.display_id,
@@ -550,11 +550,11 @@ RSpec.describe 'Kanban Boards API', type: :request do
           as: :json
 
       expect(response).to have_http_status(:success)
-      expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
+      expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
       expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
     end
 
-    it 'keeps reading kanban cards when use_opportunity_card_reads changes' do
+    it 'keeps reading kanban cards when the stored opportunity-card read value changes' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       legacy_conversation = create(:conversation, account: account)
       card_conversation = create(:conversation, account: account)
@@ -573,7 +573,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
           headers: agent.create_new_auth_token,
           as: :json
 
-      expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
+      expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
       expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
 
       kanban_board.update!(use_opportunity_card_reads: true)
@@ -581,7 +581,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
           headers: agent.create_new_auth_token,
           as: :json
 
-      expect(response.parsed_body['use_opportunity_card_reads']).to be(true)
+      expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
       expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
 
       kanban_board.update!(use_opportunity_card_reads: false)
@@ -589,7 +589,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
           headers: agent.create_new_auth_token,
           as: :json
 
-      expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
+      expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
       expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
     end
 
@@ -632,8 +632,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['name']).to eq('Support')
       expect(response.parsed_body['auto_create_cards_from_conversations']).to be(false)
-      expect(response.parsed_body['use_opportunity_card_reads']).to be(true)
-      expect(KanbanBoard.last.use_opportunity_card_reads).to be(true)
+      expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
     end
 
     it 'accepts automatic card creation setting' do

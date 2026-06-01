@@ -16,7 +16,6 @@ RSpec.describe 'Kanban Cards API', type: :request do
     let(:manual_inbox) { create(:inbox, account: account) }
 
     before do
-      kanban_board.update!(use_opportunity_card_reads: true)
       create(:inbox_member, user: agent, inbox: manual_inbox)
     end
 
@@ -132,12 +131,13 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response.parsed_body['message']).to include('Stage must be active')
     end
 
-    it 'rejects a board with opportunity-card reads disabled' do
+    it 'creates when opportunity-card reads are disabled' do
       kanban_board.update!(use_opportunity_card_reads: false)
 
-      post_manual_card
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body['message']).to include('Board must use opportunity card reads')
+      expect do
+        post_manual_card
+      end.to change(KanbanCard.manual, :count).by(1)
+      expect(response).to have_http_status(:created)
     end
 
     it 'rejects an agent without inbox access' do

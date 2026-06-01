@@ -7,20 +7,6 @@ RSpec.describe KanbanBoard do
 
       expect(board.auto_create_cards_from_conversations).to be(false)
     end
-
-    it 'enables opportunity card reads for new boards' do
-      board = described_class.new
-
-      expect(board.use_opportunity_card_reads).to be(true)
-    end
-
-    it 'keeps explicitly disabled opportunity card reads for persisted boards' do
-      board = create(:kanban_board, use_opportunity_card_reads: false)
-
-      board.update!(name: 'Legacy Sales')
-
-      expect(board.reload.use_opportunity_card_reads).to be(false)
-    end
   end
 
   describe 'validations' do
