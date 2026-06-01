@@ -1,3 +1,4 @@
+conversation_kanban_state ||= nil
 card ||= conversation_kanban_state
 stable_card ||= false
 

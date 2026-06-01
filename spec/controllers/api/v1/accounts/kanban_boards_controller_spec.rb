@@ -42,8 +42,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
       conversation = create(:conversation, account: account)
       create(:inbox_member, user: agent, inbox: conversation.inbox)
       create(
-        :conversation_kanban_state,
-        account: account,
+        :kanban_card,
+        :conversation_origin,
         kanban_board: kanban_board,
         kanban_stage: stage,
         conversation: conversation
@@ -77,16 +77,16 @@ RSpec.describe 'Kanban Boards API', type: :request do
       create(:inbox_member, user: agent, inbox: later_conversation.inbox)
       create(:inbox_member, user: agent, inbox: earlier_conversation.inbox)
       create(
-        :conversation_kanban_state,
-        account: account,
+        :kanban_card,
+        :conversation_origin,
         kanban_board: kanban_board,
         kanban_stage: earlier_stage,
         conversation: later_conversation,
         position: 2
       )
       create(
-        :conversation_kanban_state,
-        account: account,
+        :kanban_card,
+        :conversation_origin,
         kanban_board: kanban_board,
         kanban_stage: earlier_stage,
         conversation: earlier_conversation,
@@ -104,9 +104,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       )
     end
 
-    context 'when opportunity card reads are enabled for the board' do
-      before { kanban_board.update!(use_opportunity_card_reads: true) }
-
+    context 'when reading kanban cards' do
       it 'returns active conversation-origin kanban cards with the frontend-compatible payload' do
         stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New')
         conversation = create(:conversation, account: account)
@@ -138,14 +136,14 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
         response_card = response.parsed_body['stages'].first['cards'].first
         expect(response).to have_http_status(:success)
-        expect(response.parsed_body['use_opportunity_card_reads']).to be(true)
+        expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
         expect(response_card).to include(
           'id' => card.id,
           'conversation_id' => conversation.display_id,
           'kanban_stage_id' => stage.id,
           'position' => 1,
-          'moved_by_id' => administrator.id,
-          'moved_at' => moved_at.to_i,
+          'moved_by_id' => nil,
+          'moved_at' => nil,
           'origin' => 'conversation',
           'subject' => nil,
           'active' => true
@@ -487,7 +485,33 @@ RSpec.describe 'Kanban Boards API', type: :request do
         inbox = create(:inbox, account: account)
         contact = create(:contact, account: account)
         create(:inbox_member, user: agent, inbox: inbox)
-        create_list(:kanban_card, 3, account: account, kanban_board: kanban_board, kanban_stage: stage, contact: contact, inbox: inbox)
+        create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          contact: contact,
+          inbox: inbox,
+          subject: 'First opportunity'
+        )
+        create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          contact: contact,
+          inbox: inbox,
+          subject: 'Second opportunity'
+        )
+        create(
+          :kanban_card,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          contact: contact,
+          inbox: inbox,
+          subject: 'Third opportunity'
+        )
         create(:note, contact: contact)
 
         sql_queries = []
@@ -506,34 +530,13 @@ RSpec.describe 'Kanban Boards API', type: :request do
       end
     end
 
-    it 'does not expose manual kanban cards in legacy read mode' do
-      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
-      legacy_conversation = create(:conversation, account: account)
-      create(:inbox_member, user: agent, inbox: legacy_conversation.inbox)
-      legacy_state = create(
-        :conversation_kanban_state,
-        account: account,
-        kanban_board: kanban_board,
-        kanban_stage: stage,
-        conversation: legacy_conversation
-      )
-      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage)
-
-      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
-          headers: agent.create_new_auth_token,
-          as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([legacy_state.id])
-    end
-
-    it 'keeps legacy reads when board reads are disabled and restores them immediately after disabling' do
+    it 'does not read conversation kanban states even when board reads are disabled' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       legacy_conversation = create(:conversation, account: account)
       card_conversation = create(:conversation, account: account)
       create(:inbox_member, user: agent, inbox: legacy_conversation.inbox)
       create(:inbox_member, user: agent, inbox: card_conversation.inbox)
-      legacy_state = create(
+      create(
         :conversation_kanban_state,
         account: account,
         kanban_board: kanban_board,
@@ -546,13 +549,39 @@ RSpec.describe 'Kanban Boards API', type: :request do
           headers: agent.create_new_auth_token,
           as: :json
 
-      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([legacy_state.id])
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
+      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
+    end
+
+    it 'keeps reading kanban cards when use_opportunity_card_reads changes' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      legacy_conversation = create(:conversation, account: account)
+      card_conversation = create(:conversation, account: account)
+      create(:inbox_member, user: agent, inbox: legacy_conversation.inbox)
+      create(:inbox_member, user: agent, inbox: card_conversation.inbox)
+      create(
+        :conversation_kanban_state,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: legacy_conversation
+      )
+      card = create(:kanban_card, :conversation_origin, kanban_board: kanban_board, kanban_stage: stage, conversation: card_conversation)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
+      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
 
       kanban_board.update!(use_opportunity_card_reads: true)
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
           headers: agent.create_new_auth_token,
           as: :json
 
+      expect(response.parsed_body['use_opportunity_card_reads']).to be(true)
       expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
 
       kanban_board.update!(use_opportunity_card_reads: false)
@@ -560,23 +589,24 @@ RSpec.describe 'Kanban Boards API', type: :request do
           headers: agent.create_new_auth_token,
           as: :json
 
-      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([legacy_state.id])
+      expect(response.parsed_body['use_opportunity_card_reads']).to be(false)
+      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
     end
 
-    it 'keeps the switch scoped to the board' do
+    it 'does not let another board flag value change the read source' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       legacy_conversation = create(:conversation, account: account)
       card_conversation = create(:conversation, account: account)
       create(:inbox_member, user: agent, inbox: legacy_conversation.inbox)
       create(:inbox_member, user: agent, inbox: card_conversation.inbox)
-      legacy_state = create(
+      create(
         :conversation_kanban_state,
         account: account,
         kanban_board: kanban_board,
         kanban_stage: stage,
         conversation: legacy_conversation
       )
-      create(:kanban_card, :conversation_origin, kanban_board: kanban_board, kanban_stage: stage, conversation: card_conversation)
+      card = create(:kanban_card, :conversation_origin, kanban_board: kanban_board, kanban_stage: stage, conversation: card_conversation)
       create(:kanban_board, account: account, use_opportunity_card_reads: true)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
@@ -584,7 +614,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
           as: :json
 
       expect(response).to have_http_status(:success)
-      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([legacy_state.id])
+      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
     end
   end
 

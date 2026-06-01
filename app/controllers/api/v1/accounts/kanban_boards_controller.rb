@@ -8,16 +8,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def show
     @kanban_stages = @kanban_board.kanban_stages.active.ordered
-    if @kanban_board.use_opportunity_card_reads?
-      fetch_kanban_cards
-      return
-    end
-
-    @conversation_kanban_states = @kanban_board
-                                  .conversation_kanban_states
-                                  .includes(conversation: [:contact, :inbox, :assignee, :team])
-                                  .ordered
-                                  .select { |state| policy(state.conversation).show? }
+    fetch_kanban_cards
   end
 
   def create
@@ -50,9 +41,5 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
                     .includes(:contact, :inbox, conversation: [:contact, :contact_inbox, :inbox, :assignee, :team])
                     .ordered
                     .select { |card| policy(card).show? }
-    @conversation_kanban_states_by_conversation_id = @kanban_board
-                                                     .conversation_kanban_states
-                                                     .where(conversation_id: @kanban_cards.map(&:conversation_id))
-                                                     .index_by(&:conversation_id)
   end
 end
