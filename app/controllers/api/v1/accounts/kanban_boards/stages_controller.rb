@@ -21,6 +21,11 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def update
+    if deactivating_stage_with_active_cards?
+      render_stage_not_empty_error
+      return
+    end
+
     @kanban_stage.update!(kanban_stage_params)
   end
 
@@ -44,9 +49,8 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def destroy
-    if @kanban_stage.kanban_cards.active.exists?
-      render json: { error: 'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.' },
-             status: :unprocessable_content
+    if stage_has_active_cards?
+      render_stage_not_empty_error
       return
     end
 
@@ -70,6 +74,22 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
 
   def kanban_stage_params
     params.require(:stage).permit(:name, :position, :active, :color)
+  end
+
+  def deactivating_stage_with_active_cards?
+    return false unless kanban_stage_params.key?(:active)
+    return false if ActiveModel::Type::Boolean.new.cast(kanban_stage_params[:active])
+
+    stage_has_active_cards?
+  end
+
+  def stage_has_active_cards?
+    @kanban_stage.kanban_cards.active.exists?
+  end
+
+  def render_stage_not_empty_error
+    render json: { error: 'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.' },
+           status: :unprocessable_content
   end
 
   def sibling_stage_for_reorder

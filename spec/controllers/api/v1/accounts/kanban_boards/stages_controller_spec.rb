@@ -93,6 +93,85 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(stage).not_to be_active
     end
 
+    it 'does not deactivate a stage with active manual kanban cards' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage, origin: 'manual')
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+            headers: administrator.create_new_auth_token,
+            params: { stage: { active: false } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body['error']).to eq(
+        'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.'
+      )
+      expect(stage.reload).to be_active
+    end
+
+    it 'does not deactivate a stage with active conversation-origin kanban cards' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      conversation = create(:conversation, account: account)
+      create(
+        :kanban_card,
+        :conversation_origin,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation
+      )
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+            headers: administrator.create_new_auth_token,
+            params: { stage: { active: false } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body['error']).to eq(
+        'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.'
+      )
+      expect(stage.reload).to be_active
+    end
+
+    it 'deactivates a stage with only inactive kanban cards' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage, active: false)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+            headers: administrator.create_new_auth_token,
+            params: { stage: { active: false } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(stage.reload).not_to be_active
+    end
+
+    it 'deactivates an empty stage' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+            headers: administrator.create_new_auth_token,
+            params: { stage: { active: false } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(stage.reload).not_to be_active
+    end
+
+    it 'keeps active true updates unchanged when active kanban cards exist' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+            headers: administrator.create_new_auth_token,
+            params: { stage: { name: 'Qualified', active: true } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(stage.reload.name).to eq('Qualified')
+      expect(stage).to be_active
+    end
+
     it 'does not update a stage from another board' do
       other_board = create(:kanban_board, account: account)
       other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
