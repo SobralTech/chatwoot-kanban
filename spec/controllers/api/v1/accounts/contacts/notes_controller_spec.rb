@@ -25,6 +25,17 @@ RSpec.describe 'Notes API', type: :request do
         body = JSON.parse(response.body, symbolize_names: true)
         expect(body.first[:content]).to eq(note.content)
       end
+
+      it 'serializes account_id and contact_id correctly' do
+        get "/api/v1/accounts/#{account.id}/contacts/#{contact.id}/notes",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        expect(body.first[:account_id]).to eq(account.id)
+        expect(body.first[:contact_id]).to eq(contact.id)
+      end
     end
   end
 

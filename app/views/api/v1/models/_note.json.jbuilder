@@ -1,7 +1,7 @@
 json.id resource.id
 json.content resource.content
-json.account_id json.account_id
-json.contact_id json.contact_id
+json.account_id resource.account_id
+json.contact_id resource.contact_id
 if resource.user.present?
   json.user do
     json.partial! 'api/v1/models/agent', formats: [:json], resource: resource.user
