@@ -193,15 +193,17 @@ RSpec.describe 'Kanban Cards API', type: :request do
     end
 
     it 'returns linked conversation display ID in stable detail' do
-      state = create(
+      create(
         :conversation_kanban_state,
         account: account,
         kanban_board: kanban_board,
         kanban_stage: stage,
         conversation: conversation,
-        position: 1
+        position: 9,
+        moved_by: agent,
+        moved_at: 1.hour.ago
       )
-      card = sync_state(state)
+      card = create_conversation_card(position: 1)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
           headers: agent.create_new_auth_token,
@@ -210,6 +212,8 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['conversation_id']).to eq(conversation.display_id)
       expect(response.parsed_body['conversation']).to be_present
+      expect(response.parsed_body['moved_by_id']).to be_nil
+      expect(response.parsed_body['moved_at']).to be_nil
     end
 
     it 'rejects stable detail for cards from another board' do
@@ -348,15 +352,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
     end
 
     it 'keeps normalized subject nil for conversation-origin stable cards' do
-      state = create(
-        :conversation_kanban_state,
-        account: account,
-        kanban_board: kanban_board,
-        kanban_stage: stage,
-        conversation: conversation,
-        position: 1
-      )
-      card = sync_state(state)
+      card = create_conversation_card(position: 1)
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
             headers: agent.create_new_auth_token,
@@ -433,7 +429,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(card.reload).to have_attributes(conversation_id: nil, kanban_stage_id: next_stage.id, position: 1, active: false)
     end
 
-    it 'mirrors conversation-origin card mutations back to legacy state' do
+    it 'reorders a conversation-origin card without changing legacy state' do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       state = create(
         :conversation_kanban_state,
@@ -443,18 +439,21 @@ RSpec.describe 'Kanban Cards API', type: :request do
         conversation: conversation,
         position: 1
       )
-      card = sync_state(state)
+      card = create_conversation_card(position: 1)
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}/reorder",
-            headers: agent.create_new_auth_token,
-            params: { card: { kanban_stage_id: next_stage.id, position: 1 } },
-            as: :json
+      expect do
+        patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}/reorder",
+              headers: agent.create_new_auth_token,
+              params: { card: { kanban_stage_id: next_stage.id, position: 1 } },
+              as: :json
+      end.not_to change(ConversationKanbanState, :count)
 
       expect(response).to have_http_status(:success)
-      expect(state.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+      expect(card.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+      expect(state.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
     end
 
-    it 'mirrors conversation-origin stable updates back to legacy state' do
+    it 'updates a conversation-origin card without changing legacy state' do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       state = create(
         :conversation_kanban_state,
@@ -464,18 +463,21 @@ RSpec.describe 'Kanban Cards API', type: :request do
         conversation: conversation,
         position: 1
       )
-      card = sync_state(state)
+      card = create_conversation_card(position: 1)
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
-            headers: agent.create_new_auth_token,
-            params: { card: { kanban_stage_id: next_stage.id } },
-            as: :json
+      expect do
+        patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+              headers: agent.create_new_auth_token,
+              params: { card: { kanban_stage_id: next_stage.id } },
+              as: :json
+      end.not_to change(ConversationKanbanState, :count)
 
       expect(response).to have_http_status(:success)
-      expect(state.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+      expect(card.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+      expect(state.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
     end
 
-    it 'removes legacy state for conversation-origin stable deletes' do
+    it 'soft-deletes a conversation-origin card without changing legacy state' do
       state = create(
         :conversation_kanban_state,
         account: account,
@@ -484,15 +486,17 @@ RSpec.describe 'Kanban Cards API', type: :request do
         conversation: conversation,
         position: 1
       )
-      card = sync_state(state)
+      card = create_conversation_card(position: 1)
 
       expect do
         delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
                headers: agent.create_new_auth_token,
                as: :json
-      end.to change(ConversationKanbanState, :count).by(-1)
+      end.not_to change(ConversationKanbanState, :count)
 
       expect(response).to have_http_status(:no_content)
+      expect(card.reload).not_to be_active
+      expect(state.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
     end
 
     it 'rejects inactive cards' do
@@ -574,10 +578,6 @@ RSpec.describe 'Kanban Cards API', type: :request do
     end
   end
 
-  def sync_state(state)
-    KanbanCards::SyncConversationStateService.new(state).sync!
-  end
-
   def create_manual_card(attributes = {})
     create(
       :kanban_card,
@@ -587,6 +587,19 @@ RSpec.describe 'Kanban Cards API', type: :request do
         kanban_stage: stage,
         contact: conversation.contact,
         inbox: conversation.inbox
+      }.merge(attributes)
+    )
+  end
+
+  def create_conversation_card(attributes = {})
+    create(
+      :kanban_card,
+      :conversation_origin,
+      {
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation
       }.merge(attributes)
     )
   end

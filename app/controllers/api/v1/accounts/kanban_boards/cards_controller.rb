@@ -80,8 +80,6 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def update_kanban_card
-    source_stage = @kanban_card.kanban_stage
-
     KanbanCard.transaction do
       if stable_card_move_params?
         @kanban_card.reorder_to_position!(
@@ -90,33 +88,25 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
         )
       end
       @kanban_card.update!(stable_card_update_params)
-      sync_legacy_states_for_card_stages(source_stage, @kanban_card.reload.kanban_stage)
     end
 
     render_card
   end
 
   def reorder_kanban_card
-    source_stage = @kanban_card.kanban_stage
-
     KanbanCard.transaction do
       @kanban_card.reorder_to_position!(
         kanban_stage: target_card_stage_for_reorder,
         position: params.dig(:card, :position) || @kanban_card.position
       )
-      sync_legacy_states_for_card_stages(source_stage, @kanban_card.reload.kanban_stage)
     end
 
     render_card
   end
 
   def destroy_kanban_card
-    source_stage = @kanban_card.kanban_stage
-
     KanbanCard.transaction do
       @kanban_card.update!(active: false)
-      legacy_state_for(@kanban_card)&.destroy! if @kanban_card.conversation?
-      sync_legacy_states_for_card_stages(source_stage)
     end
 
     head :no_content
@@ -147,35 +137,9 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     @kanban_board.kanban_stages.active.find(stage_id)
   end
 
-  def sync_legacy_states_for_card_stages(*kanban_stages)
-    kanban_stages.uniq.each do |kanban_stage|
-      @kanban_board.kanban_cards.conversation.active.where(kanban_stage: kanban_stage).ordered.each do |card|
-        sync_legacy_state_for_card(card)
-      end
-    end
-  end
-
-  def sync_legacy_state_for_card(card)
-    state = @kanban_board.conversation_kanban_states.find_or_initialize_by(conversation: card.conversation)
-    state.assign_attributes(
-      account: Current.account,
-      kanban_board: @kanban_board,
-      kanban_stage: card.kanban_stage,
-      position: card.position,
-      moved_by: Current.user.is_a?(User) ? Current.user : nil,
-      moved_at: Time.current
-    )
-    state.save!
-  end
-
-  def legacy_state_for(card)
-    @kanban_board.conversation_kanban_states.find_by(conversation: card.conversation)
-  end
-
   def render_card
     render partial: 'api/v1/accounts/kanban_boards/card', formats: [:json], locals: {
       card: @kanban_card,
-      conversation_kanban_state: legacy_state_for(@kanban_card),
       stable_card: true
     }
   end

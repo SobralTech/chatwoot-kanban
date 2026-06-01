@@ -207,7 +207,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(stage.reload).not_to be_active
     end
 
-    it 'does not deactivate a stage with legacy conversation state' do
+    it 'deactivates a stage with only legacy conversation state' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       create(
         :conversation_kanban_state,
@@ -220,11 +220,8 @@ RSpec.describe 'Kanban Stages API', type: :request do
              headers: administrator.create_new_auth_token,
              as: :json
 
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(response.parsed_body['error']).to eq(
-        'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.'
-      )
-      expect(stage.reload).to be_active
+      expect(response).to have_http_status(:no_content)
+      expect(stage.reload).not_to be_active
     end
 
     it 'does not deactivate a stage with active kanban cards' do
