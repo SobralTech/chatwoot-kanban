@@ -105,7 +105,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
     end
 
     context 'when reading kanban cards' do
-      it 'returns active conversation-origin kanban cards with the frontend-compatible payload' do
+      it 'returns active conversation-origin kanban cards with the compact frontend payload' do
         stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New')
         conversation = create(:conversation, account: account)
         moved_at = 1.hour.ago.change(usec: 0)
@@ -137,6 +137,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
         response_card = response.parsed_body['stages'].first['cards'].first
         expect(response).to have_http_status(:success)
         expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
+        expect(response_card.keys).to match_array(compact_card_keys)
         expect(response_card).to include(
           'id' => card.id,
           'conversation_id' => conversation.display_id,
@@ -148,7 +149,9 @@ RSpec.describe 'Kanban Boards API', type: :request do
           'subject' => nil,
           'active' => true
         )
-        expect(response_card['conversation']['id']).to eq(conversation.display_id)
+        expect(response_card).not_to include('conversation', 'messages', 'unread_count')
+        expect(response_card['contact']).to include('id' => conversation.contact.id)
+        expect(response_card['inbox']).to include('id' => conversation.inbox.id)
       end
 
       it 'returns active manual kanban cards without conversations with nullable conversation fields' do
@@ -181,15 +184,16 @@ RSpec.describe 'Kanban Boards API', type: :request do
           'kanban_stage_id' => stage.id,
           'position' => 1,
           'conversation_id' => nil,
-          'conversation' => nil,
           'moved_by_id' => nil,
           'moved_at' => nil
         )
+        expect(response_card.keys).to match_array(compact_card_keys)
+        expect(response_card).not_to have_key('conversation')
         expect(response_card['contact']['id']).to eq(contact.id)
         expect(response_card['inbox']['id']).to eq(inbox.id)
       end
 
-      it 'returns active manual kanban cards with optional conversation payloads' do
+      it 'returns active manual kanban cards with optional conversation display IDs' do
         stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New')
         conversation = create(:conversation, account: account)
         create(:inbox_member, user: agent, inbox: conversation.inbox)
@@ -216,7 +220,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
           'subject' => 'Renewal opportunity',
           'conversation_id' => conversation.display_id
         )
-        expect(response_card['conversation']['id']).to eq(conversation.display_id)
+        expect(response_card).not_to have_key('conversation')
       end
 
       it 'excludes inactive, orphan, and unauthorized cards' do
@@ -480,6 +484,26 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(sql_queries.none? { |sql| sql.include?('labels') }).to be(true), 'Board listing should not query the labels table'
       end
 
+      it 'does not query messages during board listing' do
+        stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+        conversation = create(:conversation, account: account)
+        create(:inbox_member, user: agent, inbox: conversation.inbox)
+        create(:kanban_card, :conversation_origin, account: account, kanban_board: kanban_board, kanban_stage: stage, conversation: conversation)
+        create(:message, account: account, inbox: conversation.inbox, conversation: conversation)
+
+        sql_queries = []
+        callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+        ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+          get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+              headers: agent.create_new_auth_token,
+              as: :json
+        end
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['stages'].first['cards'].first).not_to have_key('conversation')
+        expect(sql_queries.none? { |sql| sql.include?('FROM "messages"') }).to be(true), 'Board listing should not query messages'
+      end
+
       it 'does not query notes taggings tags or labels with multiple cards sharing a contact' do
         stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
         inbox = create(:inbox, account: account)
@@ -715,5 +739,9 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:no_content)
       expect(kanban_board.reload).not_to be_active
     end
+  end
+
+  def compact_card_keys
+    %w[id kanban_stage_id position origin subject active contact inbox conversation_id moved_by_id moved_at]
   end
 end

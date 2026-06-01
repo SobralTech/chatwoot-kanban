@@ -8,7 +8,7 @@ json.stages do
     json.cards do
       json.array! stage_cards do |card|
         json.partial!(
-          'api/v1/accounts/kanban_boards/card',
+          'api/v1/accounts/kanban_boards/compact_card',
           formats: [:json],
           card: card
         )

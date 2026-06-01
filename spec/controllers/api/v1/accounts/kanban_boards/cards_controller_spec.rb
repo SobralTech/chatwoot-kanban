@@ -204,6 +204,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
         moved_at: 1.hour.ago
       )
       card = create_conversation_card(position: 1)
+      create(:message, account: account, inbox: conversation.inbox, conversation: conversation)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
           headers: agent.create_new_auth_token,
@@ -212,6 +213,11 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['conversation_id']).to eq(conversation.display_id)
       expect(response.parsed_body['conversation']).to be_present
+      expect(response.parsed_body['conversation']).to include(
+        'id' => conversation.display_id,
+        'messages' => be_present
+      )
+      expect(response.parsed_body['conversation']).to have_key('unread_count')
       expect(response.parsed_body['moved_by_id']).to be_nil
       expect(response.parsed_body['moved_at']).to be_nil
     end

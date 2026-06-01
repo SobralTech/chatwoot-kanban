@@ -617,7 +617,9 @@ const fetchBoards = async () => {
 };
 
 const getContactName = card =>
-  card.conversation?.meta?.sender?.name || t('KANBAN.CARD.UNKNOWN_CONTACT');
+  card.contact?.name ||
+  card.conversation?.meta?.sender?.name ||
+  t('KANBAN.CARD.UNKNOWN_CONTACT');
 
 const removeCardMessageValue = computed(() => {
   if (!cardPendingRemoval.value) return '';
