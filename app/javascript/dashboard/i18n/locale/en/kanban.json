@@ -140,8 +140,6 @@
     },
     "NOTES": {
       "TITLE": "Contact notes",
-      "SHOW": "Show notes",
-      "HIDE": "Hide notes",
       "LOADING": "Loading notes...",
       "EMPTY": "No notes yet.",
       "NO_CONTACT": "No contact is linked to this conversation.",
@@ -150,7 +148,6 @@
       "REFRESH": "Refresh notes",
       "REQUIRED": "Enter a note before adding it.",
       "BOT": "Bot",
-      "CREATE_SUCCESS": "Contact note added.",
       "CREATE_ERROR": "Could not add the contact note.",
       "FETCH_ERROR": "Could not load contact notes."
     }

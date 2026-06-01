@@ -132,6 +132,17 @@ const mountView = async (boardResponse = buildBoardResponse()) => {
           },
           template: '<div class="kanban-card-stub" />',
         },
+        KanbanOpportunityDetailsModal: {
+          name: 'KanbanOpportunityDetailsModal',
+          props: ['boardId', 'cardId'],
+          template:
+            '<div class="kanban-opportunity-modal-stub" data-board-id="{{ boardId }}" data-card-id="{{ cardId }}" />',
+        },
+        WootModal: {
+          name: 'WootModal',
+          props: ['show'],
+          template: '<div v-if="show" class="woot-modal-stub"><slot /></div>',
+        },
         Draggable: {
           name: 'Draggable',
           props: {
@@ -560,7 +571,7 @@ describe('KanbanView drag and drop', () => {
 
     cardDraggable.vm.$emit('start');
     cardDraggable.vm.$emit('end');
-    cardComponent.vm.$emit('openConversation', { conversationId: 123 }, {});
+    cardComponent.vm.$emit('openDetails', { conversationId: 123 }, {});
     await flushPromises();
 
     expect(mockPush).not.toHaveBeenCalled();
@@ -647,14 +658,14 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.deleteCardById).not.toHaveBeenCalled();
   });
 
-  it('keeps card click navigation working', async () => {
+  it('keeps card click navigation working for legacy board', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
     });
 
     cardComponent.vm.$emit(
-      'openConversation',
+      'openDetails',
       { conversationId: 123 },
       { metaKey: false, ctrlKey: false }
     );
@@ -663,6 +674,129 @@ describe('KanbanView drag and drop', () => {
     expect(mockPush).toHaveBeenCalledWith({
       path: '/app/accounts/1/conversations/123',
     });
+  });
+
+  it('opens opportunity modal for opportunity-read board', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+
+    const modal = wrapper.findComponent({
+      name: 'KanbanOpportunityDetailsModal',
+    });
+    expect(modal.exists()).toBe(true);
+  });
+
+  it('passes boardId and cardId to opportunity modal', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+
+    const modal = wrapper.findComponent({
+      name: 'KanbanOpportunityDetailsModal',
+    });
+    expect(modal.props('boardId')).toBe(10);
+    expect(modal.props('cardId')).toBe(501);
+  });
+
+  it('closes opportunity modal and clears selected card', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+
+    const modal = wrapper.findComponent({
+      name: 'KanbanOpportunityDetailsModal',
+    });
+    modal.vm.$emit('close');
+    await nextTick();
+
+    expect(
+      wrapper.findComponent({ name: 'KanbanOpportunityDetailsModal' }).exists()
+    ).toBe(false);
+  });
+
+  it('refetches board on modal updated event', async () => {
+    KanbanBoardsAPI.show.mockClear();
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+
+    const modal = wrapper.findComponent({
+      name: 'KanbanOpportunityDetailsModal',
+    });
+    KanbanBoardsAPI.show.mockClear();
+    modal.vm.$emit('updated');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+  });
+
+  it('navigates to conversation on modal openConversation event', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+
+    const modal = wrapper.findComponent({
+      name: 'KanbanOpportunityDetailsModal',
+    });
+    modal.vm.$emit('openConversation', { conversationId: 123 });
+    await flushPromises();
+
+    expect(mockPush).toHaveBeenCalledWith({
+      path: '/app/accounts/1/conversations/123',
+    });
+  });
+
+  it('closes modal after navigating to conversation', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { use_opportunity_card_reads: true })
+    );
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+
+    const modal = wrapper.findComponent({
+      name: 'KanbanOpportunityDetailsModal',
+    });
+    modal.vm.$emit('openConversation', { conversationId: 123 });
+    await flushPromises();
+
+    expect(
+      wrapper.findComponent({ name: 'KanbanOpportunityDetailsModal' }).exists()
+    ).toBe(false);
   });
 });
 

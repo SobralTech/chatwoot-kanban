@@ -130,8 +130,6 @@
     },
     "NOTES": {
       "TITLE": "Notas do contato",
-      "SHOW": "Mostrar notas",
-      "HIDE": "Ocultar notas",
       "LOADING": "Carregando notas...",
       "EMPTY": "Ainda não há notas.",
       "NO_CONTACT": "Nenhum contato está vinculado a esta conversa.",
@@ -140,7 +138,6 @@
       "REFRESH": "Atualizar notas",
       "REQUIRED": "Informe uma nota antes de adicioná-la.",
       "BOT": "Bot",
-      "CREATE_SUCCESS": "Nota de contato adicionada.",
       "CREATE_ERROR": "Não foi possível adicionar a nota de contato.",
       "FETCH_ERROR": "Não foi possível carregar as notas de contato."
     }

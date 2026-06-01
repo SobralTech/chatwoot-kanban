@@ -1,6 +1,5 @@
 import { shallowMount } from '@vue/test-utils';
 import KanbanConversationCard from '../KanbanConversationCard.vue';
-import ContactNotesAPI from 'dashboard/api/contactNotes';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -12,10 +11,6 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.CARD.PRIORITY': `Priority: ${values.priority}`,
         'KANBAN.CARD.LAST_ACTIVITY': `Last activity: ${values.time}`,
         'KANBAN.CARD.NO_LINKED_CONVERSATION': 'No linked conversation',
-        'KANBAN.NOTES.SHOW': 'Show notes',
-        'KANBAN.NOTES.HIDE': 'Hide notes',
-        'KANBAN.NOTES.EMPTY': 'No notes yet.',
-        'KANBAN.NOTES.ADD': 'Add note',
         'KANBAN.ACTIONS.REMOVE_CARD': 'Remove',
       };
 
@@ -30,13 +25,6 @@ vi.mock('dashboard/composables/store', () => ({
       'inboxes/getInboxById': () => ({ name: 'Support Inbox' }),
     },
   }),
-}));
-
-vi.mock('dashboard/api/contactNotes', () => ({
-  default: {
-    get: vi.fn(() => Promise.resolve({ data: [] })),
-    create: vi.fn(() => Promise.resolve({ data: {} })),
-  },
 }));
 
 vi.mock('shared/helpers/timeHelper', () => ({
@@ -77,11 +65,6 @@ const mountCard = ({ card = buildCard(), activeActionKey = '' } = {}) =>
       card,
       activeActionKey,
     },
-    global: {
-      stubs: {
-        ContactNoteItem: true,
-      },
-    },
   });
 
 describe('KanbanConversationCard', () => {
@@ -101,14 +84,14 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.text()).toContain('Last activity: just now');
   });
 
-  it('emits openConversation when the card surface is clicked', async () => {
+  it('emits openDetails when the card surface is clicked', async () => {
     const card = buildCard();
     const wrapper = mountCard({ card });
 
     await wrapper.find('article').trigger('click');
 
-    expect(wrapper.emitted('openConversation')).toHaveLength(1);
-    expect(wrapper.emitted('openConversation')[0][0]).toEqual(card);
+    expect(wrapper.emitted('openDetails')).toHaveLength(1);
+    expect(wrapper.emitted('openDetails')[0][0]).toEqual(card);
   });
 
   it('renders subject above contact name when subject is present', () => {
@@ -131,12 +114,14 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.text()).toContain('Inbox: Sales Inbox');
   });
 
-  it('does not emit openConversation when conversationId is null', async () => {
-    const wrapper = mountCard({ card: buildManualCard() });
+  it('emits openDetails even when conversationId is null', async () => {
+    const card = buildManualCard();
+    const wrapper = mountCard({ card });
 
     await wrapper.find('article').trigger('click');
 
-    expect(wrapper.emitted('openConversation')).toBeUndefined();
+    expect(wrapper.emitted('openDetails')).toHaveLength(1);
+    expect(wrapper.emitted('openDetails')[0][0]).toEqual(card);
   });
 
   it('shows no linked conversation state when conversation is missing', () => {
@@ -145,13 +130,12 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.text()).toContain('No linked conversation');
   });
 
-  it('does not emit openConversation for card controls and notes actions', async () => {
+  it('does not emit openDetails when clicking remove button', async () => {
     const wrapper = mountCard();
 
-    await wrapper.find('button[type="button"].text-xs').trigger('click');
     await wrapper.find('button.text-n-ruby-11').trigger('click');
 
-    expect(wrapper.emitted('openConversation')).toBeUndefined();
+    expect(wrapper.emitted('openDetails')).toBeUndefined();
     expect(wrapper.emitted('removeCard')).toHaveLength(1);
   });
 
@@ -164,52 +148,19 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.emitted('removeCard')).toEqual([[card]]);
   });
 
-  it('marks internal controls as non-draggable', async () => {
+  it('marks remove button as no-drag', async () => {
     const wrapper = mountCard();
-
-    await wrapper.find('button[type="button"].text-xs').trigger('click');
 
     expect(wrapper.find('button.text-n-ruby-11').classes()).toContain(
       'no-drag'
     );
-    expect(wrapper.find('button[type="button"].text-xs').classes()).toContain(
-      'no-drag'
-    );
-    expect(wrapper.find('textarea').classes()).toContain('no-drag');
-    expect(wrapper.find('button[type="submit"]').classes()).toContain(
-      'no-drag'
-    );
   });
 
-  it('fetches notes when opening notes panel and creates a note', async () => {
-    ContactNotesAPI.get.mockResolvedValueOnce({ data: [] });
-    ContactNotesAPI.create.mockResolvedValueOnce({
-      data: { id: 9, content: 'follow up', user: { name: 'Agent' } },
-    });
-
+  it('does not render inline Contact Notes UI', () => {
     const wrapper = mountCard();
-    const toggleButton = wrapper.find('button[type="button"].text-xs');
-    await toggleButton.trigger('click');
-    await Promise.resolve();
 
-    expect(ContactNotesAPI.get).toHaveBeenCalledWith(7);
-
-    const textarea = wrapper.find('textarea');
-    await textarea.setValue('follow up');
-    await wrapper.find('form').trigger('submit.prevent');
-    await Promise.resolve();
-
-    expect(ContactNotesAPI.create).toHaveBeenCalledWith(7, 'follow up');
-  });
-
-  it('keeps contact notes available when card contact has an id', async () => {
-    ContactNotesAPI.get.mockResolvedValueOnce({ data: [] });
-
-    const wrapper = mountCard({ card: buildManualCard() });
-    await wrapper.find('button[type="button"].text-xs').trigger('click');
-    await Promise.resolve();
-
-    expect(ContactNotesAPI.get).toHaveBeenCalledWith(11);
-    expect(wrapper.find('textarea').exists()).toBe(true);
+    expect(wrapper.find('textarea').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Show notes');
+    expect(wrapper.text()).not.toContain('Hide notes');
   });
 });

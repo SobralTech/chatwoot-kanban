@@ -9,6 +9,7 @@ import { useAlert } from 'dashboard/composables';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import KanbanConversationCard from './KanbanConversationCard.vue';
+import KanbanOpportunityDetailsModal from './KanbanOpportunityDetailsModal.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
 
 const route = useRoute();
@@ -23,6 +24,7 @@ const isCreatingBoard = ref(false);
 const isCreatingStage = ref(false);
 const isUpdatingBoard = ref(false);
 const isDeletingBoard = ref(false);
+const selectedOpportunityCardId = ref(null);
 const activeActionKey = ref('');
 const hasError = ref(false);
 const actionError = ref('');
@@ -679,6 +681,32 @@ const openConversation = (card, event = {}) => {
   router.push({ path });
 };
 
+const openDetails = (card, event = {}) => {
+  if (suppressNextCardClick.value) {
+    suppressNextCardClick.value = false;
+    return;
+  }
+
+  if (useStableCardMutations.value) {
+    selectedOpportunityCardId.value = card.id;
+  } else {
+    openConversation(card, event);
+  }
+};
+
+const closeOpportunityDetails = () => {
+  selectedOpportunityCardId.value = null;
+};
+
+const onOpportunityUpdated = () => {
+  refreshSelectedBoard();
+};
+
+const onOpportunityOpenConversation = card => {
+  openConversation(card, {});
+  closeOpportunityDetails();
+};
+
 watch(activeBoardId, boardId => {
   if (!boards.value.length) return;
   showBoard(boardId);
@@ -1081,7 +1109,7 @@ onMounted(fetchBoards);
                     <KanbanConversationCard
                       :card="card"
                       :active-action-key="activeActionKey"
-                      @open-conversation="openConversation"
+                      @open-details="openDetails"
                       @remove-card="openRemoveCardConfirmation"
                     />
                   </template>
@@ -1123,5 +1151,19 @@ onMounted(fetchBoards);
       :confirm-text="t('KANBAN.REMOVE_STAGE.CONFIRM')"
       :reject-text="t('KANBAN.REMOVE_STAGE.CANCEL')"
     />
+
+    <woot-modal
+      v-if="selectedOpportunityCardId && selectedBoard"
+      :show="!!selectedOpportunityCardId"
+      :on-close="closeOpportunityDetails"
+    >
+      <KanbanOpportunityDetailsModal
+        :board-id="selectedBoard.id"
+        :card-id="selectedOpportunityCardId"
+        @close="closeOpportunityDetails"
+        @updated="onOpportunityUpdated"
+        @open-conversation="onOpportunityOpenConversation"
+      />
+    </woot-modal>
   </main>
 </template>
