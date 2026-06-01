@@ -135,10 +135,6 @@ Rails.application.routes.draw do
                 patch :reorder, on: :member
               end
               post 'cards/manual', to: 'cards#create_manual'
-              resources :cards, only: [:create, :destroy], param: :conversation_id do
-                patch '', on: :member, action: :update
-                patch :reorder, on: :member
-              end
               get 'cards/by_id/:id', to: 'cards#show'
               patch 'cards/by_id/:id', to: 'cards#update'
               delete 'cards/by_id/:id', to: 'cards#destroy'
