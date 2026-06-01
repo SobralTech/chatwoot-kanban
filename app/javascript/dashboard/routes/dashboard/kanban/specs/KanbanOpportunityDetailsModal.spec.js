@@ -677,6 +677,54 @@ describe('KanbanOpportunityDetailsModal', () => {
     ).toContain('No linked conversation');
   });
 
+  it('scalar save preserves labels state', async () => {
+    const wrapper = await mountModal({
+      assignedLabels: [labels[0]],
+    });
+
+    await subjectInput(wrapper).setValue('Updated subject');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    expect(labelButtons(wrapper)[0].attributes('aria-pressed')).toBe('true');
+    expect(labelButtons(wrapper)[1].attributes('aria-pressed')).toBe('false');
+  });
+
+  it('labels save preserves scalar form state', async () => {
+    const wrapper = await mountModal({
+      assignedLabels: [labels[0]],
+    });
+
+    await subjectInput(wrapper).setValue('Modified subject');
+    await saveLabelsButton(wrapper).trigger('click');
+    await flushPromises();
+
+    expect(subjectInput(wrapper).element.value).toBe('Modified subject');
+    expect(startsAtInput(wrapper).element.value).toBe('2026-06-01T09:00');
+    expect(dueAtInput(wrapper).element.value).toBe('2026-06-05T18:00');
+  });
+
+  it('notes save preserves scalar form and labels state', async () => {
+    const wrapper = await mountModal({
+      assignedLabels: [labels[0]],
+      notes: [],
+    });
+
+    await subjectInput(wrapper).setValue('Preserved subject');
+    await noteContentInput(wrapper).setValue('New contact note');
+    ContactNotesAPI.create.mockResolvedValue({
+      data: buildNote({ content: 'New contact note' }),
+    });
+    await addNoteButton(wrapper).trigger('click');
+    await flushPromises();
+
+    expect(subjectInput(wrapper).element.value).toBe('Preserved subject');
+    expect(startsAtInput(wrapper).element.value).toBe('2026-06-01T09:00');
+    expect(dueAtInput(wrapper).element.value).toBe('2026-06-05T18:00');
+    expect(labelButtons(wrapper)[0].attributes('aria-pressed')).toBe('true');
+    expect(labelButtons(wrapper)[1].attributes('aria-pressed')).toBe('false');
+  });
+
   it('emits close', async () => {
     const wrapper = await mountModal();
 

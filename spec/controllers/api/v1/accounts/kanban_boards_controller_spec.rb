@@ -459,6 +459,51 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([manual_card.id, conversation_card.id])
         expect(response.parsed_body['stages'].second['cards'].pluck('id')).to eq([later_stage_card.id])
       end
+
+      it 'does not query notes during board listing' do
+        stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+        conversation = create(:conversation, account: account)
+        create(:inbox_member, user: agent, inbox: conversation.inbox)
+        create(:kanban_card, :conversation_origin, account: account, kanban_board: kanban_board, kanban_stage: stage, conversation: conversation)
+        create(:note, contact: conversation.contact)
+
+        sql_queries = []
+        callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+        ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+          get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+              headers: agent.create_new_auth_token,
+              as: :json
+        end
+
+        expect(response).to have_http_status(:success)
+        expect(sql_queries.none? { |sql| sql.include?('notes') }).to be(true), 'Board listing should not query the notes table'
+        expect(sql_queries.none? { |sql| sql.include?('taggings') }).to be(true), 'Board listing should not query the taggings table'
+        expect(sql_queries.none? { |sql| sql.include?('tags') }).to be(true), 'Board listing should not query the tags table'
+        expect(sql_queries.none? { |sql| sql.include?('labels') }).to be(true), 'Board listing should not query the labels table'
+      end
+
+      it 'does not query notes taggings tags or labels with multiple cards sharing a contact' do
+        stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+        inbox = create(:inbox, account: account)
+        contact = create(:contact, account: account)
+        create(:inbox_member, user: agent, inbox: inbox)
+        create_list(:kanban_card, 3, account: account, kanban_board: kanban_board, kanban_stage: stage, contact: contact, inbox: inbox)
+        create(:note, contact: contact)
+
+        sql_queries = []
+        callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+        ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+          get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+              headers: agent.create_new_auth_token,
+              as: :json
+        end
+
+        expect(response).to have_http_status(:success)
+        expect(sql_queries.none? { |sql| sql.include?('notes') }).to be(true)
+        expect(sql_queries.none? { |sql| sql.include?('taggings') }).to be(true)
+        expect(sql_queries.none? { |sql| sql.include?('tags') }).to be(true)
+        expect(sql_queries.none? { |sql| sql.include?('labels') }).to be(true)
+      end
     end
 
     it 'does not expose manual kanban cards in legacy read mode' do
