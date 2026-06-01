@@ -72,6 +72,21 @@
       "CONFIRM": "Remover",
       "CANCEL": "Cancelar"
     },
+    "OPPORTUNITY_DETAILS": {
+      "TITLE": "Detalhes da oportunidade",
+      "FIELD_TITLE": "Título",
+      "START_DATE": "Data de início",
+      "DUE_DATE": "Data de vencimento",
+      "SAVE": "Salvar",
+      "SAVING": "Salvando...",
+      "OPEN_CONVERSATION": "Abrir conversa",
+      "NO_LINKED_CONVERSATION": "Sem conversa vinculada",
+      "LOADING": "Carregando detalhes da oportunidade...",
+      "LOAD_ERROR": "Não foi possível carregar os detalhes da oportunidade.",
+      "SAVE_ERROR": "Não foi possível salvar os detalhes da oportunidade.",
+      "REQUIRED_TITLE": "O título é obrigatório.",
+      "CLOSE": "Fechar detalhes da oportunidade"
+    },
     "ADD_ITEM": {
       "PLACEHOLDER": "Buscar por nome, e-mail ou telefone",
       "SEARCH_LABEL": "Pesquisar contatos",
