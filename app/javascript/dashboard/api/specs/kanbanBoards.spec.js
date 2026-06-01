@@ -13,17 +13,13 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('updateStage');
     expect(kanbanBoards).toHaveProperty('reorderStage');
     expect(kanbanBoards).toHaveProperty('deleteStage');
-    expect(kanbanBoards).toHaveProperty('createCard');
     expect(kanbanBoards).toHaveProperty('createManualCard');
-    expect(kanbanBoards).toHaveProperty('updateCard');
     expect(kanbanBoards).toHaveProperty('updateCardById');
     expect(kanbanBoards).toHaveProperty('showCardById');
     expect(kanbanBoards).toHaveProperty('updateCardDetailsById');
     expect(kanbanBoards).toHaveProperty('getCardLabels');
     expect(kanbanBoards).toHaveProperty('updateCardLabels');
-    expect(kanbanBoards).toHaveProperty('reorderCard');
     expect(kanbanBoards).toHaveProperty('reorderCardById');
-    expect(kanbanBoards).toHaveProperty('deleteCard');
     expect(kanbanBoards).toHaveProperty('deleteCardById');
   });
 
@@ -97,16 +93,6 @@ describe('#KanbanBoardsAPI', () => {
       );
     });
 
-    it('#createCard', () => {
-      const payload = { card: { conversation_id: 10, kanban_stage_id: 3 } };
-      kanbanBoards.createCard(2, payload);
-
-      expect(axiosMock.post).toHaveBeenCalledWith(
-        '/api/v1/accounts/1/kanban_boards/2/cards',
-        payload
-      );
-    });
-
     it('#createManualCard', () => {
       const payload = {
         card: {
@@ -120,16 +106,6 @@ describe('#KanbanBoardsAPI', () => {
 
       expect(axiosMock.post).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/manual',
-        payload
-      );
-    });
-
-    it('#updateCard', () => {
-      const payload = { card: { kanban_stage_id: 4 } };
-      kanbanBoards.updateCard(2, 10, payload);
-
-      expect(axiosMock.patch).toHaveBeenCalledWith(
-        '/api/v1/accounts/1/kanban_boards/2/cards/10',
         payload
       );
     });
@@ -198,28 +174,11 @@ describe('#KanbanBoardsAPI', () => {
       );
     });
 
-    it('#deleteCard', () => {
-      kanbanBoards.deleteCard(2, 10);
-
-      expect(axiosMock.delete).toHaveBeenCalledWith(
-        '/api/v1/accounts/1/kanban_boards/2/cards/10'
-      );
-    });
-
     it('#deleteCardById', () => {
       kanbanBoards.deleteCardById(2, 501);
 
       expect(axiosMock.delete).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501'
-      );
-    });
-
-    it('#reorderCard', () => {
-      kanbanBoards.reorderCard(2, 10, 'up');
-
-      expect(axiosMock.patch).toHaveBeenCalledWith(
-        '/api/v1/accounts/1/kanban_boards/2/cards/10/reorder',
-        { direction: 'up' }
       );
     });
 
@@ -229,16 +188,6 @@ describe('#KanbanBoardsAPI', () => {
       expect(axiosMock.patch).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/reorder',
         { direction: 'up' }
-      );
-    });
-
-    it('#reorderCard with payload object', () => {
-      const payload = { card: { kanban_stage_id: 4, position: 1 } };
-      kanbanBoards.reorderCard(2, 10, payload);
-
-      expect(axiosMock.patch).toHaveBeenCalledWith(
-        '/api/v1/accounts/1/kanban_boards/2/cards/10/reorder',
-        payload
       );
     });
 

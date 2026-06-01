@@ -29,19 +29,8 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.delete(`${this.url}/${boardId}/stages/${stageId}`);
   }
 
-  createCard(boardId, payload) {
-    return axios.post(`${this.url}/${boardId}/cards`, payload);
-  }
-
   createManualCard(boardId, payload) {
     return axios.post(`${this.url}/${boardId}/cards/manual`, payload);
-  }
-
-  updateCard(boardId, conversationId, payload) {
-    return axios.patch(
-      `${this.url}/${boardId}/cards/${conversationId}`,
-      payload
-    );
   }
 
   updateCardById(boardId, cardId, payload) {
@@ -68,17 +57,6 @@ class KanbanBoardsAPI extends ApiClient {
     });
   }
 
-  reorderCard(boardId, conversationId, payloadOrDirection) {
-    const payload =
-      typeof payloadOrDirection === 'string'
-        ? { direction: payloadOrDirection }
-        : payloadOrDirection;
-    return axios.patch(
-      `${this.url}/${boardId}/cards/${conversationId}/reorder`,
-      payload
-    );
-  }
-
   reorderCardById(boardId, cardId, payloadOrDirection) {
     const payload =
       typeof payloadOrDirection === 'string'
@@ -88,10 +66,6 @@ class KanbanBoardsAPI extends ApiClient {
       `${this.url}/${boardId}/cards/by_id/${cardId}/reorder`,
       payload
     );
-  }
-
-  deleteCard(boardId, conversationId) {
-    return axios.delete(`${this.url}/${boardId}/cards/${conversationId}`);
   }
 
   deleteCardById(boardId, cardId) {

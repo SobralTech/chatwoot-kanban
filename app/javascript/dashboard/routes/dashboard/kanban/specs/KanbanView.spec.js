@@ -40,7 +40,6 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     get: vi.fn(),
     show: vi.fn(),
     reorderStage: vi.fn(),
-    reorderCard: vi.fn(),
     reorderCardById: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -48,8 +47,6 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     createStage: vi.fn(),
     updateStage: vi.fn(),
     deleteStage: vi.fn(),
-    createCard: vi.fn(),
-    deleteCard: vi.fn(),
     deleteCardById: vi.fn(),
   },
 }));
@@ -114,9 +111,7 @@ const mountView = async (boardResponse = buildBoardResponse()) => {
     data: boardResponse,
   });
   KanbanBoardsAPI.reorderStage.mockResolvedValue({ data: {} });
-  KanbanBoardsAPI.reorderCard.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.reorderCardById.mockResolvedValue({ data: {} });
-  KanbanBoardsAPI.deleteCard.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.deleteCardById.mockResolvedValue({ data: {} });
 
   const wrapper = shallowMount(KanbanView, {
@@ -294,42 +289,12 @@ describe('KanbanView drag and drop', () => {
     });
     await flushPromises();
 
-    expect(KanbanBoardsAPI.reorderCard).toHaveBeenCalledWith(10, 123, {
-      card: {
-        kanban_stage_id: 200,
-        position: 1,
-      },
-    });
-  });
-
-  it('persists flagged cross-stage card drag using stable card id', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
-    const targetStageCardDraggable = findCardDraggables(wrapper).find(
-      draggable => draggable.props('list').length === 0
-    );
-
-    targetStageCardDraggable.vm.$emit('change', {
-      added: {
-        element: {
-          id: 501,
-          conversationId: 123,
-          kanbanStageId: 100,
-          position: 1,
-        },
-        newIndex: 0,
-      },
-    });
-    await flushPromises();
-
     expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
       card: {
         kanban_stage_id: 200,
         position: 1,
       },
     });
-    expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
   });
 
   it('makes the empty stage card list a configured drop zone', async () => {
@@ -359,9 +324,7 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('opens and toggles the inline add item picker for the selected stage', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
     const addItemButtons = findAddItemButtons(wrapper);
 
     await addItemButtons[1].trigger('click');
@@ -378,9 +341,7 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('closes the inline add item picker using the close action', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
 
     await findAddItemButtons(wrapper)[0].trigger('click');
     expect(findAddItemPicker(wrapper).exists()).toBe(true);
@@ -391,9 +352,7 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('renders the add item picker outside card draggables', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
 
     await findAddItemButtons(wrapper)[0].trigger('click');
 
@@ -407,20 +366,16 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('does not trigger card drag behavior from add item controls', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
 
     await findAddItemButtons(wrapper)[0].trigger('click');
     await findAddItemPicker(wrapper).vm.$emit('close');
 
-    expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
+    expect(KanbanBoardsAPI.reorderCardById).not.toHaveBeenCalled();
   });
 
   it('refetches the current board after a manual opportunity is created', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
 
     await findAddItemButtons(wrapper)[0].trigger('click');
     KanbanBoardsAPI.show.mockClear();
@@ -431,23 +386,8 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
   });
 
-  it('does not open the manual picker for legacy-read boards', async () => {
+  it('opens the manual picker for every board', async () => {
     const wrapper = await mountView();
-
-    await findAddItemButtons(wrapper)[0].trigger('click');
-
-    expect(findAddItemPicker(wrapper).exists()).toBe(false);
-    expect(
-      wrapper
-        .find('[data-testid="kanban-manual-card-legacy-unavailable"]')
-        .text()
-    ).toContain('KANBAN.ADD_ITEM.LEGACY_UNAVAILABLE');
-  });
-
-  it('opens the manual picker for opportunity-read boards', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
 
     await findAddItemButtons(wrapper)[0].trigger('click');
 
@@ -471,40 +411,12 @@ describe('KanbanView drag and drop', () => {
     });
     await flushPromises();
 
-    expect(KanbanBoardsAPI.reorderCard).toHaveBeenCalledWith(10, 123, {
-      card: {
-        kanban_stage_id: 100,
-        position: 1,
-      },
-    });
-  });
-
-  it('persists flagged same-stage card reorder using stable card id', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
-    const sourceStageCardDraggable = findCardDraggables(wrapper)[0];
-
-    sourceStageCardDraggable.vm.$emit('change', {
-      moved: {
-        element: {
-          id: 501,
-          conversationId: 123,
-          kanbanStageId: 100,
-          position: 2,
-        },
-        newIndex: 0,
-      },
-    });
-    await flushPromises();
-
     expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
       card: {
         kanban_stage_id: 100,
         position: 1,
       },
     });
-    expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
   });
 
   it('persists populated-to-populated stage card move', async () => {
@@ -524,7 +436,7 @@ describe('KanbanView drag and drop', () => {
     });
     await flushPromises();
 
-    expect(KanbanBoardsAPI.reorderCard).toHaveBeenCalledWith(10, 123, {
+    expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
       card: {
         kanban_stage_id: 200,
         position: 2,
@@ -549,7 +461,7 @@ describe('KanbanView drag and drop', () => {
     });
     await flushPromises();
 
-    expect(KanbanBoardsAPI.reorderCard).not.toHaveBeenCalled();
+    expect(KanbanBoardsAPI.reorderCardById).not.toHaveBeenCalled();
   });
 
   it('filters interactive controls from card drag start', async () => {
@@ -579,7 +491,7 @@ describe('KanbanView drag and drop', () => {
 
   it('prevents overlapping card drag persistence requests', async () => {
     let resolveReorder;
-    KanbanBoardsAPI.reorderCard.mockReturnValueOnce(
+    KanbanBoardsAPI.reorderCardById.mockReturnValueOnce(
       new Promise(resolve => {
         resolveReorder = resolve;
       })
@@ -612,16 +524,14 @@ describe('KanbanView drag and drop', () => {
       },
     });
 
-    expect(KanbanBoardsAPI.reorderCard).toHaveBeenCalledTimes(1);
+    expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledTimes(1);
 
     resolveReorder({ data: {} });
     await flushPromises();
   });
 
-  it('removes flagged cards using stable card id', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+  it('removes cards using stable card id', async () => {
+    const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
     });
@@ -636,50 +546,10 @@ describe('KanbanView drag and drop', () => {
     await flushPromises();
 
     expect(KanbanBoardsAPI.deleteCardById).toHaveBeenCalledWith(10, 501);
-    expect(KanbanBoardsAPI.deleteCard).not.toHaveBeenCalled();
   });
 
-  it('removes legacy cards using conversation id', async () => {
+  it('opens opportunity modal on card click', async () => {
     const wrapper = await mountView();
-    const cardComponent = wrapper.findComponent({
-      name: 'KanbanConversationCard',
-    });
-
-    cardComponent.vm.$emit('removeCard', {
-      id: 501,
-      conversationId: 123,
-      conversation: { meta: { sender: { name: 'Jane' } } },
-    });
-    await nextTick();
-    await wrapper.find('[data-testid="confirm-delete"]').trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.deleteCard).toHaveBeenCalledWith(10, 123);
-    expect(KanbanBoardsAPI.deleteCardById).not.toHaveBeenCalled();
-  });
-
-  it('keeps card click navigation working for legacy board', async () => {
-    const wrapper = await mountView();
-    const cardComponent = wrapper.findComponent({
-      name: 'KanbanConversationCard',
-    });
-
-    cardComponent.vm.$emit(
-      'openDetails',
-      { conversationId: 123 },
-      { metaKey: false, ctrlKey: false }
-    );
-    await flushPromises();
-
-    expect(mockPush).toHaveBeenCalledWith({
-      path: '/app/accounts/1/conversations/123',
-    });
-  });
-
-  it('opens opportunity modal for opportunity-read board', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
     });
@@ -694,9 +564,7 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('passes boardId and cardId to opportunity modal', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
     });
@@ -712,9 +580,7 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('closes opportunity modal and clears selected card', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
     });
@@ -735,9 +601,7 @@ describe('KanbanView drag and drop', () => {
 
   it('refetches board on modal updated event', async () => {
     KanbanBoardsAPI.show.mockClear();
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
     });
@@ -756,9 +620,7 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('navigates to conversation on modal openConversation event', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
     });
@@ -778,9 +640,7 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('closes modal after navigating to conversation', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], { use_opportunity_card_reads: true })
-    );
+    const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
     });

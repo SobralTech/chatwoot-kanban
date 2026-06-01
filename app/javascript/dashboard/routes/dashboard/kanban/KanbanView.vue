@@ -109,10 +109,6 @@ const stageListModel = computed({
 const isCardDragDisabled = computed(
   () => isPersistingCardDrag.value || !!activeActionKey.value
 );
-const useStableCardMutations = computed(
-  () => selectedBoard.value?.useOpportunityCardReads === true
-);
-
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
 const getErrorMessage = (error, fallbackMessage) =>
@@ -434,8 +430,6 @@ const confirmRemoveStage = async () => {
 };
 
 const toggleAddItemPicker = stage => {
-  if (!useStableCardMutations.value) return;
-
   if (activeAddItemStageId.value === stage.id) {
     activeAddItemStageId.value = null;
     return;
@@ -509,9 +503,6 @@ const onCardDragChange = async (stage, event) => {
   isPersistingCardDrag.value = true;
   activeActionKey.value = `reorder-card-${card.id}`;
   actionError.value = '';
-  const mutationId = useStableCardMutations.value
-    ? card.id
-    : card.conversationId;
   const payload = {
     card: {
       kanban_stage_id: stage.id,
@@ -520,19 +511,11 @@ const onCardDragChange = async (stage, event) => {
   };
 
   try {
-    if (useStableCardMutations.value) {
-      await KanbanBoardsAPI.reorderCardById(
-        selectedBoard.value.id,
-        mutationId,
-        payload
-      );
-    } else {
-      await KanbanBoardsAPI.reorderCard(
-        selectedBoard.value.id,
-        mutationId,
-        payload
-      );
-    }
+    await KanbanBoardsAPI.reorderCardById(
+      selectedBoard.value.id,
+      card.id,
+      payload
+    );
     await refreshSelectedBoard();
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
@@ -570,16 +553,9 @@ const removeCard = async card => {
 
   activeActionKey.value = `remove-card-${card.id}`;
   actionError.value = '';
-  const mutationId = useStableCardMutations.value
-    ? card.id
-    : card.conversationId;
 
   try {
-    if (useStableCardMutations.value) {
-      await KanbanBoardsAPI.deleteCardById(selectedBoard.value.id, mutationId);
-    } else {
-      await KanbanBoardsAPI.deleteCard(selectedBoard.value.id, mutationId);
-    }
+    await KanbanBoardsAPI.deleteCardById(selectedBoard.value.id, card.id);
     await refreshSelectedBoard();
     useAlert(t('KANBAN.ACTIONS.REMOVE_CARD_SUCCESS'));
   } catch (error) {
@@ -681,17 +657,13 @@ const openConversation = (card, event = {}) => {
   router.push({ path });
 };
 
-const openDetails = (card, event = {}) => {
+const openDetails = card => {
   if (suppressNextCardClick.value) {
     suppressNextCardClick.value = false;
     return;
   }
 
-  if (useStableCardMutations.value) {
-    selectedOpportunityCardId.value = card.id;
-  } else {
-    openConversation(card, event);
-  }
+  selectedOpportunityCardId.value = card.id;
 };
 
 const closeOpportunityDetails = () => {
@@ -1050,26 +1022,15 @@ onMounted(fetchBoards);
                   data-testid="kanban-add-item-button"
                   :data-stage-id="stage.id"
                   class="no-drag flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!!activeActionKey || !useStableCardMutations"
+                  :disabled="!!activeActionKey"
                   :aria-expanded="activeAddItemStageId === stage.id"
                   :aria-controls="`kanban-add-item-panel-${stage.id}`"
-                  :title="
-                    useStableCardMutations
-                      ? t('KANBAN.ACTIONS.ADD_ITEM')
-                      : t('KANBAN.ADD_ITEM.LEGACY_UNAVAILABLE')
-                  "
+                  :title="t('KANBAN.ACTIONS.ADD_ITEM')"
                   @click="toggleAddItemPicker(stage)"
                 >
                   <i class="i-lucide-plus size-4" />
                   {{ t('KANBAN.ACTIONS.ADD_ITEM') }}
                 </button>
-                <p
-                  v-if="!useStableCardMutations"
-                  data-testid="kanban-manual-card-legacy-unavailable"
-                  class="mb-0 text-xs text-n-slate-11"
-                >
-                  {{ t('KANBAN.ADD_ITEM.LEGACY_UNAVAILABLE') }}
-                </p>
 
                 <KanbanOpportunityPicker
                   v-if="activeAddItemStageId === stage.id"
