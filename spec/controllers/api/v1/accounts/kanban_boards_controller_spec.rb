@@ -374,6 +374,36 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
       end
 
+      it 'does not run inbox or team authorization queries per card' do
+        stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+        inbox = create(:inbox, account: account)
+        team = create(:team, account: account)
+        create(:inbox_member, user: agent, inbox: inbox)
+        create(:team_member, user: agent, team: team)
+
+        3.times do |index|
+          create(
+            :kanban_card,
+            account: account,
+            kanban_board: kanban_board,
+            kanban_stage: stage,
+            inbox: inbox,
+            contact: create(:contact, account: account),
+            subject: "Manual card #{index}"
+          )
+        end
+        create_list(:conversation, 3, :with_team, account: account, team: team).each do |conversation|
+          create(:kanban_card, :conversation_origin, kanban_board: kanban_board, kanban_stage: stage, conversation: conversation)
+        end
+
+        auth_queries = authorization_membership_queries_for_board_listing
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['stages'].first['cards'].length).to eq(6)
+        expect(auth_queries.count { |sql| sql.include?('inbox_members') }).to eq(1)
+        expect(auth_queries.count { |sql| sql.include?('team_members') }).to eq(1)
+      end
+
       it 'groups cards under the correct stage with deterministic ordering' do
         later_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
         earlier_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
@@ -743,5 +773,20 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
   def compact_card_keys
     %w[id kanban_stage_id position origin subject active contact inbox conversation_id moved_by_id moved_at]
+  end
+
+  def authorization_membership_queries_for_board_listing
+    sql_queries = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      sql_queries << payload[:sql] if payload[:sql].present? && payload[:sql].match?(/inbox_members|team_members/)
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+    end
+
+    sql_queries
   end
 end
