@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
+import { useMapGetter, useStore } from 'dashboard/composables/store';
 
 const props = defineProps({
   boardId: {
@@ -20,6 +21,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'updated', 'openConversation']);
 
 const { t } = useI18n();
+const store = useStore();
+const accountLabels = useMapGetter('labels/getLabels');
 
 const card = ref(null);
 const subject = ref('');
@@ -27,11 +30,19 @@ const startsAt = ref('');
 const dueAt = ref('');
 const isLoading = ref(false);
 const isSaving = ref(false);
+const isLoadingLabels = ref(false);
+const isSavingLabels = ref(false);
 const loadError = ref('');
 const saveError = ref('');
+const labelsLoadError = ref('');
+const labelsSaveError = ref('');
 const subjectError = ref('');
+const selectedLabelTitles = ref([]);
 
 const hasConversation = computed(() => !!card.value?.conversationId);
+const selectedLabelTitleSet = computed(
+  () => new Set(selectedLabelTitles.value)
+);
 
 const normalizeCard = payload => ({
   ...payload,
@@ -73,6 +84,31 @@ const setFormState = payload => {
   subject.value = card.value.subject || '';
   startsAt.value = formatDateTimeInput(card.value.startsAt);
   dueAt.value = formatDateTimeInput(card.value.dueAt);
+};
+
+const getLabelsPayload = response =>
+  response?.data?.payload || response?.data || [];
+
+const loadLabels = async () => {
+  isLoadingLabels.value = true;
+  labelsLoadError.value = '';
+
+  try {
+    const [assignedLabelsResponse] = await Promise.all([
+      KanbanBoardsAPI.getCardLabels(props.boardId, props.cardId),
+      store.dispatch('labels/get'),
+    ]);
+    selectedLabelTitles.value = getLabelsPayload(assignedLabelsResponse).map(
+      label => label.title || label
+    );
+  } catch (error) {
+    labelsLoadError.value = getErrorMessage(
+      error,
+      t('KANBAN.OPPORTUNITY_DETAILS.LOAD_LABELS_ERROR')
+    );
+  } finally {
+    isLoadingLabels.value = false;
+  }
 };
 
 const loadCard = async () => {
@@ -133,13 +169,49 @@ const saveCard = async () => {
   }
 };
 
+const toggleLabel = title => {
+  labelsSaveError.value = '';
+
+  selectedLabelTitles.value = selectedLabelTitleSet.value.has(title)
+    ? selectedLabelTitles.value.filter(selectedTitle => selectedTitle !== title)
+    : [...selectedLabelTitles.value, title];
+};
+
+const saveLabels = async () => {
+  if (isSavingLabels.value) return;
+
+  isSavingLabels.value = true;
+  labelsSaveError.value = '';
+
+  try {
+    const response = await KanbanBoardsAPI.updateCardLabels(
+      props.boardId,
+      props.cardId,
+      selectedLabelTitles.value
+    );
+    selectedLabelTitles.value = getLabelsPayload(response).map(
+      label => label.title || label
+    );
+  } catch (error) {
+    labelsSaveError.value = getErrorMessage(
+      error,
+      t('KANBAN.OPPORTUNITY_DETAILS.SAVE_LABELS_ERROR')
+    );
+  } finally {
+    isSavingLabels.value = false;
+  }
+};
+
 const openConversation = () => {
   if (!hasConversation.value) return;
 
   emit('openConversation', card.value);
 };
 
-onMounted(loadCard);
+onMounted(() => {
+  loadCard();
+  loadLabels();
+});
 </script>
 
 <template>
@@ -207,6 +279,85 @@ onMounted(loadCard);
             :label="t('KANBAN.OPPORTUNITY_DETAILS.DUE_DATE')"
           />
         </div>
+
+        <section class="grid gap-3 rounded-lg border border-n-weak p-3">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+              {{ t('KANBAN.OPPORTUNITY_DETAILS.LABELS') }}
+            </h3>
+            <div class="flex items-center gap-1">
+              <button
+                type="button"
+                data-testid="kanban-opportunity-save-labels"
+                class="flex size-7 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                :aria-label="
+                  isSavingLabels
+                    ? t('KANBAN.OPPORTUNITY_DETAILS.SAVING_LABELS')
+                    : t('KANBAN.OPPORTUNITY_DETAILS.SAVE_LABELS')
+                "
+                :disabled="isSavingLabels"
+                @click="saveLabels"
+              >
+                <i class="i-lucide-save size-4" />
+              </button>
+            </div>
+          </div>
+
+          <p
+            v-if="labelsLoadError"
+            data-testid="kanban-opportunity-labels-load-error"
+            class="mb-0 text-sm text-n-ruby-11"
+          >
+            {{ labelsLoadError }}
+          </p>
+
+          <div
+            v-if="accountLabels.length"
+            data-testid="kanban-opportunity-labels"
+            class="flex flex-wrap gap-2"
+          >
+            <button
+              v-for="label in accountLabels"
+              :key="label.id || label.title"
+              type="button"
+              data-testid="kanban-opportunity-label"
+              class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition"
+              :class="
+                selectedLabelTitleSet.has(label.title)
+                  ? 'border-n-blue-9 bg-n-blue-3 text-n-blue-12'
+                  : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12'
+              "
+              :aria-pressed="selectedLabelTitleSet.has(label.title)"
+              @click="toggleLabel(label.title)"
+            >
+              <span
+                class="size-2 rounded-full"
+                :style="{ backgroundColor: label.color }"
+              />
+              <span>{{ label.title }}</span>
+              <i
+                v-if="selectedLabelTitleSet.has(label.title)"
+                class="i-lucide-check size-3"
+              />
+            </button>
+          </div>
+
+          <p
+            v-else-if="!isLoadingLabels"
+            data-testid="kanban-opportunity-no-labels"
+            class="mb-0 text-sm text-n-slate-11"
+          >
+            {{ t('KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_AVAILABLE') }}
+          </p>
+
+          <p
+            v-if="labelsSaveError"
+            data-testid="kanban-opportunity-labels-save-error"
+            class="mb-0 text-sm text-n-ruby-11"
+          >
+            {{ labelsSaveError }}
+          </p>
+        </section>
 
         <p
           v-if="saveError"

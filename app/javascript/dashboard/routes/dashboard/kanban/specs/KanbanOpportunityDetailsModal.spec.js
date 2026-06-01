@@ -2,6 +2,11 @@ import { flushPromises, mount } from '@vue/test-utils';
 import KanbanOpportunityDetailsModal from '../KanbanOpportunityDetailsModal.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
+const storeMocks = vi.hoisted(() => ({
+  labels: [],
+  dispatch: vi.fn(),
+}));
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: key => {
@@ -12,6 +17,14 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.OPPORTUNITY_DETAILS.DUE_DATE': 'Due date',
         'KANBAN.OPPORTUNITY_DETAILS.SAVE': 'Save',
         'KANBAN.OPPORTUNITY_DETAILS.SAVING': 'Saving...',
+        'KANBAN.OPPORTUNITY_DETAILS.LABELS': 'Labels',
+        'KANBAN.OPPORTUNITY_DETAILS.SAVE_LABELS': 'Save labels',
+        'KANBAN.OPPORTUNITY_DETAILS.SAVING_LABELS': 'Saving labels...',
+        'KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_AVAILABLE': 'No labels available',
+        'KANBAN.OPPORTUNITY_DETAILS.LOAD_LABELS_ERROR':
+          'Could not load labels.',
+        'KANBAN.OPPORTUNITY_DETAILS.SAVE_LABELS_ERROR':
+          'Could not save labels.',
         'KANBAN.OPPORTUNITY_DETAILS.OPEN_CONVERSATION': 'Open conversation',
         'KANBAN.OPPORTUNITY_DETAILS.NO_LINKED_CONVERSATION':
           'No linked conversation',
@@ -33,8 +46,19 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     showCardById: vi.fn(),
     updateCardDetailsById: vi.fn(),
+    getCardLabels: vi.fn(),
+    updateCardLabels: vi.fn(),
   },
 }));
+
+vi.mock('dashboard/composables/store', async () => {
+  const { computed } = await vi.importActual('vue');
+
+  return {
+    useStore: () => ({ dispatch: storeMocks.dispatch }),
+    useMapGetter: () => computed(() => storeMocks.labels),
+  };
+});
 
 const nextInputStub = {
   inheritAttrs: false,
@@ -79,7 +103,27 @@ const buildCard = overrides => ({
   ...overrides,
 });
 
-const mountModal = async ({ card = buildCard(), resolveLoad = true } = {}) => {
+const labels = [
+  { id: 1, title: 'hot', color: '#ff0000' },
+  { id: 2, title: 'enterprise', color: '#00ff00' },
+];
+
+const mountModal = async ({
+  card = buildCard(),
+  resolveLoad = true,
+  resolveLabels = true,
+  accountLabels = labels,
+  assignedLabels = [labels[0]],
+} = {}) => {
+  storeMocks.labels = accountLabels;
+  storeMocks.dispatch.mockResolvedValue();
+
+  if (resolveLabels) {
+    KanbanBoardsAPI.getCardLabels.mockResolvedValue({
+      data: { payload: assignedLabels },
+    });
+  }
+
   if (resolveLoad) {
     KanbanBoardsAPI.showCardById.mockResolvedValue({ data: card });
   }
@@ -114,10 +158,15 @@ const dueAtInput = wrapper =>
   wrapper.find('[data-testid="kanban-opportunity-due-at"]');
 const saveButton = wrapper =>
   wrapper.find('[data-testid="kanban-opportunity-save"]');
+const labelButtons = wrapper =>
+  wrapper.findAll('[data-testid="kanban-opportunity-label"]');
+const saveLabelsButton = wrapper =>
+  wrapper.find('[data-testid="kanban-opportunity-save-labels"]');
 
 describe('KanbanOpportunityDetailsModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    storeMocks.labels = [];
   });
 
   it('loads detail through showCardById', async () => {
@@ -173,6 +222,123 @@ describe('KanbanOpportunityDetailsModal', () => {
 
     expect(startsAtInput(wrapper).element.value).toBe('2026-06-01T09:00');
     expect(dueAtInput(wrapper).element.value).toBe('2026-06-05T18:00');
+  });
+
+  it('loads assigned card labels through getCardLabels', async () => {
+    await mountModal();
+
+    expect(KanbanBoardsAPI.getCardLabels).toHaveBeenCalledWith(10, 501);
+  });
+
+  it('loads available account labels through existing pattern', async () => {
+    await mountModal();
+
+    expect(storeMocks.dispatch).toHaveBeenCalledWith('labels/get');
+  });
+
+  it('renders label title and color', async () => {
+    const wrapper = await mountModal();
+    const firstLabel = labelButtons(wrapper)[0];
+
+    expect(firstLabel.text()).toContain('hot');
+    expect(firstLabel.find('span').element.style.backgroundColor).toBe(
+      'rgb(255, 0, 0)'
+    );
+  });
+
+  it('marks assigned labels as selected', async () => {
+    const wrapper = await mountModal();
+
+    expect(labelButtons(wrapper)[0].attributes('aria-pressed')).toBe('true');
+    expect(labelButtons(wrapper)[1].attributes('aria-pressed')).toBe('false');
+  });
+
+  it('allows selecting label', async () => {
+    const wrapper = await mountModal();
+
+    await labelButtons(wrapper)[1].trigger('click');
+
+    expect(labelButtons(wrapper)[1].attributes('aria-pressed')).toBe('true');
+  });
+
+  it('allows deselecting label', async () => {
+    const wrapper = await mountModal();
+
+    await labelButtons(wrapper)[0].trigger('click');
+
+    expect(labelButtons(wrapper)[0].attributes('aria-pressed')).toBe('false');
+  });
+
+  it('saves full selected-title array through updateCardLabels', async () => {
+    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
+      data: { payload: labels },
+    });
+    const wrapper = await mountModal();
+
+    await labelButtons(wrapper)[1].trigger('click');
+    await saveLabelsButton(wrapper).trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledWith(10, 501, [
+      'hot',
+      'enterprise',
+    ]);
+  });
+
+  it('supports clearing all labels with []', async () => {
+    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
+      data: { payload: [] },
+    });
+    const wrapper = await mountModal();
+
+    await labelButtons(wrapper)[0].trigger('click');
+    await saveLabelsButton(wrapper).trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledWith(10, 501, []);
+  });
+
+  it('prevents duplicate label save while pending', async () => {
+    KanbanBoardsAPI.updateCardLabels.mockReturnValue(new Promise(() => {}));
+    const wrapper = await mountModal();
+
+    await saveLabelsButton(wrapper).trigger('click');
+
+    expect(saveLabelsButton(wrapper).attributes('disabled')).toBeDefined();
+
+    await saveLabelsButton(wrapper).trigger('click');
+    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders labels-loading error', async () => {
+    KanbanBoardsAPI.getCardLabels.mockRejectedValue({
+      response: { data: { message: 'Labels load failed' } },
+    });
+    const wrapper = await mountModal({ resolveLabels: false });
+
+    await flushPromises();
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-opportunity-labels-load-error"]')
+        .text()
+    ).toContain('Labels load failed');
+  });
+
+  it('renders labels-save error', async () => {
+    KanbanBoardsAPI.updateCardLabels.mockRejectedValue({
+      response: { data: { message: 'Labels save failed' } },
+    });
+    const wrapper = await mountModal();
+
+    await saveLabelsButton(wrapper).trigger('click');
+    await flushPromises();
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-opportunity-labels-save-error"]')
+        .text()
+    ).toContain('Labels save failed');
   });
 
   it('saves trimmed subject', async () => {
