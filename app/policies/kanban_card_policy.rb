@@ -22,7 +22,11 @@ class KanbanCardPolicy < ApplicationPolicy
   private
 
   def valid_card_scope?
-    card_account? && board_account? && stage_account? && stage_board? && contact_account? && inbox_account?
+    active_runtime_card? && card_account? && board_account? && stage_account? && stage_board? && contact_account? && inbox_account?
+  end
+
+  def active_runtime_card?
+    record.active? && record.kanban_board&.active? && record.kanban_stage&.active?
   end
 
   def card_account?

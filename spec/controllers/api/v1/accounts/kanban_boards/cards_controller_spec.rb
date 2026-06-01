@@ -239,6 +239,38 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
+    it 'rejects stable detail when the board is inactive' do
+      card = create_manual_card
+      kanban_board.update!(active: false)
+
+      get stable_card_url(card), headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects stable card routes when the card stage is inactive' do
+      card = create_manual_card
+      stage.update!(active: false)
+
+      get stable_card_url(card), headers: agent.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:not_found)
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { subject: 'Hidden opportunity' } },
+            as: :json
+      expect(response).to have_http_status(:not_found)
+
+      patch stable_card_url(card, suffix: 'reorder'),
+            headers: agent.create_new_auth_token,
+            params: { card: { position: 1 } },
+            as: :json
+      expect(response).to have_http_status(:not_found)
+
+      delete stable_card_url(card), headers: agent.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:not_found)
+    end
+
     it 'updates a card by stable ID' do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       card = create_manual_card(position: 1)
@@ -250,6 +282,19 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(card.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+    end
+
+    it 'rejects stable update when the board is inactive' do
+      card = create_manual_card(subject: 'Visible opportunity')
+      kanban_board.update!(active: false)
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { subject: 'Hidden opportunity' } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(card.reload.subject).to eq('Visible opportunity')
     end
 
     it 'updates stable scalar card details' do
@@ -396,6 +441,19 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(destination_card.reload.position).to eq(2)
     end
 
+    it 'rejects stable reorder when the board is inactive' do
+      card = create_manual_card(position: 1)
+      kanban_board.update!(active: false)
+
+      patch stable_card_url(card, suffix: 'reorder'),
+            headers: agent.create_new_auth_token,
+            params: { card: { position: 2 } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(card.reload.position).to eq(1)
+    end
+
     it 'soft-deletes a card by stable ID' do
       card = create_manual_card
 
@@ -407,6 +465,16 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       expect(response).to have_http_status(:no_content)
       expect(card.reload).not_to be_active
+    end
+
+    it 'rejects stable delete when the board is inactive' do
+      card = create_manual_card
+      kanban_board.update!(active: false)
+
+      delete stable_card_url(card), headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(card.reload).to be_active
     end
 
     it 'updates, reorders, and deletes a manual card without a conversation' do
@@ -602,6 +670,11 @@ RSpec.describe 'Kanban Cards API', type: :request do
         conversation: conversation
       }.merge(attributes)
     )
+  end
+
+  def stable_card_url(target_card, suffix: nil)
+    path = "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{target_card.id}"
+    suffix.present? ? "#{path}/#{suffix}" : path
   end
 
   def post_manual_card(params: manual_card_payload, headers: agent.create_new_auth_token)

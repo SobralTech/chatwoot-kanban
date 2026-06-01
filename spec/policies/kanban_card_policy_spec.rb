@@ -68,6 +68,22 @@ RSpec.describe KanbanCardPolicy, type: :policy do
         end
       end
     end
+
+    context 'when the board is inactive' do
+      before { board.update!(active: false) }
+
+      it 'denies access' do
+        expect(kanban_card_policy).not_to permit(administrator_context, manual_card)
+      end
+    end
+
+    context 'when the stage is inactive' do
+      before { stage.update!(active: false) }
+
+      it 'denies access' do
+        expect(kanban_card_policy).not_to permit(administrator_context, manual_card)
+      end
+    end
   end
 
   permissions :show? do

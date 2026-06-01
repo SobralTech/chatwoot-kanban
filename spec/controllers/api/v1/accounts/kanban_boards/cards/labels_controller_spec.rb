@@ -50,6 +50,22 @@ RSpec.describe 'Kanban Card Labels API', type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it 'rejects labels access when the board is inactive' do
+      kanban_board.update!(active: false)
+
+      get labels_url(card), headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects labels access when the card stage is inactive' do
+      stage.update!(active: false)
+
+      get labels_url(card), headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   describe 'PUT /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/by_id/{card.id}/labels' do
@@ -125,6 +141,26 @@ RSpec.describe 'Kanban Card Labels API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(conversation_card.reload.label_list).to contain_exactly('hot')
+    end
+
+    it 'rejects label updates when the board is inactive' do
+      hot_label
+      kanban_board.update!(active: false)
+
+      put labels_url(card), params: { labels: ['hot'] }, headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(card.reload.label_list).to be_empty
+    end
+
+    it 'rejects label updates when the card stage is inactive' do
+      hot_label
+      stage.update!(active: false)
+
+      put labels_url(card), params: { labels: ['hot'] }, headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(card.reload.label_list).to be_empty
     end
   end
 

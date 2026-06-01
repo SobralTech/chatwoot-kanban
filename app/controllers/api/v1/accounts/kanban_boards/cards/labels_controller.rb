@@ -19,11 +19,11 @@ class Api::V1::Accounts::KanbanBoards::Cards::LabelsController < Api::V1::Accoun
   private
 
   def fetch_kanban_board
-    @kanban_board = KanbanBoard.where(account_id: Current.account.id).find(params[:kanban_board_id])
+    @kanban_board = KanbanBoard.active.where(account_id: Current.account.id).find(params[:kanban_board_id])
   end
 
   def fetch_kanban_card
-    @kanban_card = @kanban_board.kanban_cards.active.find(params[:id])
+    @kanban_card = @kanban_board.kanban_cards.active.joins(:kanban_stage).merge(KanbanStage.active).find(params[:id])
   end
 
   def fetch_labels
