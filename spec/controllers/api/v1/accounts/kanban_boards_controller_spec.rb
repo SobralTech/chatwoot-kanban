@@ -582,6 +582,22 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(sql_queries.none? { |sql| sql.include?('tags') }).to be(true)
         expect(sql_queries.none? { |sql| sql.include?('labels') }).to be(true)
       end
+
+      it 'keeps board listing query categories bounded with mixed active card visibility' do
+        expected_card_ids = create_query_budget_board_listing_cards
+
+        sql_queries = collect_sql_queries_for_board_listing
+        query_counts = board_listing_query_counts(sql_queries)
+
+        rendered_card_ids = response.parsed_body['stages'].flat_map { |stage| stage['cards'].pluck('id') }
+        expect(response).to have_http_status(:success)
+        expect(rendered_card_ids).to match_array(expected_card_ids)
+        expect([rendered_card_ids.length, rendered_card_ids.intersect?(inactive_kanban_card_ids)]).to eq([30, false])
+        expect(query_counts.slice(:messages, :notes, :labels_tags_taggings)).to eq(messages: 0, notes: 0, labels_tags_taggings: 0)
+        expect(query_counts[:kanban_cards]).to be <= 2
+        expect(query_counts[:inbox_members]).to be <= 1
+        expect(query_counts[:team_members]).to be <= 1
+      end
     end
 
     it 'does not read conversation kanban states even when board reads are disabled' do
@@ -771,14 +787,158 @@ RSpec.describe 'Kanban Boards API', type: :request do
     end
   end
 
+  def create_query_budget_board_listing_cards
+    context = query_budget_board_listing_context
+
+    create_query_budget_access(context)
+    expected_card_ids = create_query_budget_visible_cards(context)
+    create_query_budget_hidden_records(context, expected_card_ids)
+
+    expected_card_ids
+  end
+
+  def query_budget_board_listing_context
+    {
+      direct_inbox: create(:inbox, account: account),
+      team_inbox: create(:inbox, account: account),
+      team: create(:team, account: account),
+      shared_contact: create(:contact, account: account),
+      stages: create_query_budget_stages
+    }
+  end
+
+  def create_query_budget_access(context)
+    create(:inbox_member, user: agent, inbox: context[:direct_inbox])
+    create(:team_member, user: agent, team: context[:team])
+  end
+
+  def create_query_budget_visible_cards(context)
+    expected_card_ids = []
+    expected_card_ids.concat(create_direct_manual_cards(context[:stages].first, context[:direct_inbox], context[:shared_contact]))
+    expected_card_ids.concat(create_linked_manual_cards(context[:stages].first, context[:direct_inbox], context[:shared_contact]))
+    expected_card_ids.concat(create_direct_conversation_cards(context[:stages].second, context[:direct_inbox]))
+    expected_card_ids.concat(create_team_conversation_cards(context[:stages].third, context[:team_inbox], context[:team]))
+    expected_card_ids
+  end
+
+  def create_query_budget_stages
+    [
+      create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1),
+      create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2),
+      create(:kanban_stage, account: account, kanban_board: kanban_board, position: 3)
+    ]
+  end
+
+  def create_direct_manual_cards(stage, inbox, contact)
+    Array.new(5) do |index|
+      create(
+        :kanban_card,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        contact: contact,
+        inbox: inbox,
+        subject: "Direct manual card #{index}",
+        position: index + 1
+      ).id
+    end
+  end
+
+  def create_linked_manual_cards(stage, inbox, contact)
+    Array.new(5) do |index|
+      conversation = create(:conversation, account: account, contact: contact, inbox: inbox)
+      create(
+        :kanban_card,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        contact: contact,
+        inbox: inbox,
+        conversation: conversation,
+        subject: "Linked manual card #{index}",
+        position: index + 6
+      ).id
+    end
+  end
+
+  def create_direct_conversation_cards(stage, inbox)
+    Array.new(10) do |index|
+      conversation = create(:conversation, account: account, inbox: inbox)
+      create(
+        :kanban_card,
+        :conversation_origin,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: index + 1
+      ).id
+    end
+  end
+
+  def create_team_conversation_cards(stage, inbox, team)
+    Array.new(10) do |index|
+      conversation = create(:conversation, :with_team, account: account, inbox: inbox, team: team)
+      create(
+        :kanban_card,
+        :conversation_origin,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        conversation: conversation,
+        position: index + 1
+      ).id
+    end
+  end
+
+  def create_query_budget_hidden_records(context, expected_card_ids)
+    create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: context[:stages].first,
+                         contact: context[:shared_contact], inbox: context[:direct_inbox],
+                         subject: 'Inactive manual card', active: false)
+    create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: context[:stages].first,
+                         contact: create(:contact, account: account), inbox: create(:inbox, account: account),
+                         subject: 'Unauthorized manual card')
+    create(:message, account: account, inbox: context[:direct_inbox], conversation: KanbanCard.find(expected_card_ids[10]).conversation)
+    create(:note, contact: context[:shared_contact])
+    context[:shared_contact].add_labels(['enterprise'])
+  end
+
+  def inactive_kanban_card_ids
+    KanbanCard.where(active: false).pluck(:id)
+  end
+
+  def board_listing_query_counts(sql_queries)
+    {
+      kanban_cards: sql_queries.count { |sql| sql.match?(/FROM "kanban_cards"|JOIN "kanban_cards"/) },
+      inbox_members: sql_queries.count { |sql| sql.match?(/FROM "inbox_members"|JOIN "inbox_members"/) },
+      team_members: sql_queries.count { |sql| sql.match?(/FROM "team_members"|JOIN "team_members"/) },
+      messages: sql_queries.count { |sql| sql.match?(/FROM "messages"|JOIN "messages"/) },
+      notes: sql_queries.count { |sql| sql.match?(/FROM "notes"|JOIN "notes"/) },
+      labels_tags_taggings: labels_tags_taggings_query_count(sql_queries)
+    }
+  end
+
+  def labels_tags_taggings_query_count(sql_queries)
+    sql_queries.count do |sql|
+      sql.match?(/FROM "labels"|JOIN "labels"|FROM "tags"|JOIN "tags"|FROM "taggings"|JOIN "taggings"/)
+    end
+  end
+
   def compact_card_keys
     %w[id kanban_stage_id position origin subject active contact inbox conversation_id moved_by_id moved_at]
   end
 
   def authorization_membership_queries_for_board_listing
+    collect_sql_queries_for_board_listing.grep(/inbox_members|team_members/)
+  end
+
+  def collect_sql_queries_for_board_listing
     sql_queries = []
     callback = lambda do |_name, _start, _finish, _id, payload|
-      sql_queries << payload[:sql] if payload[:sql].present? && payload[:sql].match?(/inbox_members|team_members/)
+      next if payload[:name] == 'SCHEMA'
+      next if payload[:sql].blank?
+
+      sql_queries << payload[:sql]
     end
 
     ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
