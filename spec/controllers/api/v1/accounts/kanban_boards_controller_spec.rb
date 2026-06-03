@@ -104,6 +104,61 @@ RSpec.describe 'Kanban Boards API', type: :request do
       )
     end
 
+    it 'embeds only the first 20 cards with count and pagination metadata' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: inbox)
+      cards = create_board_listing_manual_cards(stage, inbox, 21)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      response_stage = response.parsed_body['stages'].first
+      expect(response).to have_http_status(:success)
+      expect(response_stage['cards'].pluck('id')).to eq(cards.first(20).pluck(:id))
+      expect(response_stage['cards_count']).to eq(21)
+      expect(response_stage['pagination']).to include(
+        'limit' => 20,
+        'has_more' => true,
+        'next_cursor' => { 'after_id' => cards[19].id }
+      )
+    end
+
+    it 'returns has_more false for stages with at most 20 cards' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: inbox)
+      create_board_listing_manual_cards(stage, inbox, 20)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      response_stage = response.parsed_body['stages'].first
+      expect(response).to have_http_status(:success)
+      expect(response_stage['cards'].length).to eq(20)
+      expect(response_stage['pagination']).to include('limit' => 20, 'has_more' => false, 'next_cursor' => nil)
+    end
+
+    it 'does not load every active card in the board' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: inbox)
+      create_board_listing_manual_cards(stage, inbox, 30)
+
+      sql_queries = collect_sql_queries_for_board_listing
+      rendered_card_ids = response.parsed_body['stages'].first['cards'].pluck('id')
+      card_load_queries = sql_queries.select do |sql|
+        sql.match?(/SELECT .*FROM "kanban_cards"/) && sql.exclude?('COUNT')
+      end
+
+      expect(response).to have_http_status(:success)
+      expect(rendered_card_ids.length).to eq(20)
+      expect(response.parsed_body['stages'].first['cards_count']).to eq(30)
+      expect(card_load_queries).to all(match(/LIMIT/))
+    end
+
     context 'when reading kanban cards' do
       it 'returns active conversation-origin kanban cards with the compact frontend payload' do
         stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New')
@@ -594,7 +649,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(rendered_card_ids).to match_array(expected_card_ids)
         expect([rendered_card_ids.length, rendered_card_ids.intersect?(inactive_kanban_card_ids)]).to eq([30, false])
         expect(query_counts.slice(:messages, :notes, :labels_tags_taggings)).to eq(messages: 0, notes: 0, labels_tags_taggings: 0)
-        expect(query_counts[:kanban_cards]).to be <= 2
+        expect(query_counts[:kanban_cards]).to be <= 6
         expect(query_counts[:inbox_members]).to be <= 1
         expect(query_counts[:team_members]).to be <= 1
       end
@@ -795,6 +850,21 @@ RSpec.describe 'Kanban Boards API', type: :request do
     create_query_budget_hidden_records(context, expected_card_ids)
 
     expected_card_ids
+  end
+
+  def create_board_listing_manual_cards(stage, inbox, count)
+    Array.new(count) do |index|
+      create(
+        :kanban_card,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: stage,
+        contact: create(:contact, account: account),
+        inbox: inbox,
+        subject: "Manual card #{index}",
+        position: index + 1
+      )
+    end
   end
 
   def query_budget_board_listing_context

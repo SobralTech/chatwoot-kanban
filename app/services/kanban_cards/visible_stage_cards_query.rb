@@ -6,13 +6,17 @@ class KanbanCards::VisibleStageCardsQuery
   MAX_LIMIT = 50
 
   # rubocop:disable Metrics/ParameterLists
-  def initialize(account:, user:, kanban_board:, kanban_stage:, limit: DEFAULT_LIMIT, cursor: nil)
+  def initialize(account:, user:, kanban_board:, kanban_stage:, limit: DEFAULT_LIMIT, cursor: nil, visible_inbox_ids: nil,
+                 visible_team_ids: nil, account_user: nil)
     @account = account
     @user = user
     @kanban_board = kanban_board
     @kanban_stage = kanban_stage
     @limit = limit
     @cursor = cursor
+    @visible_inbox_ids = visible_inbox_ids
+    @visible_team_ids = visible_team_ids
+    @account_user = account_user
   end
   # rubocop:enable Metrics/ParameterLists
 
