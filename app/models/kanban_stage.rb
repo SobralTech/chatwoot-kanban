@@ -37,10 +37,16 @@ class KanbanStage < ApplicationRecord
 
   def self.normalize_positions_for_board!(kanban_board)
     transaction do
+      lock_reorder_stages_for_board!(kanban_board)
+
       kanban_board.kanban_stages.active.ordered.each.with_index(1) do |stage, position|
         stage.update!(position: position) if stage.position != position
       end
     end
+  end
+
+  def self.lock_reorder_stages_for_board!(kanban_board)
+    where(kanban_board: kanban_board).active.order(:id).lock.each(&:id)
   end
 
   private

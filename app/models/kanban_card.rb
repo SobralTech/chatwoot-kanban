@@ -70,6 +70,19 @@ class KanbanCard < ApplicationRecord
     end
   end
 
+  def deactivate_and_normalize!
+    self.class.transaction do
+      stage = kanban_stage
+
+      self.class.lock_reorder_stages!([stage.id])
+      self.class.lock_active_cards_for_stages!(kanban_board, [stage.id])
+
+      update!(active: false)
+      self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: stage)
+      reload
+    end
+  end
+
   def self.stage_active_cards(kanban_board, kanban_stage)
     where(kanban_board: kanban_board, kanban_stage: kanban_stage).active.ordered
   end

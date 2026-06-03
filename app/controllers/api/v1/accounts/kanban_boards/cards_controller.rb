@@ -105,9 +105,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def destroy_kanban_card
-    KanbanCard.transaction do
-      @kanban_card.update!(active: false)
-    end
+    @kanban_card.deactivate_and_normalize!
 
     head :no_content
   end
