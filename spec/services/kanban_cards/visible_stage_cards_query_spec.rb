@@ -108,6 +108,55 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(query_counts[:team_members]).to be <= 1
     end
 
+    it 'keeps compact payload contact avatar queries bounded at the default page size' do
+      create_visible_cards_with_contact_avatars(20)
+
+      sql_queries = collect_sql_queries { load_compact_payload_dependencies }
+      query_counts = visible_stage_cards_query_counts(sql_queries)
+
+      expect(query_counts[:active_storage_attachments]).to be <= 2
+      expect(query_counts[:active_storage_blobs]).to be <= 2
+    end
+
+    it 'keeps compact payload contact avatar queries bounded at the max page size' do
+      create_visible_cards_with_contact_avatars(50)
+
+      sql_queries = collect_sql_queries { load_compact_payload_dependencies(limit: 50) }
+      query_counts = visible_stage_cards_query_counts(sql_queries)
+
+      expect(query_counts[:active_storage_attachments]).to be <= 2
+      expect(query_counts[:active_storage_blobs]).to be <= 2
+    end
+
+    it 'keeps compact payload inbox avatar queries bounded at the default page size' do
+      create_visible_cards_with_inbox_avatars(20)
+
+      sql_queries = collect_sql_queries { load_compact_payload_dependencies }
+      query_counts = visible_stage_cards_query_counts(sql_queries)
+
+      expect(query_counts[:active_storage_attachments]).to be <= 2
+      expect(query_counts[:active_storage_blobs]).to be <= 2
+    end
+
+    it 'keeps compact payload inbox avatar queries bounded at the max page size' do
+      create_visible_cards_with_inbox_avatars(50)
+
+      sql_queries = collect_sql_queries { load_compact_payload_dependencies(limit: 50) }
+      query_counts = visible_stage_cards_query_counts(sql_queries)
+
+      expect(query_counts[:active_storage_attachments]).to be <= 2
+      expect(query_counts[:active_storage_blobs]).to be <= 2
+    end
+
+    it 'keeps compact payload inbox channel queries bounded' do
+      create_visible_cards_with_inbox_avatars(50)
+
+      sql_queries = collect_sql_queries { load_compact_payload_dependencies(limit: 50) }
+      query_counts = visible_stage_cards_query_counts(sql_queries)
+
+      expect(query_counts[:channel_widgets]).to be <= 1
+    end
+
     it 'does not query messages notes labels tags or taggings' do
       contact = create(:contact, account: account)
       conversation = create(:conversation, account: account, inbox: inbox, contact: contact)
@@ -147,6 +196,31 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
     end
   end
 
+  def create_visible_cards_with_contact_avatars(count)
+    Array.new(count) do |index|
+      contact = create(:contact, :with_avatar, account: account)
+      create_visible_card(contact: contact, position: index + 1, created_at: (count - index).minutes.ago, subject: "Card #{index}")
+    end
+  end
+
+  def create_visible_cards_with_inbox_avatars(count)
+    Array.new(count) do |index|
+      visible_inbox = create(:inbox, account: account)
+      visible_inbox.avatar.attach(avatar_fixture)
+      create(:inbox_member, user: agent, inbox: visible_inbox)
+      create_visible_card(inbox: visible_inbox, position: index + 1, created_at: (count - index).minutes.ago, subject: "Card #{index}")
+    end
+  end
+
+  def load_compact_payload_dependencies(limit: nil)
+    query(limit: limit).call.cards.each do |card|
+      card.contact.avatar_url
+      card.inbox.avatar_url
+      card.inbox.channel.try(:provider)
+      card.conversation&.display_id
+    end
+  end
+
   def create_visible_card(attributes = {})
     create(
       :kanban_card,
@@ -160,6 +234,10 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
         position: 1
       }.merge(attributes)
     )
+  end
+
+  def avatar_fixture
+    fixture_file_upload(Rails.root.join('spec/assets/avatar.png'), 'image/png')
   end
 
   def collect_sql_queries(&)
@@ -177,13 +255,20 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
 
   def visible_stage_cards_query_counts(sql_queries)
     {
-      kanban_cards: sql_queries.count { |sql| sql.match?(/FROM "kanban_cards"|JOIN "kanban_cards"/) },
-      inbox_members: sql_queries.count { |sql| sql.match?(/FROM "inbox_members"|JOIN "inbox_members"/) },
-      team_members: sql_queries.count { |sql| sql.match?(/FROM "team_members"|JOIN "team_members"/) },
-      messages: sql_queries.count { |sql| sql.match?(/FROM "messages"|JOIN "messages"/) },
-      notes: sql_queries.count { |sql| sql.match?(/FROM "notes"|JOIN "notes"/) },
+      kanban_cards: table_query_count(sql_queries, 'kanban_cards'),
+      inbox_members: table_query_count(sql_queries, 'inbox_members'),
+      team_members: table_query_count(sql_queries, 'team_members'),
+      active_storage_attachments: table_query_count(sql_queries, 'active_storage_attachments'),
+      active_storage_blobs: table_query_count(sql_queries, 'active_storage_blobs'),
+      channel_widgets: table_query_count(sql_queries, 'channel_web_widgets'),
+      messages: table_query_count(sql_queries, 'messages'),
+      notes: table_query_count(sql_queries, 'notes'),
       labels_tags_taggings: labels_tags_taggings_query_count(sql_queries)
     }
+  end
+
+  def table_query_count(sql_queries, table_name)
+    sql_queries.count { |sql| sql.match?(/FROM "#{table_name}"|JOIN "#{table_name}"/) }
   end
 
   def labels_tags_taggings_query_count(sql_queries)

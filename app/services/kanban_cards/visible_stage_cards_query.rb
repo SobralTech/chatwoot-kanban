@@ -65,7 +65,11 @@ class KanbanCards::VisibleStageCardsQuery
   end
 
   def paginated_cards(anchor)
-    scope = visible_cards.includes(:contact, :inbox, :conversation).ordered
+    scope = visible_cards.includes(
+      :conversation,
+      contact: { avatar_attachment: :blob },
+      inbox: [:channel, { avatar_attachment: :blob }]
+    ).ordered
     return scope if anchor.blank?
 
     scope.where(after_anchor_condition(anchor))
