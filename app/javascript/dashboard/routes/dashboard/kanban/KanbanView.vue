@@ -42,6 +42,7 @@ const stageColors = ref({});
 const activeAddItemStageId = ref(null);
 const stageCardsLoading = ref({});
 const stageCardsErrors = ref({});
+const stageRefreshRequests = new Map();
 const cardPendingRemoval = ref(null);
 const boardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
@@ -206,6 +207,16 @@ const applyStageCardsPage = (stageId, page, shouldAppend = true) => {
   }));
 };
 
+const applyStageFirstPage = (stageId, page) => {
+  updateStageCards(stageId, stage => ({
+    ...stage,
+    cards: page.cards || [],
+    pagination: page.pagination || stage.pagination,
+    cardsCount: page.pagination?.totalCount ?? stage.cardsCount,
+  }));
+  setStageCardsError(stageId);
+};
+
 const fetchStageCardsPage = async (stageId, params) => {
   const response = await KanbanBoardsAPI.getStageCards(
     selectedBoard.value.id,
@@ -220,7 +231,61 @@ const reloadStageCards = async stageId => {
   const page = await fetchStageCardsPage(stageId, {
     limit: stageCardsPageLimit,
   });
-  applyStageCardsPage(stageId, page, false);
+  applyStageFirstPage(stageId, page);
+};
+
+const refreshStageFirstPage = stageId => {
+  if (!selectedBoard.value?.id || !stageId) return Promise.resolve();
+
+  if (stageRefreshRequests.has(stageId)) {
+    return stageRefreshRequests.get(stageId);
+  }
+
+  const request = reloadStageCards(stageId).finally(() => {
+    stageRefreshRequests.delete(stageId);
+  });
+
+  stageRefreshRequests.set(stageId, request);
+  return request;
+};
+
+const refreshStageFirstPages = stageIds => {
+  const uniqueStageIds = [...new Set(stageIds.filter(Boolean))];
+  return Promise.all(
+    uniqueStageIds.map(stageId => refreshStageFirstPage(stageId))
+  );
+};
+
+const findCardStageId = card => {
+  if (card?.kanbanStageId) return card.kanbanStageId;
+
+  return stages.value.find(stage =>
+    stage.cards.some(item => item.id === card?.id)
+  )?.id;
+};
+
+const patchVisibleCard = card => {
+  const updatedCard = normalizePayload(card);
+  if (!updatedCard?.id) return false;
+
+  const stageId = findCardStageId(updatedCard);
+  if (
+    !stageId ||
+    (updatedCard.kanbanStageId && updatedCard.kanbanStageId !== stageId)
+  ) {
+    return false;
+  }
+
+  updateStageCards(stageId, stage => ({
+    ...stage,
+    cards: stage.cards.map(existingCard =>
+      existingCard.id === updatedCard.id
+        ? { ...existingCard, ...updatedCard }
+        : existingCard
+    ),
+  }));
+
+  return true;
 };
 
 const loadMoreStageCards = async stage => {
@@ -346,6 +411,7 @@ const updateBoard = async () => {
       existingBoard.id === board.id ? board : existingBoard
     );
     cancelEditingBoard();
+    await refreshSelectedBoard();
     useAlert(t('KANBAN.ACTIONS.UPDATE_BOARD_SUCCESS'));
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.UPDATE_BOARD_ERROR'));
@@ -644,10 +710,10 @@ const onCardDragChange = async (stage, event) => {
       card.id,
       payload
     );
-    await refreshSelectedBoard();
+    await refreshStageFirstPages([card.kanbanStageId, stage.id]);
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
-    await refreshSelectedBoard();
+    await refreshStageFirstPages([card.kanbanStageId, stage.id]);
   } finally {
     isPersistingCardDrag.value = false;
     activeActionKey.value = '';
@@ -684,7 +750,7 @@ const removeCard = async card => {
 
   try {
     await KanbanBoardsAPI.deleteCardById(selectedBoard.value.id, card.id);
-    await refreshSelectedBoard();
+    await refreshStageFirstPage(findCardStageId(card));
     useAlert(t('KANBAN.ACTIONS.REMOVE_CARD_SUCCESS'));
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REMOVE_CARD_ERROR'));
@@ -800,8 +866,15 @@ const closeOpportunityDetails = () => {
   selectedOpportunityCardId.value = null;
 };
 
-const onOpportunityUpdated = () => {
-  refreshSelectedBoard();
+const onOpportunityUpdated = updatedCard => {
+  if (patchVisibleCard(updatedCard)) return;
+
+  refreshStageFirstPage(
+    findCardStageId({
+      id: selectedOpportunityCardId.value,
+      kanbanStageId: updatedCard?.kanbanStageId,
+    })
+  );
 };
 
 const onOpportunityOpenConversation = card => {
@@ -1166,7 +1239,7 @@ onMounted(fetchBoards);
                   v-if="activeAddItemStageId === stage.id"
                   :kanban-board-id="selectedBoard.id"
                   :kanban-stage-id="stage.id"
-                  @created="refreshSelectedBoard"
+                  @created="refreshStageFirstPage(stage.id)"
                   @close="closeAddItemPicker"
                 />
 

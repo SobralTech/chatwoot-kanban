@@ -264,6 +264,11 @@ const findLoadMoreButtonByStageId = (wrapper, stageId) =>
     button => Number(button.attributes('data-stage-id')) === stageId
   );
 
+const getStageCardIds = wrapper =>
+  findCardDraggables(wrapper).map(draggable =>
+    draggable.props('list').map(card => card.id)
+  );
+
 describe('KanbanView stage card pagination', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -620,6 +625,40 @@ describe('KanbanView stage card pagination', () => {
       firstStageBefore
     );
   });
+
+  it('updates cards count from returned total count on stage reload', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({ has_more: true }),
+          },
+        ],
+      })
+    );
+
+    KanbanBoardsAPI.getStageCards
+      .mockRejectedValueOnce({
+        response: { status: 409, data: { error: 'refresh_required' } },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          cards: [buildCard({ id: 503 })],
+          pagination: buildPagination({ total_count: 5 }),
+        },
+      });
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    expect(wrapper.vm.$.setupState.stages[1].cardsCount).toBe(5);
+  });
 });
 
 describe('KanbanView drag and drop', () => {
@@ -635,6 +674,7 @@ describe('KanbanView drag and drop', () => {
   it('persists stage drag reorder using explicit position payload', async () => {
     const wrapper = await mountView();
     const draggables = wrapper.findAllComponents({ name: 'Draggable' });
+    KanbanBoardsAPI.show.mockClear();
 
     await draggables[0].vm.$emit('end', {
       item: { dataset: { stageId: '200' } },
@@ -646,6 +686,7 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.reorderStage).toHaveBeenCalledWith(10, 200, {
       position: 1,
     });
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
   });
 
   it('persists cross-stage card drag using target stage and position payload', async () => {
@@ -754,7 +795,13 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.reorderCardById).not.toHaveBeenCalled();
   });
 
-  it('refetches the current board after a manual opportunity is created', async () => {
+  it('refreshes only the target stage after a manual opportunity is created', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard({ id: 700, kanban_stage_id: 100 })],
+        pagination: buildPagination({ has_more: true, total_count: 2 }),
+      },
+    });
     const wrapper = await mountView();
 
     await findAddItemButtons(wrapper)[0].trigger('click');
@@ -763,7 +810,53 @@ describe('KanbanView drag and drop', () => {
     await findAddItemPicker(wrapper).vm.$emit('created');
     await flushPromises();
 
-    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
+    expect(getStageCardIds(wrapper)).toEqual([[700], []]);
+  });
+
+  it('replaces cards, pagination and extra pages after mutation refresh', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard({ id: 700, kanban_stage_id: 100 })],
+        pagination: buildPagination({
+          has_more: true,
+          next_cursor: { after_id: 700 },
+          total_count: 3,
+        }),
+      },
+    });
+    const wrapper = await mountView(
+      buildBoardResponse([], {
+        stages: [
+          {
+            ...buildBoardResponse().stages[0],
+            cards: [
+              buildCard({ id: 501, kanban_stage_id: 100 }),
+              buildCard({ id: 502, kanban_stage_id: 100 }),
+            ],
+            cards_count: 2,
+            pagination: buildPagination(),
+          },
+          buildBoardResponse().stages[1],
+        ],
+      })
+    );
+
+    await findAddItemButtons(wrapper)[0].trigger('click');
+    await findAddItemPicker(wrapper).vm.$emit('created');
+    await flushPromises();
+
+    expect(getStageCardIds(wrapper)[0]).toEqual([700]);
+    expect(wrapper.vm.$.setupState.stages[0].pagination).toEqual({
+      limit: 20,
+      hasMore: true,
+      nextCursor: { after_id: 700 },
+      totalCount: 3,
+    });
+    expect(wrapper.vm.$.setupState.stages[0].cardsCount).toBe(3);
   });
 
   it('opens the manual picker for every board', async () => {
@@ -775,6 +868,12 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('persists same-stage card reorder using updated position', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard({ id: 501, kanban_stage_id: 100, position: 1 })],
+        pagination: buildPagination({ total_count: 1 }),
+      },
+    });
     const wrapper = await mountView();
     const sourceStageCardDraggable = findCardDraggables(wrapper)[0];
 
@@ -797,9 +896,19 @@ describe('KanbanView drag and drop', () => {
         position: 1,
       },
     });
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledTimes(1);
   });
 
   it('persists populated-to-populated stage card move', async () => {
+    KanbanBoardsAPI.getStageCards.mockImplementation((boardId, stageId) => ({
+      data: {
+        cards: [buildCard({ id: stageId, kanban_stage_id: stageId })],
+        pagination: buildPagination({ total_count: 1 }),
+      },
+    }));
     const wrapper = await mountView(buildBoardResponse([buildCard()]));
     const targetStageCardDraggable = findCardDraggables(wrapper)[1];
 
@@ -822,6 +931,13 @@ describe('KanbanView drag and drop', () => {
         position: 2,
       },
     });
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledTimes(1);
   });
 
   it('ignores source removed card drag events', async () => {
@@ -911,6 +1027,9 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('removes cards using stable card id', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: { cards: [], pagination: buildPagination({ total_count: 0 }) },
+    });
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -918,6 +1037,7 @@ describe('KanbanView drag and drop', () => {
 
     cardComponent.vm.$emit('removeCard', {
       id: 501,
+      kanbanStageId: 100,
       conversationId: 123,
       conversation: { meta: { sender: { name: 'Jane' } } },
     });
@@ -926,6 +1046,10 @@ describe('KanbanView drag and drop', () => {
     await flushPromises();
 
     expect(KanbanBoardsAPI.deleteCardById).toHaveBeenCalledWith(10, 501);
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledTimes(1);
   });
 
   it('opens opportunity modal on card click', async () => {
@@ -979,8 +1103,41 @@ describe('KanbanView drag and drop', () => {
     ).toBe(false);
   });
 
-  it('refetches board on modal updated event', async () => {
+  it('patches visible card locally on modal updated event', async () => {
     KanbanBoardsAPI.show.mockClear();
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+
+    const modal = wrapper.findComponent({
+      name: 'KanbanOpportunityDetailsModal',
+    });
+    KanbanBoardsAPI.show.mockClear();
+    modal.vm.$emit('updated', {
+      id: 501,
+      kanbanStageId: 100,
+      subject: 'Updated subject',
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
+    expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
+    expect(findCardDraggables(wrapper)[0].props('list')[0].subject).toBe(
+      'Updated subject'
+    );
+  });
+
+  it('refreshes only the card stage when modal update cannot patch locally', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard({ id: 501, kanban_stage_id: 100 })],
+        pagination: buildPagination({ total_count: 1 }),
+      },
+    });
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -996,7 +1153,10 @@ describe('KanbanView drag and drop', () => {
     modal.vm.$emit('updated');
     await flushPromises();
 
-    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
   });
 
   it('navigates to conversation on modal openConversation event', async () => {
@@ -1068,6 +1228,7 @@ describe('KanbanView board edit form', () => {
 
     await startBoardEdit(wrapper);
     await findAutoCreateToggle(wrapper).setValue(false);
+    KanbanBoardsAPI.show.mockClear();
     await findBoardEditForm(wrapper).trigger('submit.prevent');
     await flushPromises();
 
@@ -1078,6 +1239,7 @@ describe('KanbanView board edit form', () => {
         auto_create_cards_from_conversations: false,
       },
     });
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
   });
 
   it('does not allow boards without stages to enable automation', async () => {
