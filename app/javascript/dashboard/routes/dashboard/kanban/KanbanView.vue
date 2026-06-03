@@ -40,6 +40,8 @@ const editingStageId = ref(null);
 const stageNames = ref({});
 const stageColors = ref({});
 const activeAddItemStageId = ref(null);
+const stageCardsLoading = ref({});
+const stageCardsErrors = ref({});
 const cardPendingRemoval = ref(null);
 const boardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
@@ -54,6 +56,7 @@ const defaultStageColor = 'blue';
 const newStageColor = ref(defaultStageColor);
 const cardDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
+const stageCardsPageLimit = 20;
 
 const stageColorOptions = [
   {
@@ -111,6 +114,31 @@ const isCardDragDisabled = computed(
 );
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
+const normalizeKanbanPayload = data => {
+  const payload = normalizePayload(data);
+
+  if (data?.pagination) {
+    payload.pagination = {
+      ...payload.pagination,
+      nextCursor: data.pagination.next_cursor,
+    };
+  }
+
+  if (data?.stages) {
+    payload.stages = payload.stages.map((stage, index) => ({
+      ...stage,
+      pagination: data.stages[index]?.pagination
+        ? {
+            ...stage.pagination,
+            nextCursor: data.stages[index].pagination.next_cursor,
+          }
+        : stage.pagination,
+    }));
+  }
+
+  return payload;
+};
+
 const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.error ||
   error?.response?.data?.message ||
@@ -121,6 +149,104 @@ const showActionError = (error, fallbackMessage) => {
   const message = getErrorMessage(error, fallbackMessage);
   actionError.value = message;
   useAlert(message);
+};
+
+const isRefreshRequiredError = error =>
+  error?.response?.status === 409 &&
+  error?.response?.data?.error === 'refresh_required';
+
+const getStageCardsError = stageId => stageCardsErrors.value[stageId] || '';
+
+const isStageCardsLoading = stageId => !!stageCardsLoading.value[stageId];
+
+const setStageCardsLoading = (stageId, isLoading) => {
+  stageCardsLoading.value = {
+    ...stageCardsLoading.value,
+    [stageId]: isLoading,
+  };
+};
+
+const setStageCardsError = (stageId, message = '') => {
+  stageCardsErrors.value = {
+    ...stageCardsErrors.value,
+    [stageId]: message,
+  };
+};
+
+const mergeCardsById = (existingCards = [], nextCards = []) => {
+  const cardIds = new Set(existingCards.map(card => card.id));
+  const uniqueNextCards = nextCards.filter(card => {
+    if (cardIds.has(card.id)) return false;
+
+    cardIds.add(card.id);
+    return true;
+  });
+
+  return [...existingCards, ...uniqueNextCards];
+};
+
+const updateStageCards = (stageId, updater) => {
+  if (!selectedBoard.value) return;
+
+  selectedBoard.value = {
+    ...selectedBoard.value,
+    stages: selectedBoard.value.stages.map(stage =>
+      stage.id === stageId ? updater(stage) : stage
+    ),
+  };
+};
+
+const applyStageCardsPage = (stageId, page, shouldAppend = true) => {
+  updateStageCards(stageId, stage => ({
+    ...stage,
+    cards: shouldAppend
+      ? mergeCardsById(stage.cards, page.cards)
+      : page.cards || [],
+    pagination: page.pagination || stage.pagination,
+  }));
+};
+
+const fetchStageCardsPage = async (stageId, params) => {
+  const response = await KanbanBoardsAPI.getStageCards(
+    selectedBoard.value.id,
+    stageId,
+    params
+  );
+
+  return normalizeKanbanPayload(response.data);
+};
+
+const reloadStageCards = async stageId => {
+  const page = await fetchStageCardsPage(stageId, {
+    limit: stageCardsPageLimit,
+  });
+  applyStageCardsPage(stageId, page, false);
+};
+
+const loadMoreStageCards = async stage => {
+  if (!selectedBoard.value?.id || !stage?.id || isStageCardsLoading(stage.id)) {
+    return;
+  }
+
+  setStageCardsLoading(stage.id, true);
+  setStageCardsError(stage.id);
+
+  try {
+    const page = await fetchStageCardsPage(stage.id, {
+      limit: stageCardsPageLimit,
+      cursor: stage.pagination?.nextCursor,
+    });
+    applyStageCardsPage(stage.id, page);
+  } catch (error) {
+    if (isRefreshRequiredError(error)) {
+      await reloadStageCards(stage.id);
+      return;
+    }
+
+    setStageCardsError(stage.id, t('KANBAN.ACTIONS.LOAD_CARDS_ERROR'));
+  } finally {
+    setStageCardsLoading(stage.id, false);
+  }
 };
 
 const getStageColorOption = color =>
@@ -159,7 +285,9 @@ const showBoard = async boardId => {
 
   try {
     const response = await KanbanBoardsAPI.show(boardId);
-    selectedBoard.value = normalizePayload(response.data);
+    stageCardsLoading.value = {};
+    stageCardsErrors.value = {};
+    selectedBoard.value = normalizeKanbanPayload(response.data);
   } catch {
     hasError.value = true;
     selectedBoard.value = null;
@@ -1077,6 +1205,30 @@ onMounted(fetchBoards);
                     />
                   </template>
                 </Draggable>
+
+                <div
+                  v-if="getStageCardsError(stage.id)"
+                  class="text-sm text-n-ruby-11"
+                >
+                  {{ getStageCardsError(stage.id) }}
+                </div>
+
+                <button
+                  v-if="stage.pagination?.hasMore"
+                  type="button"
+                  data-testid="kanban-load-more-cards"
+                  :data-stage-id="stage.id"
+                  class="no-drag flex w-full items-center justify-center gap-1 rounded-md border border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="isStageCardsLoading(stage.id)"
+                  @click="loadMoreStageCards(stage)"
+                >
+                  <i class="i-lucide-loader-2 size-4" />
+                  {{
+                    isStageCardsLoading(stage.id)
+                      ? t('KANBAN.ACTIONS.LOADING_CARDS')
+                      : t('KANBAN.ACTIONS.LOAD_MORE_CARDS')
+                  }}
+                </button>
               </div>
             </section>
           </template>

@@ -47,9 +47,17 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     createStage: vi.fn(),
     updateStage: vi.fn(),
     deleteStage: vi.fn(),
+    getStageCards: vi.fn(),
     deleteCardById: vi.fn(),
   },
 }));
+
+const buildPagination = (overrides = {}) => ({
+  limit: 20,
+  has_more: false,
+  next_cursor: null,
+  ...overrides,
+});
 
 const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
   id: 10,
@@ -76,6 +84,8 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
           },
         },
       ],
+      cards_count: 1,
+      pagination: buildPagination(),
     },
     {
       id: 200,
@@ -83,6 +93,8 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
       active: true,
       position: 2,
       cards: stageBCards,
+      cards_count: stageBCards.length,
+      pagination: buildPagination(),
     },
   ],
   ...overrides,
@@ -112,6 +124,9 @@ const mountView = async (boardResponse = buildBoardResponse()) => {
   KanbanBoardsAPI.reorderStage.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.reorderCardById.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.deleteCardById.mockResolvedValue({ data: {} });
+  KanbanBoardsAPI.getStageCards.mockResolvedValue({
+    data: { cards: [], pagination: buildPagination() },
+  });
 
   const wrapper = shallowMount(KanbanView, {
     global: {
@@ -224,6 +239,9 @@ const findCardDraggables = wrapper =>
 const findAddItemButtons = wrapper =>
   wrapper.findAll('[data-testid="kanban-add-item-button"]');
 
+const findLoadMoreButtons = wrapper =>
+  wrapper.findAll('[data-testid="kanban-load-more-cards"]');
+
 const findAddItemPicker = wrapper =>
   wrapper.findComponent({ name: 'KanbanOpportunityPicker' });
 
@@ -240,6 +258,369 @@ const findBoardEditForm = wrapper =>
 
 const findAutoCreateToggle = wrapper =>
   wrapper.find('[data-testid="kanban-auto-create-toggle"]');
+
+const findLoadMoreButtonByStageId = (wrapper, stageId) =>
+  findLoadMoreButtons(wrapper).find(
+    button => Number(button.attributes('data-stage-id')) === stageId
+  );
+
+describe('KanbanView stage card pagination', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('renders the embedded first page without fetching stage cards', async () => {
+    const wrapper = await mountView();
+
+    const cards = wrapper.findAllComponents({ name: 'KanbanConversationCard' });
+
+    expect(cards).toHaveLength(1);
+    expect(cards[0].props('card').id).toBe(501);
+    expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
+  });
+
+  it('shows load more only for stages with more cards', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], {
+        stages: [
+          {
+            id: 100,
+            name: 'Stage A',
+            active: true,
+            position: 1,
+            cards: [buildCard({ id: 501, kanban_stage_id: 100 })],
+            cards_count: 2,
+            pagination: buildPagination({
+              has_more: true,
+              next_cursor: { after_id: 501 },
+            }),
+          },
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [],
+            cards_count: 0,
+            pagination: buildPagination(),
+          },
+        ],
+      })
+    );
+
+    const loadMoreButtons = findLoadMoreButtons(wrapper);
+
+    expect(loadMoreButtons).toHaveLength(1);
+    expect(loadMoreButtons[0].attributes('data-stage-id')).toBe('100');
+    expect(loadMoreButtons[0].text()).toContain(
+      'KANBAN.ACTIONS.LOAD_MORE_CARDS'
+    );
+  });
+
+  it('loads more cards with the stage cursor', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard({ id: 503 })],
+        pagination: buildPagination(),
+      },
+    });
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({
+              has_more: true,
+              next_cursor: { after_id: 502 },
+            }),
+          },
+        ],
+      })
+    );
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
+      limit: 20,
+      cursor: { after_id: 502 },
+    });
+  });
+
+  it('appends returned cards only to the target stage', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard({ id: 503 })],
+        pagination: buildPagination(),
+      },
+    });
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({ has_more: true }),
+          },
+        ],
+      })
+    );
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    const cardLists = findCardDraggables(wrapper).map(draggable =>
+      draggable.props('list').map(card => card.id)
+    );
+    expect(cardLists[0]).toEqual([501]);
+    expect(cardLists[1]).toEqual([502, 503]);
+  });
+
+  it('does not append duplicate card ids twice', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard(), buildCard({ id: 503 })],
+        pagination: buildPagination(),
+      },
+    });
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({ has_more: true }),
+          },
+        ],
+      })
+    );
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    expect(
+      findCardDraggables(wrapper)[1]
+        .props('list')
+        .map(card => card.id)
+    ).toEqual([502, 503]);
+  });
+
+  it('updates pagination metadata after loading more cards', async () => {
+    KanbanBoardsAPI.getStageCards
+      .mockResolvedValueOnce({
+        data: {
+          cards: [buildCard({ id: 503 })],
+          pagination: buildPagination({
+            has_more: true,
+            next_cursor: { after_id: 503 },
+          }),
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          cards: [buildCard({ id: 504 })],
+          pagination: buildPagination(),
+        },
+      });
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 3,
+            pagination: buildPagination({
+              has_more: true,
+              next_cursor: { after_id: 502 },
+            }),
+          },
+        ],
+      })
+    );
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenLastCalledWith(10, 200, {
+      limit: 20,
+      cursor: { after_id: 503 },
+    });
+    expect(findLoadMoreButtonByStageId(wrapper, 200)).toBeUndefined();
+  });
+
+  it('disables duplicate loads while a stage request is pending', async () => {
+    let resolveLoadMore;
+    KanbanBoardsAPI.getStageCards.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveLoadMore = resolve;
+      })
+    );
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({ has_more: true }),
+          },
+        ],
+      })
+    );
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledTimes(1);
+    expect(
+      findLoadMoreButtonByStageId(wrapper, 200).attributes('disabled')
+    ).toBeDefined();
+
+    resolveLoadMore({
+      data: { cards: [buildCard({ id: 503 })], pagination: buildPagination() },
+    });
+    await flushPromises();
+  });
+
+  it('preserves loaded cards and shows an error on ordinary failure', async () => {
+    KanbanBoardsAPI.getStageCards.mockRejectedValueOnce(new Error('Network'));
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({ has_more: true }),
+          },
+        ],
+      })
+    );
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    expect(
+      findCardDraggables(wrapper)[1]
+        .props('list')
+        .map(card => card.id)
+    ).toEqual([502]);
+    expect(wrapper.text()).toContain('KANBAN.ACTIONS.LOAD_CARDS_ERROR');
+  });
+
+  it('reloads the stage from page one on refresh_required conflicts', async () => {
+    KanbanBoardsAPI.getStageCards
+      .mockRejectedValueOnce({
+        response: { status: 409, data: { error: 'refresh_required' } },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          cards: [buildCard({ id: 600 })],
+          pagination: buildPagination(),
+        },
+      });
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({
+              has_more: true,
+              next_cursor: { after_id: 502 },
+            }),
+          },
+        ],
+      })
+    );
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenNthCalledWith(1, 10, 200, {
+      limit: 20,
+      cursor: { after_id: 502 },
+    });
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenNthCalledWith(2, 10, 200, {
+      limit: 20,
+    });
+    expect(
+      findCardDraggables(wrapper)[1]
+        .props('list')
+        .map(card => card.id)
+    ).toEqual([600]);
+  });
+
+  it('keeps other stages unchanged when a target stage reloads', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard({ id: 503 })],
+        pagination: buildPagination(),
+      },
+    });
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({ has_more: true }),
+          },
+        ],
+      })
+    );
+
+    const firstStageBefore = findCardDraggables(wrapper)[0].props('list');
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    expect(findCardDraggables(wrapper)[0].props('list')).toEqual(
+      firstStageBefore
+    );
+  });
+});
 
 describe('KanbanView drag and drop', () => {
   beforeEach(() => {
