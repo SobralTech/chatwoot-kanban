@@ -13,6 +13,7 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('updateStage');
     expect(kanbanBoards).toHaveProperty('reorderStage');
     expect(kanbanBoards).toHaveProperty('deleteStage');
+    expect(kanbanBoards).toHaveProperty('getStageCards');
     expect(kanbanBoards).toHaveProperty('createManualCard');
     expect(kanbanBoards).toHaveProperty('updateCardById');
     expect(kanbanBoards).toHaveProperty('showCardById');
@@ -90,6 +91,44 @@ describe('#KanbanBoardsAPI', () => {
       expect(axiosMock.patch).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/stages/3/reorder',
         payload
+      );
+    });
+
+    it('#getStageCards with empty params', () => {
+      kanbanBoards.getStageCards(2, 3);
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/stages/3/cards',
+        { params: {} }
+      );
+    });
+
+    it('#getStageCards with limit', () => {
+      kanbanBoards.getStageCards(2, 3, { limit: 20 });
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/stages/3/cards',
+        { params: { limit: 20 } }
+      );
+    });
+
+    it('#getStageCards with cursor', () => {
+      const cursor = 'eyJpZCI6NTAxfQ==';
+      kanbanBoards.getStageCards(2, 3, { cursor });
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/stages/3/cards',
+        { params: { cursor } }
+      );
+    });
+
+    it('#getStageCards with limit and cursor', () => {
+      const cursor = 'eyJpZCI6NTAxfQ==';
+      kanbanBoards.getStageCards(2, 3, { limit: 20, cursor });
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/stages/3/cards',
+        { params: { limit: 20, cursor } }
       );
     });
 
