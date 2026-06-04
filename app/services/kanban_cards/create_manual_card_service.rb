@@ -18,6 +18,8 @@ class KanbanCards::CreateManualCardService
 
     KanbanCard.transaction do
       kanban_stage.lock!
+      lock_active_cards!
+      shift_active_cards_down!
       create_card!
     end
   rescue ActiveRecord::RecordNotUnique
@@ -57,7 +59,7 @@ class KanbanCards::CreateManualCardService
   end
 
   def create_card!
-    card = KanbanCard.create!(
+    KanbanCard.create!(
       account: account,
       kanban_board: kanban_board,
       kanban_stage: kanban_stage,
@@ -69,8 +71,16 @@ class KanbanCards::CreateManualCardService
       position: 1,
       active: true
     )
+  end
 
-    card.reorder_to_position!(kanban_stage: kanban_stage, position: 1)
+  def lock_active_cards!
+    KanbanCard.lock_active_cards_for_stages!(kanban_board, [kanban_stage.id])
+  end
+
+  def shift_active_cards_down!
+    KanbanCard.where(kanban_board: kanban_board, kanban_stage: kanban_stage).active.update_all( # rubocop:disable Rails/SkipsModelValidations
+      ['position = position + 1, updated_at = ?', Time.current]
+    )
   end
 
   def duplicate_subject?

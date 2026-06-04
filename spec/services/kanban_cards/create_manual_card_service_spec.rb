@@ -55,6 +55,30 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect(second_card.reload.position).to eq(3)
     end
 
+    it 'updates updated_at for mechanically shifted cards' do
+      shifted_card = create(
+        :kanban_card,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: kanban_stage,
+        position: 1,
+        updated_at: 2.days.ago
+      )
+
+      travel_to(Time.zone.parse('2026-01-01 12:00:00 UTC')) do
+        service.perform!
+      end
+
+      expect(shifted_card.reload.updated_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
+    end
+
+    it 'does not query labels tags or taggings per shifted card' do
+      baseline_query_count = labels_tags_taggings_query_count_for_manual_insert(card_count: 0)
+      shifted_query_count = labels_tags_taggings_query_count_for_manual_insert(card_count: 5)
+
+      expect(shifted_query_count).to eq(baseline_query_count)
+    end
+
     it 'leaves inactive cards untouched when inserting at the top' do
       inactive_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1, active: false)
 
@@ -237,5 +261,41 @@ RSpec.describe KanbanCards::CreateManualCardService do
 
   def raise_validation_error(message)
     raise_error(ActiveRecord::RecordInvalid, /#{Regexp.escape(message)}/)
+  end
+
+  def collect_sql_queries(&)
+    sql_queries = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      next if payload[:name] == 'SCHEMA'
+      next if payload[:sql].blank?
+
+      sql_queries << payload[:sql]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, 'sql.active_record', &)
+    sql_queries
+  end
+
+  def labels_tags_taggings_query_count(sql_queries)
+    sql_queries.count do |sql|
+      sql.match?(/FROM "labels"|JOIN "labels"|FROM "tags"|JOIN "tags"|FROM "taggings"|JOIN "taggings"/)
+    end
+  end
+
+  def labels_tags_taggings_query_count_for_manual_insert(card_count:)
+    board = create(:kanban_board, account: account)
+    stage = create(:kanban_stage, account: account, kanban_board: board)
+    create_labeled_cards(board, stage, card_count)
+    insert_service = build_service(kanban_board: board, kanban_stage: stage, subject: "Shift query test #{card_count}")
+
+    labels_tags_taggings_query_count(collect_sql_queries { insert_service.perform! })
+  end
+
+  def create_labeled_cards(board, stage, count)
+    Array.new(count) do |index|
+      create(:kanban_card, account: account, kanban_board: board, kanban_stage: stage, position: index + 1).tap do |card|
+        card.update_labels(["label-#{index}"])
+      end
+    end
   end
 end

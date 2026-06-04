@@ -45,13 +45,15 @@ class KanbanCards::AutoCreateFromConversationService
     if automatic_card_exists?(kanban_board)
       skip_existing_card
     else
+      lock_active_cards!(kanban_board, stage)
+      shift_active_cards_down!(kanban_board, stage)
       create_card!(kanban_board, stage)
       summary[:created] += 1
     end
   end
 
   def create_card!(kanban_board, stage)
-    card = KanbanCard.create!(
+    KanbanCard.create!(
       account_id: conversation.account_id,
       kanban_board: kanban_board,
       kanban_stage: stage,
@@ -64,8 +66,16 @@ class KanbanCards::AutoCreateFromConversationService
       position: 1,
       active: true
     )
+  end
 
-    card.reorder_to_position!(kanban_stage: stage, position: 1)
+  def lock_active_cards!(kanban_board, stage)
+    KanbanCard.lock_active_cards_for_stages!(kanban_board, [stage.id])
+  end
+
+  def shift_active_cards_down!(kanban_board, stage)
+    KanbanCard.where(kanban_board: kanban_board, kanban_stage: stage).active.update_all( # rubocop:disable Rails/SkipsModelValidations
+      ['position = position + 1, updated_at = ?', Time.current]
+    )
   end
 
   def automatic_card_exists?(kanban_board)
