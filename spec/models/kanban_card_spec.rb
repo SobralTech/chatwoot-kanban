@@ -385,6 +385,38 @@ RSpec.describe KanbanCard do
       expect(inactive_card.reload.position).to eq(1)
     end
 
+    it 'updates updated_at only for active cards whose positions change' do
+      board = create(:kanban_board)
+      stage = create(:kanban_stage, account: board.account, kanban_board: board)
+      original_time = 2.days.ago
+      unchanged_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1, updated_at: original_time)
+      changed_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 10, updated_at: original_time)
+      inactive_card = create(
+        :kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2, active: false, updated_at: original_time
+      )
+
+      travel_to(Time.zone.parse('2026-01-01 12:00:00 UTC')) do
+        described_class.normalize_positions_for_stage!(kanban_board: board, kanban_stage: stage)
+      end
+
+      expect(unchanged_card.reload.updated_at.to_i).to eq(original_time.to_i)
+      expect(changed_card.reload.updated_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
+      expect(inactive_card.reload.updated_at.to_i).to eq(original_time.to_i)
+    end
+
+    it 'does not query taggings while normalizing positions' do
+      board = create(:kanban_board)
+      stage = create(:kanban_stage, account: board.account, kanban_board: board)
+      create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 10)
+      create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 20)
+
+      sql_queries = collect_sql_queries do
+        described_class.normalize_positions_for_stage!(kanban_board: board, kanban_stage: stage)
+      end
+
+      expect(labels_tags_taggings_query_count(sql_queries)).to eq(0)
+    end
+
     it 'does not touch cards from other boards' do
       board = create(:kanban_board)
       stage = create(:kanban_stage, account: board.account, kanban_board: board)
@@ -532,8 +564,70 @@ RSpec.describe KanbanCard do
       expect(stage_positions(stage)).to eq([manual_card.id, conversation_card.id])
     end
 
+    it 'updates updated_at for mechanically reordered rows' do
+      board = create(:kanban_board)
+      stage = create(:kanban_stage, account: board.account, kanban_board: board)
+      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1, updated_at: 2.days.ago)
+      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2, updated_at: 2.days.ago)
+
+      travel_to(Time.zone.parse('2026-01-01 12:00:00 UTC')) do
+        second_card.reorder_to_position!(kanban_stage: stage, position: 1)
+      end
+
+      expect(first_card.reload.updated_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
+      expect(second_card.reload.updated_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
+    end
+
+    it 'does not query taggings while reordering positions' do
+      board = create(:kanban_board)
+      stage = create(:kanban_stage, account: board.account, kanban_board: board)
+      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1)
+      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2)
+      first_card.update_labels(%w[hot])
+      second_card.update_labels(%w[warm])
+
+      sql_queries = collect_sql_queries do
+        second_card.reorder_to_position!(kanban_stage: stage, position: 1)
+      end
+
+      expect(labels_tags_taggings_query_count(sql_queries)).to eq(0)
+    end
+
+    it 'deactivates and normalizes remaining active cards' do
+      board = create(:kanban_board)
+      stage = create(:kanban_stage, account: board.account, kanban_board: board)
+      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1)
+      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 5)
+      inactive_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 20, active: false)
+
+      first_card.deactivate_and_normalize!
+
+      expect(first_card.reload).not_to be_active
+      expect(second_card.reload.position).to eq(1)
+      expect(inactive_card.reload.position).to eq(20)
+    end
+
     def stage_positions(stage)
       described_class.where(kanban_stage: stage).active.ordered.pluck(:id)
+    end
+  end
+
+  def collect_sql_queries(&)
+    sql_queries = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      next if payload[:name] == 'SCHEMA'
+      next if payload[:sql].blank?
+
+      sql_queries << payload[:sql]
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, 'sql.active_record', &)
+    sql_queries
+  end
+
+  def labels_tags_taggings_query_count(sql_queries)
+    sql_queries.count do |sql|
+      sql.match?(/FROM "labels"|JOIN "labels"|FROM "tags"|JOIN "tags"|FROM "taggings"|JOIN "taggings"/)
     end
   end
 end

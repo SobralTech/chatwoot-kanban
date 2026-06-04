@@ -1,3 +1,4 @@
+# rubocop:disable Metrics/ClassLength
 class KanbanCard < ApplicationRecord
   include Labelable
 
@@ -40,9 +41,8 @@ class KanbanCard < ApplicationRecord
 
   def self.normalize_positions_for_stage!(kanban_board:, kanban_stage:)
     transaction do
-      stage_active_cards(kanban_board, kanban_stage).lock.each.with_index(1) do |card, position|
-        card.update!(position: position) if card.position != position
-      end
+      stage_active_cards(kanban_board, kanban_stage).lock.pluck(:id)
+      bulk_normalize_positions_for_stage!(kanban_board, kanban_stage)
     end
   end
 
@@ -77,7 +77,7 @@ class KanbanCard < ApplicationRecord
       self.class.lock_reorder_stages!([stage.id])
       self.class.lock_active_cards_for_stages!(kanban_board, [stage.id])
 
-      update!(active: false)
+      self.class.where(id: id).update_all(active: false, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
       self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: stage)
       reload
     end
@@ -94,6 +94,26 @@ class KanbanCard < ApplicationRecord
   def self.lock_active_cards_for_stages!(kanban_board, stage_ids)
     where(kanban_board: kanban_board, kanban_stage_id: stage_ids).active.order(:kanban_stage_id, :position, :created_at, :id).lock.each(&:id)
   end
+
+  def self.bulk_normalize_positions_for_stage!(kanban_board, kanban_stage)
+    connection.execute(<<~SQL.squish)
+      WITH ordered_cards AS (
+        SELECT id, row_number() OVER (ORDER BY position ASC, created_at ASC, id ASC) AS normalized_position
+        FROM #{quoted_table_name}
+        WHERE kanban_board_id = #{connection.quote(kanban_board.id)}
+          AND kanban_stage_id = #{connection.quote(kanban_stage.id)}
+          AND active = TRUE
+      )
+      UPDATE #{quoted_table_name}
+      SET position = ordered_cards.normalized_position,
+          updated_at = #{connection.quote(Time.current)}
+      FROM ordered_cards
+      WHERE #{quoted_table_name}.id = ordered_cards.id
+        AND #{quoted_table_name}.position != ordered_cards.normalized_position
+    SQL
+  end
+
+  private_class_method :bulk_normalize_positions_for_stage!
 
   private
 
@@ -130,17 +150,29 @@ class KanbanCard < ApplicationRecord
   end
 
   def update_stage_positions!(cards, target_stage)
-    cards.each_with_index do |card, index|
-      attributes = changed_position_attributes_for(card, target_stage, index + 1)
-      card.update!(attributes) if attributes.present?
+    changed_cards = cards.each_with_index.filter_map do |card, index|
+      position = index + 1
+      next if card.position == position && card.kanban_stage_id == target_stage.id
+
+      [card.id, position]
     end
+
+    return if changed_cards.blank?
+
+    # rubocop:disable Rails/SkipsModelValidations
+    self.class.where(id: changed_cards.map(&:first)).update_all(bulk_position_update_sql(changed_cards, target_stage))
+    # rubocop:enable Rails/SkipsModelValidations
   end
 
-  def changed_position_attributes_for(card, target_stage, position)
-    attributes = {}
-    attributes[:position] = position if card.position != position
-    attributes[:kanban_stage] = target_stage if card == self && card.kanban_stage != target_stage
-    attributes
+  def bulk_position_update_sql(changed_cards, target_stage)
+    position_cases = changed_cards.map { |card_id, position| "WHEN #{card_id} THEN #{position}" }.join(' ')
+    stage_cases = changed_cards.map { |card_id, _position| "WHEN #{card_id} THEN #{target_stage.id}" }.join(' ')
+
+    <<~SQL.squish
+      position = CASE id #{position_cases} ELSE position END,
+      kanban_stage_id = CASE id #{stage_cases} ELSE kanban_stage_id END,
+      updated_at = #{self.class.connection.quote(Time.current)}
+    SQL
   end
 
   def normalize_manual_subject
@@ -202,3 +234,4 @@ class KanbanCard < ApplicationRecord
     errors.add(:conversation, :invalid)
   end
 end
+# rubocop:enable Metrics/ClassLength
