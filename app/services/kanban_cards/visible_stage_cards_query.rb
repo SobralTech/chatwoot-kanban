@@ -25,13 +25,14 @@ class KanbanCards::VisibleStageCardsQuery
 
     anchor = cursor_after_id.present? ? cursor_anchor! : nil
     total_count = visible_cards.count
-    records = paginated_cards(anchor).limit(clamped_limit + 1).to_a
-    cards = records.first(clamped_limit)
+    ids = paginated_card_ids(anchor)
+    page_ids = ids.first(clamped_limit)
+    cards = payload_cards(page_ids)
 
     Result.new(
       cards: cards,
-      has_more: records.length > clamped_limit,
-      next_cursor: next_cursor_for(cards, records),
+      has_more: ids.length > clamped_limit,
+      next_cursor: next_cursor_for(page_ids, ids),
       total_count: total_count
     )
   end
@@ -55,24 +56,30 @@ class KanbanCards::VisibleStageCardsQuery
   def visible_cards
     @visible_cards ||= KanbanCard
                        .active
-                       .joins(:kanban_stage, :contact, :inbox)
                        .left_outer_joins(:conversation)
                        .where(account_id: account.id, kanban_board_id: kanban_board.id, kanban_stage_id: kanban_stage.id)
-                       .where(kanban_stages: { account_id: account.id, kanban_board_id: kanban_board.id, active: true })
-                       .where(contacts: { account_id: account.id })
-                       .where(inboxes: { account_id: account.id })
                        .where(visibility_condition)
   end
 
-  def paginated_cards(anchor)
-    scope = visible_cards.includes(
-      :conversation,
-      contact: { avatar_attachment: :blob },
-      inbox: [:channel, { avatar_attachment: :blob }]
-    ).ordered
-    return scope if anchor.blank?
+  def paginated_card_ids(anchor)
+    scope = visible_cards.ordered
+    scope = scope.where(after_anchor_condition(anchor)) if anchor.present?
 
-    scope.where(after_anchor_condition(anchor))
+    scope.limit(clamped_limit + 1).ids
+  end
+
+  def payload_cards(ids)
+    return [] if ids.blank?
+
+    cards_by_id = KanbanCard
+                  .where(id: ids)
+                  .includes(
+                    :conversation,
+                    contact: { avatar_attachment: :blob },
+                    inbox: [:channel, { avatar_attachment: :blob }]
+                  ).index_by(&:id)
+
+    ids.filter_map { |id| cards_by_id[id] }
   end
 
   def cursor_anchor!
@@ -100,10 +107,10 @@ class KanbanCards::VisibleStageCardsQuery
       .and(card_table[:id].gt(anchor.id))
   end
 
-  def next_cursor_for(cards, records)
-    return if records.length <= clamped_limit || cards.blank?
+  def next_cursor_for(page_ids, ids)
+    return if ids.length <= clamped_limit || page_ids.blank?
 
-    { after_id: cards.last.id }
+    { after_id: page_ids.last }
   end
 
   def clamped_limit

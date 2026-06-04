@@ -61,6 +61,16 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.next_cursor).to be_nil
     end
 
+    it 'restores payload cards to the id query order' do
+      third_card = create_visible_card(position: 3)
+      second_card = create_visible_card(position: 2)
+      first_card = create_visible_card(position: 1)
+
+      result = query.call
+
+      expect(result.cards).to eq([first_card, second_card, third_card])
+    end
+
     it 'excludes inactive cards' do
       active_card = create_visible_card(position: 1)
       create_visible_card(position: 2, active: false)
@@ -76,6 +86,38 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
 
       result = query.call
       expect(result.cards).to eq([visible_card])
+    end
+
+    it 'preserves administrator visibility' do
+      administrator = create(:user, account: account, role: :administrator)
+      administrator_account_user = administrator.account_users.find_by!(account: account)
+      visible_card = create_visible_card(position: 1)
+      unauthorized_inbox = create(:inbox, account: account)
+      unauthorized_card = create_visible_card(position: 2, inbox: unauthorized_inbox)
+
+      result = query(user: administrator, account_user: administrator_account_user).call
+
+      expect(result.cards).to eq([visible_card, unauthorized_card])
+    end
+
+    it 'preserves agent bot visibility for conversation cards' do
+      agent_bot = create(:agent_bot, account: account)
+      contact = create(:contact, account: account)
+      conversation = create(:conversation, account: account, inbox: inbox, contact: contact)
+      conversation_card = create(
+        :kanban_card,
+        :conversation_origin,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: kanban_stage,
+        conversation: conversation,
+        position: 1
+      )
+      create_visible_card(position: 2)
+
+      result = query(user: agent_bot).call
+
+      expect(result.cards).to eq([conversation_card])
     end
 
     it 'raises refresh-required error when cursor anchor is missing' do
@@ -95,6 +137,22 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       card.update!(active: false)
 
       expect { query(cursor: { after_id: card.id }).call }.to raise_error(described_class::RefreshRequiredError)
+    end
+
+    it 'raises refresh-required error when cursor anchor is invisible' do
+      unauthorized_inbox = create(:inbox, account: account)
+      card = create_visible_card(position: 1, inbox: unauthorized_inbox)
+
+      expect { query(cursor: { after_id: card.id }).call }.to raise_error(described_class::RefreshRequiredError)
+    end
+
+    it 'keeps total_count based on all visible cards' do
+      cards = create_visible_cards(3)
+
+      result = query(limit: 1, cursor: { after_id: cards.first.id }).call
+
+      expect(result.cards).to eq([cards.second])
+      expect(result.total_count).to eq(3)
     end
 
     it 'keeps query count bounded with 30 cards' do
@@ -177,17 +235,38 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
 
       expect(query_counts.slice(:messages, :notes, :labels_tags_taggings)).to eq(messages: 0, notes: 0, labels_tags_taggings: 0)
     end
+
+    it 'explains the minimal ordered id query' do
+      create_visible_cards(30)
+
+      plan = explain_analyze_id_query
+
+      expect(plan).to include('kanban_cards')
+      expect(active_ordering_index_used?(plan) || plan.include?('Sort Key: kanban_cards."position"')).to be(true)
+    end
   end
 
-  def query(limit: nil, cursor: nil)
+  def query(limit: nil, cursor: nil, user: agent, account_user: nil)
     described_class.new(
       account: account,
-      user: agent,
+      user: user,
       kanban_board: kanban_board,
       kanban_stage: kanban_stage,
       limit: limit,
-      cursor: cursor
+      cursor: cursor,
+      account_user: account_user
     )
+  end
+
+  def explain_analyze_id_query
+    relation = query.send(:visible_cards).ordered.limit(described_class::DEFAULT_LIMIT + 1).select(:id)
+    rows = ActiveRecord::Base.connection.execute("EXPLAIN ANALYZE #{relation.to_sql}")
+
+    rows.map { |row| row['QUERY PLAN'] }.join("\n")
+  end
+
+  def active_ordering_index_used?(plan)
+    plan.include?('index_active_kanban_cards_on_board_stage_order')
   end
 
   def create_visible_cards(count)

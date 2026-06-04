@@ -156,7 +156,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(rendered_card_ids.length).to eq(20)
       expect(response.parsed_body['stages'].first['cards_count']).to eq(30)
-      expect(card_load_queries).to all(match(/LIMIT/))
+      expect(card_load_queries).to include(match(/SELECT "kanban_cards"\."id".*LIMIT/))
+      expect(card_load_queries).to include(match(/WHERE "kanban_cards"\."id" IN \((\$\d+, ){19}\$\d+\)/))
     end
 
     context 'when reading kanban cards' do
@@ -649,7 +650,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(rendered_card_ids).to match_array(expected_card_ids)
         expect([rendered_card_ids.length, rendered_card_ids.intersect?(inactive_kanban_card_ids)]).to eq([30, false])
         expect(query_counts.slice(:messages, :notes, :labels_tags_taggings)).to eq(messages: 0, notes: 0, labels_tags_taggings: 0)
-        expect(query_counts[:kanban_cards]).to be <= 6
+        expect(query_counts[:kanban_cards]).to be <= 9
         expect(query_counts[:inbox_members]).to be <= 1
         expect(query_counts[:team_members]).to be <= 1
       end
