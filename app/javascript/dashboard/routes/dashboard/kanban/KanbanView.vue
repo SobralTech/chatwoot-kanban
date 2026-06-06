@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
@@ -8,6 +8,8 @@ import Draggable from 'vuedraggable';
 import { useAlert } from 'dashboard/composables';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 import KanbanConversationCard from './KanbanConversationCard.vue';
 import KanbanOpportunityDetailsModal from './KanbanOpportunityDetailsModal.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
@@ -58,6 +60,13 @@ const newStageColor = ref(defaultStageColor);
 const cardDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
 const stageCardsPageLimit = 20;
+const boardRefreshEvents = new Set([
+  'kanban.board.updated',
+  'kanban.stage.created',
+  'kanban.stage.updated',
+  'kanban.stage.deleted',
+  'kanban.stage.reordered',
+]);
 
 const stageColorOptions = [
   {
@@ -882,12 +891,65 @@ const onOpportunityOpenConversation = card => {
   closeOpportunityDetails();
 };
 
+const handleRealtimeCardUpdated = async data => {
+  try {
+    const response = await KanbanBoardsAPI.showCardById(
+      selectedBoard.value.id,
+      data.card_id
+    );
+    const card = normalizePayload(response.data);
+
+    if (card.active === false || !patchVisibleCard(card)) {
+      await refreshStageFirstPage(data.stage_id);
+    }
+  } catch {
+    await refreshStageFirstPage(data.stage_id);
+  }
+};
+
+const handleRealtimeKanbanEvent = ({ event, data } = {}) => {
+  if (!selectedBoard.value?.id || data?.board_id !== selectedBoard.value.id) {
+    return;
+  }
+
+  if (boardRefreshEvents.has(event)) {
+    refreshSelectedBoard();
+    return;
+  }
+
+  if (event === 'kanban.card.created' || event === 'kanban.card.deleted') {
+    refreshStageFirstPage(data.stage_id);
+    return;
+  }
+
+  if (event === 'kanban.card.reordered') {
+    if (data.source_stage_id === data.target_stage_id) {
+      refreshStageFirstPage(data.source_stage_id);
+      return;
+    }
+
+    refreshStageFirstPages([data.source_stage_id, data.target_stage_id]);
+    return;
+  }
+
+  if (event === 'kanban.card.updated') {
+    handleRealtimeCardUpdated(data);
+  }
+};
+
 watch(activeBoardId, boardId => {
   if (!boards.value.length) return;
   showBoard(boardId);
 });
 
-onMounted(fetchBoards);
+onMounted(() => {
+  emitter.on(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
+  fetchBoards();
+});
+
+onUnmounted(() => {
+  emitter.off(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
+});
 </script>
 
 <template>

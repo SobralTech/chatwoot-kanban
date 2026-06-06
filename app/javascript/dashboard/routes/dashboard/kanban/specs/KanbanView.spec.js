@@ -2,6 +2,8 @@ import { flushPromises, shallowMount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import KanbanView from '../KanbanView.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -35,6 +37,13 @@ vi.mock('dashboard/helper/URLHelper', () => ({
     `/app/accounts/${accountId}/conversations/${id}`,
 }));
 
+vi.mock('shared/helpers/mitt', () => ({
+  emitter: {
+    on: vi.fn(),
+    off: vi.fn(),
+  },
+}));
+
 vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     get: vi.fn(),
@@ -49,6 +58,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     deleteStage: vi.fn(),
     getStageCards: vi.fn(),
     deleteCardById: vi.fn(),
+    showCardById: vi.fn(),
   },
 }));
 
@@ -126,6 +136,9 @@ const mountView = async (boardResponse = buildBoardResponse()) => {
   KanbanBoardsAPI.deleteCardById.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.getStageCards.mockResolvedValue({
     data: { cards: [], pagination: buildPagination() },
+  });
+  KanbanBoardsAPI.showCardById.mockResolvedValue({
+    data: buildCard({ id: 501, kanban_stage_id: 100 }),
   });
 
   const wrapper = shallowMount(KanbanView, {
@@ -259,14 +272,257 @@ const findBoardEditForm = wrapper =>
 const findAutoCreateToggle = wrapper =>
   wrapper.find('[data-testid="kanban-auto-create-toggle"]');
 
-const findLoadMoreButtonByStageId = (wrapper, stageId) =>
-  findLoadMoreButtons(wrapper).find(
-    button => Number(button.attributes('data-stage-id')) === stageId
-  );
-
 const getStageCardIds = wrapper =>
   findCardDraggables(wrapper).map(draggable =>
     draggable.props('list').map(card => card.id)
+  );
+
+const getKanbanRealtimeHandler = () =>
+  emitter.on.mock.calls.find(
+    ([eventName]) => eventName === BUS_EVENTS.KANBAN_REALTIME_EVENT
+  )?.[1];
+
+const emitKanbanRealtimeEvent = async payload => {
+  getKanbanRealtimeHandler()(payload);
+  await flushPromises();
+  await nextTick();
+};
+
+describe('KanbanView realtime events', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('registers the kanban realtime bus listener on mount', async () => {
+    await mountView();
+
+    expect(emitter.on).toHaveBeenCalledWith(
+      BUS_EVENTS.KANBAN_REALTIME_EVENT,
+      expect.any(Function)
+    );
+  });
+
+  it('removes the kanban realtime bus listener on unmount', async () => {
+    const wrapper = await mountView();
+    const handler = getKanbanRealtimeHandler();
+
+    wrapper.unmount();
+
+    expect(emitter.off).toHaveBeenCalledWith(
+      BUS_EVENTS.KANBAN_REALTIME_EVENT,
+      handler
+    );
+  });
+
+  it('ignores events for another board', async () => {
+    await mountView();
+    KanbanBoardsAPI.show.mockClear();
+    KanbanBoardsAPI.getStageCards.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.created',
+      data: { board_id: 99, stage_id: 100, card_id: 501 },
+    });
+
+    expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
+    expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
+  });
+
+  it('refreshes selected board for board updates', async () => {
+    await mountView();
+    KanbanBoardsAPI.show.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.board.updated',
+      data: { board_id: 10 },
+    });
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+    expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'kanban.stage.created',
+    'kanban.stage.updated',
+    'kanban.stage.deleted',
+    'kanban.stage.reordered',
+  ])('refreshes selected board for %s', async event => {
+    await mountView();
+    KanbanBoardsAPI.show.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event,
+      data: { board_id: 10, stage_id: 100 },
+    });
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+    expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
+  });
+
+  it('refreshes one stage for card created events', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard({ id: 700, kanban_stage_id: 100 })],
+        pagination: buildPagination({ total_count: 1 }),
+      },
+    });
+    const wrapper = await mountView();
+    KanbanBoardsAPI.show.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.created',
+      data: { board_id: 10, stage_id: 100, card_id: 700 },
+    });
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
+    expect(getStageCardIds(wrapper)).toEqual([[700], []]);
+  });
+
+  it('refreshes one stage for card deleted events', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: { cards: [], pagination: buildPagination({ total_count: 0 }) },
+    });
+    const wrapper = await mountView();
+    KanbanBoardsAPI.show.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.deleted',
+      data: { board_id: 10, stage_id: 100, card_id: 501 },
+    });
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
+    expect(getStageCardIds(wrapper)).toEqual([[], []]);
+  });
+
+  it('refreshes one stage for same-stage card reorder events', async () => {
+    await mountView();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.reordered',
+      data: {
+        board_id: 10,
+        card_id: 501,
+        source_stage_id: 100,
+        target_stage_id: 100,
+      },
+    });
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledTimes(1);
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+  });
+
+  it('refreshes two stages for cross-stage card reorder events', async () => {
+    await mountView();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.reordered',
+      data: {
+        board_id: 10,
+        card_id: 501,
+        source_stage_id: 100,
+        target_stage_id: 200,
+      },
+    });
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
+      limit: 20,
+    });
+  });
+
+  it('fetches card detail and patches visible cards for card updated events', async () => {
+    KanbanBoardsAPI.showCardById.mockResolvedValueOnce({
+      data: {
+        id: 501,
+        kanban_stage_id: 100,
+        subject: 'Realtime subject',
+        active: true,
+      },
+    });
+    const wrapper = await mountView();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.updated',
+      data: { board_id: 10, stage_id: 100, card_id: 501 },
+    });
+
+    expect(KanbanBoardsAPI.showCardById).toHaveBeenCalledWith(10, 501);
+    expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
+    expect(findCardDraggables(wrapper)[0].props('list')[0].subject).toBe(
+      'Realtime subject'
+    );
+  });
+
+  it('refreshes the stage when card updated detail fetch fails', async () => {
+    KanbanBoardsAPI.showCardById.mockRejectedValueOnce(new Error('Not found'));
+    await mountView();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.updated',
+      data: { board_id: 10, stage_id: 100, card_id: 501 },
+    });
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+  });
+
+  it('preserves other stages when a realtime stage refresh replaces page one', async () => {
+    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
+      data: {
+        cards: [buildCard({ id: 700, kanban_stage_id: 200 })],
+        pagination: buildPagination({ has_more: true, total_count: 3 }),
+      },
+    });
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          {
+            ...buildBoardResponse().stages[0],
+            cards: [buildCard({ id: 501, kanban_stage_id: 100 })],
+            pagination: buildPagination({ has_more: true }),
+          },
+          {
+            ...buildBoardResponse().stages[1],
+            cards: [buildCard({ id: 502, kanban_stage_id: 200 })],
+            cards_count: 2,
+            pagination: buildPagination({ next_cursor: { after_id: 502 } }),
+          },
+        ],
+      })
+    );
+    const firstStageCards = findCardDraggables(wrapper)[0].props('list');
+    const firstStagePagination = wrapper.vm.$.setupState.stages[0].pagination;
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.created',
+      data: { board_id: 10, stage_id: 200, card_id: 700 },
+    });
+
+    expect(findCardDraggables(wrapper)[0].props('list')).toEqual(
+      firstStageCards
+    );
+    expect(wrapper.vm.$.setupState.stages[0].pagination).toEqual(
+      firstStagePagination
+    );
+    expect(getStageCardIds(wrapper)[1]).toEqual([700]);
+  });
+});
+
+const findLoadMoreButtonByStageId = (wrapper, stageId) =>
+  findLoadMoreButtons(wrapper).find(
+    button => Number(button.attributes('data-stage-id')) === stageId
   );
 
 describe('KanbanView stage card pagination', () => {
