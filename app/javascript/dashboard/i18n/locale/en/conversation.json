@@ -23,7 +23,13 @@
       "RESULT_TITLE": "Search Results",
       "LOADING_MESSAGE": "Crunching data...",
       "PLACEHOLDER": "Type any text to search messages",
-      "NO_MATCHING_RESULTS": "No results found."
+      "NO_MATCHING_RESULTS": "No results found.",
+      "SEARCH_IN_CONVERSATION": "Search in conversation",
+      "PREVIOUS_RESULT": "Previous result",
+      "NEXT_RESULT": "Next result",
+      "CLOSE_SEARCH": "Close search",
+      "NO_RESULTS": "No results",
+      "FAILED_TO_SEARCH_MESSAGES": "Failed to search messages"
     },
     "UNREAD_MESSAGES": "Unread Messages",
     "UNREAD_MESSAGE": "Unread Message",

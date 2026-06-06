@@ -14,6 +14,7 @@ vi.mock('dashboard/api/inbox/message', () => ({
 describe('ConversationBox', () => {
   let currentChat;
   let store;
+  let wrapper;
 
   const createWrapper = () => {
     store = createStore({
@@ -35,7 +36,8 @@ describe('ConversationBox', () => {
       },
     });
 
-    return shallowMount(ConversationBox, {
+    wrapper = shallowMount(ConversationBox, {
+      attachTo: document.body,
       global: {
         plugins: [store],
         mocks: {
@@ -48,9 +50,12 @@ describe('ConversationBox', () => {
           DashboardAppFrame: true,
           WootTabs: true,
           WootTabsItem: true,
+          FluentIcon: true,
         },
       },
     });
+
+    return wrapper;
   };
 
   beforeEach(() => {
@@ -58,14 +63,99 @@ describe('ConversationBox', () => {
     MessageApi.searchMessages.mockReset();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+    wrapper?.unmount();
+    document.body.innerHTML = '';
+  });
+
   it('renders the conversation messages view when a conversation exists', () => {
-    const wrapper = createWrapper();
+    createWrapper();
 
     expect(wrapper.findComponent({ name: 'MessagesView' }).exists()).toBe(true);
   });
 
+  it('opens search with Ctrl+F when a conversation exists', async () => {
+    createWrapper();
+    const event = new KeyboardEvent('keydown', {
+      key: 'f',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    document.dispatchEvent(event);
+    await nextTick();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(wrapper.vm.isConversationSearchOpen).toBe(true);
+  });
+
+  it('opens search with Cmd+F when a conversation exists', async () => {
+    createWrapper();
+    const event = new KeyboardEvent('keydown', {
+      key: 'f',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    document.dispatchEvent(event);
+    await nextTick();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(wrapper.vm.isConversationSearchOpen).toBe(true);
+  });
+
+  it('does not hijack shortcut without a selected conversation', async () => {
+    currentChat = {};
+    createWrapper();
+    const event = new KeyboardEvent('keydown', {
+      key: 'f',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    document.dispatchEvent(event);
+    await nextTick();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(wrapper.vm.isConversationSearchOpen).toBe(false);
+  });
+
+  it('does not hijack shortcut from unrelated focused inputs', async () => {
+    createWrapper();
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    const event = new KeyboardEvent('keydown', {
+      key: 'f',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    input.dispatchEvent(event);
+    await nextTick();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(wrapper.vm.isConversationSearchOpen).toBe(false);
+  });
+
+  it('focuses search input after opening', async () => {
+    createWrapper();
+
+    wrapper.vm.openConversationSearch();
+    await nextTick();
+
+    expect(document.activeElement).toBe(
+      wrapper.find('[data-testid="conversation-search-input"]').element
+    );
+  });
+
   it('resets results without API call for a blank query', async () => {
-    const wrapper = createWrapper();
+    createWrapper();
     wrapper.vm.conversationSearchResults = [{ id: 1 }];
     wrapper.vm.conversationSearchMeta = { total_count: 1 };
 
@@ -80,7 +170,7 @@ describe('ConversationBox', () => {
     MessageApi.searchMessages.mockResolvedValue({
       data: { payload: [{ id: 1 }], meta: { total_count: 1 } },
     });
-    const wrapper = createWrapper();
+    createWrapper();
 
     await wrapper.vm.searchConversationMessages(' billing ');
 
@@ -99,7 +189,7 @@ describe('ConversationBox', () => {
         resolveSearch = resolve;
       })
     );
-    const wrapper = createWrapper();
+    createWrapper();
 
     const searchPromise = wrapper.vm.searchConversationMessages('billing');
     await nextTick();
@@ -115,7 +205,7 @@ describe('ConversationBox', () => {
   it('stores API errors', async () => {
     const error = new Error('Search failed');
     MessageApi.searchMessages.mockRejectedValue(error);
-    const wrapper = createWrapper();
+    createWrapper();
 
     await wrapper.vm.searchConversationMessages('billing');
 
@@ -130,7 +220,7 @@ describe('ConversationBox', () => {
       .mockResolvedValueOnce({
         data: { payload: [{ id: 2 }], meta: { total_count: 1 } },
       });
-    const wrapper = createWrapper();
+    createWrapper();
 
     await wrapper.vm.searchConversationMessages('billing');
     await wrapper.vm.searchConversationMessages('refund');
@@ -146,7 +236,7 @@ describe('ConversationBox', () => {
         meta: { total_count: 2, limit: 20, has_more: false },
       },
     });
-    const wrapper = createWrapper();
+    createWrapper();
     wrapper.vm.conversationSearchQuery = 'billing';
     wrapper.vm.conversationSearchResults = [{ id: 2 }];
     wrapper.vm.conversationSearchMeta = {
@@ -185,7 +275,7 @@ describe('ConversationBox', () => {
       .mockResolvedValueOnce({
         data: { payload: [{ id: 2 }], meta: { total_count: 1 } },
       });
-    const wrapper = createWrapper();
+    createWrapper();
 
     const firstSearchPromise = wrapper.vm.searchConversationMessages('billing');
     await wrapper.vm.searchConversationMessages('refund');
@@ -200,7 +290,7 @@ describe('ConversationBox', () => {
   });
 
   it('resets search state when selected conversation changes', async () => {
-    const wrapper = createWrapper();
+    createWrapper();
     wrapper.vm.conversationSearchQuery = 'billing';
     wrapper.vm.conversationSearchResults = [{ id: 1 }];
     wrapper.vm.conversationSearchMeta = { total_count: 1 };
@@ -213,6 +303,151 @@ describe('ConversationBox', () => {
     });
     await nextTick();
 
+    expect(wrapper.vm.conversationSearchQuery).toBe('');
+    expect(wrapper.vm.conversationSearchResults).toEqual([]);
+    expect(wrapper.vm.conversationSearchMeta).toEqual({});
+  });
+
+  it('triggers debounced backend search from input', async () => {
+    vi.useFakeTimers();
+    MessageApi.searchMessages.mockResolvedValue({
+      data: { payload: [{ id: 1 }], meta: { total_count: 1 } },
+    });
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="conversation-search-input"]')
+      .setValue('billing');
+
+    expect(MessageApi.searchMessages).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(MessageApi.searchMessages).toHaveBeenCalledWith(1, {
+      q: 'billing',
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it('resets debounced blank input without API call', async () => {
+    vi.useFakeTimers();
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchResults = [{ id: 1 }];
+    wrapper.vm.conversationSearchMeta = { total_count: 1 };
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="conversation-search-input"]')
+      .setValue('');
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(MessageApi.searchMessages).not.toHaveBeenCalled();
+    expect(wrapper.vm.conversationSearchResults).toEqual([]);
+    expect(wrapper.vm.conversationSearchMeta).toEqual({});
+  });
+
+  it('renders the current result counter', async () => {
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 1 }];
+    wrapper.vm.conversationSearchMeta = { total_count: 14 };
+    wrapper.vm.activeConversationSearchResultIndex = 0;
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="conversation-search-counter"]').text()
+    ).toBe('1/14');
+  });
+
+  it('next button updates active index', async () => {
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 1 }];
+    wrapper.vm.activeConversationSearchResultIndex = 0;
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="conversation-search-next"]')
+      .trigger('click');
+
+    expect(wrapper.vm.activeConversationSearchResultIndex).toBe(1);
+  });
+
+  it('previous button updates active index', async () => {
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 1 }];
+    wrapper.vm.activeConversationSearchResultIndex = 0;
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="conversation-search-previous"]')
+      .trigger('click');
+
+    expect(wrapper.vm.activeConversationSearchResultIndex).toBe(1);
+  });
+
+  it('Enter selects the next result', async () => {
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 1 }];
+    wrapper.vm.activeConversationSearchResultIndex = 0;
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="conversation-search-input"]')
+      .trigger('keydown', { key: 'Enter' });
+
+    expect(wrapper.vm.activeConversationSearchResultIndex).toBe(1);
+  });
+
+  it('Shift+Enter selects the previous result', async () => {
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 1 }];
+    wrapper.vm.activeConversationSearchResultIndex = 0;
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="conversation-search-input"]')
+      .trigger('keydown', { key: 'Enter', shiftKey: true });
+
+    expect(wrapper.vm.activeConversationSearchResultIndex).toBe(1);
+  });
+
+  it('Escape closes and resets search', async () => {
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchQuery = 'billing';
+    wrapper.vm.conversationSearchResults = [{ id: 1 }];
+    wrapper.vm.conversationSearchMeta = { total_count: 1 };
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="conversation-search-input"]')
+      .trigger('keydown', { key: 'Escape' });
+
+    expect(wrapper.vm.isConversationSearchOpen).toBe(false);
+    expect(wrapper.vm.conversationSearchQuery).toBe('');
+    expect(wrapper.vm.conversationSearchResults).toEqual([]);
+  });
+
+  it('close button closes and resets search', async () => {
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchQuery = 'billing';
+    wrapper.vm.conversationSearchResults = [{ id: 1 }];
+    wrapper.vm.conversationSearchMeta = { total_count: 1 };
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="conversation-search-close"]')
+      .trigger('click');
+
+    expect(wrapper.vm.isConversationSearchOpen).toBe(false);
     expect(wrapper.vm.conversationSearchQuery).toBe('');
     expect(wrapper.vm.conversationSearchResults).toEqual([]);
     expect(wrapper.vm.conversationSearchMeta).toEqual({});
