@@ -17,6 +17,17 @@ import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 
 const { isImpersonating } = useImpersonation();
 const UNREAD_COUNTS_REFETCH_THROTTLE_MS = 5000;
+const KANBAN_EVENTS = [
+  'kanban.board.updated',
+  'kanban.stage.created',
+  'kanban.stage.updated',
+  'kanban.stage.deleted',
+  'kanban.stage.reordered',
+  'kanban.card.created',
+  'kanban.card.updated',
+  'kanban.card.deleted',
+  'kanban.card.reordered',
+];
 
 class ActionCableConnector extends BaseActionCableConnector {
   constructor(app, pubsubToken) {
@@ -54,8 +65,16 @@ class ActionCableConnector extends BaseActionCableConnector {
       'voice_call.outbound_connected': this.onVoiceCallOutboundConnected,
       'voice_call.outbound_accepted': this.onVoiceCallOutboundAccepted,
       'voice_call.ended': this.onVoiceCallEnded,
+      ...this.kanbanEventHandlers(),
     };
   }
+
+  kanbanEventHandlers = () => {
+    return KANBAN_EVENTS.reduce((handlers, event) => {
+      handlers[event] = data => this.onKanbanRealtimeEvent(event, data);
+      return handlers;
+    }, {});
+  };
 
   // eslint-disable-next-line class-methods-use-this
   onReconnect = () => {
@@ -262,6 +281,11 @@ class ActionCableConnector extends BaseActionCableConnector {
 
   onCopilotMessageCreated = data => {
     this.app.$store.dispatch('copilotMessages/upsert', data);
+  };
+
+  // eslint-disable-next-line class-methods-use-this
+  onKanbanRealtimeEvent = (event, data) => {
+    emitter.emit(BUS_EVENTS.KANBAN_REALTIME_EVENT, { event, data });
   };
 
   onEnrichmentCompleted = () => {

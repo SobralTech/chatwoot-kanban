@@ -1,5 +1,7 @@
 import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
 import ActionCableConnector from '../actionCable';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 vi.mock('shared/helpers/mitt', () => ({
   emitter: {
@@ -16,6 +18,18 @@ vi.mock('dashboard/composables/useImpersonation', () => ({
 global.chatwootConfig = {
   websocketURL: 'wss://test.chatwoot.com',
 };
+
+const KANBAN_EVENTS = [
+  'kanban.board.updated',
+  'kanban.stage.created',
+  'kanban.stage.updated',
+  'kanban.stage.deleted',
+  'kanban.stage.reordered',
+  'kanban.card.created',
+  'kanban.card.updated',
+  'kanban.card.deleted',
+  'kanban.card.reordered',
+];
 
 describe('ActionCableConnector - Copilot Tests', () => {
   let store;
@@ -158,6 +172,76 @@ describe('ActionCableConnector - Copilot Tests', () => {
 
       vi.advanceTimersByTime(4000);
       expect(mockDispatch).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('kanban event handlers', () => {
+    it.each(KANBAN_EVENTS)(
+      'should register the %s event handler',
+      eventName => {
+        expect(Object.keys(actionCable.events)).toContain(eventName);
+        expect(actionCable.events[eventName]).toEqual(expect.any(Function));
+      }
+    );
+
+    it.each(KANBAN_EVENTS)(
+      'should route %s through the dashboard bus',
+      eventName => {
+        const data = {
+          account_id: 1,
+          board_id: 10,
+          stage_id: 20,
+          card_id: 30,
+        };
+
+        actionCable.onReceived({ event: eventName, data });
+
+        expect(emitter.emit).toHaveBeenCalledWith(
+          BUS_EVENTS.KANBAN_REALTIME_EVENT,
+          { event: eventName, data }
+        );
+        expect(mockDispatch).not.toHaveBeenCalled();
+      }
+    );
+
+    it('should preserve card reorder payload unchanged', () => {
+      const data = {
+        account_id: 1,
+        board_id: 10,
+        card_id: 30,
+        source_stage_id: 20,
+        target_stage_id: 21,
+      };
+
+      actionCable.onReceived({ event: 'kanban.card.reordered', data });
+
+      expect(emitter.emit).toHaveBeenCalledWith(
+        BUS_EVENTS.KANBAN_REALTIME_EVENT,
+        { event: 'kanban.card.reordered', data }
+      );
+    });
+
+    it('should ignore kanban events for other accounts', () => {
+      actionCable.onReceived({
+        event: 'kanban.card.created',
+        data: { account_id: 2, board_id: 10, stage_id: 20, card_id: 30 },
+      });
+
+      expect(emitter.emit).not.toHaveBeenCalledWith(
+        BUS_EVENTS.KANBAN_REALTIME_EVENT,
+        expect.anything()
+      );
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+
+    it('should leave unknown events unchanged', () => {
+      actionCable.onReceived({
+        event: 'kanban.unknown',
+        data: { account_id: 1, board_id: 10 },
+      });
+
+      expect(emitter.emit).not.toHaveBeenCalled();
+      expect(mockDispatch).not.toHaveBeenCalled();
     });
   });
 });
