@@ -55,6 +55,17 @@ module Events::Types
   NOTIFICATION_DELETED = 'notification.deleted'
   NOTIFICATION_UPDATED = 'notification.updated'
 
+  # kanban events
+  KANBAN_BOARD_UPDATED = 'kanban.board.updated'
+  KANBAN_STAGE_CREATED = 'kanban.stage.created'
+  KANBAN_STAGE_UPDATED = 'kanban.stage.updated'
+  KANBAN_STAGE_DELETED = 'kanban.stage.deleted'
+  KANBAN_STAGE_REORDERED = 'kanban.stage.reordered'
+  KANBAN_CARD_CREATED = 'kanban.card.created'
+  KANBAN_CARD_UPDATED = 'kanban.card.updated'
+  KANBAN_CARD_DELETED = 'kanban.card.deleted'
+  KANBAN_CARD_REORDERED = 'kanban.card.reordered'
+
   # agent events
   AGENT_ADDED = 'agent.added'
   AGENT_REMOVED = 'agent.removed'
