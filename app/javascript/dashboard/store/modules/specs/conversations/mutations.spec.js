@@ -698,6 +698,118 @@ describe('#mutations', () => {
     });
   });
 
+  describe('#MERGE_CONVERSATION_MESSAGE_WINDOW', () => {
+    it('adds missing messages without replacing the messages array', () => {
+      const existingMessages = [{ id: 1, created_at: '2026-01-01T10:00:00Z' }];
+      const state = {
+        allConversations: [{ id: 1, messages: existingMessages }],
+      };
+
+      mutations[types.MERGE_CONVERSATION_MESSAGE_WINDOW](state, {
+        id: 1,
+        data: [{ id: 2, created_at: '2026-01-01T10:01:00Z' }],
+      });
+
+      expect(state.allConversations[0].messages).toBe(existingMessages);
+      expect(
+        state.allConversations[0].messages.map(message => message.id)
+      ).toEqual([1, 2]);
+    });
+
+    it('deduplicates existing messages and preserves the loaded copy', () => {
+      const state = {
+        allConversations: [
+          {
+            id: 1,
+            messages: [
+              { id: 1, content: 'Loaded', created_at: '2026-01-01T10:00:00Z' },
+            ],
+          },
+        ],
+      };
+
+      mutations[types.MERGE_CONVERSATION_MESSAGE_WINDOW](state, {
+        id: 1,
+        data: [
+          { id: 1, content: 'Fetched', created_at: '2026-01-01T10:00:00Z' },
+        ],
+      });
+
+      expect(state.allConversations[0].messages).toEqual([
+        { id: 1, content: 'Loaded', created_at: '2026-01-01T10:00:00Z' },
+      ]);
+    });
+
+    it('keeps chronological order using id as a tie breaker', () => {
+      const state = {
+        allConversations: [
+          {
+            id: 1,
+            messages: [{ id: 3, created_at: '2026-01-01T10:01:00Z' }],
+          },
+        ],
+      };
+
+      mutations[types.MERGE_CONVERSATION_MESSAGE_WINDOW](state, {
+        id: 1,
+        data: [
+          { id: 2, created_at: '2026-01-01T10:00:00Z' },
+          { id: 1, created_at: '2026-01-01T10:00:00Z' },
+        ],
+      });
+
+      expect(
+        state.allConversations[0].messages.map(message => message.id)
+      ).toEqual([1, 2, 3]);
+    });
+
+    it('does not alter allMessagesLoaded', () => {
+      const state = {
+        allConversations: [
+          {
+            id: 1,
+            allMessagesLoaded: true,
+            messages: [{ id: 1, created_at: '2026-01-01T10:00:00Z' }],
+          },
+        ],
+      };
+
+      mutations[types.MERGE_CONVERSATION_MESSAGE_WINDOW](state, {
+        id: 1,
+        data: [{ id: 2, created_at: '2026-01-01T10:01:00Z' }],
+      });
+
+      expect(state.allConversations[0].allMessagesLoaded).toBe(true);
+    });
+
+    it('only affects the target conversation', () => {
+      const state = {
+        allConversations: [
+          {
+            id: 1,
+            messages: [{ id: 1, created_at: '2026-01-01T10:00:00Z' }],
+          },
+          {
+            id: 2,
+            messages: [{ id: 2, created_at: '2026-01-01T10:00:00Z' }],
+          },
+        ],
+      };
+
+      mutations[types.MERGE_CONVERSATION_MESSAGE_WINDOW](state, {
+        id: 1,
+        data: [{ id: 3, created_at: '2026-01-01T10:01:00Z' }],
+      });
+
+      expect(
+        state.allConversations[0].messages.map(message => message.id)
+      ).toEqual([1, 3]);
+      expect(
+        state.allConversations[1].messages.map(message => message.id)
+      ).toEqual([2]);
+    });
+  });
+
   describe('#ASSIGN_AGENT', () => {
     it('should assign agent to the correct conversation by ID', () => {
       const assignee = { id: 1, name: 'Agent' };

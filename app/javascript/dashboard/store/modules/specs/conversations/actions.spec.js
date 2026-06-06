@@ -649,6 +649,35 @@ describe('#addMentions', () => {
     ]);
   });
 
+  it('#mergeConversationMessageWindow', async () => {
+    axios.get.mockResolvedValue({
+      data: {
+        meta: { anchor_id: 2 },
+        payload: [{ id: 2, content: 'Window message' }],
+      },
+    });
+
+    await actions.mergeConversationMessageWindow(
+      { commit },
+      {
+        conversationId: 1,
+        around: 2,
+        before_limit: 10,
+        after_limit: 10,
+      }
+    );
+
+    expect(commit.mock.calls).toEqual([
+      [
+        types.MERGE_CONVERSATION_MESSAGE_WINDOW,
+        {
+          id: 1,
+          data: [{ id: 2, content: 'Window message' }],
+        },
+      ],
+    ]);
+  });
+
   describe('#fetchAllAttachments', () => {
     it('fetches all attachments', async () => {
       axios.get.mockResolvedValue({

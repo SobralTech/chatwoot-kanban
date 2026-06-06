@@ -100,6 +100,20 @@ class MessageApi extends ApiClient {
     return axios.get(`${this.url}/${conversationId}/messages`, { params });
   }
 
+  getMessageWindow(
+    conversationId,
+    { around, before_limit: beforeLimit, after_limit: afterLimit, signal } = {}
+  ) {
+    return axios.get(`${this.url}/${conversationId}/messages/window`, {
+      params: {
+        around,
+        before_limit: beforeLimit,
+        after_limit: afterLimit,
+      },
+      signal,
+    });
+  }
+
   searchMessages(
     conversationId,
     { q, limit, before_id: beforeId, signal } = {}

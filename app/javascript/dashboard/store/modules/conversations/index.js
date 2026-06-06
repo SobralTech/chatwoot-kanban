@@ -95,6 +95,32 @@ export const mutations = {
     chat.messages = data;
   },
 
+  [types.MERGE_CONVERSATION_MESSAGE_WINDOW](_state, { id, data }) {
+    const chat = getConversationById(_state)(id);
+    if (!chat || !data.length) return;
+
+    const messagesById = new Map(
+      chat.messages.map(message => [message.id, message])
+    );
+    data.forEach(message => {
+      if (!messagesById.has(message.id)) {
+        messagesById.set(message.id, message);
+      }
+    });
+
+    const sortedMessages = Array.from(messagesById.values()).sort(
+      (messageA, messageB) => {
+        const createdAtDiff =
+          new Date(messageA.created_at) - new Date(messageB.created_at);
+        if (createdAtDiff !== 0) return createdAtDiff;
+
+        return Number(messageA.id) - Number(messageB.id);
+      }
+    );
+
+    chat.messages.splice(0, chat.messages.length, ...sortedMessages);
+  },
+
   [types.SET_CHAT_DATA_FETCHED](_state, conversationId) {
     const chat = getConversationById(_state)(conversationId);
     if (chat) {

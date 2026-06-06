@@ -10,6 +10,7 @@ describe('#ConversationAPI', () => {
     expect(messageAPI).toHaveProperty('update');
     expect(messageAPI).toHaveProperty('delete');
     expect(messageAPI).toHaveProperty('getPreviousMessages');
+    expect(messageAPI).toHaveProperty('getMessageWindow');
     expect(messageAPI).toHaveProperty('searchMessages');
   });
 
@@ -61,6 +62,29 @@ describe('#ConversationAPI', () => {
             before_id: 4573,
           },
           signal: undefined,
+        }
+      );
+    });
+
+    it('#getMessageWindow', () => {
+      const signal = new AbortController().signal;
+
+      messageAPI.getMessageWindow(12, {
+        around: 4573,
+        before_limit: 10,
+        after_limit: 15,
+        signal,
+      });
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        `/api/v1/conversations/12/messages/window`,
+        {
+          params: {
+            around: 4573,
+            before_limit: 10,
+            after_limit: 15,
+          },
+          signal,
         }
       );
     });

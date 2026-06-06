@@ -105,6 +105,20 @@ const actions = {
     }
   },
 
+  mergeConversationMessageWindow: async (
+    { commit },
+    { conversationId, ...params }
+  ) => {
+    const {
+      data: { payload },
+    } = await MessageApi.getMessageWindow(conversationId, params);
+
+    commit(types.MERGE_CONVERSATION_MESSAGE_WINDOW, {
+      id: conversationId,
+      data: payload,
+    });
+  },
+
   fetchAllAttachments: async ({ commit }, conversationId) => {
     let attachments = [];
 
