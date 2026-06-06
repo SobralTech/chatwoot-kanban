@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, ref, toRefs } from 'vue';
+import { onMounted, computed, ref, toRefs, watch, nextTick } from 'vue';
 import { useTimeoutFn } from '@vueuse/core';
 import { provideMessageContext } from './provider.js';
 import { useTrack } from 'dashboard/composables';
@@ -135,6 +135,8 @@ const props = defineProps({
   senderId: { type: Number, default: null },
   senderType: { type: String, default: null },
   sourceId: { type: String, default: '' }, // eslint-disable-line vue/no-unused-properties
+  conversationSearchQuery: { type: String, default: '' }, // eslint-disable-line vue/no-unused-properties
+  activeConversationSearchResultId: { type: Number, default: null },
 });
 
 const emit = defineEmits(['retry']);
@@ -356,6 +358,10 @@ const isMessageDeleted = computed(() => {
   return props.contentAttributes?.deleted;
 });
 
+const isActiveSearchResult = computed(() => {
+  return Number(props.activeConversationSearchResultId) === Number(props.id);
+});
+
 const payloadForContextMenu = computed(() => {
   return {
     id: props.id,
@@ -502,7 +508,21 @@ const setupHighlightTimer = () => {
   }, HIGHLIGHT_TIMER);
 };
 
-onMounted(setupHighlightTimer);
+const scrollToActiveSearchResult = () => {
+  if (!isActiveSearchResult.value) return;
+
+  nextTick(() => {
+    const messageElement = document.getElementById(`message${props.id}`);
+    messageElement?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+  });
+};
+
+onMounted(() => {
+  setupHighlightTimer();
+  scrollToActiveSearchResult();
+});
+
+watch(() => props.activeConversationSearchResultId, scrollToActiveSearchResult);
 
 provideMessageContext({
   ...toRefs(props),
@@ -526,6 +546,8 @@ provideMessageContext({
       {
         'group-with-next': shouldGroupWithNext,
         'bg-n-alpha-1': showBackgroundHighlight,
+        'bg-n-amber-3/60 outline outline-1 -outline-offset-1 outline-n-amber-6 rounded-lg':
+          isActiveSearchResult,
       },
     ]"
   >

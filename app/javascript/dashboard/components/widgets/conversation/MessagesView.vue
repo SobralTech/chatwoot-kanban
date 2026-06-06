@@ -47,6 +47,16 @@ export default {
     ResizableEditorWrapper,
   },
   mixins: [inboxMixin],
+  props: {
+    conversationSearchQuery: {
+      type: String,
+      default: '',
+    },
+    activeConversationSearchResultId: {
+      type: Number,
+      default: null,
+    },
+  },
   setup() {
     const conversationPanelRef = ref(null);
     const resizableEditorWrapperRef = ref(null);
@@ -477,6 +487,8 @@ export default {
       :is-an-email-channel="isAnEmailChannel"
       :inbox-supports-reply-to="inboxSupportsReplyTo"
       :messages="getMessages"
+      :conversation-search-query="conversationSearchQuery"
+      :active-conversation-search-result-id="activeConversationSearchResultId"
       @retry="handleMessageRetry"
     >
       <template #beforeAll>

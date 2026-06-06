@@ -429,7 +429,8 @@ export default {
         v-if="currentChat.id"
         :inbox-id="inboxId"
         :is-inbox-view="isInboxView"
-        :active-search-result-id="activeConversationSearchResultId"
+        :conversation-search-query="conversationSearchQuery"
+        :active-conversation-search-result-id="activeConversationSearchResultId"
       />
       <EmptyState
         v-if="!currentChat.id && !isInboxView"

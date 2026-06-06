@@ -37,6 +37,14 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  conversationSearchQuery: {
+    type: String,
+    default: '',
+  },
+  activeConversationSearchResultId: {
+    type: Number,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['retry']);
@@ -177,6 +185,8 @@ const getInReplyToMessage = parentMessage => {
         :group-with-next="shouldGroupWithNext(index, allMessages)"
         :inbox-supports-reply-to="inboxSupportsReplyTo"
         :current-user-id="currentUserId"
+        :conversation-search-query="conversationSearchQuery"
+        :active-conversation-search-result-id="activeConversationSearchResultId"
         data-clarity-mask="True"
         @retry="emit('retry', message)"
       />
