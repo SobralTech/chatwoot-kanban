@@ -794,6 +794,39 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(kanban_board).not_to be_active
     end
 
+    it 'emits kanban.board.updated with a compact payload' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: administrator.create_new_auth_token,
+            params: { kanban_board: { name: 'Updated Sales' } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_BOARD_UPDATED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id }
+      )
+    end
+
+    it 'does not emit kanban.board.updated when update validation fails' do
+      create(:kanban_board, account: account, name: 'Support')
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: administrator.create_new_auth_token,
+            params: { kanban_board: { name: 'Support' } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_BOARD_UPDATED,
+        anything,
+        anything
+      )
+    end
+
     it 'updates automatic card creation from false to true' do
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
             headers: administrator.create_new_auth_token,

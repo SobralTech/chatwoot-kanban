@@ -17,6 +17,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def update
     @kanban_board.update!(kanban_board_params)
+    dispatch_kanban_board_event(Events::Types::KANBAN_BOARD_UPDATED)
   end
 
   def destroy
@@ -48,6 +49,10 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
         account_user: Current.account_user
       ).call
     end
+  end
+
+  def dispatch_kanban_board_event(event_name)
+    Rails.configuration.dispatcher.dispatch(event_name, Time.zone.now, account_id: @kanban_board.account_id, board_id: @kanban_board.id)
   end
 
   def board_list_inbox_ids

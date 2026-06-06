@@ -23,6 +23,40 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(response.parsed_body['position']).to eq(1)
     end
 
+    it 'emits kanban.stage.created with a compact payload' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
+           headers: administrator.create_new_auth_token,
+           params: payload,
+           as: :json
+
+      stage = KanbanStage.last
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_CREATED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id }
+      )
+    end
+
+    it 'does not emit kanban.stage.created when create validation fails' do
+      create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Proposal')
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
+           headers: administrator.create_new_auth_token,
+           params: payload,
+           as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_CREATED,
+        anything,
+        anything
+      )
+    end
+
     it 'inserts the new stage at the beginning and shifts existing active stages' do
       first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'First', position: 1)
       second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Second', position: 2)
@@ -91,6 +125,41 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(stage.reload.name).to eq('Won')
       expect(stage.color).to eq('ruby')
       expect(stage).not_to be_active
+    end
+
+    it 'emits kanban.stage.updated with a compact payload' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+            headers: administrator.create_new_auth_token,
+            params: { stage: { name: 'Won' } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_UPDATED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id }
+      )
+    end
+
+    it 'does not emit kanban.stage.updated when update validation fails' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Open')
+      create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Won')
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+            headers: administrator.create_new_auth_token,
+            params: { stage: { name: 'Won' } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_UPDATED,
+        anything,
+        anything
+      )
     end
 
     it 'does not deactivate a stage with active manual kanban cards' do
@@ -200,6 +269,42 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(first_stage.reload.position).to eq(2)
     end
 
+    it 'emits kanban.stage.reordered with a compact payload' do
+      create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+      second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{second_stage.id}/reorder",
+            headers: administrator.create_new_auth_token,
+            params: { direction: 'left' },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_REORDERED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: second_stage.id }
+      )
+    end
+
+    it 'does not emit kanban.stage.reordered when the stage is not found' do
+      other_board = create(:kanban_board, account: account)
+      other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{other_stage.id}/reorder",
+            headers: administrator.create_new_auth_token,
+            params: { direction: 'left' },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_REORDERED,
+        anything,
+        anything
+      )
+    end
+
     it 'moves a stage right within its board' do
       first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
       second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
@@ -284,6 +389,39 @@ RSpec.describe 'Kanban Stages API', type: :request do
 
       expect(response).to have_http_status(:no_content)
       expect(stage.reload).not_to be_active
+    end
+
+    it 'emits kanban.stage.deleted with a compact payload' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+             headers: administrator.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:no_content)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_DELETED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id }
+      )
+    end
+
+    it 'does not emit kanban.stage.deleted when delete validation fails' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
+             headers: administrator.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_DELETED,
+        anything,
+        anything
+      )
     end
 
     it 'deactivates a stage with only legacy conversation state' do

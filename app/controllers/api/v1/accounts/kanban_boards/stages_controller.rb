@@ -18,6 +18,8 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
       KanbanStage.normalize_positions_for_board!(@kanban_board)
       @kanban_stage.reload
     end
+
+    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_CREATED)
   end
 
   def update
@@ -27,6 +29,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     end
 
     @kanban_stage.update!(kanban_stage_params)
+    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_UPDATED)
   end
 
   def reorder
@@ -45,6 +48,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
       @kanban_stage.reload
     end
 
+    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_REORDERED)
     render :update
   end
 
@@ -55,6 +59,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     end
 
     @kanban_stage.update!(active: false)
+    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_DELETED)
     head :no_content
   end
 
@@ -90,6 +95,16 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   def render_stage_not_empty_error
     render json: { error: 'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.' },
            status: :unprocessable_content
+  end
+
+  def dispatch_kanban_stage_event(event_name)
+    Rails.configuration.dispatcher.dispatch(
+      event_name,
+      Time.zone.now,
+      account_id: @kanban_stage.account_id,
+      board_id: @kanban_stage.kanban_board_id,
+      stage_id: @kanban_stage.id
+    )
   end
 
   def sibling_stage_for_reorder
