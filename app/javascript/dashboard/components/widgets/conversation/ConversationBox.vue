@@ -47,6 +47,10 @@ export default {
       conversationSearchAbortController: null,
       conversationSearchRequestId: 0,
       conversationSearchDebounceTimer: null,
+      isLoadingConversationSearchResult: false,
+      conversationSearchNavigationError: null,
+      conversationSearchNavigationController: null,
+      conversationSearchNavigationRequestId: 0,
     };
   },
   computed: {
@@ -115,6 +119,7 @@ export default {
   },
   unmounted() {
     this.abortConversationSearchRequest();
+    this.abortConversationSearchNavigationRequest();
     this.clearConversationSearchDebounce();
     document.removeEventListener('keydown', this.onConversationSearchShortcut);
   },
@@ -140,14 +145,18 @@ export default {
     },
     resetConversationSearch() {
       this.abortConversationSearchRequest();
+      this.abortConversationSearchNavigationRequest();
       this.clearConversationSearchDebounce();
       this.conversationSearchQuery = '';
       this.conversationSearchResults = [];
       this.conversationSearchMeta = {};
       this.conversationSearchError = null;
+      this.conversationSearchNavigationError = null;
       this.isSearchingConversationMessages = false;
+      this.isLoadingConversationSearchResult = false;
       this.activeConversationSearchResultIndex = -1;
       this.conversationSearchRequestId += 1;
+      this.conversationSearchNavigationRequestId += 1;
     },
     async searchConversationMessages(query) {
       if (!this.currentChat.id) return;
@@ -155,6 +164,8 @@ export default {
       const trimmedQuery = query.trim();
       this.conversationSearchQuery = trimmedQuery;
       this.conversationSearchError = null;
+      this.conversationSearchNavigationError = null;
+      this.abortConversationSearchNavigationRequest();
 
       if (!trimmedQuery) {
         this.resetConversationSearch();
@@ -177,10 +188,11 @@ export default {
         }
         this.conversationSearchResults = data.payload || [];
         this.conversationSearchMeta = data.meta || {};
-        this.activeConversationSearchResultIndex = this
-          .conversationSearchResults.length
-          ? 0
-          : -1;
+        if (this.conversationSearchResults.length) {
+          await this.selectConversationSearchResult(0);
+        } else {
+          this.activeConversationSearchResultIndex = -1;
+        }
       } catch (error) {
         if (!this.isLatestConversationSearchRequest(requestId, trimmedQuery)) {
           return;
@@ -272,10 +284,20 @@ export default {
         }
       }
     },
-    selectConversationSearchResult(index) {
+    async selectConversationSearchResult(index) {
       if (index < 0 || index >= this.conversationSearchResults.length) return;
 
       this.activeConversationSearchResultIndex = index;
+      this.conversationSearchNavigationError = null;
+
+      const result = this.conversationSearchResults[index];
+      if (this.isConversationSearchResultLoaded(result.id)) {
+        this.abortConversationSearchNavigationRequest();
+        this.isLoadingConversationSearchResult = false;
+        return;
+      }
+
+      await this.loadConversationSearchResultWindow(result.id);
     },
     selectNextConversationSearchResult() {
       if (!this.conversationSearchResults.length) return;
@@ -301,11 +323,100 @@ export default {
         this.conversationSearchAbortController = null;
       }
     },
+    abortConversationSearchNavigationRequest() {
+      if (this.conversationSearchNavigationController) {
+        this.conversationSearchNavigationController.abort();
+        this.conversationSearchNavigationController = null;
+      }
+    },
     isLatestConversationSearchRequest(requestId, query) {
       return (
         this.conversationSearchRequestId === requestId &&
         this.conversationSearchQuery === query
       );
+    },
+    isConversationSearchResultLoaded(messageId) {
+      return this.currentChat.messages?.some(
+        message => Number(message.id) === Number(messageId)
+      );
+    },
+    isLatestConversationSearchNavigationRequest({
+      requestId,
+      conversationId,
+      messageId,
+    }) {
+      return (
+        this.conversationSearchNavigationRequestId === requestId &&
+        Number(this.currentChat.id) === Number(conversationId) &&
+        Number(this.activeConversationSearchResultId) === Number(messageId)
+      );
+    },
+    isAbortError(error) {
+      return error?.name === 'AbortError' || error?.code === 'ERR_CANCELED';
+    },
+    async loadConversationSearchResultWindow(messageId) {
+      this.abortConversationSearchNavigationRequest();
+
+      const conversationId = this.currentChat.id;
+      const requestId = this.conversationSearchNavigationRequestId + 1;
+      this.conversationSearchNavigationRequestId = requestId;
+      this.conversationSearchNavigationController = new AbortController();
+      this.isLoadingConversationSearchResult = true;
+
+      try {
+        await this.$store.dispatch('mergeConversationMessageWindow', {
+          conversationId,
+          around: messageId,
+          before_limit: 20,
+          after_limit: 20,
+          signal: this.conversationSearchNavigationController.signal,
+        });
+
+        if (
+          !this.isLatestConversationSearchNavigationRequest({
+            requestId,
+            conversationId,
+            messageId,
+          })
+        ) {
+          return;
+        }
+
+        await new Promise(resolve => {
+          this.$nextTick(() => {
+            document
+              .getElementById(`message${messageId}`)
+              ?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+            resolve();
+          });
+        });
+      } catch (error) {
+        if (
+          this.isAbortError(error) ||
+          !this.isLatestConversationSearchNavigationRequest({
+            requestId,
+            conversationId,
+            messageId,
+          })
+        ) {
+          return;
+        }
+
+        this.conversationSearchNavigationError =
+          error?.response?.status === 404
+            ? this.$t('CONVERSATION.SEARCH.MESSAGE_UNAVAILABLE')
+            : this.$t('CONVERSATION.SEARCH.FAILED_TO_LOAD_MESSAGE');
+      } finally {
+        if (
+          this.isLatestConversationSearchNavigationRequest({
+            requestId,
+            conversationId,
+            messageId,
+          })
+        ) {
+          this.isLoadingConversationSearchResult = false;
+        }
+      }
     },
   },
 };
@@ -371,18 +482,23 @@ export default {
         {{ conversationSearchCounter }}
       </span>
       <span
-        v-if="isSearchingConversationMessages"
+        v-if="
+          isSearchingConversationMessages || isLoadingConversationSearchResult
+        "
         class="text-xs text-n-slate-11"
         data-testid="conversation-search-loading"
       >
         {{ $t('CONVERSATION.SEARCH.LOADING_MESSAGE') }}
       </span>
       <span
-        v-else-if="conversationSearchError"
+        v-else-if="conversationSearchNavigationError || conversationSearchError"
         class="text-xs text-n-ruby-11"
         data-testid="conversation-search-error"
       >
-        {{ $t('CONVERSATION.SEARCH.FAILED_TO_SEARCH_MESSAGES') }}
+        {{
+          conversationSearchNavigationError ||
+          $t('CONVERSATION.SEARCH.FAILED_TO_SEARCH_MESSAGES')
+        }}
       </span>
       <span
         v-else-if="conversationSearchQuery && !conversationSearchTotalCount"

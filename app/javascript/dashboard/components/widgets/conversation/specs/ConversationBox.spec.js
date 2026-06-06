@@ -15,8 +15,15 @@ describe('ConversationBox', () => {
   let currentChat;
   let store;
   let wrapper;
+  let mergeConversationMessageWindow;
+
+  const translations = {
+    'CONVERSATION.SEARCH.MESSAGE_UNAVAILABLE': 'Message unavailable',
+    'CONVERSATION.SEARCH.FAILED_TO_LOAD_MESSAGE': 'Failed to load message',
+  };
 
   const createWrapper = () => {
+    mergeConversationMessageWindow ||= vi.fn().mockResolvedValue();
     store = createStore({
       getters: {
         getSelectedChat: () => currentChat,
@@ -25,6 +32,7 @@ describe('ConversationBox', () => {
         'conversationLabels/get': vi.fn(),
         'dashboardApps/get': vi.fn(),
         'inboxAssignableAgents/fetch': vi.fn(),
+        mergeConversationMessageWindow,
       },
       modules: {
         dashboardApps: {
@@ -41,7 +49,7 @@ describe('ConversationBox', () => {
       global: {
         plugins: [store],
         mocks: {
-          $t: key => key,
+          $t: key => translations[key] || key,
         },
         stubs: {
           ConversationHeader: true,
@@ -59,7 +67,8 @@ describe('ConversationBox', () => {
   };
 
   beforeEach(() => {
-    currentChat = { id: 1, inbox_id: 2 };
+    currentChat = { id: 1, inbox_id: 2, messages: [] };
+    mergeConversationMessageWindow = null;
     MessageApi.searchMessages.mockReset();
   });
 
@@ -363,6 +372,7 @@ describe('ConversationBox', () => {
   });
 
   it('next button updates active index', async () => {
+    currentChat.messages = [{ id: 1 }, { id: 2 }];
     createWrapper();
     wrapper.vm.openConversationSearch();
     wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 1 }];
@@ -377,6 +387,7 @@ describe('ConversationBox', () => {
   });
 
   it('previous button updates active index', async () => {
+    currentChat.messages = [{ id: 1 }, { id: 2 }];
     createWrapper();
     wrapper.vm.openConversationSearch();
     wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 1 }];
@@ -391,6 +402,7 @@ describe('ConversationBox', () => {
   });
 
   it('Enter selects the next result', async () => {
+    currentChat.messages = [{ id: 1 }, { id: 2 }];
     createWrapper();
     wrapper.vm.openConversationSearch();
     wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 1 }];
@@ -405,6 +417,7 @@ describe('ConversationBox', () => {
   });
 
   it('Shift+Enter selects the previous result', async () => {
+    currentChat.messages = [{ id: 1 }, { id: 2 }];
     createWrapper();
     wrapper.vm.openConversationSearch();
     wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 1 }];
@@ -416,6 +429,187 @@ describe('ConversationBox', () => {
       .trigger('keydown', { key: 'Enter', shiftKey: true });
 
     expect(wrapper.vm.activeConversationSearchResultIndex).toBe(1);
+  });
+
+  it('does not request a message window for a loaded result', async () => {
+    currentChat.messages = [{ id: 2 }];
+    createWrapper();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }];
+
+    await wrapper.vm.selectConversationSearchResult(0);
+
+    expect(wrapper.vm.activeConversationSearchResultIndex).toBe(0);
+    expect(mergeConversationMessageWindow).not.toHaveBeenCalled();
+  });
+
+  it('dispatches message window merge for an unloaded result', async () => {
+    currentChat.messages = [{ id: 1 }];
+    createWrapper();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }];
+
+    await wrapper.vm.selectConversationSearchResult(0);
+
+    expect(mergeConversationMessageWindow).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        conversationId: 1,
+        around: 2,
+        before_limit: 20,
+        after_limit: 20,
+        signal: expect.any(AbortSignal),
+      }
+    );
+  });
+
+  it('scrolls to the merged result after render', async () => {
+    const scrollIntoView = vi.fn();
+    const messageElement = document.createElement('div');
+    messageElement.id = 'message2';
+    messageElement.scrollIntoView = scrollIntoView;
+    document.body.appendChild(messageElement);
+    createWrapper();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }];
+
+    await wrapper.vm.selectConversationSearchResult(0);
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  });
+
+  it('preserves existing messages and allMessagesLoaded while loading a window', async () => {
+    currentChat.messages = [{ id: 1 }];
+    currentChat.allMessagesLoaded = true;
+    createWrapper();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }];
+
+    await wrapper.vm.selectConversationSearchResult(0);
+
+    expect(currentChat.messages).toEqual([{ id: 1 }]);
+    expect(currentChat.allMessagesLoaded).toBe(true);
+  });
+
+  it('shows message unavailable for a missing anchor', async () => {
+    mergeConversationMessageWindow = vi.fn().mockRejectedValue({
+      response: { status: 404 },
+    });
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }];
+
+    await wrapper.vm.selectConversationSearchResult(0);
+    await nextTick();
+
+    expect(wrapper.vm.conversationSearchNavigationError).toBe(
+      'Message unavailable'
+    );
+    expect(
+      wrapper.find('[data-testid="conversation-search-error"]').text()
+    ).toBe('Message unavailable');
+  });
+
+  it('shows failed to load message for ordinary failures', async () => {
+    mergeConversationMessageWindow = vi
+      .fn()
+      .mockRejectedValue(new Error('Boom'));
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }];
+
+    await wrapper.vm.selectConversationSearchResult(0);
+    await nextTick();
+
+    expect(wrapper.vm.conversationSearchNavigationError).toBe(
+      'Failed to load message'
+    );
+    expect(
+      wrapper.find('[data-testid="conversation-search-error"]').text()
+    ).toBe('Failed to load message');
+  });
+
+  it('aborts previous result navigation when a newer result is selected', async () => {
+    let firstSignal;
+    mergeConversationMessageWindow = vi.fn((_, payload) => {
+      if (!firstSignal) firstSignal = payload.signal;
+      return new Promise(() => {});
+    });
+    createWrapper();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 3 }];
+
+    wrapper.vm.selectConversationSearchResult(0);
+    await nextTick();
+    wrapper.vm.selectConversationSearchResult(1);
+    await nextTick();
+
+    expect(firstSignal.aborted).toBe(true);
+  });
+
+  it('does not scroll for stale result navigation responses', async () => {
+    let resolveFirst;
+    const scrollIntoView = vi.fn();
+    const messageElement = document.createElement('div');
+    messageElement.id = 'message2';
+    messageElement.scrollIntoView = scrollIntoView;
+    document.body.appendChild(messageElement);
+    mergeConversationMessageWindow = vi
+      .fn()
+      .mockReturnValueOnce(
+        new Promise(resolve => {
+          resolveFirst = resolve;
+        })
+      )
+      .mockReturnValueOnce(new Promise(() => {}));
+    createWrapper();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }, { id: 3 }];
+
+    const firstNavigation = wrapper.vm.selectConversationSearchResult(0);
+    await nextTick();
+    wrapper.vm.selectConversationSearchResult(1);
+    await nextTick();
+
+    resolveFirst();
+    await firstNavigation;
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it('aborts pending result navigation when closing search', async () => {
+    let signal;
+    mergeConversationMessageWindow = vi.fn((_, payload) => {
+      signal = payload.signal;
+      return new Promise(() => {});
+    });
+    createWrapper();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }];
+
+    wrapper.vm.selectConversationSearchResult(0);
+    await nextTick();
+    wrapper.vm.closeConversationSearch();
+
+    expect(signal.aborted).toBe(true);
+  });
+
+  it('aborts pending result navigation when conversation changes', async () => {
+    let signal;
+    mergeConversationMessageWindow = vi.fn((_, payload) => {
+      signal = payload.signal;
+      return new Promise(() => {});
+    });
+    createWrapper();
+    wrapper.vm.conversationSearchResults = [{ id: 2 }];
+
+    wrapper.vm.selectConversationSearchResult(0);
+    await nextTick();
+    currentChat = { id: 2, inbox_id: 3, messages: [] };
+    await store.hotUpdate({
+      getters: {
+        getSelectedChat: () => currentChat,
+      },
+    });
+    await nextTick();
+
+    expect(signal.aborted).toBe(true);
   });
 
   it('Escape closes and resets search', async () => {

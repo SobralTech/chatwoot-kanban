@@ -29,7 +29,9 @@
       "NEXT_RESULT": "Next result",
       "CLOSE_SEARCH": "Close search",
       "NO_RESULTS": "No results",
-      "FAILED_TO_SEARCH_MESSAGES": "Failed to search messages"
+      "FAILED_TO_SEARCH_MESSAGES": "Failed to search messages",
+      "MESSAGE_UNAVAILABLE": "Message unavailable",
+      "FAILED_TO_LOAD_MESSAGE": "Failed to load message"
     },
     "UNREAD_MESSAGES": "Unread Messages",
     "UNREAD_MESSAGE": "Unread Message",
