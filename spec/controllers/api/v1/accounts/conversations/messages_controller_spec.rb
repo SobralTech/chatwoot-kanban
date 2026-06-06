@@ -189,6 +189,87 @@ RSpec.describe 'Conversation Messages API', type: :request do
     end
   end
 
+  describe 'GET /api/v1/accounts/{account.id}/conversations/:id/messages/window' do
+    let(:inbox) { create(:inbox, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: inbox) }
+    let(:agent) { create(:user, account: account, role: :agent) }
+
+    before do
+      create(:inbox_member, inbox: inbox, user: agent)
+    end
+
+    def create_window_message(minutes_offset, target_conversation: conversation)
+      create(
+        :message,
+        account: target_conversation.account,
+        inbox: target_conversation.inbox,
+        conversation: target_conversation,
+        created_at: Time.zone.parse('2026-01-01 10:00:00') + minutes_offset.minutes
+      )
+    end
+
+    it 'returns a bounded window around the anchor message' do
+      older_message = create_window_message(1)
+      anchor = create_window_message(2)
+      newer_message = create_window_message(3)
+
+      get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/messages/window",
+          params: { around: anchor.id, before_limit: 1, after_limit: 1 },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['meta']['anchor_id']).to eq(anchor.id)
+      expect(response.parsed_body['payload'].pluck('id')).to eq([older_message.id, anchor.id, newer_message.id])
+    end
+
+    it 'returns not found when the anchor belongs to another conversation' do
+      other_conversation = create(:conversation, account: account, inbox: inbox)
+      anchor = create_window_message(1, target_conversation: other_conversation)
+
+      get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/messages/window",
+          params: { around: anchor.id },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns not found when the anchor is missing' do
+      get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/messages/window",
+          params: { around: -1 },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects a cross-account conversation' do
+      other_account = create(:account)
+      other_conversation = create(:conversation, account: other_account)
+      other_conversation.update!(display_id: conversation.display_id + 1000)
+
+      get "/api/v1/accounts/#{account.id}/conversations/#{other_conversation.display_id}/messages/window",
+          params: { around: create_window_message(1).id },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects a conversation the user cannot access' do
+      inaccessible_conversation = create(:conversation, account: account)
+      anchor = create(:message, account: account, inbox: inaccessible_conversation.inbox, conversation: inaccessible_conversation)
+
+      get "/api/v1/accounts/#{account.id}/conversations/#{inaccessible_conversation.display_id}/messages/window",
+          params: { around: anchor.id },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   describe 'GET /api/v1/accounts/{account.id}/conversations/:id/messages/search' do
     let(:inbox) { create(:inbox, account: account) }
     let(:conversation) { create(:conversation, account: account, inbox: inbox) }

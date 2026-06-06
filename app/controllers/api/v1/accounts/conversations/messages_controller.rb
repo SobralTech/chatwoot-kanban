@@ -13,6 +13,11 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     render_could_not_create_error(e.message)
   end
 
+  def window
+    @messages = message_window_finder.perform
+    @meta = { anchor_id: message_window_params[:around].to_i }
+  end
+
   def create
     user = Current.user || @resource
     mb = Messages::MessageBuilder.new(user, @conversation, params)
@@ -74,6 +79,19 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
 
   def conversation_message_search_finder
     @conversation_message_search_finder ||= ConversationMessageSearchFinder.new(@conversation, params)
+  end
+
+  def message_window_finder
+    @message_window_finder ||= MessageWindowFinder.new(
+      conversation: @conversation,
+      around: message_window_params[:around],
+      before_limit: message_window_params[:before_limit],
+      after_limit: message_window_params[:after_limit]
+    )
+  end
+
+  def message_window_params
+    params.permit(:around, :before_limit, :after_limit)
   end
 
   def permitted_params

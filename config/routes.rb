@@ -157,6 +157,7 @@ Rails.application.routes.draw do
             scope module: :conversations do
               resources :messages, only: [:index, :create, :destroy, :update] do
                 collection do
+                  get :window
                   get :search
                 end
                 member do
