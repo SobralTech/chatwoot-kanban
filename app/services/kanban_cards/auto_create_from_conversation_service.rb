@@ -24,15 +24,17 @@ class KanbanCards::AutoCreateFromConversationService
   end
 
   def create_for_board(kanban_board)
-    KanbanCard.transaction do
+    card = KanbanCard.transaction do
       stage = first_active_stage(kanban_board)
       if stage.blank?
         skip_without_active_stage
+        nil
       else
         stage.lock!
         create_for_stage(kanban_board, stage)
       end
     end
+    dispatch_card_created_event(card) if card.present?
   rescue ActiveRecord::RecordNotUnique
     skip_existing_card
   end
@@ -44,11 +46,13 @@ class KanbanCards::AutoCreateFromConversationService
   def create_for_stage(kanban_board, stage)
     if automatic_card_exists?(kanban_board)
       skip_existing_card
+      nil
     else
       lock_active_cards!(kanban_board, stage)
       shift_active_cards_down!(kanban_board, stage)
-      create_card!(kanban_board, stage)
+      card = create_card!(kanban_board, stage)
       summary[:created] += 1
+      card
     end
   end
 
@@ -65,6 +69,17 @@ class KanbanCards::AutoCreateFromConversationService
       origin: 'conversation',
       position: 1,
       active: true
+    )
+  end
+
+  def dispatch_card_created_event(card)
+    Rails.configuration.dispatcher.dispatch(
+      Events::Types::KANBAN_CARD_CREATED,
+      Time.zone.now,
+      account_id: card.account_id,
+      board_id: card.kanban_board_id,
+      stage_id: card.kanban_stage_id,
+      card_id: card.id
     )
   end
 

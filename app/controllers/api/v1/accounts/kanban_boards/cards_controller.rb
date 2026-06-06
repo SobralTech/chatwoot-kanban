@@ -90,10 +90,13 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       @kanban_card.update!(stable_card_update_params)
     end
 
+    dispatch_kanban_card_event(Events::Types::KANBAN_CARD_UPDATED)
     render_card
   end
 
   def reorder_kanban_card
+    source_stage_id = @kanban_card.kanban_stage_id
+
     KanbanCard.transaction do
       @kanban_card.reorder_to_position!(
         kanban_stage: target_card_stage_for_reorder,
@@ -101,12 +104,15 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       )
     end
 
+    dispatch_kanban_card_reordered_event(source_stage_id)
     render_card
   end
 
   def destroy_kanban_card
+    stage_id = @kanban_card.kanban_stage_id
     @kanban_card.deactivate_and_normalize!
 
+    dispatch_kanban_card_event(Events::Types::KANBAN_CARD_DELETED, stage_id: stage_id)
     head :no_content
   end
 
@@ -133,6 +139,29 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     return @kanban_card.kanban_stage if stage_id.blank?
 
     @kanban_board.kanban_stages.active.find(stage_id)
+  end
+
+  def dispatch_kanban_card_event(event_name, stage_id: @kanban_card.kanban_stage_id)
+    Rails.configuration.dispatcher.dispatch(
+      event_name,
+      Time.zone.now,
+      account_id: @kanban_card.account_id,
+      board_id: @kanban_card.kanban_board_id,
+      stage_id: stage_id,
+      card_id: @kanban_card.id
+    )
+  end
+
+  def dispatch_kanban_card_reordered_event(source_stage_id)
+    Rails.configuration.dispatcher.dispatch(
+      Events::Types::KANBAN_CARD_REORDERED,
+      Time.zone.now,
+      account_id: @kanban_card.account_id,
+      board_id: @kanban_card.kanban_board_id,
+      card_id: @kanban_card.id,
+      source_stage_id: source_stage_id,
+      target_stage_id: @kanban_card.kanban_stage_id
+    )
   end
 
   def render_card

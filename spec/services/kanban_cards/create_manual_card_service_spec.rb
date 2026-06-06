@@ -31,6 +31,18 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect(KanbanCard.last).to be_valid
     end
 
+    it 'emits kanban.card.created with a compact payload' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      card = service.perform!
+
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: kanban_stage.id, card_id: card.id }
+      )
+    end
+
     it 'sets origin as manual' do
       card = service.perform!
 
@@ -131,6 +143,26 @@ RSpec.describe KanbanCards::CreateManualCardService do
       )
 
       expect { service.perform! }.to raise_validation_error('Manual opportunity with this subject already exists')
+    end
+
+    it 'does not emit kanban.card.created when creation validation fails' do
+      create(
+        :kanban_card,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: kanban_stage,
+        contact: contact,
+        inbox: inbox,
+        subject: 'new opportunity'
+      )
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      expect { service.perform! }.to raise_validation_error('Manual opportunity with this subject already exists')
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        anything
+      )
     end
 
     it 'ignores inactive duplicates' do

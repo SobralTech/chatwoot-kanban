@@ -32,6 +32,34 @@ RSpec.describe 'Kanban Cards API', type: :request do
       )
     end
 
+    it 'emits kanban.card.created with a compact payload' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      post_manual_card
+
+      card = KanbanCard.last
+
+      expect(response).to have_http_status(:created)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id }
+      )
+    end
+
+    it 'does not emit kanban.card.created when manual creation fails' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      post_manual_card(params: manual_card_payload.merge(subject: '  '))
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        anything
+      )
+    end
+
     it 'returns created status' do
       post_manual_card
 
@@ -327,6 +355,23 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response.parsed_body['due_at']).to eq(card.due_at.iso8601)
     end
 
+    it 'emits kanban.card.updated with a compact payload for scalar updates' do
+      card = create_manual_card(subject: 'Old opportunity')
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { subject: 'Cotação de notebooks' } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_UPDATED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id }
+      )
+    end
+
     it 'clears stable card dates' do
       card = create_manual_card(starts_at: Time.current, due_at: 1.day.from_now)
 
@@ -361,6 +406,23 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(response.parsed_body['message']).to include('Due at must be greater than or equal to starts at')
+    end
+
+    it 'does not emit kanban.card.updated when update validation fails' do
+      card = create_manual_card
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+            headers: agent.create_new_auth_token,
+            params: { card: { starts_at: '2026-06-05T18:00:00-03:00', due_at: '2026-06-01T09:00:00-03:00' } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_UPDATED,
+        anything,
+        anything
+      )
     end
 
     it 'does not permit stable immutable card fields to be mutated' do
@@ -430,6 +492,24 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(second_card.reload.position).to eq(3)
     end
 
+    it 'emits kanban.card.reordered with equal source and target stage IDs for same-stage reorder' do
+      create_manual_card(position: 1)
+      card = create_manual_card(position: 2, subject: 'Second opportunity')
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_REORDERED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, card_id: card.id, source_stage_id: stage.id, target_stage_id: stage.id }
+      )
+    end
+
     it 'reorders a card by stable ID across stages' do
       destination_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       moving_card = create_manual_card(position: 1)
@@ -445,6 +525,42 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(moving_card.reload).to have_attributes(kanban_stage_id: destination_stage.id, position: 1)
       expect(source_card.reload.position).to eq(1)
       expect(destination_card.reload.position).to eq(2)
+    end
+
+    it 'emits kanban.card.reordered with source and target stage IDs for cross-stage reorder' do
+      destination_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      card = create_manual_card(position: 1)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: destination_stage.id, position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_REORDERED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, card_id: card.id, source_stage_id: stage.id, target_stage_id: destination_stage.id }
+      )
+    end
+
+    it 'does not emit kanban.card.reordered when reorder fails' do
+      card = create_manual_card(position: 1)
+      inactive_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, active: false)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}/reorder",
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: inactive_stage.id, position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_REORDERED,
+        anything,
+        anything
+      )
     end
 
     it 'rejects stable reorder when the board is inactive' do
@@ -471,6 +587,37 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       expect(response).to have_http_status(:no_content)
       expect(card.reload).not_to be_active
+    end
+
+    it 'emits kanban.card.deleted with a compact payload' do
+      card = create_manual_card
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:no_content)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_DELETED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id }
+      )
+    end
+
+    it 'does not emit kanban.card.deleted when delete fails' do
+      card = create_manual_card
+      kanban_board.update!(active: false)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      delete stable_card_url(card), headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_DELETED,
+        anything,
+        anything
+      )
     end
 
     it 'rejects stable delete when the board is inactive' do

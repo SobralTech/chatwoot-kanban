@@ -26,6 +26,19 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       )
     end
 
+    it 'emits kanban.card.created with a compact payload' do
+      board
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      service.perform!
+
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        { account_id: account.id, board_id: board.id, stage_id: first_stage.id, card_id: created_card.id }
+      )
+    end
+
     it 'generates the default subject from contact and inbox names' do
       board
 
@@ -196,6 +209,19 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect { service.perform! }.not_to change(KanbanCard, :count)
     end
 
+    it 'does not emit kanban.card.created for an automatic duplicate skip' do
+      create_automatic_card(active: true)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      service.perform!
+
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        anything
+      )
+    end
+
     it 'does not recreate an inactive historical automatic card' do
       inactive_card = create_automatic_card(active: false)
 
@@ -209,6 +235,20 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
 
       expect { service.perform! }.not_to raise_error
       expect(KanbanCard.count).to eq(0)
+    end
+
+    it 'does not emit kanban.card.created for a RecordNotUnique no-op' do
+      board
+      allow(KanbanCard).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      service.perform!
+
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        anything
+      )
     end
 
     it 'does not create a ConversationKanbanState' do

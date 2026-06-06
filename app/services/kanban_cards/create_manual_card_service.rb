@@ -16,12 +16,14 @@ class KanbanCards::CreateManualCardService
   def perform!
     validate_scope!
 
-    KanbanCard.transaction do
+    card = KanbanCard.transaction do
       kanban_stage.lock!
       lock_active_cards!
       shift_active_cards_down!
       create_card!
     end
+    dispatch_card_created_event(card)
+    card
   rescue ActiveRecord::RecordNotUnique
     raise_validation_error(DUPLICATE_SUBJECT_ERROR, :subject)
   end
@@ -70,6 +72,17 @@ class KanbanCards::CreateManualCardService
       origin: 'manual',
       position: 1,
       active: true
+    )
+  end
+
+  def dispatch_card_created_event(card)
+    Rails.configuration.dispatcher.dispatch(
+      Events::Types::KANBAN_CARD_CREATED,
+      Time.zone.now,
+      account_id: card.account_id,
+      board_id: card.kanban_board_id,
+      stage_id: card.kanban_stage_id,
+      card_id: card.id
     )
   end
 
