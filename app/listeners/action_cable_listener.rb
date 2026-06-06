@@ -1,5 +1,42 @@
+module ActionCableListenerKanbanEvents
+  include Events::Types
+
+  KANBAN_EVENT_METHODS = {
+    kanban_board_updated: KANBAN_BOARD_UPDATED,
+    kanban_stage_created: KANBAN_STAGE_CREATED,
+    kanban_stage_updated: KANBAN_STAGE_UPDATED,
+    kanban_stage_deleted: KANBAN_STAGE_DELETED,
+    kanban_stage_reordered: KANBAN_STAGE_REORDERED,
+    kanban_card_created: KANBAN_CARD_CREATED,
+    kanban_card_updated: KANBAN_CARD_UPDATED,
+    kanban_card_deleted: KANBAN_CARD_DELETED,
+    kanban_card_reordered: KANBAN_CARD_REORDERED
+  }.freeze
+
+  KANBAN_EVENT_METHODS.each do |method_name, event_name|
+    define_method(method_name) do |event|
+      broadcast_kanban_event(event, event_name)
+    end
+  end
+
+  private
+
+  def account_token(account)
+    "account_#{account.id}"
+  end
+
+  def account_token_for_id(account_id)
+    "account_#{account_id}"
+  end
+
+  def broadcast_kanban_event(event, event_name)
+    ::ActionCableBroadcastJob.perform_later([account_token_for_id(event.data[:account_id])], event_name, event.data)
+  end
+end
+
 class ActionCableListener < BaseListener
   include Events::Types
+  include ActionCableListenerKanbanEvents
 
   def notification_created(event)
     notification, account, unread_count, count = extract_notification_and_account(event)
@@ -183,10 +220,6 @@ class ActionCableListener < BaseListener
   end
 
   private
-
-  def account_token(account)
-    "account_#{account.id}"
-  end
 
   def typing_event_listener_tokens(account, conversation, user)
     current_user_token = if user.is_a?(Contact)

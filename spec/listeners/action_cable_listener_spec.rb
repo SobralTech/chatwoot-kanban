@@ -295,4 +295,60 @@ describe ActionCableListener do
       listener.conversation_unread_count_changed(event)
     end
   end
+
+  describe '#kanban events' do
+    let(:board_payload) { { account_id: account.id, board_id: 10 } }
+    let(:stage_payload) { board_payload.merge(stage_id: 20) }
+    let(:card_payload) { stage_payload.merge(card_id: 30) }
+    let(:card_reorder_payload) { board_payload.merge(card_id: 30, source_stage_id: 20, target_stage_id: 21) }
+
+    it 'enqueues kanban.board.updated to the account stream with compact payload' do
+      expect_kanban_broadcast(:kanban_board_updated, Events::Types::KANBAN_BOARD_UPDATED, board_payload, %i[account_id board_id])
+    end
+
+    it 'enqueues kanban.stage.created to the account stream with compact payload' do
+      expect_kanban_broadcast(:kanban_stage_created, Events::Types::KANBAN_STAGE_CREATED, stage_payload, %i[account_id board_id stage_id])
+    end
+
+    it 'enqueues kanban.stage.updated to the account stream with compact payload' do
+      expect_kanban_broadcast(:kanban_stage_updated, Events::Types::KANBAN_STAGE_UPDATED, stage_payload, %i[account_id board_id stage_id])
+    end
+
+    it 'enqueues kanban.stage.deleted to the account stream with compact payload' do
+      expect_kanban_broadcast(:kanban_stage_deleted, Events::Types::KANBAN_STAGE_DELETED, stage_payload, %i[account_id board_id stage_id])
+    end
+
+    it 'enqueues kanban.stage.reordered to the account stream with compact payload' do
+      expect_kanban_broadcast(:kanban_stage_reordered, Events::Types::KANBAN_STAGE_REORDERED, stage_payload, %i[account_id board_id stage_id])
+    end
+
+    it 'enqueues kanban.card.created to the account stream with compact payload' do
+      expect_kanban_broadcast(:kanban_card_created, Events::Types::KANBAN_CARD_CREATED, card_payload, %i[account_id board_id stage_id card_id])
+    end
+
+    it 'enqueues kanban.card.updated to the account stream with compact payload' do
+      expect_kanban_broadcast(:kanban_card_updated, Events::Types::KANBAN_CARD_UPDATED, card_payload, %i[account_id board_id stage_id card_id])
+    end
+
+    it 'enqueues kanban.card.deleted to the account stream with compact payload' do
+      expect_kanban_broadcast(:kanban_card_deleted, Events::Types::KANBAN_CARD_DELETED, card_payload, %i[account_id board_id stage_id card_id])
+    end
+
+    it 'enqueues kanban.card.reordered to the account stream with source and target stage IDs' do
+      expect_kanban_broadcast(
+        :kanban_card_reordered,
+        Events::Types::KANBAN_CARD_REORDERED,
+        card_reorder_payload,
+        %i[account_id board_id card_id source_stage_id target_stage_id]
+      )
+    end
+  end
+
+  def expect_kanban_broadcast(method_name, event_name, payload, expected_keys)
+    expect(payload.keys).to match_array(expected_keys)
+    expect(payload).not_to include(:contact, :inbox, :conversation, :card)
+    expect(ActionCableBroadcastJob).to receive(:perform_later).with(["account_#{account.id}"], event_name, payload)
+
+    listener.public_send(method_name, Events::Base.new(event_name, Time.zone.now, payload))
+  end
 end
