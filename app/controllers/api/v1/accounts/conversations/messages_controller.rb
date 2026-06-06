@@ -5,6 +5,14 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     @messages = message_finder.perform
   end
 
+  def search
+    result = conversation_message_search_finder.perform
+    @messages = result[:messages]
+    @meta = result[:meta]
+  rescue ArgumentError => e
+    render_could_not_create_error(e.message)
+  end
+
   def create
     user = Current.user || @resource
     mb = Messages::MessageBuilder.new(user, @conversation, params)
@@ -62,6 +70,10 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
 
   def message_finder
     @message_finder ||= MessageFinder.new(@conversation, params)
+  end
+
+  def conversation_message_search_finder
+    @conversation_message_search_finder ||= ConversationMessageSearchFinder.new(@conversation, params)
   end
 
   def permitted_params

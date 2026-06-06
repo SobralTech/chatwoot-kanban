@@ -189,6 +189,89 @@ RSpec.describe 'Conversation Messages API', type: :request do
     end
   end
 
+  describe 'GET /api/v1/accounts/{account.id}/conversations/:id/messages/search' do
+    let(:inbox) { create(:inbox, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: inbox) }
+    let(:agent) { create(:user, account: account, role: :agent) }
+
+    before do
+      create(:inbox_member, inbox: inbox, user: agent)
+    end
+
+    it 'returns matching messages for the current conversation' do
+      matching_message = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Need billing help')
+      create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Unrelated message')
+
+      get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/messages/search",
+          params: { q: 'billing' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['payload'].pluck('id')).to eq([matching_message.id])
+    end
+
+    it 'finds matching persisted messages older than the latest loaded message window' do
+      older_match = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'deep persisted result')
+      create_list(:message, 25, account: account, inbox: inbox, conversation: conversation, content: 'newer unrelated message')
+
+      get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/messages/search",
+          params: { q: 'deep persisted' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['payload'].pluck('id')).to eq([older_match.id])
+    end
+
+    it 'does not return messages from another conversation' do
+      other_conversation = create(:conversation, account: account, inbox: inbox)
+      create(:message, account: account, inbox: inbox, conversation: other_conversation, content: 'scoped result')
+
+      get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/messages/search",
+          params: { q: 'scoped' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['payload']).to be_empty
+      expect(response.parsed_body['meta']['total_count']).to eq(0)
+    end
+
+    it 'rejects a cross-account conversation' do
+      other_account = create(:account)
+      other_conversation = create(:conversation, account: other_account)
+
+      get "/api/v1/accounts/#{account.id}/conversations/#{other_conversation.display_id}/messages/search",
+          params: { q: 'test' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects a conversation the user cannot access' do
+      inaccessible_conversation = create(:conversation, account: account)
+
+      get "/api/v1/accounts/#{account.id}/conversations/#{inaccessible_conversation.display_id}/messages/search",
+          params: { q: 'test' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'returns unprocessable entity for a blank query' do
+      get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/messages/search",
+          params: { q: '   ' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to eq('Search query is required')
+    end
+  end
+
   describe 'DELETE /api/v1/accounts/{account.id}/conversations/:conversation_id/messages/:id' do
     let(:message) { create(:message, account: account, content_attributes: { bcc_emails: ['hello@chatwoot.com'] }) }
     let(:conversation) { message.conversation }
