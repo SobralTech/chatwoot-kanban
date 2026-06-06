@@ -4,6 +4,7 @@ import ConversationHeader from './ConversationHeader.vue';
 import DashboardAppFrame from '../DashboardApp/Frame.vue';
 import EmptyState from './EmptyState/EmptyState.vue';
 import MessagesView from './MessagesView.vue';
+import MessageApi from 'dashboard/api/inbox/message';
 
 export default {
   components: {
@@ -32,7 +33,18 @@ export default {
     },
   },
   data() {
-    return { activeIndex: 0 };
+    return {
+      activeIndex: 0,
+      isConversationSearchOpen: false,
+      conversationSearchQuery: '',
+      conversationSearchResults: [],
+      conversationSearchMeta: {},
+      conversationSearchError: null,
+      isSearchingConversationMessages: false,
+      activeConversationSearchResultIndex: -1,
+      conversationSearchAbortController: null,
+      conversationSearchRequestId: 0,
+    };
   },
   computed: {
     ...mapGetters({
@@ -69,11 +81,15 @@ export default {
     'currentChat.id'() {
       this.fetchLabels();
       this.activeIndex = 0;
+      this.resetConversationSearch();
     },
   },
   mounted() {
     this.fetchLabels();
     this.$store.dispatch('dashboardApps/get');
+  },
+  unmounted() {
+    this.abortConversationSearchRequest();
   },
   methods: {
     fetchLabels() {
@@ -84,6 +100,137 @@ export default {
     },
     onDashboardAppTabChange(index) {
       this.activeIndex = index;
+    },
+    openConversationSearch() {
+      if (!this.currentChat.id) return;
+
+      this.isConversationSearchOpen = true;
+    },
+    closeConversationSearch() {
+      this.isConversationSearchOpen = false;
+      this.resetConversationSearch();
+    },
+    resetConversationSearch() {
+      this.abortConversationSearchRequest();
+      this.conversationSearchQuery = '';
+      this.conversationSearchResults = [];
+      this.conversationSearchMeta = {};
+      this.conversationSearchError = null;
+      this.isSearchingConversationMessages = false;
+      this.activeConversationSearchResultIndex = -1;
+      this.conversationSearchRequestId += 1;
+    },
+    async searchConversationMessages(query) {
+      if (!this.currentChat.id) return;
+
+      const trimmedQuery = query.trim();
+      this.conversationSearchQuery = trimmedQuery;
+      this.conversationSearchError = null;
+
+      if (!trimmedQuery) {
+        this.resetConversationSearch();
+        return;
+      }
+
+      this.abortConversationSearchRequest();
+      const requestId = this.conversationSearchRequestId + 1;
+      this.conversationSearchRequestId = requestId;
+      this.conversationSearchAbortController = new AbortController();
+      this.isSearchingConversationMessages = true;
+
+      try {
+        const { data } = await MessageApi.searchMessages(this.currentChat.id, {
+          q: trimmedQuery,
+          signal: this.conversationSearchAbortController.signal,
+        });
+        if (!this.isLatestConversationSearchRequest(requestId, trimmedQuery)) {
+          return;
+        }
+        this.conversationSearchResults = data.payload || [];
+        this.conversationSearchMeta = data.meta || {};
+        this.activeConversationSearchResultIndex = this
+          .conversationSearchResults.length
+          ? 0
+          : -1;
+      } catch (error) {
+        if (!this.isLatestConversationSearchRequest(requestId, trimmedQuery)) {
+          return;
+        }
+        this.conversationSearchError = error;
+      } finally {
+        if (this.isLatestConversationSearchRequest(requestId, trimmedQuery)) {
+          this.isSearchingConversationMessages = false;
+        }
+      }
+    },
+    async loadMoreConversationSearchResults() {
+      if (!this.currentChat.id || !this.conversationSearchMeta.has_more) return;
+
+      const query = this.conversationSearchQuery;
+      const requestId = this.conversationSearchRequestId + 1;
+      this.conversationSearchRequestId = requestId;
+      this.isSearchingConversationMessages = true;
+      this.conversationSearchError = null;
+
+      try {
+        const { data } = await MessageApi.searchMessages(this.currentChat.id, {
+          q: query,
+          limit: this.conversationSearchMeta.limit,
+          before_id: this.conversationSearchMeta.next_before_id,
+        });
+        if (!this.isLatestConversationSearchRequest(requestId, query)) {
+          return;
+        }
+        this.conversationSearchResults = [
+          ...this.conversationSearchResults,
+          ...(data.payload || []),
+        ];
+        this.conversationSearchMeta = data.meta || {};
+      } catch (error) {
+        if (!this.isLatestConversationSearchRequest(requestId, query)) {
+          return;
+        }
+        this.conversationSearchError = error;
+      } finally {
+        if (this.isLatestConversationSearchRequest(requestId, query)) {
+          this.isSearchingConversationMessages = false;
+        }
+      }
+    },
+    selectConversationSearchResult(index) {
+      if (index < 0 || index >= this.conversationSearchResults.length) return;
+
+      this.activeConversationSearchResultIndex = index;
+    },
+    selectNextConversationSearchResult() {
+      if (!this.conversationSearchResults.length) return;
+
+      const nextIndex =
+        (this.activeConversationSearchResultIndex + 1) %
+        this.conversationSearchResults.length;
+      this.selectConversationSearchResult(nextIndex);
+    },
+    selectPreviousConversationSearchResult() {
+      if (!this.conversationSearchResults.length) return;
+
+      const previousIndex =
+        (this.activeConversationSearchResultIndex -
+          1 +
+          this.conversationSearchResults.length) %
+        this.conversationSearchResults.length;
+      this.selectConversationSearchResult(previousIndex);
+    },
+    abortConversationSearchRequest() {
+      if (this.conversationSearchAbortController) {
+        this.conversationSearchAbortController.abort();
+        this.conversationSearchAbortController = null;
+      }
+    },
+    isLatestConversationSearchRequest(requestId, query) {
+      return (
+        this.conversationSearchRequestId === requestId &&
+        this.conversationSearchQuery === query
+      );
     },
   },
 };

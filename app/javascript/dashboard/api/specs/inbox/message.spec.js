@@ -10,6 +10,7 @@ describe('#ConversationAPI', () => {
     expect(messageAPI).toHaveProperty('update');
     expect(messageAPI).toHaveProperty('delete');
     expect(messageAPI).toHaveProperty('getPreviousMessages');
+    expect(messageAPI).toHaveProperty('searchMessages');
   });
 
   describe('API calls', () => {
@@ -40,6 +41,26 @@ describe('#ConversationAPI', () => {
           params: {
             before: 4573,
           },
+        }
+      );
+    });
+
+    it('#searchMessages', () => {
+      messageAPI.searchMessages(12, {
+        q: 'billing',
+        limit: 20,
+        before_id: 4573,
+      });
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        `/api/v1/conversations/12/messages/search`,
+        {
+          params: {
+            q: 'billing',
+            limit: 20,
+            before_id: 4573,
+          },
+          signal: undefined,
         }
       );
     });
