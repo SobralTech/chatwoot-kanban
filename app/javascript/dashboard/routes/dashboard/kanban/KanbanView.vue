@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { OnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
@@ -28,20 +29,14 @@ const selectedBoard = ref(null);
 const isFetchingBoard = ref(false);
 const isCreatingBoard = ref(false);
 const isCreatingStage = ref(false);
-const isUpdatingBoard = ref(false);
-const isDeletingBoard = ref(false);
 const selectedOpportunityCardId = ref(null);
 const activeActionKey = ref('');
 const hasError = ref(false);
 const actionError = ref('');
 const newBoardName = ref('');
 const newStageName = ref('');
-const isEditingBoard = ref(false);
-const boardForm = ref({
-  name: '',
-  description: '',
-  autoCreateCardsFromConversations: false,
-});
+const showCreateStageForm = ref(false);
+const isBoardDropdownOpen = ref(false);
 const editingStageId = ref(null);
 const stageNames = ref({});
 const stageColors = ref({});
@@ -50,10 +45,8 @@ const stageCardsLoading = ref({});
 const stageCardsErrors = ref({});
 const stageRefreshRequests = new Map();
 const cardPendingRemoval = ref(null);
-const boardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
-const showRemoveBoardConfirmation = ref(false);
 const showRemoveStageConfirmation = ref(false);
 const isCardDragging = ref(false);
 const hasCardDragChanged = ref(false);
@@ -107,13 +100,13 @@ const stageColorOptions = [
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
-const activeStages = computed(() =>
-  stages.value.filter(stage => stage.active !== false)
-);
-const hasActiveStages = computed(() => activeStages.value.length > 0);
 const hasBoards = computed(() => boards.value.length > 0);
+const hasMultipleBoards = computed(() => boards.value.length > 1);
 const isInitialLoading = computed(
   () => isFetchingBoards.value && !selectedBoard.value
+);
+const currentBoardName = computed(
+  () => selectedBoard.value?.name || t('KANBAN.NO_BOARD_SELECTED')
 );
 const stageListModel = computed({
   get: () => selectedBoard.value?.stages || [],
@@ -380,27 +373,6 @@ const refreshSelectedBoard = async () => {
   await showBoard(selectedBoard.value.id);
 };
 
-const startEditingBoard = () => {
-  if (!selectedBoard.value) return;
-
-  boardForm.value = {
-    name: selectedBoard.value.name || '',
-    description: selectedBoard.value.description || '',
-    autoCreateCardsFromConversations:
-      selectedBoard.value.autoCreateCardsFromConversations || false,
-  };
-  isEditingBoard.value = true;
-};
-
-const cancelEditingBoard = () => {
-  isEditingBoard.value = false;
-  boardForm.value = {
-    name: '',
-    description: '',
-    autoCreateCardsFromConversations: false,
-  };
-};
-
 const openBoardSettings = () => {
   if (!selectedBoard.value?.id) return;
 
@@ -411,83 +383,6 @@ const openBoardSettings = () => {
       boardId: selectedBoard.value.id,
     },
   });
-};
-
-const updateBoard = async () => {
-  const name = boardForm.value.name.trim();
-  if (!selectedBoard.value?.id || !name || isUpdatingBoard.value) return;
-
-  isUpdatingBoard.value = true;
-  actionError.value = '';
-
-  try {
-    const response = await KanbanBoardsAPI.update(selectedBoard.value.id, {
-      kanban_board: {
-        name,
-        description: boardForm.value.description.trim(),
-        auto_create_cards_from_conversations:
-          hasActiveStages.value &&
-          boardForm.value.autoCreateCardsFromConversations,
-      },
-    });
-    const board = normalizePayload(response.data);
-    selectedBoard.value = { ...selectedBoard.value, ...board };
-    cancelEditingBoard();
-    store.dispatch('kanbanBoards/refreshBoards');
-    await refreshSelectedBoard();
-    useAlert(t('KANBAN.ACTIONS.UPDATE_BOARD_SUCCESS'));
-  } catch (error) {
-    showActionError(error, t('KANBAN.ACTIONS.UPDATE_BOARD_ERROR'));
-  } finally {
-    isUpdatingBoard.value = false;
-  }
-};
-
-const openRemoveBoardConfirmation = () => {
-  if (!selectedBoard.value) return;
-
-  boardPendingRemoval.value = selectedBoard.value;
-  showRemoveBoardConfirmation.value = true;
-};
-
-const closeRemoveBoardConfirmation = () => {
-  showRemoveBoardConfirmation.value = false;
-  boardPendingRemoval.value = null;
-};
-
-const removeBoard = async board => {
-  if (!board?.id || isDeletingBoard.value) return;
-
-  isDeletingBoard.value = true;
-  actionError.value = '';
-
-  try {
-    await KanbanBoardsAPI.delete(board.id);
-    await store.dispatch('kanbanBoards/refreshBoards');
-    selectedBoard.value = null;
-    await router.replace({
-      name: 'kanban_boards',
-      params: {
-        accountId: route.params.accountId,
-      },
-    });
-
-    cancelEditingBoard();
-    useAlert(t('KANBAN.ACTIONS.REMOVE_BOARD_SUCCESS'));
-  } catch (error) {
-    showActionError(error, t('KANBAN.ACTIONS.REMOVE_BOARD_ERROR'));
-  } finally {
-    isDeletingBoard.value = false;
-  }
-};
-
-const confirmRemoveBoard = async () => {
-  const board = boardPendingRemoval.value;
-  closeRemoveBoardConfirmation();
-
-  if (!board) return;
-
-  await removeBoard(board);
 };
 
 const createBoard = async () => {
@@ -507,6 +402,8 @@ const createBoard = async () => {
     const board = normalizePayload(response.data);
     selectedBoard.value = { ...board, stages: [] };
     newBoardName.value = '';
+    showCreateStageForm.value = false;
+    isBoardDropdownOpen.value = false;
     store.dispatch('kanbanBoards/refreshBoards');
     router.push({
       name: 'kanban_board_show',
@@ -540,6 +437,7 @@ const createStage = async () => {
     });
     newStageName.value = '';
     newStageColor.value = defaultStageColor;
+    showCreateStageForm.value = false;
     await refreshSelectedBoard();
     useAlert(t('KANBAN.ACTIONS.CREATE_STAGE_SUCCESS'));
   } catch (error) {
@@ -776,9 +674,20 @@ const confirmRemoveCard = async () => {
   await removeCard(card);
 };
 
+const openBoardsOverview = () => {
+  router.push({
+    name: 'kanban_boards',
+    params: {
+      accountId: route.params.accountId,
+    },
+  });
+};
+
 const selectBoard = boardId => {
   if (boardId === activeBoardId.value) return;
 
+  isBoardDropdownOpen.value = false;
+  showCreateStageForm.value = false;
   router.push({
     name: 'kanban_board_show',
     params: {
@@ -825,10 +734,6 @@ const removeCardMessageValue = computed(() => {
 
   return getContactName(cardPendingRemoval.value);
 });
-
-const removeBoardMessageValue = computed(
-  () => boardPendingRemoval.value?.name || ''
-);
 const removeStageMessageValue = computed(
   () => stagePendingRemoval.value?.name || ''
 );
@@ -935,6 +840,9 @@ const handleRealtimeKanbanEvent = ({ event, data } = {}) => {
 
 watch(activeBoardId, boardId => {
   if (!boards.value.length) return;
+  newStageName.value = '';
+  showCreateStageForm.value = false;
+  isBoardDropdownOpen.value = false;
   showBoard(boardId);
 });
 
@@ -957,6 +865,14 @@ onUnmounted(() => {
         <h1 class="text-lg font-medium text-n-slate-12">
           {{ t('KANBAN.HEADER') }}
         </h1>
+        <button
+          type="button"
+          class="mt-3 flex w-full items-center justify-between rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
+          @click="openBoardsOverview"
+        >
+          <span>{{ t('KANBAN.OVERVIEW.TITLE') }}</span>
+          <i class="i-lucide-arrow-right size-4" />
+        </button>
         <form class="mt-3 flex gap-2" @submit.prevent="createBoard">
           <input
             v-model="newBoardName"
@@ -974,160 +890,130 @@ onUnmounted(() => {
           </button>
         </form>
       </div>
-
-      <div v-if="isFetchingBoards" class="px-4 py-3 text-sm text-n-slate-11">
-        {{ t('KANBAN.LOADING_BOARDS') }}
-      </div>
-
-      <div v-else-if="!hasBoards" class="px-4 py-3 text-sm text-n-slate-11">
-        {{ t('KANBAN.EMPTY_BOARDS_DESCRIPTION') }}
-      </div>
-
-      <nav v-else class="flex flex-col gap-1 overflow-y-auto p-2">
-        <button
-          v-for="board in boards"
-          :key="board.id"
-          type="button"
-          class="flex min-h-10 w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors"
-          :class="
-            board.id === activeBoardId
-              ? 'bg-n-alpha-2 text-n-slate-12'
-              : 'text-n-slate-11 hover:bg-n-alpha-1 hover:text-n-slate-12'
-          "
-          @click="selectBoard(board.id)"
-        >
-          <span class="truncate">{{ board.name }}</span>
-        </button>
-      </nav>
     </aside>
 
     <section class="flex min-w-0 flex-1 flex-col">
       <header
-        class="flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-n-weak px-6 py-3"
+        class="flex min-h-16 flex-wrap items-start justify-between gap-4 border-b border-n-weak px-6 py-3"
       >
         <div class="min-w-0 flex-1">
-          <form
-            v-if="selectedBoard && isEditingBoard"
-            data-testid="kanban-board-edit-form"
-            class="grid max-w-xl gap-2"
-            @submit.prevent="updateBoard"
-          >
-            <input
-              v-model="boardForm.name"
-              type="text"
-              class="min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-              :placeholder="t('KANBAN.ACTIONS.BOARD_NAME_PLACEHOLDER')"
-            />
-            <input
-              v-model="boardForm.description"
-              type="text"
-              class="min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-              :placeholder="t('KANBAN.ACTIONS.BOARD_DESCRIPTION_PLACEHOLDER')"
-            />
-            <label
-              class="flex items-start gap-3 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12"
-            >
-              <input
-                v-model="boardForm.autoCreateCardsFromConversations"
-                type="checkbox"
-                data-testid="kanban-auto-create-toggle"
-                class="mt-1 size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
-                :disabled="!hasActiveStages"
-              />
-              <span>
-                <span class="block font-medium">
-                  {{ t('KANBAN.BOARD_FORM.AUTO_CREATE_CARDS') }}
-                </span>
-                <span v-if="!hasActiveStages" class="block text-n-slate-11">
-                  {{ t('KANBAN.BOARD_FORM.NO_STAGES_HELP') }}
-                </span>
-              </span>
-            </label>
-            <div class="flex gap-2">
-              <button
-                type="submit"
-                class="flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="!boardForm.name.trim() || isUpdatingBoard"
-              >
-                <i class="i-lucide-check size-4" />
-                {{ t('KANBAN.ACTIONS.SAVE_BOARD') }}
-              </button>
+          <OnClickOutside @trigger="isBoardDropdownOpen = false">
+            <div class="relative inline-flex max-w-full flex-col">
               <button
                 type="button"
-                class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
-                @click="cancelEditingBoard"
+                data-testid="kanban-board-switcher"
+                class="inline-flex max-w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xl font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!hasBoards"
+                @click="
+                  isBoardDropdownOpen =
+                    hasMultipleBoards && !isBoardDropdownOpen
+                "
               >
-                <i class="i-lucide-x size-4" />
-                {{ t('KANBAN.ACTIONS.CANCEL') }}
+                <span class="truncate">{{ currentBoardName }}</span>
+                <i class="i-lucide-chevron-down size-5 text-n-slate-11" />
               </button>
+              <div
+                v-if="isBoardDropdownOpen"
+                data-testid="kanban-board-switcher-dropdown"
+                class="absolute left-0 top-full z-10 mt-2 w-80 max-w-full overflow-hidden rounded-lg border border-n-weak bg-n-solid-1 shadow-sm"
+              >
+                <button
+                  v-for="board in boards"
+                  :key="board.id"
+                  type="button"
+                  class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm text-n-slate-12 hover:bg-n-alpha-1"
+                  @click="selectBoard(board.id)"
+                >
+                  <span class="truncate">{{ board.name }}</span>
+                  <i
+                    v-if="board.id === activeBoardId"
+                    class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
+                  />
+                </button>
+              </div>
             </div>
-          </form>
-          <template v-else>
-            <h2 class="truncate text-xl font-medium text-n-slate-12">
-              {{ selectedBoard?.name || t('KANBAN.NO_BOARD_SELECTED') }}
-            </h2>
-            <p
-              v-if="selectedBoard?.description"
-              class="truncate text-sm text-n-slate-11"
-            >
-              {{ selectedBoard.description }}
-            </p>
-          </template>
+          </OnClickOutside>
+          <p
+            v-if="selectedBoard?.description"
+            class="mt-1 truncate text-sm text-n-slate-11"
+          >
+            {{ selectedBoard.description }}
+          </p>
         </div>
-        <div v-if="selectedBoard && !isEditingBoard" class="flex gap-2">
+        <div
+          v-if="selectedBoard"
+          class="flex flex-wrap items-center justify-end gap-2"
+        >
+          <button
+            type="button"
+            data-testid="kanban-create-stage-toggle"
+            class="flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="isCreatingStage"
+            @click="showCreateStageForm = !showCreateStageForm"
+          >
+            <i class="i-lucide-plus size-4" />
+            {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
+          </button>
+          <button
+            type="button"
+            data-testid="kanban-inbox-filter-placeholder"
+            class="flex items-center gap-2 rounded-md border border-n-weak px-3 py-2 text-sm text-n-slate-11"
+            disabled
+          >
+            <i class="i-lucide-inbox size-4" />
+            {{ t('KANBAN.FILTERS.INBOXES') }}
+          </button>
+          <button
+            type="button"
+            data-testid="kanban-agent-filter-placeholder"
+            class="flex items-center gap-2 rounded-md border border-n-weak px-3 py-2 text-sm text-n-slate-11"
+            disabled
+          >
+            <i class="i-lucide-users size-4" />
+            {{ t('KANBAN.FILTERS.AGENTS_SOON') }}
+          </button>
           <button
             v-if="isAdmin"
             type="button"
             data-testid="kanban-board-settings-button"
-            class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="isDeletingBoard"
+            class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
             @click="openBoardSettings"
           >
             <i class="i-lucide-settings size-4" />
             {{ t('KANBAN.ACTIONS.BOARD_SETTINGS') }}
           </button>
-          <button
-            type="button"
-            class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="isDeletingBoard"
-            @click="startEditingBoard"
-          >
-            <i class="i-lucide-pencil size-4" />
-            {{ t('KANBAN.ACTIONS.EDIT_BOARD') }}
-          </button>
-          <button
-            type="button"
-            class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="isDeletingBoard"
-            @click="openRemoveBoardConfirmation"
-          >
-            <i class="i-lucide-trash size-4" />
-            {{ t('KANBAN.ACTIONS.REMOVE_BOARD') }}
-          </button>
         </div>
-        <form
-          v-if="selectedBoard"
-          class="grid w-full max-w-md flex-shrink-0 gap-2"
-          @submit.prevent="createStage"
-        >
-          <div class="flex gap-2">
-            <input
-              v-model="newStageName"
-              type="text"
-              class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-              :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-            />
-            <button
-              type="submit"
-              class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="!newStageName.trim() || isCreatingStage"
-            >
-              <i class="i-lucide-plus size-4" />
-              {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
-            </button>
-          </div>
-        </form>
       </header>
+
+      <div
+        v-if="selectedBoard && showCreateStageForm"
+        class="border-b border-n-weak px-6 py-3"
+      >
+        <form class="flex max-w-xl gap-2" @submit.prevent="createStage">
+          <input
+            v-model="newStageName"
+            type="text"
+            class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+            :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+          />
+          <button
+            type="submit"
+            class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="!newStageName.trim() || isCreatingStage"
+          >
+            <i class="i-lucide-check size-4" />
+            {{ t('KANBAN.ACTIONS.CREATE_STAGE_CONFIRM') }}
+          </button>
+          <button
+            type="button"
+            class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
+            @click="showCreateStageForm = false"
+          >
+            <i class="i-lucide-x size-4" />
+            {{ t('KANBAN.ACTIONS.CANCEL') }}
+          </button>
+        </form>
+      </div>
 
       <div
         v-if="actionError"
@@ -1387,16 +1273,6 @@ onUnmounted(() => {
       :message-value="removeCardMessageValue"
       :confirm-text="t('KANBAN.REMOVE_CARD.CONFIRM')"
       :reject-text="t('KANBAN.REMOVE_CARD.CANCEL')"
-    />
-    <woot-delete-modal
-      v-model:show="showRemoveBoardConfirmation"
-      :on-close="closeRemoveBoardConfirmation"
-      :on-confirm="confirmRemoveBoard"
-      :title="t('KANBAN.REMOVE_BOARD.TITLE')"
-      :message="t('KANBAN.REMOVE_BOARD.MESSAGE')"
-      :message-value="removeBoardMessageValue"
-      :confirm-text="t('KANBAN.REMOVE_BOARD.CONFIRM')"
-      :reject-text="t('KANBAN.REMOVE_BOARD.CANCEL')"
     />
     <woot-delete-modal
       v-model:show="showRemoveStageConfirmation"

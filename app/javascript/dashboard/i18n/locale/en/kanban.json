@@ -23,6 +23,10 @@
       "AUTO_CREATE_CARDS": "Create cards automatically for new conversations",
       "NO_STAGES_HELP": "Add a stage before enabling automatic card creation."
     },
+    "FILTERS": {
+      "INBOXES": "Inboxes",
+      "AGENTS_SOON": "Agents"
+    },
     "ACTIONS": {
       "CREATE_BOARD": "Add",
       "RETRY": "Try again",
@@ -33,6 +37,7 @@
       "SAVE_BOARD": "Save board",
       "REMOVE_BOARD": "Remove board",
       "CREATE_STAGE": "Add stage",
+      "CREATE_STAGE_CONFIRM": "Create stage",
       "STAGE_NAME_PLACEHOLDER": "Stage name",
       "STAGE_COLOR": "Stage color",
       "SELECT_STAGE_COLOR": "Select {color}",

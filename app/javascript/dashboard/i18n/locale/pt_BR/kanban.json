@@ -23,6 +23,10 @@
       "AUTO_CREATE_CARDS": "Criar cartões automaticamente para novas conversas",
       "NO_STAGES_HELP": "Adicione uma etapa antes de habilitar a criação automática de cartões."
     },
+    "FILTERS": {
+      "INBOXES": "Caixas de entrada",
+      "AGENTS_SOON": "Agentes"
+    },
     "ACTIONS": {
       "CREATE_BOARD": "Adicionar",
       "RETRY": "Tentar novamente",
@@ -33,6 +37,7 @@
       "SAVE_BOARD": "Salvar quadro",
       "REMOVE_BOARD": "Remover quadro",
       "CREATE_STAGE": "Adicionar etapa",
+      "CREATE_STAGE_CONFIRM": "Criar etapa",
       "STAGE_NAME_PLACEHOLDER": "Nome da etapa",
       "STAGE_COLOR": "Cor da etapa",
       "SELECT_STAGE_COLOR": "Selecionar {color}",

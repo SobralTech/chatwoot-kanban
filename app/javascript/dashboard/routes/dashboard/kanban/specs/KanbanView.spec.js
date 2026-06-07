@@ -9,6 +9,12 @@ import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
+const mockRoute = {
+  params: {
+    accountId: '1',
+    boardId: '10',
+  },
+};
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -17,12 +23,7 @@ vi.mock('vue-i18n', () => ({
 }));
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({
-    params: {
-      accountId: '1',
-      boardId: '10',
-    },
-  }),
+  useRoute: () => mockRoute,
   useRouter: () => ({
     push: mockPush,
     replace: mockReplace,
@@ -125,6 +126,12 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
   ...overrides,
 });
 
+const buildBoards = (overrides = []) => [
+  { id: 10, name: 'Sales Board' },
+  { id: 11, name: 'Renewals Board' },
+  ...overrides,
+];
+
 const buildCard = overrides => ({
   id: 502,
   conversation_id: 456,
@@ -140,11 +147,23 @@ const buildCard = overrides => ({
 });
 
 const mountView = async (
-  boardResponse = buildBoardResponse(),
-  role = 'agent'
+  input = buildBoardResponse(),
+  legacyRole = 'agent'
 ) => {
+  const options =
+    input &&
+    typeof input === 'object' &&
+    ['boardResponse', 'role', 'boards'].some(key => key in input)
+      ? input
+      : { boardResponse: input, role: legacyRole };
+  const {
+    boardResponse = buildBoardResponse(),
+    role = 'agent',
+    boards = buildBoards(),
+  } = options;
+
   KanbanBoardsAPI.get.mockResolvedValue({
-    data: [{ id: 10, name: 'Sales Board' }],
+    data: boards,
   });
   KanbanBoardsAPI.show.mockResolvedValue({
     data: boardResponse,
@@ -164,6 +183,9 @@ const mountView = async (
     global: {
       plugins: [store],
       stubs: {
+        OnClickOutside: {
+          template: '<div><slot /></div>',
+        },
         KanbanConversationCard: {
           name: 'KanbanConversationCard',
           props: {
@@ -278,19 +300,12 @@ const findLoadMoreButtons = wrapper =>
 const findAddItemPicker = wrapper =>
   wrapper.findComponent({ name: 'KanbanOpportunityPicker' });
 
-const startBoardEdit = async wrapper => {
+const openStageCreateForm = async wrapper => {
   await wrapper
-    .findAll('button')
-    .find(button => button.text().includes('KANBAN.ACTIONS.EDIT_BOARD'))
+    .find('[data-testid="kanban-create-stage-toggle"]')
     .trigger('click');
   await nextTick();
 };
-
-const findBoardEditForm = wrapper =>
-  wrapper.find('[data-testid="kanban-board-edit-form"]');
-
-const findAutoCreateToggle = wrapper =>
-  wrapper.find('[data-testid="kanban-auto-create-toggle"]');
 
 const getStageCardIds = wrapper =>
   findCardDraggables(wrapper).map(draggable =>
@@ -1476,108 +1491,73 @@ describe('KanbanView drag and drop', () => {
   });
 });
 
-describe('KanbanView board edit form', () => {
+describe('KanbanView header navigation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    mockRoute.params.boardId = '10';
   });
 
-  it('renders the automation toggle', async () => {
+  it('shows the current board name', async () => {
     const wrapper = await mountView();
 
-    await startBoardEdit(wrapper);
-
-    expect(findAutoCreateToggle(wrapper).exists()).toBe(true);
-    expect(wrapper.text()).toContain('KANBAN.BOARD_FORM.AUTO_CREATE_CARDS');
+    expect(
+      wrapper.find('[data-testid="kanban-board-switcher"]').text()
+    ).toContain('Sales Board');
   });
 
-  it('sends automation configuration when saving', async () => {
-    KanbanBoardsAPI.update.mockResolvedValue({
-      data: {
-        id: 10,
-        name: 'Sales Board',
-        description: '',
-        auto_create_cards_from_conversations: false,
+  it('lists visible boards in the dropdown', async () => {
+    const wrapper = await mountView();
+
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+
+    const dropdown = wrapper.find(
+      '[data-testid="kanban-board-switcher-dropdown"]'
+    );
+    expect(dropdown.exists()).toBe(true);
+    expect(dropdown.text()).toContain('Sales Board');
+    expect(dropdown.text()).toContain('Renewals Board');
+  });
+
+  it('navigates when switching boards from the dropdown', async () => {
+    const wrapper = await mountView();
+
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-board-switcher-dropdown"]')
+      .findAll('button')[1]
+      .trigger('click');
+
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_board_show',
+      params: {
+        accountId: '1',
+        boardId: 11,
       },
     });
+  });
+
+  it('keeps stage creation working from the new header', async () => {
     const wrapper = await mountView();
 
-    await startBoardEdit(wrapper);
-    await findAutoCreateToggle(wrapper).setValue(false);
+    await openStageCreateForm(wrapper);
+    await wrapper.findAll('input[type="text"]')[1].setValue('Qualified');
     KanbanBoardsAPI.show.mockClear();
-    await findBoardEditForm(wrapper).trigger('submit.prevent');
+    await wrapper.findAll('form')[1].trigger('submit.prevent');
     await flushPromises();
 
-    expect(KanbanBoardsAPI.update).toHaveBeenCalledWith(10, {
-      kanban_board: {
-        name: 'Sales Board',
-        description: '',
-        auto_create_cards_from_conversations: false,
+    expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
+      stage: {
+        name: 'Qualified',
+        color: 'blue',
+        position: 2,
       },
     });
     expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
-  });
-
-  it('does not allow boards without stages to enable automation', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([], {
-        auto_create_cards_from_conversations: false,
-        stages: [],
-      })
-    );
-
-    await startBoardEdit(wrapper);
-
-    expect(findAutoCreateToggle(wrapper).attributes('disabled')).toBeDefined();
-    expect(wrapper.text()).toContain('KANBAN.BOARD_FORM.NO_STAGES_HELP');
-  });
-
-  it('keeps existing board edit behavior working', async () => {
-    KanbanBoardsAPI.update.mockResolvedValue({
-      data: {
-        id: 10,
-        name: 'Updated Sales Board',
-        description: 'Updated description',
-        auto_create_cards_from_conversations: true,
-      },
-    });
-    const wrapper = await mountView();
-
-    await startBoardEdit(wrapper);
-    const inputs = findBoardEditForm(wrapper).findAll('input');
-    await inputs[0].setValue('Updated Sales Board');
-    await inputs[1].setValue('Updated description');
-    await findBoardEditForm(wrapper).trigger('submit.prevent');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.update).toHaveBeenCalledWith(10, {
-      kanban_board: {
-        name: 'Updated Sales Board',
-        description: 'Updated description',
-        auto_create_cards_from_conversations: true,
-      },
-    });
-  });
-
-  it('refreshes boards and navigates to overview after removing the open board', async () => {
-    KanbanBoardsAPI.delete.mockResolvedValue({ data: {} });
-    const wrapper = await mountView();
-    const dispatch = vi.spyOn(wrapper.vm.$store, 'dispatch');
-
-    await wrapper
-      .findAll('button')
-      .find(button => button.text().includes('KANBAN.ACTIONS.REMOVE_BOARD'))
-      .trigger('click');
-    await nextTick();
-    await wrapper.find('[data-testid="confirm-delete"]').trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.delete).toHaveBeenCalledWith(10);
-    expect(dispatch).toHaveBeenCalledWith('kanbanBoards/refreshBoards');
-    expect(mockReplace).toHaveBeenCalledWith({
-      name: 'kanban_boards',
-      params: { accountId: '1' },
-    });
   });
 
   it('shows board settings button for administrators', async () => {
@@ -1607,5 +1587,21 @@ describe('KanbanView board edit form', () => {
       name: 'kanban_board_settings',
       params: { accountId: '1', boardId: 10 },
     });
+  });
+
+  it('does not break the switcher when only one board is visible', async () => {
+    const wrapper = await mountView({
+      boards: [{ id: 10, name: 'Sales Board' }],
+    });
+
+    expect(
+      wrapper.find('[data-testid="kanban-board-switcher"]').text()
+    ).toContain('Sales Board');
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    expect(
+      wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
+    ).toBe(false);
   });
 });
