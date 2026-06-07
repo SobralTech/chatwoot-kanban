@@ -53,6 +53,11 @@ class KanbanCards::CreateFromConversationService
     raise_validation_error('Board must belong to account', :kanban_board) unless kanban_board.account_id == account.id
     raise_validation_error('Board must be active', :kanban_board) unless kanban_board.active?
     raise Pundit::NotAuthorizedError unless KanbanBoardPolicy.new(user_context, kanban_board).visible?
+
+    return if kanban_board.inbox_allowed?(conversation.inbox_id)
+
+    raise_validation_error('Conversation inbox is not allowed by board scope',
+                           :conversation)
   end
 
   def validate_stage!

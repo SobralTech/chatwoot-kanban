@@ -282,6 +282,24 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    it 'rejects board when inbox is not in selected_inboxes scope' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+
+      post_conversation_kanban_card
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include('Conversation inbox is not allowed by board scope')
+    end
+
+    it 'accepts board when inbox is selected in selected_inboxes scope' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+
+      post_conversation_kanban_card
+
+      expect(response).to have_http_status(:created)
+    end
+
     it 'rejects a stage from another board' do
       other_board = create(:kanban_board, account: account)
       other_stage = create(:kanban_stage, account: account, kanban_board: other_board)

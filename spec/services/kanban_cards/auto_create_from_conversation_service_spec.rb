@@ -154,6 +154,29 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect(created_card).to be_present
     end
 
+    it 'creates on board when inbox is selected in selected_inboxes mode' do
+      board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: board, inbox: inbox)
+
+      expect { service.perform! }.to change(KanbanCard, :count).by(1)
+    end
+
+    it 'ignores board in selected_inboxes mode when inbox is not selected' do
+      board.update!(inbox_scope_mode: 'selected_inboxes')
+
+      expect { service.perform! }.not_to change(KanbanCard, :count)
+    end
+
+    it 'creates only on eligible boards when multiple boards exist' do
+      board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: board, inbox: inbox)
+      second_board = create_eligible_board
+      second_board.update!(inbox_scope_mode: 'selected_inboxes')
+
+      expect { service.perform! }.to change(KanbanCard, :count).by(1)
+      expect(created_card.kanban_board_id).to eq(board.id)
+    end
+
     it 'does not create when automation is disabled' do
       board.update!(auto_create_cards_from_conversations: false)
 

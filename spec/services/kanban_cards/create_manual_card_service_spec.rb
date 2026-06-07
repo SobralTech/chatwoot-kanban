@@ -260,6 +260,40 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect { service.perform! }.to change(KanbanCard, :count).by(1)
     end
 
+    it 'accepts inbox in all_inboxes mode' do
+      expect { service.perform! }.to change(KanbanCard, :count).by(1)
+    end
+
+    it 'accepts a selected inbox in selected_inboxes mode' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+
+      expect { service.perform! }.to change(KanbanCard, :count).by(1)
+    end
+
+    it 'rejects an unselected inbox in selected_inboxes mode' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+
+      expect { service.perform! }.to raise_validation_error('Inbox is not allowed by board scope')
+    end
+
+    it 'allows admin to create within board scope' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      admin = create(:user, account: account, role: :administrator)
+      admin_service = build_service(user: admin)
+
+      expect { admin_service.perform! }.to change(KanbanCard, :count).by(1)
+    end
+
+    it 'rejects admin when inbox is not in board scope' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      admin = create(:user, account: account, role: :administrator)
+      admin_service = build_service(user: admin)
+
+      expect { admin_service.perform! }.to raise_validation_error('Inbox is not allowed by board scope')
+    end
+
     it 'rejects a blank subject after trim' do
       service = build_service(subject: '   ')
 

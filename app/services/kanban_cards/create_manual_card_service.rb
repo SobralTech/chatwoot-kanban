@@ -54,6 +54,7 @@ class KanbanCards::CreateManualCardService
     raise_validation_error('Contact must belong to account', :contact) unless contact.account_id == account.id
     raise_validation_error('Inbox must belong to account', :inbox) unless inbox.account_id == account.id
     raise_validation_error('User cannot access inbox', :inbox) unless user_can_access_inbox?
+    raise_validation_error('Inbox is not allowed by board scope', :inbox) unless kanban_board.inbox_allowed?(inbox)
   end
 
   def validate_subject!

@@ -204,6 +204,42 @@ RSpec.describe KanbanCards::CreateFromConversationService do
       expect { service.perform! }.to raise_error(Pundit::NotAuthorizedError)
     end
 
+    it 'accepts conversation in all_inboxes mode' do
+      expect { service.perform! }.to change(KanbanCard.conversation, :count).by(1)
+    end
+
+    it 'accepts conversation when inbox is selected in selected_inboxes mode' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+
+      expect { service.perform! }.to change(KanbanCard.conversation, :count).by(1)
+    end
+
+    it 'rejects conversation when inbox is not in selected_inboxes mode' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+
+      expect { service.perform! }.to raise_validation_error('Conversation inbox is not allowed by board scope')
+    end
+
+    it 'accepts admin conversation creation within board scope' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      admin = create(:user, account: account, role: :administrator)
+      create(:inbox_member, user: admin, inbox: inbox)
+      admin_service = build_service(user: admin)
+
+      expect { admin_service.perform! }.to change(KanbanCard.conversation, :count).by(1)
+    end
+
+    it 'rejects admin conversation creation when inbox is not in board scope' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      admin = create(:user, account: account, role: :administrator)
+      create(:inbox_member, user: admin, inbox: inbox)
+      admin_service = build_service(user: admin)
+
+      expect { admin_service.perform! }.to raise_validation_error('Conversation inbox is not allowed by board scope')
+    end
+
     it 'emits kanban.card.created with a compact payload' do
       allow(Rails.configuration.dispatcher).to receive(:dispatch)
 

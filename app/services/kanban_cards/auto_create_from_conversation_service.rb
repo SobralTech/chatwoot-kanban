@@ -21,6 +21,7 @@ class KanbanCards::AutoCreateFromConversationService
   def eligible_boards
     KanbanBoard.active
                .where(account_id: conversation.account_id, auto_create_cards_from_conversations: true)
+               .accepting_inbox(conversation.inbox_id)
   end
 
   def create_for_board(kanban_board)
