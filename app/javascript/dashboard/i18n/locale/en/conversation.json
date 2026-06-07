@@ -414,7 +414,11 @@
       "CREATE_ERROR": "Failed to create opportunity",
       "CREATED": "Opportunity created",
       "CANCEL": "Cancel",
-      "CREATE": "Create"
+      "CREATE": "Create",
+      "SAVE": "Save",
+      "SAVING": "Saving...",
+      "UPDATE_ERROR": "Failed to update opportunity",
+      "UPDATED": "Opportunity updated"
     },
     "SHARED_FILES": {
       "EMPTY": "No attachments yet",

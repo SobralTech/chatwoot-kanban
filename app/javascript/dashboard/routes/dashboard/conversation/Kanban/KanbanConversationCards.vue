@@ -29,6 +29,7 @@ const stagesAbortController = ref(null);
 const createAbortController = ref(null);
 const boardsRequestId = ref(0);
 const stagesRequestId = ref(0);
+const editStagesRequestId = ref(0);
 
 const isFormOpen = ref(false);
 const boards = ref([]);
@@ -44,6 +45,16 @@ const isCreating = ref(false);
 const boardsError = ref('');
 const stagesError = ref('');
 const createError = ref('');
+const editingCardId = ref(null);
+const editStages = ref([]);
+const editSubject = ref('');
+const editStageId = ref('');
+const editDueAt = ref('');
+const editLabelTitles = ref([]);
+const editError = ref('');
+const isLoadingEditStages = ref(false);
+const isSavingEdit = ref(false);
+const editStagesAbortController = ref(null);
 
 const hasCards = computed(() => cards.value.length > 0);
 const activeBoards = computed(() =>
@@ -51,6 +62,9 @@ const activeBoards = computed(() =>
 );
 const activeStages = computed(() =>
   stages.value.filter(stage => stage.active !== false)
+);
+const activeEditStages = computed(() =>
+  editStages.value.filter(stage => stage.active !== false)
 );
 const selectedBoard = computed(() =>
   activeBoards.value.find(
@@ -64,6 +78,9 @@ const selectedLabels = computed(() =>
 );
 const canSubmit = computed(
   () => selectedBoardId.value && selectedStageId.value && !isCreating.value
+);
+const canSaveEdit = computed(
+  () => editSubject.value.trim() && editStageId.value && !isSavingEdit.value
 );
 
 const contactId = computed(() => currentChat.value?.meta?.sender?.id);
@@ -102,6 +119,17 @@ const formatDueAt = value => {
   return messageStamp(new Date(value).getTime() / 1000, 'LLL d, yyyy h:mm a');
 };
 
+const formatDateTimeInput = value => {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - offset * 60000);
+  return localDate.toISOString().slice(0, 16);
+};
+
 const normalizeCollection = response =>
   response.data?.payload || response.data || [];
 
@@ -130,6 +158,12 @@ const abortFormRequests = () => {
   stagesRequestId.value += 1;
 };
 
+const abortEditRequests = () => {
+  editStagesAbortController.value?.abort();
+  editStagesAbortController.value = null;
+  editStagesRequestId.value += 1;
+};
+
 const resetFormState = () => {
   abortFormRequests();
   isFormOpen.value = false;
@@ -146,6 +180,19 @@ const resetFormState = () => {
   boardsError.value = '';
   stagesError.value = '';
   createError.value = '';
+};
+
+const resetEditState = () => {
+  abortEditRequests();
+  editingCardId.value = null;
+  editStages.value = [];
+  editSubject.value = '';
+  editStageId.value = '';
+  editDueAt.value = '';
+  editLabelTitles.value = [];
+  editError.value = '';
+  isLoadingEditStages.value = false;
+  isSavingEdit.value = false;
 };
 
 const loadCards = async () => {
@@ -185,6 +232,10 @@ const loadCards = async () => {
     }
   }
 };
+
+const cardBoardId = card => card.kanban_board_id || card.kanban_board?.id;
+
+const cardStageId = card => card.kanban_stage_id || card.kanban_stage?.id;
 
 const loadStages = async boardId => {
   if (!boardId) return;
@@ -227,6 +278,48 @@ const loadStages = async boardId => {
     if (stagesRequestId.value === currentRequestId) {
       isLoadingStages.value = false;
       stagesAbortController.value = null;
+    }
+  }
+};
+
+const loadEditStages = async boardId => {
+  if (!boardId) return;
+
+  const currentRequestId = editStagesRequestId.value + 1;
+  editStagesRequestId.value = currentRequestId;
+  editStagesAbortController.value?.abort();
+
+  const controller = new AbortController();
+  editStagesAbortController.value = controller;
+  isLoadingEditStages.value = true;
+  editStages.value = [];
+
+  try {
+    const response = await KanbanBoardsAPI.showBoard(boardId, {
+      signal: controller.signal,
+    });
+
+    if (
+      editStagesRequestId.value !== currentRequestId ||
+      controller.signal.aborted
+    ) {
+      return;
+    }
+
+    editStages.value = response.data?.stages || [];
+  } catch (error) {
+    if (isAbortError(error) || editStagesRequestId.value !== currentRequestId) {
+      return;
+    }
+
+    editError.value = getErrorMessage(
+      error,
+      t('CONVERSATION_SIDEBAR.KANBAN.ERROR')
+    );
+  } finally {
+    if (editStagesRequestId.value === currentRequestId) {
+      isLoadingEditStages.value = false;
+      editStagesAbortController.value = null;
     }
   }
 };
@@ -281,6 +374,7 @@ const loadBoards = async () => {
 };
 
 const openForm = () => {
+  resetEditState();
   isFormOpen.value = true;
   subject.value = defaultSubject.value;
   dueAt.value = '';
@@ -308,10 +402,42 @@ const onRemoveLabel = title => {
   );
 };
 
+const onAddEditLabel = label => {
+  const title = label?.title || label;
+  if (!title || editLabelTitles.value.includes(title)) return;
+
+  editLabelTitles.value = [...editLabelTitles.value, title];
+};
+
+const onRemoveEditLabel = title => {
+  editLabelTitles.value = editLabelTitles.value.filter(
+    labelTitle => labelTitle !== title
+  );
+};
+
 const dueAtPayload = () => {
   if (!dueAt.value) return null;
 
   return new Date(dueAt.value).toISOString();
+};
+
+const editDueAtPayload = () => {
+  if (!editDueAt.value) return null;
+
+  return new Date(editDueAt.value).toISOString();
+};
+
+const startEdit = async card => {
+  resetFormState();
+  resetEditState();
+  editingCardId.value = card.id;
+  editSubject.value = card.subject || '';
+  editStageId.value = cardStageId(card) || '';
+  editDueAt.value = formatDateTimeInput(card.due_at);
+  editLabelTitles.value = (card.labels || []).map(label => label.title);
+  editError.value = '';
+  store.dispatch('labels/get');
+  await loadEditStages(cardBoardId(card));
 };
 
 const submitForm = async () => {
@@ -358,12 +484,44 @@ const submitForm = async () => {
   }
 };
 
+const submitEdit = async card => {
+  if (!canSaveEdit.value) return;
+
+  isSavingEdit.value = true;
+  editError.value = '';
+
+  try {
+    await KanbanBoardsAPI.updateCardDetailsById(cardBoardId(card), card.id, {
+      kanban_stage_id: editStageId.value,
+      subject: editSubject.value.trim(),
+      due_at: editDueAtPayload(),
+    });
+    await KanbanBoardsAPI.updateCardLabels(
+      cardBoardId(card),
+      card.id,
+      editLabelTitles.value
+    );
+
+    useAlert(t('CONVERSATION_SIDEBAR.KANBAN.UPDATED'));
+    resetEditState();
+    await loadCards();
+  } catch (error) {
+    editError.value = getErrorMessage(
+      error,
+      t('CONVERSATION_SIDEBAR.KANBAN.UPDATE_ERROR')
+    );
+  } finally {
+    isSavingEdit.value = false;
+  }
+};
+
 onMounted(loadCards);
 
 watch(
   () => props.conversationId,
   () => {
     resetFormState();
+    resetEditState();
     loadCards();
   }
 );
@@ -371,6 +529,7 @@ watch(
 onBeforeUnmount(() => {
   resetAbortController();
   abortFormRequests();
+  abortEditRequests();
 });
 </script>
 
@@ -556,71 +715,212 @@ onBeforeUnmount(() => {
         :key="card.id"
         class="flex flex-col gap-3 rounded-lg border border-n-weak bg-n-surface-1 p-3"
       >
-        <div class="min-w-0">
-          <p class="mb-1 text-xs font-medium text-n-slate-11">
-            {{ t('CONVERSATION_SIDEBAR.KANBAN.BOARD') }}
-          </p>
-          <p class="m-0 truncate text-sm text-n-slate-12">
-            {{ card.kanban_board?.name }}
-          </p>
-        </div>
-
-        <div class="min-w-0">
-          <p class="mb-1 text-xs font-medium text-n-slate-11">
-            {{ t('CONVERSATION_SIDEBAR.KANBAN.SUBJECT') }}
-          </p>
-          <p class="m-0 truncate text-sm text-n-slate-12">
-            {{ card.subject }}
-          </p>
-        </div>
-
-        <div class="min-w-0">
-          <p class="mb-1 text-xs font-medium text-n-slate-11">
-            {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
-          </p>
-          <div class="flex min-w-0 items-center gap-2 text-sm text-n-slate-12">
-            <span
-              v-if="card.kanban_stage?.color"
-              class="size-2 flex-shrink-0 rounded-full"
-              :class="stageColorClass(card.kanban_stage.color)"
-              aria-hidden="true"
-            />
-            <span class="min-w-0 truncate">
-              {{ card.kanban_stage?.name }}
-            </span>
+        <form
+          v-if="editingCardId === card.id"
+          class="flex flex-col gap-3"
+          @click.stop
+          @submit.prevent="submitEdit(card)"
+        >
+          <div class="min-w-0">
+            <p class="mb-1 text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.BOARD') }}
+            </p>
+            <p class="m-0 truncate text-sm text-n-slate-12">
+              {{ card.kanban_board?.name }}
+            </p>
           </div>
-        </div>
 
-        <div class="min-w-0">
-          <p class="mb-1 text-xs font-medium text-n-slate-11">
-            {{ t('CONVERSATION_SIDEBAR.KANBAN.DUE_DATE') }}
-          </p>
-          <p class="m-0 truncate text-sm text-n-slate-12">
-            {{ formatDueAt(card.due_at) }}
-          </p>
-        </div>
+          <label class="flex flex-col gap-1">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.SUBJECT') }}
+            </span>
+            <input
+              v-model="editSubject"
+              type="text"
+              class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
+            />
+          </label>
 
-        <div class="min-w-0">
-          <p class="mb-1 text-xs font-medium text-n-slate-11">
-            {{ t('CONVERSATION_SIDEBAR.KANBAN.LABELS') }}
+          <label class="flex flex-col gap-1">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
+            </span>
+            <select
+              v-model="editStageId"
+              class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
+              :disabled="isLoadingEditStages || activeEditStages.length === 0"
+            >
+              <option value="">
+                {{ t('CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE') }}
+              </option>
+              <option
+                v-for="stage in activeEditStages"
+                :key="stage.id"
+                :value="stage.id"
+              >
+                {{ stage.name }}
+              </option>
+            </select>
+          </label>
+
+          <p v-if="isLoadingEditStages" class="m-0 text-xs text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.KANBAN.LOADING') }}
           </p>
-          <div v-if="card.labels?.length" class="flex flex-wrap gap-1">
-            <span
-              v-for="label in card.labels"
-              :key="label.id || label.title"
-              class="inline-flex min-w-0 items-center gap-1 rounded-full bg-n-slate-3 px-2 py-1 text-xs text-n-slate-12"
+          <p
+            v-else-if="!isLoadingEditStages && activeEditStages.length === 0"
+            class="m-0 text-xs text-n-slate-11"
+          >
+            {{ t('CONVERSATION_SIDEBAR.KANBAN.EMPTY_STAGES') }}
+          </p>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.DUE_DATE') }}
+            </span>
+            <input
+              v-model="editDueAt"
+              type="datetime-local"
+              class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
+            />
+          </label>
+
+          <label class="flex flex-col gap-2">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.LABELS') }}
+            </span>
+            <div v-if="editLabelTitles.length" class="flex flex-wrap gap-1">
+              <span
+                v-for="title in editLabelTitles"
+                :key="title"
+                class="inline-flex items-center gap-1 rounded-md bg-n-slate-3 px-2 py-1 text-xs text-n-slate-12"
+              >
+                {{ title }}
+                <button
+                  type="button"
+                  class="text-n-slate-11 hover:text-n-slate-12"
+                  :aria-label="title"
+                  @click="onRemoveEditLabel(title)"
+                >
+                  <span aria-hidden="true" class="i-lucide-x size-3" />
+                </button>
+              </span>
+            </div>
+            <div class="rounded-lg border border-n-weak bg-n-alpha-1 p-2">
+              <LabelDropdown
+                :account-labels="accountLabels"
+                :selected-labels="editLabelTitles"
+                :allow-creation="false"
+                @add="onAddEditLabel"
+                @remove="onRemoveEditLabel"
+              />
+            </div>
+          </label>
+
+          <p v-if="editError" class="m-0 text-xs text-n-ruby-11">
+            {{ editError }}
+          </p>
+
+          <div class="flex justify-end gap-2">
+            <button
+              type="button"
+              class="h-8 rounded-md px-3 text-sm text-n-slate-11 hover:bg-n-alpha-2"
+              @click.stop="resetEditState"
+            >
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.CANCEL') }}
+            </button>
+            <button
+              type="submit"
+              class="h-8 rounded-md bg-n-brand px-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="!canSaveEdit"
+              @click.stop
+            >
+              {{
+                isSavingEdit
+                  ? t('CONVERSATION_SIDEBAR.KANBAN.SAVING')
+                  : t('CONVERSATION_SIDEBAR.KANBAN.SAVE')
+              }}
+            </button>
+          </div>
+        </form>
+
+        <div
+          v-else
+          role="button"
+          tabindex="0"
+          data-testid="kanban-linked-card"
+          class="flex cursor-pointer flex-col gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-n-brand"
+          @click="startEdit(card)"
+          @keydown.enter.prevent="startEdit(card)"
+          @keydown.space.prevent="startEdit(card)"
+        >
+          <div class="min-w-0">
+            <p class="mb-1 text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.BOARD') }}
+            </p>
+            <p class="m-0 truncate text-sm text-n-slate-12">
+              {{ card.kanban_board?.name }}
+            </p>
+          </div>
+
+          <div class="min-w-0">
+            <p class="mb-1 text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.SUBJECT') }}
+            </p>
+            <p class="m-0 truncate text-sm text-n-slate-12">
+              {{ card.subject }}
+            </p>
+          </div>
+
+          <div class="min-w-0">
+            <p class="mb-1 text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
+            </p>
+            <div
+              class="flex min-w-0 items-center gap-2 text-sm text-n-slate-12"
             >
               <span
+                v-if="card.kanban_stage?.color"
                 class="size-2 flex-shrink-0 rounded-full"
-                :style="{ backgroundColor: label.color }"
+                :class="stageColorClass(card.kanban_stage.color)"
                 aria-hidden="true"
               />
-              <span class="truncate">{{ label.title }}</span>
-            </span>
+              <span class="min-w-0 truncate">
+                {{ card.kanban_stage?.name }}
+              </span>
+            </div>
           </div>
-          <p v-else class="m-0 text-sm text-n-slate-11">
-            {{ t('CONVERSATION_SIDEBAR.KANBAN.NO_LABELS') }}
-          </p>
+
+          <div class="min-w-0">
+            <p class="mb-1 text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.DUE_DATE') }}
+            </p>
+            <p class="m-0 truncate text-sm text-n-slate-12">
+              {{ formatDueAt(card.due_at) }}
+            </p>
+          </div>
+
+          <div class="min-w-0">
+            <p class="mb-1 text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.LABELS') }}
+            </p>
+            <div v-if="card.labels?.length" class="flex flex-wrap gap-1">
+              <span
+                v-for="label in card.labels"
+                :key="label.id || label.title"
+                class="inline-flex min-w-0 items-center gap-1 rounded-full bg-n-slate-3 px-2 py-1 text-xs text-n-slate-12"
+              >
+                <span
+                  class="size-2 flex-shrink-0 rounded-full"
+                  :style="{ backgroundColor: label.color }"
+                  aria-hidden="true"
+                />
+                <span class="truncate">{{ label.title }}</span>
+              </span>
+            </div>
+            <p v-else class="m-0 text-sm text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.NO_LABELS') }}
+            </p>
+          </div>
         </div>
       </li>
     </ul>

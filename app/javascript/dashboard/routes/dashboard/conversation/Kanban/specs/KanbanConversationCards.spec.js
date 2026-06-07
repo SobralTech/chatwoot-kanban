@@ -38,6 +38,11 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION_SIDEBAR.KANBAN.CREATED': 'Opportunity created',
         'CONVERSATION_SIDEBAR.KANBAN.CANCEL': 'Cancel',
         'CONVERSATION_SIDEBAR.KANBAN.CREATE': 'Create',
+        'CONVERSATION_SIDEBAR.KANBAN.SAVE': 'Save',
+        'CONVERSATION_SIDEBAR.KANBAN.SAVING': 'Saving...',
+        'CONVERSATION_SIDEBAR.KANBAN.UPDATE_ERROR':
+          'Failed to update opportunity',
+        'CONVERSATION_SIDEBAR.KANBAN.UPDATED': 'Opportunity updated',
       };
 
       return translations[key] || key;
@@ -51,6 +56,8 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     getBoards: vi.fn(),
     showBoard: vi.fn(),
     createConversationCard: vi.fn(),
+    updateCardDetailsById: vi.fn(),
+    updateCardLabels: vi.fn(),
   },
 }));
 
@@ -162,6 +169,14 @@ const openForm = async wrapper => {
   await flushPromises();
 };
 
+const openEditForm = async wrapper => {
+  await wrapper.find('[data-testid="kanban-linked-card"]').trigger('click');
+  await flushPromises();
+};
+
+const findButtonByText = (wrapper, text) =>
+  wrapper.findAll('button').find(button => button.text() === text);
+
 const formLabels = wrapper =>
   wrapper
     .findAll('label span')
@@ -199,6 +214,12 @@ describe('KanbanConversationCards', () => {
     });
     KanbanBoardsAPI.createConversationCard.mockResolvedValue({
       data: { payload: buildCard() },
+    });
+    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
+      data: buildCard({ subject: 'Updated opportunity' }),
+    });
+    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
+      data: { payload: [accountLabels[1]] },
     });
   });
 
@@ -566,5 +587,130 @@ describe('KanbanConversationCards', () => {
 
     expect(boardSignals[0].aborted).toBe(true);
     expect(wrapper.text()).not.toContain('Create opportunity');
+  });
+
+  it('opens an inline edit form when clicking an existing card', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    await openEditForm(wrapper);
+
+    expect(store.dispatch).toHaveBeenCalledWith('labels/get');
+    expect(KanbanBoardsAPI.showBoard).toHaveBeenCalledWith(10, {
+      signal: expect.any(AbortSignal),
+    });
+    expect(wrapper.find('input[type="text"]').element.value).toBe(
+      'Maria Silva - Sales Inbox'
+    );
+    expect(wrapper.find('select').element.value).toBe('20');
+    expect(wrapper.findComponent({ name: 'LabelDropdown' }).exists()).toBe(
+      true
+    );
+  });
+
+  it.each(['Enter', ' '])(
+    'opens an inline edit form from the keyboard with %s',
+    async key => {
+      KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+        data: { payload: [buildCard()] },
+      });
+      const wrapper = mountComponent();
+      await flushPromises();
+
+      await wrapper
+        .find('[data-testid="kanban-linked-card"]')
+        .trigger('keydown', { key });
+      await flushPromises();
+
+      expect(wrapper.find('input[type="text"]').element.value).toBe(
+        'Maria Silva - Sales Inbox'
+      );
+    }
+  );
+
+  it('does not render an explicit edit button or pencil icon', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    expect(wrapper.find('button[aria-label="Edit opportunity"]').exists()).toBe(
+      false
+    );
+    expect(wrapper.find('.i-lucide-pencil').exists()).toBe(false);
+  });
+
+  it('saves inline card details and labels', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    await openEditForm(wrapper);
+    await wrapper.find('input[type="text"]').setValue('  Updated renewal  ');
+    await wrapper.find('select').setValue('20');
+    await wrapper
+      .find('input[type="datetime-local"]')
+      .setValue('2026-06-08T10:30');
+    await wrapper
+      .findComponent({ name: 'LabelDropdown' })
+      .vm.$emit('remove', 'urgente');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
+      10,
+      123,
+      {
+        kanban_stage_id: 20,
+        subject: 'Updated renewal',
+        due_at: new Date('2026-06-08T10:30').toISOString(),
+      }
+    );
+    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledWith(10, 123, [
+      'vendas',
+    ]);
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
+    expect(useAlert).toHaveBeenCalledWith('Opportunity updated');
+  });
+
+  it('keeps inline edit values when saving fails', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+    KanbanBoardsAPI.updateCardDetailsById.mockRejectedValue({
+      response: { data: { message: 'Invalid stage' } },
+    });
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    await openEditForm(wrapper);
+    await wrapper.find('input[type="text"]').setValue('Custom edit');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Invalid stage');
+    expect(wrapper.find('input[type="text"]').element.value).toBe(
+      'Custom edit'
+    );
+  });
+
+  it('cancels inline editing without saving', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    await openEditForm(wrapper);
+    await findButtonByText(wrapper, 'Cancel').trigger('click');
+
+    expect(KanbanBoardsAPI.updateCardDetailsById).not.toHaveBeenCalled();
+    expect(wrapper.find('input[type="text"]').exists()).toBe(false);
   });
 });
