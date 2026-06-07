@@ -9,7 +9,7 @@ const state = {
   },
 };
 
-let fetchPromise = null;
+let fetchRequestId = 0;
 
 export const getters = {
   kanbanBoards: _state => _state.records,
@@ -19,43 +19,33 @@ export const getters = {
 
 export const actions = {
   fetchBoards: async ({ commit }) => {
-    if (fetchPromise) return fetchPromise;
+    fetchRequestId += 1;
+    const requestId = fetchRequestId;
 
     commit(types.SET_KANBAN_BOARDS_UI_FLAG, { isLoading: true, error: null });
 
-    const promise = (async () => {
-      try {
-        const response = await KanbanBoardsAPI.get();
-        commit(types.SET_KANBAN_BOARDS, response.data);
-        return response.data;
-      } catch (error) {
-        const message = error?.response?.data?.error || error.message;
-        commit(types.SET_KANBAN_BOARDS_UI_FLAG, { error: message });
-        throw error;
-      } finally {
+    try {
+      const response = await KanbanBoardsAPI.get();
+      if (requestId !== fetchRequestId) return;
+      commit(types.SET_KANBAN_BOARDS, response.data);
+    } catch (error) {
+      if (requestId !== fetchRequestId) return;
+      const message = error?.response?.data?.error || error.message;
+      commit(types.SET_KANBAN_BOARDS_UI_FLAG, { error: message });
+      throw error;
+    } finally {
+      if (requestId === fetchRequestId) {
         commit(types.SET_KANBAN_BOARDS_UI_FLAG, { isLoading: false });
       }
-    })();
-
-    fetchPromise = promise.then(
-      () => {
-        fetchPromise = null;
-      },
-      () => {
-        fetchPromise = null;
-      }
-    );
-
-    return promise;
+    }
   },
 
   refreshBoards: async ({ dispatch }) => {
-    fetchPromise = null;
     return dispatch('fetchBoards');
   },
 
   resetBoards: ({ commit }) => {
-    fetchPromise = null;
+    fetchRequestId += 1;
     commit(types.SET_KANBAN_BOARDS, []);
     commit(types.SET_KANBAN_BOARDS_UI_FLAG, {
       isLoading: false,

@@ -1,4 +1,5 @@
 import { frontendURL } from '../../../helper/URLHelper';
+import KanbanOverview from './KanbanOverview.vue';
 import KanbanView from './KanbanView.vue';
 
 const meta = {
@@ -9,7 +10,7 @@ export const routes = [
   {
     path: frontendURL('accounts/:accountId/kanban'),
     name: 'kanban_boards',
-    component: KanbanView,
+    component: KanbanOverview,
     meta,
   },
   {

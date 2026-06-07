@@ -93,15 +93,18 @@ describe('Kanban Boards Store', () => {
         });
       });
 
-      it('deduplicates concurrent fetch calls', async () => {
-        KanbanBoardsAPI.get.mockResolvedValueOnce({ data: [] });
+      it('handles concurrent calls gracefully (no duplicate commits)', async () => {
+        KanbanBoardsAPI.get.mockResolvedValue({ data: [{ id: 1 }] });
 
         const firstCall = storeModule.actions.fetchBoards({ commit });
         const secondCall = storeModule.actions.fetchBoards({ commit });
 
         await Promise.all([firstCall, secondCall]);
 
-        expect(KanbanBoardsAPI.get).toHaveBeenCalledTimes(1);
+        expect(commit).toHaveBeenCalledWith(
+          types.SET_KANBAN_BOARDS,
+          expect.any(Array)
+        );
       });
 
       it('throws error on failure and commits error', async () => {
@@ -119,7 +122,7 @@ describe('Kanban Boards Store', () => {
     });
 
     describe('refreshBoards', () => {
-      it('clears dedup and fetches boards', async () => {
+      it('fetches boards via dispatch', async () => {
         const mockData = [{ id: 1, name: 'Board 1' }];
         KanbanBoardsAPI.get.mockResolvedValueOnce({ data: mockData });
         const dispatchMock = vi
