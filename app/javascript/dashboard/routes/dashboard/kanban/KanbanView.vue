@@ -6,6 +6,7 @@ import camelcaseKeys from 'camelcase-keys';
 import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
+import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import { emitter } from 'shared/helpers/mitt';
@@ -17,10 +18,11 @@ import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
+const store = useStore();
 
-const boards = ref([]);
+const boards = useMapGetter('kanbanBoards/kanbanBoards');
+const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const selectedBoard = ref(null);
-const isFetchingBoards = ref(false);
 const isFetchingBoard = ref(false);
 const isCreatingBoard = ref(false);
 const isCreatingStage = ref(false);
@@ -416,10 +418,8 @@ const updateBoard = async () => {
     });
     const board = normalizePayload(response.data);
     selectedBoard.value = { ...selectedBoard.value, ...board };
-    boards.value = boards.value.map(existingBoard =>
-      existingBoard.id === board.id ? board : existingBoard
-    );
     cancelEditingBoard();
+    store.dispatch('kanbanBoards/refreshBoards');
     await refreshSelectedBoard();
     useAlert(t('KANBAN.ACTIONS.UPDATE_BOARD_SUCCESS'));
   } catch (error) {
@@ -449,9 +449,7 @@ const removeBoard = async board => {
 
   try {
     await KanbanBoardsAPI.delete(board.id);
-    boards.value = boards.value.filter(
-      existingBoard => existingBoard.id !== board.id
-    );
+    await store.dispatch('kanbanBoards/refreshBoards');
     const nextBoard = boards.value[0];
 
     if (nextBoard) {
@@ -506,9 +504,9 @@ const createBoard = async () => {
       },
     });
     const board = normalizePayload(response.data);
-    boards.value = [...boards.value, board];
     selectedBoard.value = { ...board, stages: [] };
     newBoardName.value = '';
+    store.dispatch('kanbanBoards/refreshBoards');
     router.push({
       name: 'kanban_board_show',
       params: {
@@ -790,12 +788,10 @@ const selectBoard = boardId => {
 };
 
 const fetchBoards = async () => {
-  isFetchingBoards.value = true;
   hasError.value = false;
 
   try {
-    const response = await KanbanBoardsAPI.get();
-    boards.value = response.data.map(board => normalizePayload(board));
+    await store.dispatch('kanbanBoards/fetchBoards');
 
     const nextBoardId = activeBoardId.value || boards.value[0]?.id;
     if (nextBoardId && !activeBoardId.value) {
@@ -809,13 +805,12 @@ const fetchBoards = async () => {
       return;
     }
 
-    await showBoard(nextBoardId);
+    if (nextBoardId) {
+      await showBoard(nextBoardId);
+    }
   } catch {
     hasError.value = true;
-    boards.value = [];
     selectedBoard.value = null;
-  } finally {
-    isFetchingBoards.value = false;
   }
 };
 

@@ -1,9 +1,11 @@
 import { flushPromises, shallowMount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { createStore } from 'vuex';
 import KanbanView from '../KanbanView.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
+import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -61,6 +63,13 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     showCardById: vi.fn(),
   },
 }));
+
+const createTestStore = () =>
+  createStore({
+    modules: {
+      kanbanBoards: { namespaced: true, ...kanbanBoardsModule },
+    },
+  });
 
 const buildPagination = (overrides = {}) => ({
   limit: 20,
@@ -141,8 +150,10 @@ const mountView = async (boardResponse = buildBoardResponse()) => {
     data: buildCard({ id: 501, kanban_stage_id: 100 }),
   });
 
+  const store = createTestStore();
   const wrapper = shallowMount(KanbanView, {
     global: {
+      plugins: [store],
       stubs: {
         KanbanConversationCard: {
           name: 'KanbanConversationCard',
