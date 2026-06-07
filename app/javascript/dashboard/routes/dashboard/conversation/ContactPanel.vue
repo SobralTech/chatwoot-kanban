@@ -20,6 +20,7 @@ import CustomAttributes from './customAttributes/CustomAttributes.vue';
 import SharedFiles from './SharedFiles.vue';
 import Draggable from 'vuedraggable';
 import MacrosList from './Macros/List.vue';
+import KanbanConversationCards from './Kanban/KanbanConversationCards.vue';
 import ShopifyOrdersList from 'dashboard/components/widgets/conversation/ShopifyOrdersList.vue';
 import SidebarActionsHeader from 'dashboard/components-next/SidebarActionsHeader.vue';
 import LinearIssuesList from 'dashboard/components/widgets/conversation/linear/IssuesList.vue';
@@ -251,6 +252,16 @@ onMounted(() => {
               <MacrosList :conversation-id="conversationId" />
             </AccordionItem>
           </woot-feature-toggle>
+          <div v-else-if="element.name === 'kanban'">
+            <AccordionItem
+              :title="$t('CONVERSATION_SIDEBAR.ACCORDION.KANBAN')"
+              :is-open="isContactSidebarItemOpen('is_kanban_open')"
+              compact
+              @toggle="value => toggleSidebarUIState('is_kanban_open', value)"
+            >
+              <KanbanConversationCards :conversation-id="conversationId" />
+            </AccordionItem>
+          </div>
           <div
             v-else-if="
               element.name === 'linear_issues' &&

@@ -365,9 +365,15 @@
       "CONTACT_ATTRIBUTES": "Atributos do contato",
       "PREVIOUS_CONVERSATION": "Conversas anteriores",
       "MACROS": "Macros",
+      "KANBAN": "Kanban",
       "LINEAR_ISSUES": "Problemas do Linear vinculados",
       "SHOPIFY_ORDERS": "Pedidos do Shopify",
       "SHARED_FILES": "Anexos"
+    },
+    "KANBAN": {
+      "LOADING": "Carregando oportunidades",
+      "EMPTY": "Nenhuma oportunidade vinculada a esta conversa",
+      "ERROR": "Falha ao carregar oportunidades"
     },
     "SHARED_FILES": {
       "EMPTY": "Nenhum anexo ainda",

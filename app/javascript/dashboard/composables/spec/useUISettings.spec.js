@@ -28,6 +28,14 @@ vi.mock('dashboard/composables/store', () => ({
 describe('useUISettings', () => {
   beforeEach(() => {
     mockDispatch.mockClear();
+    getUISettingsMock.value = {
+      is_ct_labels_open: true,
+      conversation_sidebar_items_order:
+        DEFAULT_CONVERSATION_SIDEBAR_ITEMS_ORDER,
+      contact_sidebar_items_order: DEFAULT_CONTACT_SIDEBAR_ITEMS_ORDER,
+      editor_message_key: 'enter',
+      channel_email_quoted_reply_enabled: true,
+    };
   });
 
   it('returns uiSettings', () => {
@@ -78,6 +86,48 @@ describe('useUISettings', () => {
     expect(conversationSidebarItemsOrder.value).toEqual(
       DEFAULT_CONVERSATION_SIDEBAR_ITEMS_ORDER
     );
+  });
+
+  it('includes kanban after macros in default conversation sidebar order', () => {
+    const itemNames = DEFAULT_CONVERSATION_SIDEBAR_ITEMS_ORDER.map(
+      item => item.name
+    );
+
+    expect(itemNames).toContain('kanban');
+    expect(itemNames.indexOf('kanban')).toBe(itemNames.indexOf('macros') + 1);
+    expect(itemNames.indexOf('kanban')).toBeLessThan(
+      itemNames.indexOf('conversation_info')
+    );
+  });
+
+  it('appends missing default conversation sidebar items safely', () => {
+    getUISettingsMock.value = {
+      ...getUISettingsMock.value,
+      conversation_sidebar_items_order: [
+        { name: 'conversation_actions' },
+        { name: 'macros' },
+        { name: 'conversation_info' },
+      ],
+    };
+
+    const { conversationSidebarItemsOrder } = useUISettings();
+    const itemNames = conversationSidebarItemsOrder.value.map(
+      item => item.name
+    );
+
+    expect(itemNames).toEqual([
+      'conversation_actions',
+      'macros',
+      'conversation_info',
+      'kanban',
+      'contact_attributes',
+      'contact_notes',
+      'shared_files',
+      'previous_conversation',
+      'conversation_participants',
+      'linear_issues',
+      'shopify_orders',
+    ]);
   });
 
   it('returns correct contact sidebar items order', () => {

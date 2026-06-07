@@ -389,9 +389,15 @@
       "CONTACT_ATTRIBUTES": "Contact Attributes",
       "PREVIOUS_CONVERSATION": "Previous Conversations",
       "MACROS": "Macros",
+      "KANBAN": "Kanban",
       "LINEAR_ISSUES": "Linked Linear Issues",
       "SHOPIFY_ORDERS": "Shopify Orders",
       "SHARED_FILES": "Attachments"
+    },
+    "KANBAN": {
+      "LOADING": "Loading opportunities",
+      "EMPTY": "No opportunities linked to this conversation",
+      "ERROR": "Failed to load opportunities"
     },
     "SHARED_FILES": {
       "EMPTY": "No attachments yet",
