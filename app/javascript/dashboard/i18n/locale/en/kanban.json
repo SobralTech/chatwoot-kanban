@@ -29,6 +29,7 @@
       "BOARD_NAME_PLACEHOLDER": "Board name",
       "BOARD_DESCRIPTION_PLACEHOLDER": "Board description",
       "EDIT_BOARD": "Edit",
+      "BOARD_SETTINGS": "Settings",
       "SAVE_BOARD": "Save board",
       "REMOVE_BOARD": "Remove board",
       "CREATE_STAGE": "Add stage",
@@ -76,6 +77,48 @@
       "RUBY": "ruby",
       "IRIS": "iris",
       "VIOLET": "violet"
+    },
+    "SETTINGS": {
+      "TITLE": "Funnel settings",
+      "DESCRIPTION": "Manage who can use this funnel and which inboxes can create cards.",
+      "BACK_TO_BOARD": "Back to board",
+      "LOADING": "Loading funnel settings...",
+      "LOAD_ERROR": "Could not load funnel settings.",
+      "ACCESS_DENIED": "You are not authorized to manage this funnel.",
+      "SAVE": "Save settings",
+      "SAVE_SUCCESS": "Funnel settings saved.",
+      "SAVE_ERROR": "Could not save funnel settings.",
+      "GENERAL": {
+        "TITLE": "General",
+        "NAME": "Name",
+        "DESCRIPTION": "Description",
+        "AUTO_CREATE": "Create cards automatically for new conversations"
+      },
+      "AGENTS": {
+        "TITLE": "Agents",
+        "ALL": "All agents",
+        "SELECTED": "Selected agents",
+        "PLACEHOLDER": "Select agents",
+        "SEARCH": "Search agents",
+        "EMPTY": "No agents found"
+      },
+      "INBOXES": {
+        "TITLE": "Inboxes",
+        "ALL": "All inboxes",
+        "SELECTED": "Selected inboxes",
+        "PLACEHOLDER": "Select inboxes",
+        "SEARCH": "Search inboxes",
+        "EMPTY": "No inboxes found"
+      },
+      "AUTOMATIONS": {
+        "TITLE": "Automations",
+        "COMING_SOON": "Coming soon"
+      },
+      "DELETE": {
+        "TITLE": "Delete funnel",
+        "DESCRIPTION": "Remove this funnel from active Kanban navigation. Historical cards are not changed.",
+        "ACTION": "Delete funnel"
+      }
     },
     "REMOVE_BOARD": {
       "TITLE": "Remove board",

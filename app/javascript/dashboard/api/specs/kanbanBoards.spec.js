@@ -15,6 +15,8 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('deleteStage');
     expect(kanbanBoards).toHaveProperty('getBoards');
     expect(kanbanBoards).toHaveProperty('showBoard');
+    expect(kanbanBoards).toHaveProperty('getSettings');
+    expect(kanbanBoards).toHaveProperty('updateSettings');
     expect(kanbanBoards).toHaveProperty('getConversationCards');
     expect(kanbanBoards).toHaveProperty('createConversationCard');
     expect(kanbanBoards).toHaveProperty('getStageCards');
@@ -143,6 +145,24 @@ describe('#KanbanBoardsAPI', () => {
       expect(axiosMock.get).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2',
         { signal: controller.signal }
+      );
+    });
+
+    it('#getSettings', () => {
+      kanbanBoards.getSettings(2);
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/settings'
+      );
+    });
+
+    it('#updateSettings', () => {
+      const payload = { kanban_board: { name: 'Sales' } };
+      kanbanBoards.updateSettings(2, payload);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/settings',
+        payload
       );
     });
 

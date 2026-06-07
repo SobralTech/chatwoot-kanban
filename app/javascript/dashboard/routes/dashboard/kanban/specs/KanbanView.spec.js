@@ -64,9 +64,15 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   },
 }));
 
-const createTestStore = () =>
+const createTestStore = (role = 'agent') =>
   createStore({
     modules: {
+      auth: {
+        namespaced: true,
+        getters: {
+          getCurrentRole: () => role,
+        },
+      },
       kanbanBoards: { namespaced: true, ...kanbanBoardsModule },
     },
   });
@@ -133,7 +139,10 @@ const buildCard = overrides => ({
   ...overrides,
 });
 
-const mountView = async (boardResponse = buildBoardResponse()) => {
+const mountView = async (
+  boardResponse = buildBoardResponse(),
+  role = 'agent'
+) => {
   KanbanBoardsAPI.get.mockResolvedValue({
     data: [{ id: 10, name: 'Sales Board' }],
   });
@@ -150,7 +159,7 @@ const mountView = async (boardResponse = buildBoardResponse()) => {
     data: buildCard({ id: 501, kanban_stage_id: 100 }),
   });
 
-  const store = createTestStore();
+  const store = createTestStore(role);
   const wrapper = shallowMount(KanbanView, {
     global: {
       plugins: [store],
@@ -1568,6 +1577,35 @@ describe('KanbanView board edit form', () => {
     expect(mockReplace).toHaveBeenCalledWith({
       name: 'kanban_boards',
       params: { accountId: '1' },
+    });
+  });
+
+  it('shows board settings button for administrators', async () => {
+    const wrapper = await mountView(buildBoardResponse(), 'administrator');
+
+    expect(
+      wrapper.find('[data-testid="kanban-board-settings-button"]').exists()
+    ).toBe(true);
+  });
+
+  it('does not show board settings button for agents', async () => {
+    const wrapper = await mountView(buildBoardResponse(), 'agent');
+
+    expect(
+      wrapper.find('[data-testid="kanban-board-settings-button"]').exists()
+    ).toBe(false);
+  });
+
+  it('opens board settings route from the settings button', async () => {
+    const wrapper = await mountView(buildBoardResponse(), 'administrator');
+
+    await wrapper
+      .find('[data-testid="kanban-board-settings-button"]')
+      .trigger('click');
+
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_board_settings',
+      params: { accountId: '1', boardId: 10 },
     });
   });
 });

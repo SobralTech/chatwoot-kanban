@@ -20,8 +20,10 @@ const router = useRouter();
 const { t } = useI18n();
 const store = useStore();
 
+const currentRole = useMapGetter('auth/getCurrentRole');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
+const isAdmin = computed(() => currentRole.value === 'administrator');
 const selectedBoard = ref(null);
 const isFetchingBoard = ref(false);
 const isCreatingBoard = ref(false);
@@ -397,6 +399,18 @@ const cancelEditingBoard = () => {
     description: '',
     autoCreateCardsFromConversations: false,
   };
+};
+
+const openBoardSettings = () => {
+  if (!selectedBoard.value?.id) return;
+
+  router.push({
+    name: 'kanban_board_settings',
+    params: {
+      accountId: route.params.accountId,
+      boardId: selectedBoard.value.id,
+    },
+  });
 };
 
 const updateBoard = async () => {
@@ -1061,6 +1075,17 @@ onUnmounted(() => {
           </template>
         </div>
         <div v-if="selectedBoard && !isEditingBoard" class="flex gap-2">
+          <button
+            v-if="isAdmin"
+            type="button"
+            data-testid="kanban-board-settings-button"
+            class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="isDeletingBoard"
+            @click="openBoardSettings"
+          >
+            <i class="i-lucide-settings size-4" />
+            {{ t('KANBAN.ACTIONS.BOARD_SETTINGS') }}
+          </button>
           <button
             type="button"
             class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"

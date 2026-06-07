@@ -434,7 +434,7 @@ const menuItems = computed(() => {
         ...kanbanBoards.value.map(board => ({
           name: `Kanban Board ${board.id}`,
           label: board.name,
-          activeOn: ['kanban_board_show'],
+          activeOn: ['kanban_board_show', 'kanban_board_settings'],
           to: accountScopedRoute('kanban_board_show', {
             boardId: board.id,
           }),
