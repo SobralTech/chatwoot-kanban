@@ -36,7 +36,7 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
   end
 
   def fetch_kanban_board
-    @kanban_board = KanbanBoard.where(account_id: Current.account.id).find(card_params[:kanban_board_id])
+    @kanban_board = policy_scope(KanbanBoard).find(card_params[:kanban_board_id])
   end
 
   def authorize_kanban_board_show

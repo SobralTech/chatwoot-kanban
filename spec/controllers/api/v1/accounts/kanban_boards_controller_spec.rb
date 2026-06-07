@@ -34,6 +34,40 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body.pluck('active')).to all be(true)
     end
+
+    it 'filters selected_agents boards for non-member agents' do
+      create(:kanban_board, account: account, visibility_mode: 'selected_agents', name: 'Restricted')
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body.pluck('name')).not_to include('Restricted')
+    end
+
+    it 'includes selected_agents boards for member agents' do
+      restricted_board = create(:kanban_board, account: account, visibility_mode: 'selected_agents', name: 'Restricted')
+      create(:kanban_board_member, account: account, kanban_board: restricted_board, user: agent)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body.pluck('name')).to include('Restricted')
+    end
+
+    it 'shows all boards for administrators regardless of visibility' do
+      create(:kanban_board, account: account, visibility_mode: 'selected_agents', name: 'Restricted')
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards",
+          headers: administrator.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body.pluck('name')).to include('Restricted')
+    end
   end
 
   describe 'GET /api/v1/accounts/{account.id}/kanban_boards/{id}' do
@@ -741,6 +775,37 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['stages'].first['cards'].pluck('id')).to eq([card.id])
+    end
+
+    it 'returns 404 for agent without membership on selected_agents board' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'allows agent with membership on selected_agents board' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+      create(:kanban_board_member, account: account, kanban_board: kanban_board, user: agent)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+    end
+
+    it 'allows administrator on selected_agents board without membership' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: administrator.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
     end
   end
 

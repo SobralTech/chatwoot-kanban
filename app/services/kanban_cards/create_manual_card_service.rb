@@ -42,6 +42,7 @@ class KanbanCards::CreateManualCardService
   def validate_board!
     raise_validation_error('Board must belong to account', :kanban_board) unless kanban_board.account_id == account.id
     raise_validation_error('Board must be active', :kanban_board) unless kanban_board.active?
+    raise Pundit::NotAuthorizedError unless KanbanBoardPolicy.new(user_context, kanban_board).visible?
   end
 
   def validate_stage!

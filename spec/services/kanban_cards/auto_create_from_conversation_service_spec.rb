@@ -147,6 +147,13 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect { service.perform! }.not_to change(KanbanCard, :count)
     end
 
+    it 'creates card on selected_agents board without user interaction' do
+      board.update!(visibility_mode: 'selected_agents')
+
+      expect { service.perform! }.to change(KanbanCard, :count).by(1)
+      expect(created_card).to be_present
+    end
+
     it 'does not create when automation is disabled' do
       board.update!(auto_create_cards_from_conversations: false)
 

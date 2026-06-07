@@ -186,6 +186,35 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect { service.perform! }.to raise_validation_error('Board must be active')
     end
 
+    it 'rejects a selected_agents board when agent is not a member' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      expect { service.perform! }.to raise_error(Pundit::NotAuthorizedError)
+    end
+
+    it 'accepts a selected_agents board when agent is a member' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+      create(:kanban_board_member, account: account, kanban_board: kanban_board, user: user)
+
+      expect { service.perform! }.to change(KanbanCard.manual, :count).by(1)
+    end
+
+    it 'accepts an admin on selected_agents board without membership' do
+      admin = create(:user, account: account, role: :administrator)
+      admin_service = described_class.new(
+        account: account,
+        user: admin,
+        kanban_board: kanban_board,
+        kanban_stage: kanban_stage,
+        contact: contact,
+        inbox: inbox,
+        subject: card_subject
+      )
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      expect { admin_service.perform! }.to change(KanbanCard.manual, :count).by(1)
+    end
+
     it 'creates a card when opportunity-card reads are disabled' do
       kanban_board.update!(use_opportunity_card_reads: false)
 

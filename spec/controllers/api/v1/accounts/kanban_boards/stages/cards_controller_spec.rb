@@ -3,6 +3,7 @@ require 'rails_helper'
 RSpec.describe 'Kanban stage cards API', type: :request do
   let(:account) { create(:account) }
   let(:agent) { create(:user, account: account, role: :agent) }
+  let(:administrator) { create(:user, account: account, role: :administrator) }
   let(:kanban_board) { create(:kanban_board, account: account) }
   let(:kanban_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board) }
   let(:inbox) { create(:inbox, account: account) }
@@ -168,6 +169,23 @@ RSpec.describe 'Kanban stage cards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(query_counts.slice(:messages, :notes, :labels_tags_taggings)).to eq(messages: 0, notes: 0, labels_tags_taggings: 0)
+    end
+
+    it 'returns 404 when board is not visible to agent' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      get stage_cards_path, headers: agent.create_new_auth_token, params: { limit: 2 }, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'allows admin on selected_agents board without membership' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+      create_visible_cards(2)
+
+      get stage_cards_path, headers: administrator.create_new_auth_token, params: { limit: 2 }, as: :json
+
+      expect(response).to have_http_status(:success)
     end
   end
 

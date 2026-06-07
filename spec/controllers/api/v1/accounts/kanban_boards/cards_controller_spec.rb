@@ -3,6 +3,7 @@ require 'rails_helper'
 RSpec.describe 'Kanban Cards API', type: :request do
   let(:account) { create(:account) }
   let(:agent) { create(:user, account: account, role: :agent) }
+  let(:administrator) { create(:user, account: account, role: :administrator) }
   let(:kanban_board) { create(:kanban_board, account: account) }
   let(:stage) { create(:kanban_stage, account: account, kanban_board: kanban_board) }
   let(:conversation) { create(:conversation, account: account) }
@@ -1020,6 +1021,63 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(stable_card.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
       expect(legacy_card.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
+    end
+
+    it 'returns 404 for card show when board is not visible to agent' do
+      card = create_manual_card
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      get stable_card_url(card),
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns 404 for card update when board is not visible to agent' do
+      card = create_manual_card
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { subject: 'Updated' } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns 404 for card destroy when board is not visible to agent' do
+      card = create_manual_card
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      delete stable_card_url(card),
+             headers: agent.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns 404 for card reorder when board is not visible to agent' do
+      card = create_manual_card
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      patch stable_card_url(card, suffix: 'reorder'),
+            headers: agent.create_new_auth_token,
+            params: { card: { position: 2 } },
+            as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'allows admin card operations on selected_agents board without membership' do
+      card = create_manual_card
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      get stable_card_url(card),
+          headers: administrator.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
     end
   end
 

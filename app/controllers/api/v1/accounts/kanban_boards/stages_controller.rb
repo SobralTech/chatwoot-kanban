@@ -66,7 +66,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   private
 
   def fetch_kanban_board
-    @kanban_board = KanbanBoard.where(account_id: Current.account.id).active.find(params[:kanban_board_id])
+    @kanban_board = policy_scope(KanbanBoard).find(params[:kanban_board_id])
   end
 
   def authorize_kanban_board_update

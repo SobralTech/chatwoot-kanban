@@ -157,6 +157,28 @@ RSpec.describe KanbanCards::CreateFromConversationService do
       expect { service.perform! }.to raise_validation_error('Board must be active')
     end
 
+    it 'rejects a selected_agents board when agent is not a member' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      expect { service.perform! }.to raise_error(Pundit::NotAuthorizedError)
+    end
+
+    it 'accepts a selected_agents board when agent is a member' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+      create(:kanban_board_member, account: account, kanban_board: kanban_board, user: user)
+
+      expect { service.perform! }.to change(KanbanCard.conversation, :count).by(1)
+    end
+
+    it 'accepts an admin on selected_agents board without membership' do
+      admin = create(:user, account: account, role: :administrator)
+      create(:inbox_member, user: admin, inbox: inbox)
+      admin_service = build_service(user: admin)
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      expect { admin_service.perform! }.to change(KanbanCard.conversation, :count).by(1)
+    end
+
     it 'rejects a stage from another board' do
       other_board = create(:kanban_board, account: account)
       other_stage = create(:kanban_stage, account: account, kanban_board: other_board)

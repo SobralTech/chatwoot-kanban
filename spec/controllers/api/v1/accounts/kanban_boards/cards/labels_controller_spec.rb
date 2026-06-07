@@ -3,6 +3,7 @@ require 'rails_helper'
 RSpec.describe 'Kanban Card Labels API', type: :request do
   let(:account) { create(:account) }
   let(:agent) { create(:user, account: account, role: :agent) }
+  let(:administrator) { create(:user, account: account, role: :administrator) }
   let(:kanban_board) { create(:kanban_board, account: account) }
   let(:stage) { create(:kanban_stage, account: account, kanban_board: kanban_board) }
   let(:inbox) { create(:inbox, account: account) }
@@ -161,6 +162,31 @@ RSpec.describe 'Kanban Card Labels API', type: :request do
 
       expect(response).to have_http_status(:not_found)
       expect(card.reload.label_list).to be_empty
+    end
+
+    it 'rejects label index when board is not visible to agent' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      get labels_url(card), headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'rejects label update when board is not visible to agent' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      put labels_url(card), params: { labels: ['hot'] }, headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'allows admin label operations on selected_agents board without membership' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+      card.update_labels([hot_label.title])
+
+      get labels_url(card), headers: administrator.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
     end
   end
 

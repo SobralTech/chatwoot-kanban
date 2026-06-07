@@ -26,7 +26,11 @@ class KanbanCardPolicy < ApplicationPolicy
   end
 
   def active_runtime_card?
-    record.active? && record.kanban_board&.active? && record.kanban_stage&.active?
+    record.active? && record.kanban_board&.active? && board_visible_to_user? && record.kanban_stage&.active?
+  end
+
+  def board_visible_to_user?
+    KanbanBoardPolicy.new(user_context, record.kanban_board).visible?
   end
 
   def card_account?

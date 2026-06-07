@@ -3,6 +3,7 @@ require 'rails_helper'
 RSpec.describe 'Conversation Kanban Cards API', type: :request do
   let(:account) { create(:account) }
   let(:agent) { create(:user, account: account, role: :agent) }
+  let(:administrator) { create(:user, account: account, role: :administrator) }
   let(:contact) { create(:contact, account: account, name: 'Maria Silva') }
   let(:inbox) { create(:inbox, account: account, name: 'Sales Inbox') }
   let(:conversation) { create(:conversation, account: account, contact: contact, inbox: inbox) }
@@ -70,6 +71,34 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
       request_conversation_kanban_cards
 
       expect(response.parsed_body['payload']).to be_empty
+    end
+
+    it 'omits card from selected_agents board when agent is not a member' do
+      create_conversation_card
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      request_conversation_kanban_cards
+
+      expect(response.parsed_body['payload']).to be_empty
+    end
+
+    it 'keeps card from selected_agents board when agent is a member' do
+      create_conversation_card
+      kanban_board.update!(visibility_mode: 'selected_agents')
+      create(:kanban_board_member, account: account, kanban_board: kanban_board, user: agent)
+
+      request_conversation_kanban_cards
+
+      expect(response.parsed_body['payload']).to be_present
+    end
+
+    it 'keeps card from selected_agents board for administrator' do
+      create_conversation_card
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      get conversation_kanban_cards_url(conversation), headers: administrator.create_new_auth_token, as: :json
+
+      expect(response.parsed_body['payload']).to be_present
     end
 
     it 'rejects cross-account conversations' do
@@ -245,6 +274,14 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    it 'rejects board not visible to agent' do
+      kanban_board.update!(visibility_mode: 'selected_agents')
+
+      post_conversation_kanban_card
+
+      expect(response).to have_http_status(:not_found)
+    end
+
     it 'rejects a stage from another board' do
       other_board = create(:kanban_board, account: account)
       other_stage = create(:kanban_stage, account: account, kanban_board: other_board)
@@ -258,8 +295,7 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
       kanban_board.update!(active: false)
       post_conversation_kanban_card
 
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body['message']).to include('Board must be active')
+      expect(response).to have_http_status(:not_found)
 
       kanban_board.update!(active: true)
       stage.update!(active: false)
