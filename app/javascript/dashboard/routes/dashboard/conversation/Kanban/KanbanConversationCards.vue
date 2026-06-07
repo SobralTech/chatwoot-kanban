@@ -5,6 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
+import { messageStamp } from 'shared/helpers/timeHelper';
 
 const props = defineProps({
   conversationId: {
@@ -93,6 +94,12 @@ const stageColorClass = color => {
   };
 
   return colorClasses[color] || 'bg-n-slate-9';
+};
+
+const formatDueAt = value => {
+  if (!value) return t('CONVERSATION_SIDEBAR.KANBAN.NOT_SET');
+
+  return messageStamp(new Date(value).getTime() / 1000, 'LLL d, yyyy h:mm a');
 };
 
 const normalizeCollection = response =>
@@ -547,24 +554,73 @@ onBeforeUnmount(() => {
       <li
         v-for="card in cards"
         :key="card.id"
-        class="rounded-lg border border-n-weak bg-n-surface-1 p-3"
+        class="flex flex-col gap-3 rounded-lg border border-n-weak bg-n-surface-1 p-3"
       >
-        <p class="mb-1 truncate font-medium text-n-slate-12">
-          {{ card.subject }}
-        </p>
-        <div class="flex min-w-0 items-center gap-2 text-xs text-n-slate-11">
-          <span class="min-w-0 truncate">
+        <div class="min-w-0">
+          <p class="mb-1 text-xs font-medium text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.KANBAN.BOARD') }}
+          </p>
+          <p class="m-0 truncate text-sm text-n-slate-12">
             {{ card.kanban_board?.name }}
-          </span>
-          <span
-            v-if="card.kanban_stage?.color"
-            class="size-2 flex-shrink-0 rounded-full"
-            :class="stageColorClass(card.kanban_stage.color)"
-            aria-hidden="true"
-          />
-          <span class="min-w-0 truncate">
-            {{ card.kanban_stage?.name }}
-          </span>
+          </p>
+        </div>
+
+        <div class="min-w-0">
+          <p class="mb-1 text-xs font-medium text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.KANBAN.SUBJECT') }}
+          </p>
+          <p class="m-0 truncate text-sm text-n-slate-12">
+            {{ card.subject }}
+          </p>
+        </div>
+
+        <div class="min-w-0">
+          <p class="mb-1 text-xs font-medium text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
+          </p>
+          <div class="flex min-w-0 items-center gap-2 text-sm text-n-slate-12">
+            <span
+              v-if="card.kanban_stage?.color"
+              class="size-2 flex-shrink-0 rounded-full"
+              :class="stageColorClass(card.kanban_stage.color)"
+              aria-hidden="true"
+            />
+            <span class="min-w-0 truncate">
+              {{ card.kanban_stage?.name }}
+            </span>
+          </div>
+        </div>
+
+        <div class="min-w-0">
+          <p class="mb-1 text-xs font-medium text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.KANBAN.DUE_DATE') }}
+          </p>
+          <p class="m-0 truncate text-sm text-n-slate-12">
+            {{ formatDueAt(card.due_at) }}
+          </p>
+        </div>
+
+        <div class="min-w-0">
+          <p class="mb-1 text-xs font-medium text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.KANBAN.LABELS') }}
+          </p>
+          <div v-if="card.labels?.length" class="flex flex-wrap gap-1">
+            <span
+              v-for="label in card.labels"
+              :key="label.id || label.title"
+              class="inline-flex min-w-0 items-center gap-1 rounded-full bg-n-slate-3 px-2 py-1 text-xs text-n-slate-12"
+            >
+              <span
+                class="size-2 flex-shrink-0 rounded-full"
+                :style="{ backgroundColor: label.color }"
+                aria-hidden="true"
+              />
+              <span class="truncate">{{ label.title }}</span>
+            </span>
+          </div>
+          <p v-else class="m-0 text-sm text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.KANBAN.NO_LABELS') }}
+          </p>
         </div>
       </li>
     </ul>

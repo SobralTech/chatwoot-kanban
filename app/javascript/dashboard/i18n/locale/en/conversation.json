@@ -405,6 +405,8 @@
       "STAGE": "Opportunity stage",
       "DUE_DATE": "Due date",
       "LABELS": "Labels",
+      "NOT_SET": "Not set",
+      "NO_LABELS": "No labels",
       "SELECT_BOARD": "Select a board",
       "SELECT_STAGE": "Select a stage",
       "EMPTY_BOARDS": "No active boards available",

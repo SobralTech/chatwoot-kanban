@@ -81,7 +81,9 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
     end
 
     it 'returns a compact payload only' do
-      card = create_conversation_card
+      label = create(:label, account: account, title: 'urgente', color: '#ff0000', description: nil)
+      card = create_conversation_card(due_at: Time.zone.parse('2026-06-07T18:00:00-03:00'))
+      card.update_labels(['urgente'])
 
       request_conversation_kanban_cards
 
@@ -90,6 +92,10 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
           'id' => card.id,
           'origin' => 'conversation',
           'subject' => 'Maria Silva - Sales Inbox',
+          'due_at' => card.due_at.iso8601,
+          'labels' => [
+            { 'id' => label.id, 'title' => 'urgente', 'color' => '#ff0000', 'description' => nil }
+          ],
           'kanban_board' => { 'id' => kanban_board.id, 'name' => 'Sales' },
           'kanban_stage' => { 'id' => stage.id, 'name' => 'New', 'color' => 'blue' },
           'conversation_id' => conversation.display_id
@@ -98,6 +104,33 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
       expect(response.parsed_body['payload'].first).not_to have_key('conversation')
       expect(response.parsed_body['payload'].first).not_to have_key('contact')
       expect(response.parsed_body['payload'].first).not_to have_key('inbox')
+    end
+
+    it 'returns due_at null and labels empty when absent' do
+      create_conversation_card(due_at: nil)
+
+      request_conversation_kanban_cards
+
+      card_payload = response.parsed_body['payload'].first
+      expect(card_payload['due_at']).to be_nil
+      expect(card_payload['labels']).to eq([])
+    end
+
+    it 'does not run label queries per linked card' do
+      label = create(:label, account: account, title: 'urgente')
+      create_conversation_card.update_labels([label.title])
+
+      single_card_count = labels_tags_taggings_query_count(collect_sql_queries { request_conversation_kanban_cards })
+
+      3.times do |index|
+        board = create(:kanban_board, account: account, name: "Sales #{index}", position: index + 2)
+        board_stage = create(:kanban_stage, account: account, kanban_board: board, position: 1)
+        create_conversation_card(kanban_board: board, kanban_stage: board_stage).update_labels([label.title])
+      end
+
+      multiple_cards_count = labels_tags_taggings_query_count(collect_sql_queries { request_conversation_kanban_cards })
+
+      expect(multiple_cards_count).to be <= single_card_count + 1
     end
   end
 
@@ -333,5 +366,22 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
 
   def payload_ids
     response.parsed_body['payload'].map { |card| card['id'] }
+  end
+
+  def collect_sql_queries(&)
+    sql_queries = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      sql = payload[:sql]
+      sql_queries << sql if sql.present? && payload[:name] != 'SCHEMA'
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, 'sql.active_record', &)
+    sql_queries
+  end
+
+  def labels_tags_taggings_query_count(sql_queries)
+    sql_queries.count do |sql|
+      sql.match?(/FROM "labels"|JOIN "labels"|FROM "tags"|JOIN "tags"|FROM "taggings"|JOIN "taggings"/)
+    end
   end
 end

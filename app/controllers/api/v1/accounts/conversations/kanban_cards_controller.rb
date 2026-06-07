@@ -7,6 +7,7 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
 
   def index
     @kanban_cards = linked_kanban_cards.select { |kanban_card| KanbanCardPolicy.new(user_context, kanban_card).show? }
+    @labels_by_title = Current.account.labels.where(title: linked_label_titles).index_by(&:title)
   end
 
   def create
@@ -53,12 +54,16 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
               .joins(:kanban_board, :kanban_stage)
               .merge(KanbanBoard.active)
               .merge(KanbanStage.active)
-              .includes(:kanban_board, :kanban_stage, :contact, :inbox)
+              .includes(:kanban_board, :kanban_stage, :contact, :inbox, :labels)
               .order('kanban_boards.position ASC, kanban_stages.position ASC, kanban_cards.position ASC, kanban_cards.id ASC')
   end
 
   def card_params
     params.require(:card).permit(:kanban_board_id, :kanban_stage_id, :subject, :due_at, labels: [])
+  end
+
+  def linked_label_titles
+    @kanban_cards.flat_map { |kanban_card| kanban_card.labels.map(&:name) }.uniq
   end
 
   def user_context

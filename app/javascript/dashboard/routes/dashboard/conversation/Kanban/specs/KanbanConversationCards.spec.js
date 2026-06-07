@@ -4,6 +4,11 @@ import KanbanConversationCards from '../KanbanConversationCards.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
+import { messageStamp } from 'shared/helpers/timeHelper';
+
+vi.mock('shared/helpers/timeHelper', () => ({
+  messageStamp: vi.fn(() => 'Jun 7, 2026 6:00 PM'),
+}));
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -20,6 +25,8 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION_SIDEBAR.KANBAN.STAGE': 'Opportunity stage',
         'CONVERSATION_SIDEBAR.KANBAN.DUE_DATE': 'Due date',
         'CONVERSATION_SIDEBAR.KANBAN.LABELS': 'Labels',
+        'CONVERSATION_SIDEBAR.KANBAN.NOT_SET': 'Not set',
+        'CONVERSATION_SIDEBAR.KANBAN.NO_LABELS': 'No labels',
         'CONVERSATION_SIDEBAR.KANBAN.SELECT_BOARD': 'Select a board',
         'CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE': 'Select a stage',
         'CONVERSATION_SIDEBAR.KANBAN.EMPTY_BOARDS':
@@ -115,6 +122,11 @@ const buildCard = overrides => ({
     name: 'New',
     color: 'blue',
   },
+  due_at: '2026-06-07T18:00:00-03:00',
+  labels: [
+    { id: 1, title: 'urgente', color: '#ff0000', description: null },
+    { id: 2, title: 'vendas', color: '#00ff00', description: 'Sales label' },
+  ],
   conversation_id: 456,
   ...overrides,
 });
@@ -159,6 +171,7 @@ const formLabels = wrapper =>
 describe('KanbanConversationCards', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    messageStamp.mockReturnValue('Jun 7, 2026 6:00 PM');
 
     useStore.mockReturnValue(store);
     useMapGetter.mockImplementation(key => {
@@ -277,7 +290,7 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.text()).toContain('Failed to load opportunities');
   });
 
-  it('renders linked card row with subject, board, and stage', async () => {
+  it('renders read-only card fields in the requested order', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
     });
@@ -285,10 +298,43 @@ describe('KanbanConversationCards', () => {
     const wrapper = mountComponent();
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Maria Silva - Sales Inbox');
+    expect(wrapper.findAll('li p.text-xs').map(node => node.text())).toEqual([
+      'Board',
+      'Subject',
+      'Opportunity stage',
+      'Due date',
+      'Labels',
+    ]);
+  });
+
+  it('renders linked card metadata', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+
+    const wrapper = mountComponent();
+    await flushPromises();
+
     expect(wrapper.text()).toContain('Sales');
+    expect(wrapper.text()).toContain('Maria Silva - Sales Inbox');
     expect(wrapper.text()).toContain('New');
     expect(wrapper.find('.bg-n-blue-9').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Jun 7, 2026 6:00 PM');
+    expect(wrapper.text()).toContain('urgente');
+    expect(wrapper.text()).toContain('vendas');
+    expect(wrapper.html()).toContain('background-color: rgb(255, 0, 0)');
+  });
+
+  it('renders read-only empty states for due date and labels', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard({ due_at: null, labels: [] })] },
+    });
+
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Not set');
+    expect(wrapper.text()).toContain('No labels');
   });
 
   it('opens the creation form from the Add to Kanban button', async () => {

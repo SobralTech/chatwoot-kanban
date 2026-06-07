@@ -381,6 +381,8 @@
       "STAGE": "Stage do assunto",
       "DUE_DATE": "Data de vencimento",
       "LABELS": "Etiquetas",
+      "NOT_SET": "Não definida",
+      "NO_LABELS": "Nenhuma etiqueta",
       "SELECT_BOARD": "Selecione um board",
       "SELECT_STAGE": "Selecione um stage",
       "EMPTY_BOARDS": "Nenhum board ativo disponível",
