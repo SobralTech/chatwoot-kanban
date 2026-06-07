@@ -299,8 +299,9 @@ describe ActionCableListener do
   describe '#kanban events' do
     let(:board_payload) { { account_id: account.id, board_id: 10 } }
     let(:stage_payload) { board_payload.merge(stage_id: 20) }
-    let(:card_payload) { stage_payload.merge(card_id: 30) }
-    let(:card_reorder_payload) { board_payload.merge(card_id: 30, source_stage_id: 20, target_stage_id: 21) }
+    let(:card_payload) { stage_payload.merge(card_id: 30, conversation_id: 40) }
+    let(:manual_card_payload) { stage_payload.merge(card_id: 30, conversation_id: nil) }
+    let(:card_reorder_payload) { board_payload.merge(card_id: 30, conversation_id: 40, source_stage_id: 20, target_stage_id: 21) }
 
     it 'enqueues kanban.board.updated to the account stream with compact payload' do
       expect_kanban_broadcast(:kanban_board_updated, Events::Types::KANBAN_BOARD_UPDATED, board_payload, %i[account_id board_id])
@@ -323,15 +324,39 @@ describe ActionCableListener do
     end
 
     it 'enqueues kanban.card.created to the account stream with compact payload' do
-      expect_kanban_broadcast(:kanban_card_created, Events::Types::KANBAN_CARD_CREATED, card_payload, %i[account_id board_id stage_id card_id])
+      expect_kanban_broadcast(
+        :kanban_card_created,
+        Events::Types::KANBAN_CARD_CREATED,
+        card_payload,
+        %i[account_id board_id stage_id card_id conversation_id]
+      )
     end
 
     it 'enqueues kanban.card.updated to the account stream with compact payload' do
-      expect_kanban_broadcast(:kanban_card_updated, Events::Types::KANBAN_CARD_UPDATED, card_payload, %i[account_id board_id stage_id card_id])
+      expect_kanban_broadcast(
+        :kanban_card_updated,
+        Events::Types::KANBAN_CARD_UPDATED,
+        card_payload,
+        %i[account_id board_id stage_id card_id conversation_id]
+      )
     end
 
     it 'enqueues kanban.card.deleted to the account stream with compact payload' do
-      expect_kanban_broadcast(:kanban_card_deleted, Events::Types::KANBAN_CARD_DELETED, card_payload, %i[account_id board_id stage_id card_id])
+      expect_kanban_broadcast(
+        :kanban_card_deleted,
+        Events::Types::KANBAN_CARD_DELETED,
+        card_payload,
+        %i[account_id board_id stage_id card_id conversation_id]
+      )
+    end
+
+    it 'enqueues kanban.card.created with nil conversation_id for manual cards without conversation' do
+      expect_kanban_broadcast(
+        :kanban_card_created,
+        Events::Types::KANBAN_CARD_CREATED,
+        manual_card_payload,
+        %i[account_id board_id stage_id card_id conversation_id]
+      )
     end
 
     it 'enqueues kanban.card.reordered to the account stream with source and target stage IDs' do
@@ -339,7 +364,7 @@ describe ActionCableListener do
         :kanban_card_reordered,
         Events::Types::KANBAN_CARD_REORDERED,
         card_reorder_payload,
-        %i[account_id board_id card_id source_stage_id target_stage_id]
+        %i[account_id board_id card_id conversation_id source_stage_id target_stage_id]
       )
     end
   end

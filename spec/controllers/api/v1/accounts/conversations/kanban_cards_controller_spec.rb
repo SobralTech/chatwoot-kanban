@@ -286,7 +286,13 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
       expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_CREATED,
         anything,
-        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id }
+        {
+          account_id: account.id,
+          board_id: kanban_board.id,
+          stage_id: stage.id,
+          card_id: card.id,
+          conversation_id: conversation.id
+        }
       )
     end
 

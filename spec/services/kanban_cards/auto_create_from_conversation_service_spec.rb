@@ -35,7 +35,13 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_CREATED,
         anything,
-        { account_id: account.id, board_id: board.id, stage_id: first_stage.id, card_id: created_card.id }
+        {
+          account_id: account.id,
+          board_id: board.id,
+          stage_id: first_stage.id,
+          card_id: created_card.id,
+          conversation_id: conversation.id
+        }
       )
     end
 

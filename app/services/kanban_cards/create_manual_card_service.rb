@@ -82,7 +82,8 @@ class KanbanCards::CreateManualCardService
       account_id: card.account_id,
       board_id: card.kanban_board_id,
       stage_id: card.kanban_stage_id,
-      card_id: card.id
+      card_id: card.id,
+      conversation_id: card.conversation_id
     )
   end
 

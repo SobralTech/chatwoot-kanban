@@ -39,7 +39,7 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_CREATED,
         anything,
-        { account_id: account.id, board_id: kanban_board.id, stage_id: kanban_stage.id, card_id: card.id }
+        { account_id: account.id, board_id: kanban_board.id, stage_id: kanban_stage.id, card_id: card.id, conversation_id: nil }
       )
     end
 

@@ -178,7 +178,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       account_id: @kanban_card.account_id,
       board_id: @kanban_card.kanban_board_id,
       stage_id: stage_id,
-      card_id: @kanban_card.id
+      card_id: @kanban_card.id,
+      conversation_id: @kanban_card.conversation_id
     )
   end
 
@@ -189,6 +190,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       account_id: @kanban_card.account_id,
       board_id: @kanban_card.kanban_board_id,
       card_id: @kanban_card.id,
+      conversation_id: @kanban_card.conversation_id,
       source_stage_id: source_stage_id,
       target_stage_id: @kanban_card.kanban_stage_id
     )

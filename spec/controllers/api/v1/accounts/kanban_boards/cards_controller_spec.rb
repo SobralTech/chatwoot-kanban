@@ -43,7 +43,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_CREATED,
         anything,
-        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id }
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id, conversation_id: nil }
       )
     end
 
@@ -368,7 +368,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_UPDATED,
         anything,
-        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id }
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id, conversation_id: nil }
       )
     end
 
@@ -490,7 +490,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_UPDATED,
         anything,
-        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id }
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id, conversation_id: nil }
       )
     end
 
@@ -645,7 +645,14 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_REORDERED,
         anything,
-        { account_id: account.id, board_id: kanban_board.id, card_id: card.id, source_stage_id: stage.id, target_stage_id: stage.id }
+        {
+          account_id: account.id,
+          board_id: kanban_board.id,
+          card_id: card.id,
+          conversation_id: nil,
+          source_stage_id: stage.id,
+          target_stage_id: stage.id
+        }
       )
     end
 
@@ -680,7 +687,14 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_REORDERED,
         anything,
-        { account_id: account.id, board_id: kanban_board.id, card_id: card.id, source_stage_id: stage.id, target_stage_id: destination_stage.id }
+        {
+          account_id: account.id,
+          board_id: kanban_board.id,
+          card_id: card.id,
+          conversation_id: nil,
+          source_stage_id: stage.id,
+          target_stage_id: destination_stage.id
+        }
       )
     end
 
@@ -740,7 +754,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_DELETED,
         anything,
-        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id }
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id, conversation_id: nil }
       )
     end
 
@@ -813,6 +827,31 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(state.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
     end
 
+    it 'emits kanban.card.reordered with conversation_id for conversation-origin cards' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      card = create_conversation_card(position: 1)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch stable_card_url(card, suffix: 'reorder'),
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id, position: 1 } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_REORDERED,
+        anything,
+        {
+          account_id: account.id,
+          board_id: kanban_board.id,
+          card_id: card.id,
+          conversation_id: conversation.id,
+          source_stage_id: stage.id,
+          target_stage_id: next_stage.id
+        }
+      )
+    end
+
     it 'updates a conversation-origin card without changing legacy state' do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       state = create(
@@ -837,6 +876,30 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(state.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
     end
 
+    it 'emits kanban.card.updated with conversation_id for conversation-origin cards' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      card = create_conversation_card(position: 1)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { kanban_stage_id: next_stage.id } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_UPDATED,
+        anything,
+        {
+          account_id: account.id,
+          board_id: kanban_board.id,
+          stage_id: next_stage.id,
+          card_id: card.id,
+          conversation_id: conversation.id
+        }
+      )
+    end
+
     it 'soft-deletes a conversation-origin card without changing legacy state' do
       state = create(
         :conversation_kanban_state,
@@ -857,6 +920,28 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:no_content)
       expect(card.reload).not_to be_active
       expect(state.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
+    end
+
+    it 'emits kanban.card.deleted with conversation_id for conversation-origin cards' do
+      card = create_conversation_card(position: 1)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      delete stable_card_url(card),
+             headers: agent.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:no_content)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_DELETED,
+        anything,
+        {
+          account_id: account.id,
+          board_id: kanban_board.id,
+          stage_id: stage.id,
+          card_id: card.id,
+          conversation_id: conversation.id
+        }
+      )
     end
 
     it 'rejects inactive cards' do
