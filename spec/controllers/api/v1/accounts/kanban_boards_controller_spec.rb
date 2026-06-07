@@ -847,6 +847,254 @@ RSpec.describe 'Kanban Boards API', type: :request do
     end
   end
 
+  describe 'GET /api/v1/accounts/{account.id}/kanban_boards/{id}/settings' do
+    it 'returns settings for administrators' do
+      kanban_board.update!(
+        description: 'Pipeline comercial',
+        visibility_mode: 'selected_agents',
+        inbox_scope_mode: 'selected_inboxes',
+        auto_create_cards_from_conversations: true
+      )
+      inbox = create(:inbox, account: account)
+      create(:kanban_board_member, account: account, kanban_board: kanban_board, user: agent)
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+          headers: administrator.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include(
+        'id' => kanban_board.id,
+        'name' => 'Sales',
+        'description' => 'Pipeline comercial',
+        'visibility_mode' => 'selected_agents',
+        'visible_user_ids' => [agent.id],
+        'inbox_scope_mode' => 'selected_inboxes',
+        'allowed_inbox_ids' => [inbox.id],
+        'auto_create_cards_from_conversations' => true
+      )
+      expect(response.parsed_body).not_to include('visible_users', 'allowed_inboxes')
+    end
+
+    it 'rejects agents' do
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/{id}/settings' do
+    let(:inbox) { create(:inbox, account: account) }
+    let(:second_agent) { create(:user, account: account, role: :agent) }
+
+    it 'updates board basics' do
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: {
+              kanban_board: {
+                name: 'Vendas',
+                description: 'Pipeline comercial',
+                auto_create_cards_from_conversations: true
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(kanban_board.reload).to have_attributes(
+        name: 'Vendas',
+        description: 'Pipeline comercial',
+        auto_create_cards_from_conversations: true
+      )
+    end
+
+    it 'replaces memberships' do
+      create(:kanban_board_member, account: account, kanban_board: kanban_board, user: agent)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: {
+              kanban_board: {
+                visibility_mode: 'selected_agents',
+                visible_user_ids: [second_agent.id]
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(kanban_board.reload).to be_selected_agents
+      expect(kanban_board.kanban_board_members.pluck(:user_id)).to eq([second_agent.id])
+      expect(response.parsed_body['visible_user_ids']).to eq([second_agent.id])
+    end
+
+    it 'replaces inboxes' do
+      old_inbox = create(:inbox, account: account)
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: old_inbox)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: {
+              kanban_board: {
+                inbox_scope_mode: 'selected_inboxes',
+                allowed_inbox_ids: [inbox.id]
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(kanban_board.reload).to be_selected_inboxes
+      expect(kanban_board.kanban_board_inboxes.pluck(:inbox_id)).to eq([inbox.id])
+      expect(response.parsed_body['allowed_inbox_ids']).to eq([inbox.id])
+    end
+
+    it 'cleans associations when using all_agents and all_inboxes' do
+      create(:kanban_board_member, account: account, kanban_board: kanban_board, user: agent)
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: {
+              kanban_board: {
+                visibility_mode: 'all_agents',
+                inbox_scope_mode: 'all_inboxes'
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(kanban_board.reload).to be_all_agents
+      expect(kanban_board).to be_all_inboxes
+      expect(kanban_board.kanban_board_members).to be_empty
+      expect(kanban_board.kanban_board_inboxes).to be_empty
+    end
+
+    it 'deduplicates selected user and inbox ids' do
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: {
+              kanban_board: {
+                visibility_mode: 'selected_agents',
+                visible_user_ids: [agent.id, agent.id, second_agent.id],
+                inbox_scope_mode: 'selected_inboxes',
+                allowed_inbox_ids: [inbox.id, inbox.id]
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(kanban_board.kanban_board_members.order(:user_id).pluck(:user_id)).to eq([agent.id, second_agent.id].sort)
+      expect(kanban_board.kanban_board_inboxes.pluck(:inbox_id)).to eq([inbox.id])
+    end
+
+    it 'rejects users from another account' do
+      other_user = create(:user, account: create(:account), role: :agent)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: {
+              kanban_board: {
+                visibility_mode: 'selected_agents',
+                visible_user_ids: [other_user.id]
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(kanban_board.reload).to be_all_agents
+      expect(kanban_board.kanban_board_members).to be_empty
+    end
+
+    it 'rejects inboxes from another account' do
+      other_inbox = create(:inbox, account: create(:account))
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: {
+              kanban_board: {
+                inbox_scope_mode: 'selected_inboxes',
+                allowed_inbox_ids: [other_inbox.id]
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(kanban_board.reload).to be_all_inboxes
+      expect(kanban_board.kanban_board_inboxes).to be_empty
+    end
+
+    it 'rolls back all changes when association validation fails' do
+      other_inbox = create(:inbox, account: create(:account))
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: {
+              kanban_board: {
+                name: 'Vendas',
+                inbox_scope_mode: 'selected_inboxes',
+                allowed_inbox_ids: [other_inbox.id]
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(kanban_board.reload).to have_attributes(name: 'Sales', inbox_scope_mode: 'all_inboxes')
+    end
+
+    it 'emits kanban.board.updated after success' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: { kanban_board: { name: 'Vendas' } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_BOARD_UPDATED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id }
+      )
+    end
+
+    it 'does not emit kanban.board.updated after failure' do
+      other_user = create(:user, account: create(:account), role: :agent)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: { kanban_board: { visibility_mode: 'selected_agents', visible_user_ids: [other_user.id] } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_BOARD_UPDATED,
+        anything,
+        anything
+      )
+    end
+
+    it 'preserves historical cards when inbox scope changes' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage, inbox: inbox)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
+            headers: administrator.create_new_auth_token,
+            params: {
+              kanban_board: {
+                inbox_scope_mode: 'selected_inboxes',
+                allowed_inbox_ids: []
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload).to be_active
+      expect(card.kanban_board_id).to eq(kanban_board.id)
+    end
+  end
+
   describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/{id}' do
     it 'updates a board for administrators' do
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",

@@ -130,6 +130,7 @@ Rails.application.routes.draw do
             patch '', on: :member, action: :update
 
             scope module: :kanban_boards do
+              resource :settings, only: [:show, :update]
               resources :stages, only: [:create, :destroy] do
                 patch '', on: :member, action: :update
                 patch :reorder, on: :member
