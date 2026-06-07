@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_31_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_07_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -952,6 +952,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_31_170000) do
     t.jsonb "settings", default: {}
   end
 
+  create_table "kanban_board_members", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_board_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id", "kanban_board_id"], name: "index_kanban_board_members_on_account_user_board"
+    t.index ["kanban_board_id", "user_id"], name: "index_kanban_board_members_on_kanban_board_id_and_user_id", unique: true
+  end
+
   create_table "kanban_boards", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -962,6 +972,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_31_170000) do
     t.datetime "updated_at", null: false
     t.boolean "auto_create_cards_from_conversations", default: false, null: false
     t.boolean "use_opportunity_card_reads", default: true, null: false
+    t.string "visibility_mode", default: "all_agents", null: false
     t.index ["account_id", "active"], name: "index_kanban_boards_on_account_id_and_active"
     t.index ["account_id", "name"], name: "index_active_kanban_boards_on_account_id_and_name", unique: true, where: "(active = true)"
     t.index ["account_id", "position"], name: "index_kanban_boards_on_account_id_and_position"
@@ -1403,6 +1414,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_31_170000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "kanban_board_members", "accounts"
+  add_foreign_key "kanban_board_members", "kanban_boards"
+  add_foreign_key "kanban_board_members", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").
       after(:insert).

@@ -8,7 +8,8 @@
 #  description                          :text
 #  name                                 :string           not null
 #  position                             :integer          default(0), not null
-#  use_opportunity_card_reads           :boolean          default(FALSE), not null
+#  use_opportunity_card_reads           :boolean          default(TRUE), not null
+#  visibility_mode                      :string           default("all_agents"), not null
 #  created_at                           :datetime         not null
 #  updated_at                           :datetime         not null
 #  account_id                           :bigint           not null
@@ -21,11 +22,18 @@
 #  index_kanban_boards_on_account_id_and_position     (account_id,position)
 #
 class KanbanBoard < ApplicationRecord
+  VISIBILITY_MODES = %w[all_agents selected_agents].freeze
+
   belongs_to :account
 
   has_many :kanban_stages, dependent: :destroy_async
   has_many :conversation_kanban_states, dependent: :destroy_async
   has_many :kanban_cards, dependent: nil
+  has_many :kanban_board_members, dependent: :destroy_async
+  has_many :visible_users, through: :kanban_board_members, source: :user
+
+  attribute :visibility_mode, :string, default: 'all_agents'
+  enum :visibility_mode, VISIBILITY_MODES.index_by(&:itself), validate: true
 
   validates :account_id, presence: true
   validates :name, presence: true, uniqueness: { scope: :account_id, conditions: -> { active } }, if: :active?
