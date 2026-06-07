@@ -372,6 +372,145 @@ RSpec.describe 'Kanban Cards API', type: :request do
       )
     end
 
+    it 'updates stable metadata and labels in one request' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      create(:label, account: account, title: 'urgente')
+      create(:label, account: account, title: 'vendas')
+      card = create_manual_card(subject: 'Old opportunity')
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: {
+              card: {
+                subject: 'Cliente - Inbox',
+                kanban_stage_id: next_stage.id,
+                due_at: '2026-06-07T18:00:00-03:00',
+                labels: %w[urgente vendas]
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload).to have_attributes(
+        subject: 'Cliente - Inbox',
+        kanban_stage_id: next_stage.id,
+        due_at: Time.zone.parse('2026-06-07T18:00:00-03:00')
+      )
+      expect(card.label_list).to contain_exactly('urgente', 'vendas')
+    end
+
+    it 'deduplicates stable card labels on metadata update' do
+      create(:label, account: account, title: 'urgente')
+      card = create_manual_card
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { labels: %w[urgente urgente] } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload.label_list).to contain_exactly('urgente')
+    end
+
+    it 'removes all stable card labels when labels is empty' do
+      create(:label, account: account, title: 'urgente')
+      card = create_manual_card
+      card.update_labels(['urgente'])
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { labels: [] } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload.label_list).to be_empty
+    end
+
+    it 'rejects unknown stable card labels on metadata update' do
+      card = create_manual_card
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { labels: ['unknown'] } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to eq('Unknown labels: unknown')
+      expect(card.reload.label_list).to be_empty
+    end
+
+    it 'rejects stable card labels from another account on metadata update' do
+      create(:label, account: create(:account), title: 'external')
+      card = create_manual_card
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { labels: ['external'] } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['error']).to eq('Unknown labels: external')
+      expect(card.reload.label_list).to be_empty
+    end
+
+    it 'rolls back stable metadata when labels are invalid' do
+      next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      create(:label, account: account, title: 'urgente')
+      card = create_manual_card(subject: 'Old opportunity', due_at: nil)
+      card.update_labels(['urgente'])
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: {
+              card: {
+                subject: 'New opportunity',
+                kanban_stage_id: next_stage.id,
+                due_at: '2026-06-07T18:00:00-03:00',
+                labels: ['unknown']
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(card.reload).to have_attributes(subject: 'Old opportunity', kanban_stage_id: stage.id, due_at: nil)
+      expect(card.label_list).to contain_exactly('urgente')
+    end
+
+    it 'emits kanban.card.updated after successful stable metadata and label update' do
+      create(:label, account: account, title: 'urgente')
+      card = create_manual_card
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { subject: 'Updated opportunity', labels: ['urgente'] } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_UPDATED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id }
+      )
+    end
+
+    it 'does not emit kanban.card.updated when stable label validation fails' do
+      card = create_manual_card
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { subject: 'Updated opportunity', labels: ['unknown'] } },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_UPDATED,
+        anything,
+        anything
+      )
+    end
+
     it 'clears stable card dates' do
       card = create_manual_card(starts_at: Time.current, due_at: 1.day.from_now)
 

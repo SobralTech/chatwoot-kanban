@@ -644,7 +644,7 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.find('.i-lucide-pencil').exists()).toBe(false);
   });
 
-  it('saves inline card details and labels', async () => {
+  it('saves inline card details and labels with one PATCH request', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
     });
@@ -670,11 +670,10 @@ describe('KanbanConversationCards', () => {
         kanban_stage_id: 20,
         subject: 'Updated renewal',
         due_at: new Date('2026-06-08T10:30').toISOString(),
+        labels: ['vendas'],
       }
     );
-    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledWith(10, 123, [
-      'vendas',
-    ]);
+    expect(KanbanBoardsAPI.updateCardLabels).not.toHaveBeenCalled();
     expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
     expect(useAlert).toHaveBeenCalledWith('Opportunity updated');
   });

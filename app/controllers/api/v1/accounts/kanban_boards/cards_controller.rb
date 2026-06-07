@@ -68,7 +68,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def card_params
-    params.require(:card).permit(:kanban_stage_id, :position, :subject, :starts_at, :due_at)
+    params.require(:card).permit(:kanban_stage_id, :position, :subject, :starts_at, :due_at, labels: [])
   end
 
   def manual_card_params
@@ -80,7 +80,14 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def update_kanban_card
+    invalid_label_titles = []
+
     KanbanCard.transaction do
+      if labels_param_present? && unknown_label_titles.present?
+        invalid_label_titles = unknown_label_titles
+        raise ActiveRecord::Rollback
+      end
+
       if stable_card_move_params?
         @kanban_card.reorder_to_position!(
           kanban_stage: @kanban_stage,
@@ -88,7 +95,10 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
         )
       end
       @kanban_card.update!(stable_card_update_params)
+      @kanban_card.update_labels(label_titles) if labels_param_present?
     end
+
+    return render_unknown_labels(invalid_label_titles) if invalid_label_titles.present?
 
     dispatch_kanban_card_event(Events::Types::KANBAN_CARD_UPDATED)
     render_card
@@ -128,6 +138,26 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def stable_card_update_params
     card_params.slice(:subject, :starts_at, :due_at)
+  end
+
+  def labels_param_present?
+    params.require(:card).key?(:labels)
+  end
+
+  def label_titles
+    @label_titles ||= Array(card_params[:labels]).uniq
+  end
+
+  def account_label_titles
+    @account_label_titles ||= Current.account.labels.where(title: label_titles).pluck(:title)
+  end
+
+  def unknown_label_titles
+    @unknown_label_titles ||= label_titles - account_label_titles
+  end
+
+  def render_unknown_labels(label_titles)
+    render json: { error: "Unknown labels: #{label_titles.join(', ')}" }, status: :unprocessable_entity
   end
 
   def stable_card_move_params?

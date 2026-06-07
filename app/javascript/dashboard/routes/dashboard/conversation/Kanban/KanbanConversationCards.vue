@@ -495,12 +495,8 @@ const submitEdit = async card => {
       kanban_stage_id: editStageId.value,
       subject: editSubject.value.trim(),
       due_at: editDueAtPayload(),
+      labels: editLabelTitles.value,
     });
-    await KanbanBoardsAPI.updateCardLabels(
-      cardBoardId(card),
-      card.id,
-      editLabelTitles.value
-    );
 
     useAlert(t('CONVERSATION_SIDEBAR.KANBAN.UPDATED'));
     resetEditState();
