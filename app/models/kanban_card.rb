@@ -1,4 +1,37 @@
 # rubocop:disable Metrics/ClassLength
+# == Schema Information
+#
+# Table name: kanban_cards
+#
+#  id                 :bigint           not null, primary key
+#  active             :boolean          default(TRUE), not null
+#  due_at             :datetime
+#  normalized_subject :string
+#  origin             :string           not null
+#  position           :integer          default(0), not null
+#  starts_at          :datetime
+#  subject            :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  account_id         :bigint           not null
+#  contact_id         :bigint           not null
+#  conversation_id    :bigint
+#  inbox_id           :bigint           not null
+#  kanban_board_id    :bigint           not null
+#  kanban_stage_id    :bigint           not null
+#
+# Indexes
+#
+#  index_active_kanban_cards_on_board_stage_order              (kanban_board_id,kanban_stage_id,position,created_at,id) WHERE (active = true)
+#  index_active_manual_kanban_cards_unique_subject             (kanban_board_id,contact_id,inbox_id,normalized_subject) UNIQUE WHERE ((active = true) AND ((origin)::text = 'manual'::text) AND (normalized_subject IS NOT NULL))
+#  index_kanban_cards_on_account_id_and_active                 (account_id,active)
+#  index_kanban_cards_on_account_id_and_contact_id             (account_id,contact_id)
+#  index_kanban_cards_on_account_id_and_inbox_id               (account_id,inbox_id)
+#  index_kanban_cards_on_board_and_conversation_origin_unique  (kanban_board_id,conversation_id) UNIQUE WHERE (((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL))
+#  index_kanban_cards_on_board_stage_position                  (kanban_board_id,kanban_stage_id,position)
+#  index_kanban_cards_on_conversation_id                       (conversation_id)
+#  index_kanban_cards_on_kanban_board_id_and_active            (kanban_board_id,active)
+#
 class KanbanCard < ApplicationRecord
   include Labelable
 
