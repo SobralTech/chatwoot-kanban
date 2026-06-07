@@ -9,6 +9,7 @@ import Draggable from 'vuedraggable';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -23,6 +24,7 @@ const store = useStore();
 
 const currentRole = useMapGetter('auth/getCurrentRole');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
+const inboxes = useMapGetter('inboxes/getAllInboxes');
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const isAdmin = computed(() => currentRole.value === 'administrator');
 const selectedBoard = ref(null);
@@ -35,6 +37,7 @@ const hasError = ref(false);
 const actionError = ref('');
 const newBoardName = ref('');
 const newStageName = ref('');
+const selectedInboxIds = ref([]);
 const showCreateStageForm = ref(false);
 const isBoardDropdownOpen = ref(false);
 const editingStageId = ref(null);
@@ -108,6 +111,25 @@ const isInitialLoading = computed(
 const currentBoardName = computed(
   () => selectedBoard.value?.name || t('KANBAN.NO_BOARD_SELECTED')
 );
+const boardAllowedInboxIds = computed(
+  () => selectedBoard.value?.allowedInboxIds || []
+);
+const inboxFilterOptions = computed(() => {
+  const availableInboxes =
+    selectedBoard.value?.inboxScopeMode === 'selected_inboxes'
+      ? inboxes.value.filter(inbox =>
+          boardAllowedInboxIds.value.includes(inbox.id)
+        )
+      : inboxes.value;
+
+  return availableInboxes.map(inbox => ({
+    value: inbox.id,
+    label: inbox.name,
+  }));
+});
+const hasInboxFilterOptions = computed(
+  () => inboxFilterOptions.value.length > 0
+);
 const stageListModel = computed({
   get: () => selectedBoard.value?.stages || [],
   set: nextStages => {
@@ -145,6 +167,15 @@ const normalizeKanbanPayload = data => {
 
   return payload;
 };
+
+const currentInboxFilterParams = () =>
+  selectedInboxIds.value.length > 0
+    ? { inbox_ids: selectedInboxIds.value }
+    : {};
+const currentBoardRequestConfig = () =>
+  selectedInboxIds.value.length > 0
+    ? { params: currentInboxFilterParams() }
+    : undefined;
 
 const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.error ||
@@ -227,7 +258,10 @@ const fetchStageCardsPage = async (stageId, params) => {
   const response = await KanbanBoardsAPI.getStageCards(
     selectedBoard.value.id,
     stageId,
-    params
+    {
+      ...params,
+      ...currentInboxFilterParams(),
+    }
   );
 
   return normalizeKanbanPayload(response.data);
@@ -355,7 +389,10 @@ const showBoard = async boardId => {
   hasError.value = false;
 
   try {
-    const response = await KanbanBoardsAPI.show(boardId);
+    const response = await KanbanBoardsAPI.showBoard(
+      boardId,
+      currentBoardRequestConfig()
+    );
     stageCardsLoading.value = {};
     stageCardsErrors.value = {};
     selectedBoard.value = normalizeKanbanPayload(response.data);
@@ -371,6 +408,11 @@ const refreshSelectedBoard = async () => {
   if (!selectedBoard.value?.id) return;
 
   await showBoard(selectedBoard.value.id);
+};
+
+const updateInboxFilter = async inboxIds => {
+  selectedInboxIds.value = [...new Set(inboxIds)];
+  await refreshSelectedBoard();
 };
 
 const openBoardSettings = () => {
@@ -701,7 +743,10 @@ const fetchBoards = async () => {
   hasError.value = false;
 
   try {
-    await store.dispatch('kanbanBoards/fetchBoards');
+    await Promise.all([
+      store.dispatch('kanbanBoards/fetchBoards'),
+      inboxes.value.length ? Promise.resolve() : store.dispatch('inboxes/get'),
+    ]);
 
     const nextBoardId = activeBoardId.value || boards.value[0]?.id;
     if (nextBoardId && !activeBoardId.value) {
@@ -838,8 +883,13 @@ const handleRealtimeKanbanEvent = ({ event, data } = {}) => {
   }
 };
 
-watch(activeBoardId, boardId => {
+watch(activeBoardId, (boardId, previousBoardId) => {
   if (!boards.value.length) return;
+
+  if (previousBoardId && previousBoardId !== boardId) {
+    selectedInboxIds.value = [];
+  }
+
   newStageName.value = '';
   showCreateStageForm.value = false;
   isBoardDropdownOpen.value = false;
@@ -954,15 +1004,17 @@ onUnmounted(() => {
             <i class="i-lucide-plus size-4" />
             {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
           </button>
-          <button
-            type="button"
-            data-testid="kanban-inbox-filter-placeholder"
-            class="flex items-center gap-2 rounded-md border border-n-weak px-3 py-2 text-sm text-n-slate-11"
-            disabled
-          >
-            <i class="i-lucide-inbox size-4" />
-            {{ t('KANBAN.FILTERS.INBOXES') }}
-          </button>
+          <div class="w-72 max-w-full" data-testid="kanban-inbox-filter">
+            <TagMultiSelectComboBox
+              :model-value="selectedInboxIds"
+              :options="inboxFilterOptions"
+              :placeholder="t('KANBAN.SETTINGS.INBOXES.PLACEHOLDER')"
+              :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
+              :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
+              :disabled="!hasInboxFilterOptions"
+              @update:model-value="updateInboxFilter"
+            />
+          </div>
           <button
             type="button"
             data-testid="kanban-agent-filter-placeholder"

@@ -47,6 +47,71 @@ RSpec.describe 'Kanban stage cards API', type: :request do
       )
     end
 
+    it 'filters cards and pagination by inbox ids' do
+      second_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: second_inbox)
+      create_visible_card(position: 1, inbox: inbox)
+      filtered_cards = [
+        create_visible_card(position: 2, inbox: second_inbox),
+        create_visible_card(position: 3, inbox: second_inbox)
+      ]
+
+      get stage_cards_path,
+          headers: agent.create_new_auth_token,
+          params: { limit: 1, inbox_ids: [second_inbox.id] },
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['cards'].pluck('id')).to eq([filtered_cards.first.id])
+      expect(response.parsed_body['pagination']).to include(
+        'has_more' => true,
+        'next_cursor' => { 'after_id' => filtered_cards.first.id },
+        'total_count' => 2
+      )
+    end
+
+    it 'ignores duplicate inbox ids in the filter' do
+      card = create_visible_card(position: 1, inbox: inbox)
+
+      get stage_cards_path,
+          headers: agent.create_new_auth_token,
+          params: { inbox_ids: [inbox.id, inbox.id] },
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['cards'].pluck('id')).to eq([card.id])
+      expect(response.parsed_body['pagination']['total_count']).to eq(1)
+    end
+
+    it 'ignores inbox ids outside the board scope' do
+      second_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: second_inbox)
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      create_visible_card(position: 1, inbox: inbox)
+      create_visible_card(position: 2, inbox: second_inbox)
+
+      get stage_cards_path,
+          headers: agent.create_new_auth_token,
+          params: { inbox_ids: [second_inbox.id] },
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['cards']).to eq([])
+      expect(response.parsed_body['pagination']['total_count']).to eq(0)
+    end
+
+    it 'rejects inbox ids from another account' do
+      other_inbox = create(:inbox)
+
+      get stage_cards_path,
+          headers: agent.create_new_auth_token,
+          params: { inbox_ids: [other_inbox.id] },
+          as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
     it 'uses the compact card payload' do
       card = create_visible_card(position: 1, subject: 'Expansion opportunity')
 

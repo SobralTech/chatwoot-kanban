@@ -100,6 +100,50 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.cards).to eq([visible_card, unauthorized_card])
     end
 
+    it 'filters cards by inbox ids when provided' do
+      second_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: second_inbox)
+      visible_card = create_visible_card(position: 1, inbox: inbox)
+      filtered_card = create_visible_card(position: 2, inbox: second_inbox)
+
+      result = query(filtered_inbox_ids: [second_inbox.id]).call
+
+      expect(result.cards).to eq([filtered_card])
+      expect(result.total_count).to eq(1)
+      expect(result.cards).not_to include(visible_card)
+    end
+
+    it 'keeps cursor and has_more coherent for filtered cards' do
+      second_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: second_inbox)
+      create_visible_card(position: 1, inbox: inbox)
+      filtered_cards = [
+        create_visible_card(position: 2, inbox: second_inbox),
+        create_visible_card(position: 3, inbox: second_inbox)
+      ]
+
+      result = query(limit: 1, filtered_inbox_ids: [second_inbox.id]).call
+
+      expect(result.cards).to eq([filtered_cards.first])
+      expect(result.total_count).to eq(2)
+      expect(result.has_more).to be(true)
+      expect(result.next_cursor).to eq({ after_id: filtered_cards.first.id })
+    end
+
+    it 'keeps historical cards visible without an explicit inbox filter' do
+      historical_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: historical_inbox)
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      visible_card = create_visible_card(position: 1, inbox: inbox)
+      historical_card = create_visible_card(position: 2, inbox: historical_inbox)
+
+      result = query.call
+
+      expect(result.cards).to eq([visible_card, historical_card])
+      expect(result.total_count).to eq(2)
+    end
+
     it 'preserves agent bot visibility for conversation cards' do
       agent_bot = create(:agent_bot, account: account)
       contact = create(:contact, account: account)
@@ -246,7 +290,7 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
     end
   end
 
-  def query(limit: nil, cursor: nil, user: agent, account_user: nil)
+  def query(limit: nil, cursor: nil, user: agent, account_user: nil, filtered_inbox_ids: nil)
     described_class.new(
       account: account,
       user: user,
@@ -254,7 +298,8 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       kanban_stage: kanban_stage,
       limit: limit,
       cursor: cursor,
-      account_user: account_user
+      account_user: account_user,
+      filtered_inbox_ids: filtered_inbox_ids
     )
   end
 

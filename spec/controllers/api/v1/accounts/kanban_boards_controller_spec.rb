@@ -159,6 +159,70 @@ RSpec.describe 'Kanban Boards API', type: :request do
       )
     end
 
+    it 'returns inbox scope metadata for the board header' do
+      inbox = create(:inbox, account: account)
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['inbox_scope_mode']).to eq('selected_inboxes')
+      expect(response.parsed_body['allowed_inbox_ids']).to eq([inbox.id])
+    end
+
+    it 'filters embedded cards and counts by inbox ids' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      first_inbox = create(:inbox, account: account)
+      second_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: first_inbox)
+      create(:inbox_member, user: agent, inbox: second_inbox)
+      create_board_listing_manual_cards(stage, first_inbox, 1)
+      filtered_cards = create_board_listing_manual_cards(stage, second_inbox, 2)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          params: { inbox_ids: [second_inbox.id] },
+          as: :json
+
+      response_stage = response.parsed_body['stages'].first
+      expect(response).to have_http_status(:success)
+      expect(response_stage['cards'].pluck('id')).to eq(filtered_cards.pluck(:id))
+      expect(response_stage['cards_count']).to eq(2)
+    end
+
+    it 'keeps historical cards visible without an explicit inbox filter' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      allowed_inbox = create(:inbox, account: account)
+      historical_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: allowed_inbox)
+      create(:inbox_member, user: agent, inbox: historical_inbox)
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: allowed_inbox)
+      allowed_card = create_board_listing_manual_cards(stage, allowed_inbox, 1).first
+      historical_card = create_board_listing_manual_cards(stage, historical_inbox, 1).first
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['stages'].first['cards'].pluck('id')).to contain_exactly(allowed_card.id, historical_card.id)
+    end
+
+    it 'rejects inbox ids from another account' do
+      other_inbox = create(:inbox)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          params: { inbox_ids: [other_inbox.id] },
+          as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
     it 'returns has_more false for stages with at most 20 cards' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       inbox = create(:inbox, account: account)

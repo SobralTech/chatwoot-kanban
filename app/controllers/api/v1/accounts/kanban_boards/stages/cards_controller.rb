@@ -11,7 +11,8 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       kanban_board: @kanban_board,
       kanban_stage: @kanban_stage,
       limit: @limit,
-      cursor: params[:cursor]
+      cursor: params[:cursor],
+      filtered_inbox_ids: sanitized_inbox_filter_ids
     ).call
   rescue KanbanCards::VisibleStageCardsQuery::RefreshRequiredError
     render json: { error: 'refresh_required' }, status: :conflict
@@ -36,5 +37,33 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       1,
       KanbanCards::VisibleStageCardsQuery::MAX_LIMIT
     )
+  end
+
+  def sanitized_inbox_filter_ids
+    return @sanitized_inbox_filter_ids if defined?(@sanitized_inbox_filter_ids)
+
+    inbox_ids = Array(params[:inbox_ids]).filter_map(&:presence).map(&:to_i).uniq
+    @sanitized_inbox_filter_ids =
+      if inbox_ids.blank?
+        nil
+      else
+        validate_account_inbox_ids!(inbox_ids)
+        inbox_ids & board_filterable_inbox_ids(inbox_ids)
+      end
+  end
+
+  def validate_account_inbox_ids!(inbox_ids)
+    return if inbox_ids.blank?
+
+    valid_inbox_count = Inbox.where(account_id: Current.account.id, id: inbox_ids).count
+    return if valid_inbox_count == inbox_ids.length
+
+    raise ActiveRecord::RecordInvalid, @kanban_board
+  end
+
+  def board_filterable_inbox_ids(inbox_ids)
+    return inbox_ids if @kanban_board.all_inboxes?
+
+    @kanban_board.kanban_board_inboxes.where(inbox_id: inbox_ids).pluck(:inbox_id)
   end
 end

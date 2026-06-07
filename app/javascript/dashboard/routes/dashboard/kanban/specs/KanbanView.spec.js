@@ -1,5 +1,5 @@
 import { flushPromises, shallowMount } from '@vue/test-utils';
-import { nextTick } from 'vue';
+import { nextTick, reactive } from 'vue';
 import { createStore } from 'vuex';
 import KanbanView from '../KanbanView.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
@@ -9,12 +9,12 @@ import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
-const mockRoute = {
+const mockRoute = reactive({
   params: {
     accountId: '1',
     boardId: '10',
   },
-};
+});
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -51,6 +51,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     get: vi.fn(),
     show: vi.fn(),
+    showBoard: vi.fn(),
     reorderStage: vi.fn(),
     reorderCardById: vi.fn(),
     create: vi.fn(),
@@ -65,7 +66,15 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   },
 }));
 
-const createTestStore = (role = 'agent') =>
+KanbanBoardsAPI.showBoard = KanbanBoardsAPI.show;
+
+const buildInboxes = () => [
+  { id: 1, name: 'Support' },
+  { id: 2, name: 'Sales' },
+  { id: 3, name: 'Onboarding' },
+];
+
+const createTestStore = (role = 'agent', inboxRecords = buildInboxes()) =>
   createStore({
     modules: {
       auth: {
@@ -75,6 +84,18 @@ const createTestStore = (role = 'agent') =>
         },
       },
       kanbanBoards: { namespaced: true, ...kanbanBoardsModule },
+      inboxes: {
+        namespaced: true,
+        state: {
+          records: inboxRecords,
+        },
+        getters: {
+          getAllInboxes: state => state.records,
+        },
+        actions: {
+          get: vi.fn(),
+        },
+      },
     },
   });
 
@@ -90,6 +111,8 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
   name: 'Sales Board',
   description: '',
   auto_create_cards_from_conversations: true,
+  inbox_scope_mode: 'all_inboxes',
+  allowed_inbox_ids: [],
   stages: [
     {
       id: 100,
@@ -160,6 +183,7 @@ const mountView = async (
     boardResponse = buildBoardResponse(),
     role = 'agent',
     boards = buildBoards(),
+    inboxes = buildInboxes(),
   } = options;
 
   KanbanBoardsAPI.get.mockResolvedValue({
@@ -178,13 +202,18 @@ const mountView = async (
     data: buildCard({ id: 501, kanban_stage_id: 100 }),
   });
 
-  const store = createTestStore(role);
+  const store = createTestStore(role, inboxes);
   const wrapper = shallowMount(KanbanView, {
     global: {
       plugins: [store],
       stubs: {
         OnClickOutside: {
           template: '<div><slot /></div>',
+        },
+        TagMultiSelectComboBox: {
+          name: 'TagMultiSelectComboBox',
+          props: ['modelValue', 'options', 'disabled'],
+          template: '<div class="tag-multi-select-stub" />',
         },
         KanbanConversationCard: {
           name: 'KanbanConversationCard',
@@ -299,6 +328,8 @@ const findLoadMoreButtons = wrapper =>
 
 const findAddItemPicker = wrapper =>
   wrapper.findComponent({ name: 'KanbanOpportunityPicker' });
+const findInboxFilter = wrapper =>
+  wrapper.findComponent({ name: 'TagMultiSelectComboBox' });
 
 const openStageCreateForm = async wrapper => {
   await wrapper
@@ -373,7 +404,7 @@ describe('KanbanView realtime events', () => {
       data: { board_id: 10 },
     });
 
-    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
     expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
   });
 
@@ -391,7 +422,7 @@ describe('KanbanView realtime events', () => {
       data: { board_id: 10, stage_id: 100 },
     });
 
-    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
     expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
   });
 
@@ -977,7 +1008,7 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.reorderStage).toHaveBeenCalledWith(10, 200, {
       position: 1,
     });
-    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
   });
 
   it('persists cross-stage card drag using target stage and position payload', async () => {
@@ -1557,7 +1588,7 @@ describe('KanbanView header navigation', () => {
         position: 2,
       },
     });
-    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10);
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
   });
 
   it('shows board settings button for administrators', async () => {
@@ -1603,5 +1634,121 @@ describe('KanbanView header navigation', () => {
     expect(
       wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
     ).toBe(false);
+  });
+});
+
+describe('KanbanView inbox filter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    mockRoute.params.boardId = '10';
+  });
+
+  it('renders only allowed inbox options for selected_inboxes boards', async () => {
+    const wrapper = await mountView({
+      boardResponse: buildBoardResponse([], {
+        inbox_scope_mode: 'selected_inboxes',
+        allowed_inbox_ids: [2, 3],
+      }),
+    });
+
+    expect(findInboxFilter(wrapper).props('options')).toEqual([
+      { value: 2, label: 'Sales' },
+      { value: 3, label: 'Onboarding' },
+    ]);
+  });
+
+  it('refetches the board with inbox_ids when the filter changes', async () => {
+    const wrapper = await mountView();
+
+    KanbanBoardsAPI.show.mockClear();
+    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2, 2]);
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
+      params: { inbox_ids: [2] },
+    });
+  });
+
+  it('preserves inbox_ids on load more requests', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({
+              has_more: true,
+              next_cursor: { after_id: 502 },
+            }),
+          },
+        ],
+      })
+    );
+
+    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
+    await flushPromises();
+    KanbanBoardsAPI.getStageCards.mockClear();
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
+      limit: 20,
+      cursor: { after_id: 502 },
+      inbox_ids: [2],
+    });
+  });
+
+  it('preserves inbox_ids on realtime refreshes', async () => {
+    const wrapper = await mountView();
+
+    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
+    await flushPromises();
+    KanbanBoardsAPI.getStageCards.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.created',
+      data: { board_id: 10, stage_id: 100, card_id: 700 },
+    });
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+      inbox_ids: [2],
+    });
+  });
+
+  it('clears the inbox filter when switching boards', async () => {
+    const wrapper = await mountView();
+
+    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
+    await flushPromises();
+    KanbanBoardsAPI.show.mockResolvedValueOnce({
+      data: buildBoardResponse([], { id: 11, name: 'Renewals Board' }),
+    });
+    KanbanBoardsAPI.show.mockClear();
+    mockRoute.params.boardId = '11';
+    await flushPromises();
+
+    expect(findInboxFilter(wrapper).props('modelValue')).toEqual([]);
+    expect(KanbanBoardsAPI.show).toHaveBeenLastCalledWith(11, undefined);
+  });
+
+  it('removes inbox_ids when the filter is cleared', async () => {
+    const wrapper = await mountView();
+
+    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
+    await flushPromises();
+    KanbanBoardsAPI.show.mockClear();
+
+    await findInboxFilter(wrapper).vm.$emit('update:modelValue', []);
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
   });
 });
