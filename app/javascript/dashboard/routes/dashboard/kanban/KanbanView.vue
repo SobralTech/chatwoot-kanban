@@ -450,26 +450,13 @@ const removeBoard = async board => {
   try {
     await KanbanBoardsAPI.delete(board.id);
     await store.dispatch('kanbanBoards/refreshBoards');
-    const nextBoard = boards.value[0];
-
-    if (nextBoard) {
-      await router.replace({
-        name: 'kanban_board_show',
-        params: {
-          accountId: route.params.accountId,
-          boardId: nextBoard.id,
-        },
-      });
-      await showBoard(nextBoard.id);
-    } else {
-      selectedBoard.value = null;
-      await router.replace({
-        name: 'kanban_boards',
-        params: {
-          accountId: route.params.accountId,
-        },
-      });
-    }
+    selectedBoard.value = null;
+    await router.replace({
+      name: 'kanban_boards',
+      params: {
+        accountId: route.params.accountId,
+      },
+    });
 
     cancelEditingBoard();
     useAlert(t('KANBAN.ACTIONS.REMOVE_BOARD_SUCCESS'));

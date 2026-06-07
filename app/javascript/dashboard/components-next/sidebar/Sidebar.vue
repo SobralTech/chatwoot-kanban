@@ -175,6 +175,8 @@ useEventListener(document, 'touchend', onResizeEnd);
 
 const inboxes = useMapGetter('inboxes/getInboxes');
 const labels = useMapGetter('labels/getLabelsOnSidebar');
+const kanbanBoards = useMapGetter('kanbanBoards/kanbanBoards');
+const isFetchingKanbanBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const getInboxUnreadCount = useMapGetter(
   'conversationUnreadCounts/getInboxUnreadCount'
 );
@@ -189,6 +191,24 @@ const contactCustomViews = useMapGetter('customViews/getContactCustomViews');
 const conversationCustomViews = useMapGetter(
   'customViews/getConversationCustomViews'
 );
+const lastFetchedKanbanAccountId = ref(null);
+
+const fetchKanbanBoards = async ({ force = false } = {}) => {
+  if (!accountId.value || isFetchingKanbanBoards.value) return;
+
+  if (!force && kanbanBoards.value.length > 0) {
+    lastFetchedKanbanAccountId.value = accountId.value;
+    return;
+  }
+
+  lastFetchedKanbanAccountId.value = accountId.value;
+
+  try {
+    await store.dispatch('kanbanBoards/fetchBoards');
+  } catch {
+    // The kanban screens own the user-facing error state.
+  }
+};
 
 onMounted(() => {
   store.dispatch('labels/get');
@@ -203,6 +223,25 @@ onMounted(() => {
 watch([accountId, hasConversationUnreadCounts], fetchConversationUnreadCounts, {
   immediate: true,
 });
+
+watch(
+  accountId,
+  (currentAccountId, previousAccountId) => {
+    if (!currentAccountId) return;
+
+    const accountChanged =
+      previousAccountId && currentAccountId !== previousAccountId;
+
+    if (accountChanged) {
+      store.dispatch('kanbanBoards/resetBoards');
+    }
+
+    fetchKanbanBoards({
+      force: accountChanged,
+    });
+  },
+  { immediate: true }
+);
 
 const normalizeUnreadCount = count => {
   const unreadCount = Number(count);
@@ -385,8 +424,22 @@ const menuItems = computed(() => {
       name: 'Kanban',
       label: t('SIDEBAR.KANBAN'),
       icon: 'i-lucide-columns-3',
-      to: accountScopedRoute('kanban_boards'),
-      activeOn: ['kanban_boards', 'kanban_board_show'],
+      children: [
+        {
+          name: 'Kanban Overview',
+          label: t('SIDEBAR.KANBAN_OVERVIEW'),
+          activeOn: ['kanban_boards'],
+          to: accountScopedRoute('kanban_boards'),
+        },
+        ...kanbanBoards.value.map(board => ({
+          name: `Kanban Board ${board.id}`,
+          label: board.name,
+          activeOn: ['kanban_board_show'],
+          to: accountScopedRoute('kanban_board_show', {
+            boardId: board.id,
+          }),
+        })),
+      ],
     },
     {
       name: 'Captain',

@@ -1549,4 +1549,25 @@ describe('KanbanView board edit form', () => {
       },
     });
   });
+
+  it('refreshes boards and navigates to overview after removing the open board', async () => {
+    KanbanBoardsAPI.delete.mockResolvedValue({ data: {} });
+    const wrapper = await mountView();
+    const dispatch = vi.spyOn(wrapper.vm.$store, 'dispatch');
+
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('KANBAN.ACTIONS.REMOVE_BOARD'))
+      .trigger('click');
+    await nextTick();
+    await wrapper.find('[data-testid="confirm-delete"]').trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.delete).toHaveBeenCalledWith(10);
+    expect(dispatch).toHaveBeenCalledWith('kanbanBoards/refreshBoards');
+    expect(mockReplace).toHaveBeenCalledWith({
+      name: 'kanban_boards',
+      params: { accountId: '1' },
+    });
+  });
 });
