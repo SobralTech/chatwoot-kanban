@@ -16,7 +16,9 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
       conversation: @conversation,
       kanban_board: @kanban_board,
       kanban_stage: @kanban_stage,
-      subject: card_params[:subject]
+      subject: card_params[:subject],
+      due_at: card_params[:due_at],
+      labels: card_params[:labels]
     ).perform!
 
     render :create, status: :created
@@ -56,7 +58,7 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
   end
 
   def card_params
-    params.require(:card).permit(:kanban_board_id, :kanban_stage_id, :subject)
+    params.require(:card).permit(:kanban_board_id, :kanban_stage_id, :subject, :due_at, labels: [])
   end
 
   def user_context

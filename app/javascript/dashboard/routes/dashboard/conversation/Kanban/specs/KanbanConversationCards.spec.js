@@ -1,7 +1,9 @@
 import { mount, flushPromises } from '@vue/test-utils';
-import { nextTick } from 'vue';
+import { computed, nextTick } from 'vue';
 import KanbanConversationCards from '../KanbanConversationCards.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import { useAlert } from 'dashboard/composables';
+import { useMapGetter, useStore } from 'dashboard/composables/store';
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -11,6 +13,24 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION_SIDEBAR.KANBAN.EMPTY':
           'No opportunities linked to this conversation',
         'CONVERSATION_SIDEBAR.KANBAN.ERROR': 'Failed to load opportunities',
+        'CONVERSATION_SIDEBAR.KANBAN.ADD': 'Add to Kanban',
+        'CONVERSATION_SIDEBAR.KANBAN.CREATE_TITLE': 'Create opportunity',
+        'CONVERSATION_SIDEBAR.KANBAN.BOARD': 'Board',
+        'CONVERSATION_SIDEBAR.KANBAN.SUBJECT': 'Subject',
+        'CONVERSATION_SIDEBAR.KANBAN.STAGE': 'Opportunity stage',
+        'CONVERSATION_SIDEBAR.KANBAN.DUE_DATE': 'Due date',
+        'CONVERSATION_SIDEBAR.KANBAN.LABELS': 'Labels',
+        'CONVERSATION_SIDEBAR.KANBAN.SELECT_BOARD': 'Select a board',
+        'CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE': 'Select a stage',
+        'CONVERSATION_SIDEBAR.KANBAN.EMPTY_BOARDS':
+          'No active boards available',
+        'CONVERSATION_SIDEBAR.KANBAN.EMPTY_STAGES':
+          'No active stages available',
+        'CONVERSATION_SIDEBAR.KANBAN.CREATE_ERROR':
+          'Failed to create opportunity',
+        'CONVERSATION_SIDEBAR.KANBAN.CREATED': 'Opportunity created',
+        'CONVERSATION_SIDEBAR.KANBAN.CANCEL': 'Cancel',
+        'CONVERSATION_SIDEBAR.KANBAN.CREATE': 'Create',
       };
 
       return translations[key] || key;
@@ -21,8 +41,66 @@ vi.mock('vue-i18n', () => ({
 vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     getConversationCards: vi.fn(),
+    getBoards: vi.fn(),
+    showBoard: vi.fn(),
+    createConversationCard: vi.fn(),
   },
 }));
+
+vi.mock('dashboard/composables', () => ({
+  useAlert: vi.fn(),
+}));
+
+vi.mock('dashboard/composables/store', () => ({
+  useStore: vi.fn(),
+  useMapGetter: vi.fn(),
+}));
+
+vi.mock('shared/components/ui/label/LabelDropdown.vue', () => ({
+  default: {
+    name: 'LabelDropdown',
+    props: {
+      accountLabels: { type: Array, default: () => [] },
+      selectedLabels: { type: Array, default: () => [] },
+      allowCreation: { type: Boolean, default: false },
+    },
+    emits: ['add', 'remove'],
+    template: `
+      <div data-testid="label-dropdown">
+        <button
+          type="button"
+          data-testid="add-label"
+          @click="$emit('add', accountLabels[0])"
+        >
+          add label
+        </button>
+        <button
+          type="button"
+          data-testid="remove-label"
+          @click="$emit('remove', selectedLabels[0])"
+        >
+          remove label
+        </button>
+      </div>
+    `,
+  },
+}));
+
+const currentChat = {
+  id: 456,
+  inbox_id: 5,
+  meta: {
+    sender: {
+      id: 12,
+      name: 'Maria Silva',
+    },
+  },
+};
+
+const accountLabels = [
+  { id: 1, title: 'urgente', color: '#ff0000' },
+  { id: 2, title: 'vendas', color: '#00ff00' },
+];
 
 const buildCard = overrides => ({
   id: 123,
@@ -41,14 +119,74 @@ const buildCard = overrides => ({
   ...overrides,
 });
 
+const buildBoard = overrides => ({
+  id: 10,
+  name: 'Sales',
+  active: true,
+  ...overrides,
+});
+
+const buildStage = overrides => ({
+  id: 20,
+  name: 'New',
+  active: true,
+  ...overrides,
+});
+
+const store = {
+  dispatch: vi.fn(),
+  getters: {
+    'inboxes/getInboxById': vi.fn(() => ({ id: 5, name: 'Sales Inbox' })),
+  },
+};
+
 const mountComponent = (props = { conversationId: 456 }) =>
   mount(KanbanConversationCards, {
     props,
   });
 
+const openForm = async wrapper => {
+  await wrapper.find('button').trigger('click');
+  await flushPromises();
+};
+
+const formLabels = wrapper =>
+  wrapper
+    .findAll('label span')
+    .map(node => node.text())
+    .filter(Boolean);
+
 describe('KanbanConversationCards', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+
+    useStore.mockReturnValue(store);
+    useMapGetter.mockImplementation(key => {
+      if (key === 'getSelectedChat') return computed(() => currentChat);
+      if (key === 'labels/getLabels') return computed(() => accountLabels);
+      return computed(() => undefined);
+    });
+
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [] },
+    });
+    KanbanBoardsAPI.getBoards.mockResolvedValue({
+      data: [
+        buildBoard(),
+        buildBoard({ id: 11, name: 'Inactive', active: false }),
+      ],
+    });
+    KanbanBoardsAPI.showBoard.mockResolvedValue({
+      data: {
+        stages: [
+          buildStage(),
+          buildStage({ id: 21, name: 'Inactive', active: false }),
+        ],
+      },
+    });
+    KanbanBoardsAPI.createConversationCard.mockResolvedValue({
+      data: { payload: buildCard() },
+    });
   });
 
   it('loads cards for conversationId', async () => {
@@ -65,9 +203,6 @@ describe('KanbanConversationCards', () => {
   });
 
   it('reloads when conversationId changes', async () => {
-    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
-      data: { payload: [] },
-    });
     const wrapper = mountComponent();
     await flushPromises();
 
@@ -125,10 +260,6 @@ describe('KanbanConversationCards', () => {
   });
 
   it('renders empty state', async () => {
-    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
-      data: { payload: [] },
-    });
-
     const wrapper = mountComponent();
     await flushPromises();
 
@@ -158,5 +289,236 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.text()).toContain('Sales');
     expect(wrapper.text()).toContain('New');
     expect(wrapper.find('.bg-n-blue-9').exists()).toBe(true);
+  });
+
+  it('opens the creation form from the Add to Kanban button', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    await openForm(wrapper);
+
+    expect(wrapper.text()).toContain('Create opportunity');
+    expect(store.dispatch).toHaveBeenCalledWith('labels/get');
+  });
+
+  it('renders fields in the requested order', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    await openForm(wrapper);
+
+    expect(formLabels(wrapper)).toEqual([
+      'Board',
+      'Subject',
+      'Opportunity stage',
+      'Due date',
+      'Labels',
+    ]);
+  });
+
+  it('loads active boards when opening the form and selects the first board', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    await openForm(wrapper);
+
+    expect(KanbanBoardsAPI.getBoards).toHaveBeenCalledWith({
+      signal: expect.any(AbortSignal),
+    });
+    expect(wrapper.find('select').element.value).toBe('10');
+    expect(wrapper.text()).not.toContain('Inactive');
+  });
+
+  it('loads active stages after board selection and selects the first stage', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    await openForm(wrapper);
+
+    expect(KanbanBoardsAPI.showBoard).toHaveBeenCalledWith(10, {
+      signal: expect.any(AbortSignal),
+    });
+    expect(wrapper.findAll('select')[1].element.value).toBe('20');
+  });
+
+  it('clears the previous stage when board changes', async () => {
+    KanbanBoardsAPI.getBoards.mockResolvedValue({
+      data: [buildBoard(), buildBoard({ id: 11, name: 'Support' })],
+    });
+    KanbanBoardsAPI.showBoard
+      .mockResolvedValueOnce({ data: { stages: [buildStage()] } })
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            setTimeout(
+              () => resolve({ data: { stages: [buildStage({ id: 30 })] } }),
+              0
+            );
+          })
+      );
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+
+    await wrapper.find('select').setValue('11');
+
+    expect(wrapper.findAll('select')[1].element.value).toBe('');
+  });
+
+  it('prefills the subject and keeps it editable', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    await openForm(wrapper);
+    const input = wrapper.find('input[type="text"]');
+    expect(input.element.value).toBe('Maria Silva - Sales Inbox');
+
+    await input.setValue('Custom opportunity');
+    expect(input.element.value).toBe('Custom opportunity');
+  });
+
+  it('submits null when due date is empty', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+
+    await wrapper.find('form').trigger('submit.prevent');
+
+    expect(KanbanBoardsAPI.createConversationCard).toHaveBeenCalledWith(
+      456,
+      expect.objectContaining({
+        card: expect.objectContaining({ due_at: null }),
+      }),
+      { signal: expect.any(AbortSignal) }
+    );
+  });
+
+  it('submits ISO8601 when due date is filled', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+
+    await wrapper
+      .find('input[type="datetime-local"]')
+      .setValue('2026-06-07T18:00');
+    await wrapper.find('form').trigger('submit.prevent');
+
+    expect(KanbanBoardsAPI.createConversationCard).toHaveBeenCalledWith(
+      456,
+      expect.objectContaining({
+        card: expect.objectContaining({
+          due_at: new Date('2026-06-07T18:00').toISOString(),
+        }),
+      }),
+      { signal: expect.any(AbortSignal) }
+    );
+  });
+
+  it('reuses the existing label selector and allows multiple labels', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+
+    const labelDropdown = wrapper.findComponent({ name: 'LabelDropdown' });
+    expect(labelDropdown.props('allowCreation')).toBe(false);
+
+    await labelDropdown.vm.$emit('add', accountLabels[0]);
+    await labelDropdown.vm.$emit('add', accountLabels[1]);
+    await wrapper.find('form').trigger('submit.prevent');
+
+    expect(KanbanBoardsAPI.createConversationCard).toHaveBeenCalledWith(
+      456,
+      expect.objectContaining({
+        card: expect.objectContaining({ labels: ['urgente', 'vendas'] }),
+      }),
+      { signal: expect.any(AbortSignal) }
+    );
+  });
+
+  it('submits board, subject, stage, due_at, and labels', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+
+    await wrapper.find('input[type="text"]').setValue('  Enterprise renewal  ');
+    await wrapper
+      .findComponent({ name: 'LabelDropdown' })
+      .vm.$emit('add', accountLabels[0]);
+    await wrapper.find('form').trigger('submit.prevent');
+
+    expect(KanbanBoardsAPI.createConversationCard).toHaveBeenCalledWith(
+      456,
+      {
+        card: {
+          kanban_board_id: 10,
+          kanban_stage_id: 20,
+          subject: 'Enterprise renewal',
+          due_at: null,
+          labels: ['urgente'],
+        },
+      },
+      { signal: expect.any(AbortSignal) }
+    );
+  });
+
+  it('blocks duplicate submit while pending', async () => {
+    KanbanBoardsAPI.createConversationCard.mockImplementation(
+      () => new Promise(() => {})
+    );
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+
+    await wrapper.find('form').trigger('submit.prevent');
+    await wrapper.find('form').trigger('submit.prevent');
+
+    expect(KanbanBoardsAPI.createConversationCard).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the form and reloads cards after success', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('Create opportunity');
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
+    expect(useAlert).toHaveBeenCalledWith('Opportunity created');
+  });
+
+  it('preserves filled values when the backend returns an error', async () => {
+    KanbanBoardsAPI.createConversationCard.mockRejectedValue({
+      response: { data: { message: 'Duplicate opportunity' } },
+    });
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+
+    await wrapper.find('input[type="text"]').setValue('Custom subject');
+    await wrapper.find('form').trigger('submit.prevent');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Duplicate opportunity');
+    expect(wrapper.find('input[type="text"]').element.value).toBe(
+      'Custom subject'
+    );
+  });
+
+  it('resets the form and aborts pending requests when conversation changes', async () => {
+    const boardSignals = [];
+    KanbanBoardsAPI.getBoards.mockImplementation(config => {
+      boardSignals.push(config.signal);
+      return new Promise(() => {});
+    });
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+
+    await wrapper.setProps({ conversationId: 789 });
+
+    expect(boardSignals[0].aborted).toBe(true);
+    expect(wrapper.text()).not.toContain('Create opportunity');
   });
 });

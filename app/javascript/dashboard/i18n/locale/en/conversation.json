@@ -397,7 +397,22 @@
     "KANBAN": {
       "LOADING": "Loading opportunities",
       "EMPTY": "No opportunities linked to this conversation",
-      "ERROR": "Failed to load opportunities"
+      "ERROR": "Failed to load opportunities",
+      "ADD": "Add to Kanban",
+      "CREATE_TITLE": "Create opportunity",
+      "BOARD": "Board",
+      "SUBJECT": "Subject",
+      "STAGE": "Opportunity stage",
+      "DUE_DATE": "Due date",
+      "LABELS": "Labels",
+      "SELECT_BOARD": "Select a board",
+      "SELECT_STAGE": "Select a stage",
+      "EMPTY_BOARDS": "No active boards available",
+      "EMPTY_STAGES": "No active stages available",
+      "CREATE_ERROR": "Failed to create opportunity",
+      "CREATED": "Opportunity created",
+      "CANCEL": "Cancel",
+      "CREATE": "Create"
     },
     "SHARED_FILES": {
       "EMPTY": "No attachments yet",

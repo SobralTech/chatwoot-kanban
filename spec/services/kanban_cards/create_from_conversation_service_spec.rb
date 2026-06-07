@@ -9,6 +9,8 @@ RSpec.describe KanbanCards::CreateFromConversationService do
   let(:kanban_board) { create(:kanban_board, account: account) }
   let(:kanban_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board) }
   let(:card_subject) { nil }
+  let(:due_at) { nil }
+  let(:labels) { [] }
   let(:service) { build_service }
 
   before do
@@ -64,6 +66,70 @@ RSpec.describe KanbanCards::CreateFromConversationService do
       card = build_service(subject: '  Enterprise   renewal  ').perform!
 
       expect(card.subject).to eq('Enterprise renewal')
+    end
+
+    it 'accepts due_at ISO8601' do
+      card = build_service(due_at: '2026-06-07T18:00:00-03:00').perform!
+
+      expect(card.due_at).to eq(Time.zone.parse('2026-06-07T18:00:00-03:00'))
+    end
+
+    it 'accepts due_at null' do
+      card = build_service(due_at: nil).perform!
+
+      expect(card.due_at).to be_nil
+    end
+
+    it 'persists existing labels' do
+      create(:label, account: account, title: 'urgente')
+      create(:label, account: account, title: 'vendas')
+
+      card = build_service(labels: %w[urgente vendas]).perform!
+
+      expect(card.label_list).to contain_exactly('urgente', 'vendas')
+    end
+
+    it 'accepts empty labels' do
+      card = build_service(labels: []).perform!
+
+      expect(card.label_list).to be_empty
+    end
+
+    it 'deduplicates labels' do
+      create(:label, account: account, title: 'urgente')
+
+      card = build_service(labels: %w[urgente urgente]).perform!
+
+      expect(card.label_list).to contain_exactly('urgente')
+    end
+
+    it 'rejects a missing label' do
+      expect { build_service(labels: ['missing']).perform! }.to raise_validation_error('Labels must exist in account')
+    end
+
+    it 'rejects a label from another account' do
+      create(:label, title: 'external')
+
+      expect { build_service(labels: ['external']).perform! }.to raise_validation_error('Labels must exist in account')
+    end
+
+    it 'does not create a card when labels are invalid' do
+      expect do
+        build_service(labels: ['missing']).perform!
+      rescue ActiveRecord::RecordInvalid
+        nil
+      end.not_to change(KanbanCard, :count)
+    end
+
+    it 'does not emit kanban.card.created when labels are invalid' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      expect { build_service(labels: ['missing']).perform! }.to raise_validation_error('Labels must exist in account')
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        anything
+      )
     end
 
     it 'rejects an active duplicate card for the same board and conversation' do
@@ -152,7 +218,9 @@ RSpec.describe KanbanCards::CreateFromConversationService do
       conversation: overrides.fetch(:conversation, conversation),
       kanban_board: overrides.fetch(:kanban_board, kanban_board),
       kanban_stage: overrides.fetch(:kanban_stage, kanban_stage),
-      subject: overrides.fetch(:subject, card_subject)
+      subject: overrides.fetch(:subject, card_subject),
+      due_at: overrides.fetch(:due_at, due_at),
+      labels: overrides.fetch(:labels, labels)
     )
   end
 

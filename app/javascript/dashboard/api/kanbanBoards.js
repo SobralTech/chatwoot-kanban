@@ -29,9 +29,25 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.delete(`${this.url}/${boardId}/stages/${stageId}`);
   }
 
+  getBoards(config = {}) {
+    return axios.get(this.url, config);
+  }
+
+  showBoard(boardId, config = {}) {
+    return axios.get(`${this.url}/${boardId}`, config);
+  }
+
   getConversationCards(conversationId, config = {}) {
     return axios.get(
       `${this.baseUrl()}/conversations/${conversationId}/kanban_cards`,
+      config
+    );
+  }
+
+  createConversationCard(conversationId, payload, config = {}) {
+    return axios.post(
+      `${this.baseUrl()}/conversations/${conversationId}/kanban_cards`,
+      payload,
       config
     );
   }

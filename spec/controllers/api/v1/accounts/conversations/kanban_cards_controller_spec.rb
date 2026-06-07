@@ -139,6 +139,64 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
       expect(response.parsed_body['payload']['subject']).to eq('Enterprise renewal')
     end
 
+    it 'accepts due_at ISO8601' do
+      post_conversation_kanban_card(params: valid_card_payload.merge(due_at: '2026-06-07T18:00:00-03:00'))
+
+      expect(response).to have_http_status(:created)
+      expect(KanbanCard.last.due_at).to eq(Time.zone.parse('2026-06-07T18:00:00-03:00'))
+    end
+
+    it 'accepts due_at null' do
+      post_conversation_kanban_card(params: valid_card_payload.merge(due_at: nil))
+
+      expect(response).to have_http_status(:created)
+      expect(KanbanCard.last.due_at).to be_nil
+    end
+
+    it 'persists existing labels' do
+      create(:label, account: account, title: 'urgente')
+      create(:label, account: account, title: 'vendas')
+
+      post_conversation_kanban_card(params: valid_card_payload.merge(labels: %w[urgente vendas]))
+
+      expect(response).to have_http_status(:created)
+      expect(KanbanCard.last.label_list).to contain_exactly('urgente', 'vendas')
+    end
+
+    it 'accepts empty labels' do
+      post_conversation_kanban_card(params: valid_card_payload.merge(labels: []))
+
+      expect(response).to have_http_status(:created)
+      expect(KanbanCard.last.label_list).to be_empty
+    end
+
+    it 'deduplicates labels' do
+      create(:label, account: account, title: 'urgente')
+
+      post_conversation_kanban_card(params: valid_card_payload.merge(labels: %w[urgente urgente]))
+
+      expect(response).to have_http_status(:created)
+      expect(KanbanCard.last.label_list).to contain_exactly('urgente')
+    end
+
+    it 'rejects a missing label without creating a card' do
+      expect do
+        post_conversation_kanban_card(params: valid_card_payload.merge(labels: ['missing']))
+      end.not_to change(KanbanCard, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include('Labels must exist in account')
+    end
+
+    it 'rejects a label from another account' do
+      create(:label, title: 'external')
+
+      post_conversation_kanban_card(params: valid_card_payload.merge(labels: ['external']))
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include('Labels must exist in account')
+    end
+
     it 'rejects duplicate historical cards including inactive duplicates' do
       create_conversation_card(active: false)
 
@@ -204,6 +262,19 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
       allow(Rails.configuration.dispatcher).to receive(:dispatch)
 
       post_conversation_kanban_card
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        anything
+      )
+    end
+
+    it 'does not emit kanban.card.created when labels are invalid' do
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      post_conversation_kanban_card(params: valid_card_payload.merge(labels: ['missing']))
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(

@@ -13,7 +13,10 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('updateStage');
     expect(kanbanBoards).toHaveProperty('reorderStage');
     expect(kanbanBoards).toHaveProperty('deleteStage');
+    expect(kanbanBoards).toHaveProperty('getBoards');
+    expect(kanbanBoards).toHaveProperty('showBoard');
     expect(kanbanBoards).toHaveProperty('getConversationCards');
+    expect(kanbanBoards).toHaveProperty('createConversationCard');
     expect(kanbanBoards).toHaveProperty('getStageCards');
     expect(kanbanBoards).toHaveProperty('createManualCard');
     expect(kanbanBoards).toHaveProperty('updateCardById');
@@ -120,6 +123,37 @@ describe('#KanbanBoardsAPI', () => {
       expect(axiosMock.get).toHaveBeenCalledWith(
         '/api/v1/accounts/1/conversations/42/kanban_cards',
         { signal: controller.signal }
+      );
+    });
+
+    it('#getBoards with config', () => {
+      const controller = new AbortController();
+      kanbanBoards.getBoards({ signal: controller.signal });
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards',
+        { signal: controller.signal }
+      );
+    });
+
+    it('#showBoard with config', () => {
+      const controller = new AbortController();
+      kanbanBoards.showBoard(2, { signal: controller.signal });
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2',
+        { signal: controller.signal }
+      );
+    });
+
+    it('#createConversationCard', () => {
+      const payload = { card: { kanban_board_id: 2, kanban_stage_id: 3 } };
+      kanbanBoards.createConversationCard(42, payload);
+
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/conversations/42/kanban_cards',
+        payload,
+        {}
       );
     });
 

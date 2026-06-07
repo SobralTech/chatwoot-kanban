@@ -373,7 +373,22 @@
     "KANBAN": {
       "LOADING": "Carregando oportunidades",
       "EMPTY": "Nenhuma oportunidade vinculada a esta conversa",
-      "ERROR": "Falha ao carregar oportunidades"
+      "ERROR": "Falha ao carregar oportunidades",
+      "ADD": "Adicionar ao Kanban",
+      "CREATE_TITLE": "Criar oportunidade",
+      "BOARD": "Board",
+      "SUBJECT": "Assunto",
+      "STAGE": "Stage do assunto",
+      "DUE_DATE": "Data de vencimento",
+      "LABELS": "Etiquetas",
+      "SELECT_BOARD": "Selecione um board",
+      "SELECT_STAGE": "Selecione um stage",
+      "EMPTY_BOARDS": "Nenhum board ativo disponível",
+      "EMPTY_STAGES": "Nenhum stage ativo disponível",
+      "CREATE_ERROR": "Falha ao criar oportunidade",
+      "CREATED": "Oportunidade criada",
+      "CANCEL": "Cancelar",
+      "CREATE": "Criar"
     },
     "SHARED_FILES": {
       "EMPTY": "Nenhum anexo ainda",

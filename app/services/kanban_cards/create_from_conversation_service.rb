@@ -2,13 +2,15 @@ class KanbanCards::CreateFromConversationService
   DUPLICATE_CONVERSATION_ERROR = 'Conversation already has an opportunity on this board'.freeze
 
   # rubocop:disable Metrics/ParameterLists
-  def initialize(account:, user:, conversation:, kanban_board:, kanban_stage:, subject:)
+  def initialize(account:, user:, conversation:, kanban_board:, kanban_stage:, subject:, due_at: nil, labels: [])
     @account = account
     @user = user
     @conversation = conversation
     @kanban_board = kanban_board
     @kanban_stage = kanban_stage
     @subject = subject
+    @due_at = due_at
+    @labels = labels
   end
   # rubocop:enable Metrics/ParameterLists
 
@@ -19,7 +21,7 @@ class KanbanCards::CreateFromConversationService
       kanban_stage.lock!
       lock_active_cards!
       shift_active_cards_down!
-      create_card!
+      create_card!.tap { |created_card| created_card.update_labels(label_titles) }
     end
     dispatch_card_created_event(card)
     card
@@ -29,13 +31,14 @@ class KanbanCards::CreateFromConversationService
 
   private
 
-  attr_reader :account, :user, :conversation, :kanban_board, :kanban_stage, :subject
+  attr_reader :account, :user, :conversation, :kanban_board, :kanban_stage, :subject, :due_at, :labels
 
   def validate_scope!
     validate_conversation!
     validate_board!
     validate_stage!
     validate_duplicate!
+    validate_labels!
     authorize_card!
   end
 
@@ -63,6 +66,13 @@ class KanbanCards::CreateFromConversationService
     raise_validation_error(DUPLICATE_CONVERSATION_ERROR, :conversation)
   end
 
+  def validate_labels!
+    return if label_titles.blank?
+    return if existing_label_titles.sort == label_titles.sort
+
+    raise_validation_error('Labels must exist in account', :labels)
+  end
+
   def authorize_card!
     raise Pundit::NotAuthorizedError unless KanbanCardPolicy.new(user_context, unsaved_card).create?
   end
@@ -83,6 +93,7 @@ class KanbanCards::CreateFromConversationService
       normalized_subject: nil,
       origin: 'conversation',
       position: 1,
+      due_at: due_at,
       active: true
     }
   end
@@ -114,6 +125,14 @@ class KanbanCards::CreateFromConversationService
 
   def normalized_subject
     @normalized_subject ||= subject.to_s.strip.gsub(/\s+/, ' ')
+  end
+
+  def label_titles
+    @label_titles ||= Array(labels).filter_map { |label| label.to_s.strip.presence }.uniq
+  end
+
+  def existing_label_titles
+    @existing_label_titles ||= account.labels.where(title: label_titles).pluck(:title)
   end
 
   def default_subject
