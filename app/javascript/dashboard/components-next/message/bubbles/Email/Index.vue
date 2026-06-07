@@ -1,8 +1,7 @@
 <script setup>
 import { computed, useTemplateRef, ref, onMounted } from 'vue';
-import { Letter } from 'vue-letter';
 import { sanitizeTextForRender } from '@chatwoot/utils';
-import { allowedCssProperties } from 'lettersanitizer';
+import { allowedCssProperties, sanitize } from 'lettersanitizer';
 
 import Icon from 'next/icon/Icon.vue';
 import { EmailQuoteExtractor } from 'dashboard/helper/emailQuoteExtractor.js';
@@ -11,19 +10,32 @@ import BaseBubble from 'next/message/bubbles/Base.vue';
 import AttachmentChips from 'next/message/chips/AttachmentChips.vue';
 import EmailMeta from './EmailMeta.vue';
 import TranslationToggle from 'dashboard/components-next/message/TranslationToggle.vue';
+import { highlightSearchTerm } from 'shared/helpers/highlightSearchTerm.js';
 
 import { useMessageContext } from '../../provider.js';
 import { MESSAGE_TYPES } from 'next/message/constants.js';
 import { useTranslations } from 'dashboard/composables/useTranslations';
 
-const { content, contentAttributes, attachments, messageType } =
-  useMessageContext();
+const {
+  content,
+  contentAttributes,
+  attachments,
+  messageType,
+  conversationSearchQuery,
+} = useMessageContext();
 
 const isExpandable = ref(false);
 const isExpanded = ref(false);
 const showQuotedMessage = ref(false);
 const renderOriginal = ref(false);
 const contentContainer = useTemplateRef('contentContainer');
+const emailAllowedCssProperties = [
+  ...allowedCssProperties,
+  'transform',
+  'transform-origin',
+];
+const emailContentClass =
+  'prose prose-bubble !max-w-none letter-render [&_.conversation-search-highlight]:bg-n-amber-5 [&_.conversation-search-highlight]:text-n-slate-12 [&_.conversation-search-highlight]:rounded-sm [&_.conversation-search-highlight]:px-0.5';
 
 onMounted(() => {
   isExpandable.value = contentContainer.value?.scrollHeight > 400;
@@ -89,8 +101,26 @@ const hasQuotedMessage = computed(() =>
   EmailQuoteExtractor.hasQuotes(fullHTML.value)
 );
 
-// Ensure unique keys for <Letter> when toggling between original and translated views.
-// This forces Vue to re-render the component and update content correctly.
+const renderEmailHTML = html => {
+  const sanitizedHTML = sanitize(html, textToShow.value, {
+    allowedCssProperties: emailAllowedCssProperties,
+  });
+
+  return highlightSearchTerm(
+    sanitizedHTML,
+    conversationSearchQuery.value,
+    'conversation-search-highlight'
+  );
+};
+
+const highlightedFullHTML = computed(() => renderEmailHTML(fullHTML.value));
+
+const highlightedUnquotedHTML = computed(() =>
+  renderEmailHTML(unquotedHTML.value)
+);
+
+// Ensure unique keys when toggling between original and translated views.
+// This forces Vue to re-render the email HTML and update content correctly.
 const translationKeySuffix = computed(() => {
   if (renderOriginal.value) return 'original';
   if (hasTranslations.value) return 'translated';
@@ -149,29 +179,17 @@ const handleSeeOriginal = () => {
           :content="messageContent"
         />
         <template v-else>
-          <Letter
+          <div
             v-if="showQuotedMessage"
             :key="`letter-quoted-${translationKeySuffix}`"
-            class-name="prose prose-bubble !max-w-none letter-render"
-            :allowed-css-properties="[
-              ...allowedCssProperties,
-              'transform',
-              'transform-origin',
-            ]"
-            :html="fullHTML"
-            :text="textToShow"
+            :class="emailContentClass"
+            v-html="highlightedFullHTML"
           />
-          <Letter
+          <div
             v-else
             :key="`letter-unquoted-${translationKeySuffix}`"
-            class-name="prose prose-bubble !max-w-none letter-render"
-            :html="unquotedHTML"
-            :allowed-css-properties="[
-              ...allowedCssProperties,
-              'transform',
-              'transform-origin',
-            ]"
-            :text="textToShow"
+            :class="emailContentClass"
+            v-html="highlightedUnquotedHTML"
           />
         </template>
         <button
