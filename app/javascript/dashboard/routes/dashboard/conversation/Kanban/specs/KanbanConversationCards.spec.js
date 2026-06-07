@@ -5,6 +5,8 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { messageStamp } from 'shared/helpers/timeHelper';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 vi.mock('shared/helpers/timeHelper', () => ({
   messageStamp: vi.fn(() => 'Jun 7, 2026 6:00 PM'),
@@ -177,6 +179,10 @@ const openEditForm = async wrapper => {
 const findButtonByText = (wrapper, text) =>
   wrapper.findAll('button').find(button => button.text() === text);
 
+const emitKanbanRealtimeEvent = payload => {
+  emitter.emit(BUS_EVENTS.KANBAN_REALTIME_EVENT, payload);
+};
+
 const formLabels = wrapper =>
   wrapper
     .findAll('label span')
@@ -186,6 +192,7 @@ const formLabels = wrapper =>
 describe('KanbanConversationCards', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    emitter.all.clear();
     messageStamp.mockReturnValue('Jun 7, 2026 6:00 PM');
 
     useStore.mockReturnValue(store);
@@ -221,6 +228,10 @@ describe('KanbanConversationCards', () => {
     KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
       data: { payload: [accountLabels[1]] },
     });
+  });
+
+  afterEach(() => {
+    emitter.all.clear();
   });
 
   it('loads cards for conversationId', async () => {
@@ -311,6 +322,120 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.text()).toContain('Failed to load opportunities');
   });
 
+  it('registers and removes the kanban realtime listener', async () => {
+    const onSpy = vi.spyOn(emitter, 'on');
+    const offSpy = vi.spyOn(emitter, 'off');
+
+    const wrapper = mountComponent();
+    await flushPromises();
+    const registeredHandler = onSpy.mock.calls.find(
+      ([eventName]) => eventName === BUS_EVENTS.KANBAN_REALTIME_EVENT
+    )?.[1];
+
+    expect(registeredHandler).toEqual(expect.any(Function));
+
+    wrapper.unmount();
+
+    expect(offSpy).toHaveBeenCalledWith(
+      BUS_EVENTS.KANBAN_REALTIME_EVENT,
+      registeredHandler
+    );
+  });
+
+  it('refreshes cards after a relevant kanban realtime event', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    emitKanbanRealtimeEvent({
+      event: 'kanban.card.updated',
+      data: { card_id: 123, conversation_id: 456 },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenLastCalledWith(456, {
+      signal: expect.any(AbortSignal),
+    });
+
+    wrapper.unmount();
+  });
+
+  it.each([
+    ['kanban.card.created'],
+    ['kanban.card.updated'],
+    ['kanban.card.deleted'],
+    ['kanban.card.reordered'],
+  ])('refreshes cards for compact %s events', async event => {
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    emitKanbanRealtimeEvent({
+      event,
+      data: { board_id: 10, stage_id: 20, card_id: 123 },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
+
+    wrapper.unmount();
+  });
+
+  it('does not refresh for clearly unrelated kanban realtime events', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    emitKanbanRealtimeEvent({
+      event: 'kanban.card.updated',
+      data: { card_id: 999, conversation_id: 789 },
+    });
+    emitKanbanRealtimeEvent({
+      event: 'kanban.stage.updated',
+      data: { board_id: 10, stage_id: 20 },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
+  });
+
+  it('avoids duplicate concurrent realtime fetches', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValueOnce({
+      data: { payload: [] },
+    });
+    const resolvers = [];
+    KanbanBoardsAPI.getConversationCards.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolvers.push(resolve);
+        })
+    );
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    emitKanbanRealtimeEvent({
+      event: 'kanban.card.updated',
+      data: { card_id: 123, conversation_id: 456 },
+    });
+    emitKanbanRealtimeEvent({
+      event: 'kanban.card.deleted',
+      data: { card_id: 123, conversation_id: 456 },
+    });
+    await nextTick();
+
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
+
+    resolvers[0]({ data: { payload: [buildCard()] } });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(3);
+
+    resolvers[1]({ data: { payload: [buildCard({ subject: 'Fresh card' })] } });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Fresh card');
+  });
+
   it('renders read-only card fields in the requested order', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
@@ -366,6 +491,29 @@ describe('KanbanConversationCards', () => {
 
     expect(wrapper.text()).toContain('Create opportunity');
     expect(store.dispatch).toHaveBeenCalledWith('labels/get');
+  });
+
+  it('preserves the creation form during realtime refresh and refreshes after cancel', async () => {
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openForm(wrapper);
+    await wrapper.find('input[type="text"]').setValue('Draft opportunity');
+
+    emitKanbanRealtimeEvent({
+      event: 'kanban.card.updated',
+      data: { card_id: 123, conversation_id: 456 },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(1);
+    expect(wrapper.find('input[type="text"]').element.value).toBe(
+      'Draft opportunity'
+    );
+
+    await findButtonByText(wrapper, 'Cancel').trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
   });
 
   it('renders fields in the requested order', async () => {
@@ -697,6 +845,30 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.find('input[type="text"]').element.value).toBe(
       'Custom edit'
     );
+  });
+
+  it('preserves the edit form during realtime refresh and refreshes after cancel', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+    const wrapper = mountComponent();
+    await flushPromises();
+    await openEditForm(wrapper);
+    await wrapper.find('input[type="text"]').setValue('Draft edit');
+
+    emitKanbanRealtimeEvent({
+      event: 'kanban.card.updated',
+      data: { card_id: 123, conversation_id: 456 },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(1);
+    expect(wrapper.find('input[type="text"]').element.value).toBe('Draft edit');
+
+    await findButtonByText(wrapper, 'Cancel').trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
   });
 
   it('cancels inline editing without saving', async () => {

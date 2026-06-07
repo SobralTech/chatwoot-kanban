@@ -6,6 +6,8 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import { messageStamp } from 'shared/helpers/timeHelper';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 const props = defineProps({
   conversationId: {
@@ -55,6 +57,14 @@ const editError = ref('');
 const isLoadingEditStages = ref(false);
 const isSavingEdit = ref(false);
 const editStagesAbortController = ref(null);
+const hasPendingRealtimeRefresh = ref(false);
+
+const kanbanCardRealtimeEvents = new Set([
+  'kanban.card.created',
+  'kanban.card.updated',
+  'kanban.card.deleted',
+  'kanban.card.reordered',
+]);
 
 const hasCards = computed(() => cards.value.length > 0);
 const activeBoards = computed(() =>
@@ -81,6 +91,9 @@ const canSubmit = computed(
 );
 const canSaveEdit = computed(
   () => editSubject.value.trim() && editStageId.value && !isSavingEdit.value
+);
+const hasOpenLocalForm = computed(
+  () => isFormOpen.value || editingCardId.value !== null
 );
 
 const contactId = computed(() => currentChat.value?.meta?.sender?.id);
@@ -195,6 +208,22 @@ const resetEditState = () => {
   isSavingEdit.value = false;
 };
 
+const conversationIdFromRealtimeData = data =>
+  data?.conversation_id ?? data?.conversationId ?? data?.card?.conversation_id;
+
+const isCurrentConversationRealtimeData = data => {
+  const eventConversationId = conversationIdFromRealtimeData(data);
+  if (!eventConversationId) return true;
+
+  return String(eventConversationId) === String(props.conversationId);
+};
+
+const shouldRefreshForRealtimeEvent = ({ event, data } = {}) => {
+  if (!kanbanCardRealtimeEvents.has(event)) return false;
+
+  return isCurrentConversationRealtimeData(data);
+};
+
 const loadCards = async () => {
   if (!props.conversationId) return;
 
@@ -229,8 +258,29 @@ const loadCards = async () => {
     if (requestId.value === currentRequestId) {
       isLoading.value = false;
       abortController.value = null;
+
+      if (hasPendingRealtimeRefresh.value && !hasOpenLocalForm.value) {
+        hasPendingRealtimeRefresh.value = false;
+        loadCards();
+      }
     }
   }
+};
+
+const refreshCardsFromRealtime = () => {
+  if (hasOpenLocalForm.value || isLoading.value) {
+    hasPendingRealtimeRefresh.value = true;
+    return;
+  }
+
+  loadCards();
+};
+
+const flushPendingRealtimeRefresh = () => {
+  if (!hasPendingRealtimeRefresh.value || hasOpenLocalForm.value) return;
+
+  hasPendingRealtimeRefresh.value = false;
+  loadCards();
 };
 
 const cardBoardId = card => card.kanban_board_id || card.kanban_board?.id;
@@ -384,6 +434,11 @@ const openForm = () => {
   loadBoards();
 };
 
+const cancelForm = () => {
+  resetFormState();
+  flushPendingRealtimeRefresh();
+};
+
 const onBoardChange = () => {
   selectedStageId.value = '';
   loadStages(selectedBoardId.value);
@@ -440,6 +495,11 @@ const startEdit = async card => {
   await loadEditStages(cardBoardId(card));
 };
 
+const cancelEdit = () => {
+  resetEditState();
+  flushPendingRealtimeRefresh();
+};
+
 const submitForm = async () => {
   if (!canSubmit.value) return;
 
@@ -468,6 +528,7 @@ const submitForm = async () => {
 
     useAlert(t('CONVERSATION_SIDEBAR.KANBAN.CREATED'));
     resetFormState();
+    hasPendingRealtimeRefresh.value = false;
     await loadCards();
   } catch (error) {
     if (isAbortError(error)) return;
@@ -500,6 +561,7 @@ const submitEdit = async card => {
 
     useAlert(t('CONVERSATION_SIDEBAR.KANBAN.UPDATED'));
     resetEditState();
+    hasPendingRealtimeRefresh.value = false;
     await loadCards();
   } catch (error) {
     editError.value = getErrorMessage(
@@ -511,11 +573,21 @@ const submitEdit = async card => {
   }
 };
 
-onMounted(loadCards);
+const handleRealtimeKanbanEvent = eventPayload => {
+  if (!shouldRefreshForRealtimeEvent(eventPayload)) return;
+
+  refreshCardsFromRealtime();
+};
+
+onMounted(() => {
+  emitter.on(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
+  loadCards();
+});
 
 watch(
   () => props.conversationId,
   () => {
+    hasPendingRealtimeRefresh.value = false;
     resetFormState();
     resetEditState();
     loadCards();
@@ -526,6 +598,7 @@ onBeforeUnmount(() => {
   resetAbortController();
   abortFormRequests();
   abortEditRequests();
+  emitter.off(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
 });
 </script>
 
@@ -682,7 +755,7 @@ onBeforeUnmount(() => {
         <button
           type="button"
           class="h-8 rounded-md px-3 text-sm text-n-slate-11 hover:bg-n-alpha-2"
-          @click="resetFormState"
+          @click="cancelForm"
         >
           {{ t('CONVERSATION_SIDEBAR.KANBAN.CANCEL') }}
         </button>
@@ -820,7 +893,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="h-8 rounded-md px-3 text-sm text-n-slate-11 hover:bg-n-alpha-2"
-              @click.stop="resetEditState"
+              @click.stop="cancelEdit"
             >
               {{ t('CONVERSATION_SIDEBAR.KANBAN.CANCEL') }}
             </button>
