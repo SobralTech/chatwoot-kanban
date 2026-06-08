@@ -38,10 +38,6 @@ const newStageName = ref('');
 const selectedInboxIds = ref([]);
 const showCreateStageForm = ref(false);
 const isBoardDropdownOpen = ref(false);
-const showBoardCreateForm = ref(false);
-const newBoardName = ref('');
-const isCreatingBoard = ref(false);
-const boardCreateError = ref('');
 const editingStageId = ref(null);
 const stageNames = ref({});
 const stageColors = ref({});
@@ -697,49 +693,6 @@ const selectBoard = boardId => {
   });
 };
 
-const createBoardInline = async () => {
-  const name = newBoardName.value.trim();
-  if (!name || isCreatingBoard.value) return;
-
-  isCreatingBoard.value = true;
-  boardCreateError.value = '';
-
-  try {
-    const response = await KanbanBoardsAPI.create({
-      kanban_board: {
-        name,
-        position: boards.value.length,
-      },
-    });
-    const board = camelcaseKeys(response.data || {}, { deep: true });
-    newBoardName.value = '';
-    showBoardCreateForm.value = false;
-    isBoardDropdownOpen.value = false;
-    store.dispatch('kanbanBoards/refreshBoards');
-    router.push({
-      name: 'kanban_board_show',
-      params: {
-        accountId: route.params.accountId,
-        boardId: board.id,
-      },
-    });
-    useAlert(t('KANBAN.ACTIONS.CREATE_BOARD_SUCCESS'));
-  } catch (error) {
-    boardCreateError.value = getErrorMessage(
-      error,
-      t('KANBAN.ACTIONS.CREATE_BOARD_ERROR')
-    );
-  } finally {
-    isCreatingBoard.value = false;
-  }
-};
-
-const cancelBoardCreate = () => {
-  showBoardCreateForm.value = false;
-  newBoardName.value = '';
-  boardCreateError.value = '';
-};
-
 const fetchBoards = async () => {
   hasError.value = false;
 
@@ -932,7 +885,7 @@ onUnmounted(() => {
               <div
                 v-if="isBoardDropdownOpen"
                 data-testid="kanban-board-switcher-dropdown"
-                class="absolute left-0 top-full z-10 mt-2 w-[30rem] max-w-full overflow-hidden rounded-lg border border-n-weak bg-n-solid-1 shadow-sm"
+                class="absolute left-0 top-full z-10 mt-2 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-n-weak bg-n-solid-1 shadow-sm"
               >
                 <button
                   v-for="board in boards"
@@ -952,60 +905,6 @@ onUnmounted(() => {
                     class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
                   />
                 </button>
-                <div v-if="isAdmin" class="border-t border-n-weak">
-                  <template v-if="!showBoardCreateForm">
-                    <button
-                      type="button"
-                      class="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-n-slate-12 hover:bg-n-alpha-1"
-                      @click="
-                        showBoardCreateForm = true;
-                        boardCreateError = '';
-                      "
-                    >
-                      <i class="i-lucide-plus size-4 text-n-slate-11" />
-                      {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
-                    </button>
-                  </template>
-                  <template v-else>
-                    <div class="border-t border-n-weak px-4 py-3">
-                      <form
-                        @submit.prevent="createBoardInline"
-                        @keydown.esc.prevent="cancelBoardCreate"
-                      >
-                        <div class="flex gap-2">
-                          <input
-                            v-model="newBoardName"
-                            type="text"
-                            class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                            :placeholder="
-                              t('KANBAN.ACTIONS.BOARD_NAME_PLACEHOLDER')
-                            "
-                          />
-                          <button
-                            type="submit"
-                            class="flex flex-shrink-0 items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-                            :disabled="!newBoardName.trim() || isCreatingBoard"
-                          >
-                            {{ t('KANBAN.ACTIONS.CREATE_BOARD') }}
-                          </button>
-                          <button
-                            type="button"
-                            class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
-                            @click="cancelBoardCreate"
-                          >
-                            {{ t('KANBAN.ACTIONS.CANCEL') }}
-                          </button>
-                        </div>
-                        <p
-                          v-if="boardCreateError"
-                          class="mt-2 text-sm text-n-ruby-11"
-                        >
-                          {{ boardCreateError }}
-                        </p>
-                      </form>
-                    </div>
-                  </template>
-                </div>
               </div>
             </div>
           </OnClickOutside>

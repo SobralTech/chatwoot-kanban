@@ -1656,60 +1656,18 @@ describe('KanbanView header navigation', () => {
     const dropdown = wrapper.find(
       '[data-testid="kanban-board-switcher-dropdown"]'
     );
-    expect(dropdown.classes()).toContain('w-[30rem]');
+    expect(dropdown.classes()).toContain('w-96');
   });
 
-  it('shows the create board action for administrators in the dropdown', async () => {
-    const wrapper = await mountView(buildBoardResponse(), 'administrator');
+  it('displays short board name without truncation in dropdown', async () => {
+    const wrapper = await mountView();
     await wrapper
       .find('[data-testid="kanban-board-switcher"]')
       .trigger('click');
-    const dropdown = wrapper.find(
-      '[data-testid="kanban-board-switcher-dropdown"]'
+    const nameSpan = wrapper.find(
+      '[data-testid="kanban-board-switcher-dropdown"] span'
     );
-    expect(dropdown.text()).toContain('KANBAN.OVERVIEW.CREATE_BOARD');
-  });
-
-  it('does not show the create board action for agents in the dropdown', async () => {
-    const wrapper = await mountView(buildBoardResponse(), 'agent');
-    await wrapper
-      .find('[data-testid="kanban-board-switcher"]')
-      .trigger('click');
-    const dropdown = wrapper.find(
-      '[data-testid="kanban-board-switcher-dropdown"]'
-    );
-    expect(dropdown.text()).not.toContain('KANBAN.OVERVIEW.CREATE_BOARD');
-  });
-
-  it('opens inline create form when create board is clicked for admin', async () => {
-    const wrapper = await mountView(buildBoardResponse(), 'administrator');
-    await wrapper
-      .find('[data-testid="kanban-board-switcher"]')
-      .trigger('click');
-    const dropdown = wrapper.find(
-      '[data-testid="kanban-board-switcher-dropdown"]'
-    );
-    const createAction = dropdown.findAll('button').at(-1);
-    await createAction.trigger('click');
-    await nextTick();
-    expect(dropdown.find('form').exists()).toBe(true);
-    expect(dropdown.find('input[type="text"]').exists()).toBe(true);
-  });
-
-  it('cancels inline create form and clears the input', async () => {
-    const wrapper = await mountView(buildBoardResponse(), 'administrator');
-    await wrapper
-      .find('[data-testid="kanban-board-switcher"]')
-      .trigger('click');
-    const dropdown = wrapper.find(
-      '[data-testid="kanban-board-switcher-dropdown"]'
-    );
-    await dropdown.findAll('button').at(-1).trigger('click');
-    await nextTick();
-    const cancelButton = dropdown.findAll('button').at(-1);
-    await cancelButton.trigger('click');
-    await nextTick();
-    expect(dropdown.find('form').exists()).toBe(false);
+    expect(nameSpan.text()).toBe('Sales Board');
   });
 
   it('shows board name with title attribute for tooltip', async () => {
@@ -1723,62 +1681,28 @@ describe('KanbanView header navigation', () => {
     expect(nameSpan.attributes('title')).toBe('Sales Board');
   });
 
-  it('creates board inline, refreshes boards and navigates on success', async () => {
-    KanbanBoardsAPI.create.mockResolvedValue({
-      data: { id: 20, name: 'New Pipeline' },
-    });
-    KanbanBoardsAPI.get.mockResolvedValue({
-      data: [
-        { id: 10, name: 'Sales Board' },
-        { id: 20, name: 'New Pipeline' },
+  it('displays long board name with ellipsis classes and title', async () => {
+    const wrapper = await mountView({
+      boards: [
+        { id: 10, name: 'Very Long Board Name That Exceeds Available Width' },
+        { id: 11, name: 'Short' },
       ],
     });
-    const storeDispatch = vi.fn().mockResolvedValue();
-    const wrapper = await mountView(buildBoardResponse(), 'administrator');
-    wrapper.vm.$.setupState.store = wrapper.vm.$.setupState.store || {
-      dispatch: storeDispatch,
-    };
     await wrapper
       .find('[data-testid="kanban-board-switcher"]')
       .trigger('click');
-    const dropdown = wrapper.find(
-      '[data-testid="kanban-board-switcher-dropdown"]'
+    const nameSpan = wrapper.find(
+      '[data-testid="kanban-board-switcher-dropdown"] span'
     );
-    await dropdown.findAll('button').at(-1).trigger('click');
-    await nextTick();
-    const input = dropdown.find('input[type="text"]');
-    await input.setValue('New Pipeline');
-    await dropdown.find('form').trigger('submit.prevent');
-    await flushPromises();
-    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
-      kanban_board: { name: 'New Pipeline', position: 2 },
-    });
-    expect(mockPush).toHaveBeenCalledWith({
-      name: 'kanban_board_show',
-      params: { accountId: '1', boardId: 20 },
-    });
-  });
-
-  it('preserves input text on creation error', async () => {
-    KanbanBoardsAPI.create.mockRejectedValue({
-      response: { data: { error: 'Name taken' } },
-    });
-    const wrapper = await mountView(buildBoardResponse(), 'administrator');
-    await wrapper
-      .find('[data-testid="kanban-board-switcher"]')
-      .trigger('click');
-    const dropdown = wrapper.find(
-      '[data-testid="kanban-board-switcher-dropdown"]'
+    expect(nameSpan.text()).toBe(
+      'Very Long Board Name That Exceeds Available Width'
     );
-    await dropdown.findAll('button').at(-1).trigger('click');
-    await nextTick();
-    const input = dropdown.find('input[type="text"]');
-    await input.setValue('Duplicate');
-    await dropdown.find('form').trigger('submit.prevent');
-    await flushPromises();
-    expect(dropdown.find('form').exists()).toBe(true);
-    expect(input.element.value).toBe('Duplicate');
-    expect(wrapper.text()).toContain('Name taken');
+    expect(nameSpan.attributes('title')).toBe(
+      'Very Long Board Name That Exceeds Available Width'
+    );
+    expect(nameSpan.classes()).toContain('overflow-hidden');
+    expect(nameSpan.classes()).toContain('text-ellipsis');
+    expect(nameSpan.classes()).toContain('whitespace-nowrap');
   });
 });
 
