@@ -29,13 +29,11 @@ const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const isAdmin = computed(() => currentRole.value === 'administrator');
 const selectedBoard = ref(null);
 const isFetchingBoard = ref(false);
-const isCreatingBoard = ref(false);
 const isCreatingStage = ref(false);
 const selectedOpportunityCardId = ref(null);
 const activeActionKey = ref('');
 const hasError = ref(false);
 const actionError = ref('');
-const newBoardName = ref('');
 const newStageName = ref('');
 const selectedInboxIds = ref([]);
 const showCreateStageForm = ref(false);
@@ -425,41 +423,6 @@ const openBoardSettings = () => {
       boardId: selectedBoard.value.id,
     },
   });
-};
-
-const createBoard = async () => {
-  const name = newBoardName.value.trim();
-  if (!name || isCreatingBoard.value) return;
-
-  isCreatingBoard.value = true;
-  actionError.value = '';
-
-  try {
-    const response = await KanbanBoardsAPI.create({
-      kanban_board: {
-        name,
-        position: boards.value.length,
-      },
-    });
-    const board = normalizePayload(response.data);
-    selectedBoard.value = { ...board, stages: [] };
-    newBoardName.value = '';
-    showCreateStageForm.value = false;
-    isBoardDropdownOpen.value = false;
-    store.dispatch('kanbanBoards/refreshBoards');
-    router.push({
-      name: 'kanban_board_show',
-      params: {
-        accountId: route.params.accountId,
-        boardId: board.id,
-      },
-    });
-    useAlert(t('KANBAN.ACTIONS.CREATE_BOARD_SUCCESS'));
-  } catch (error) {
-    showActionError(error, t('KANBAN.ACTIONS.CREATE_BOARD_ERROR'));
-  } finally {
-    isCreatingBoard.value = false;
-  }
 };
 
 const createStage = async () => {
@@ -908,40 +871,6 @@ onUnmounted(() => {
 
 <template>
   <main class="flex h-full min-h-0 w-full bg-n-surface-1 text-n-slate-12">
-    <aside
-      class="flex w-72 flex-shrink-0 flex-col border-r border-n-weak bg-n-surface-2"
-    >
-      <div class="border-b border-n-weak px-4 py-4">
-        <h1 class="text-lg font-medium text-n-slate-12">
-          {{ t('KANBAN.HEADER') }}
-        </h1>
-        <button
-          type="button"
-          class="mt-3 flex w-full items-center justify-between rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
-          @click="openBoardsOverview"
-        >
-          <span>{{ t('KANBAN.OVERVIEW.TITLE') }}</span>
-          <i class="i-lucide-arrow-right size-4" />
-        </button>
-        <form class="mt-3 flex gap-2" @submit.prevent="createBoard">
-          <input
-            v-model="newBoardName"
-            type="text"
-            class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-            :placeholder="t('KANBAN.ACTIONS.BOARD_NAME_PLACEHOLDER')"
-          />
-          <button
-            type="submit"
-            class="flex flex-shrink-0 items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!newBoardName.trim() || isCreatingBoard"
-          >
-            <i class="i-lucide-plus size-4" />
-            {{ t('KANBAN.ACTIONS.CREATE_BOARD') }}
-          </button>
-        </form>
-      </div>
-    </aside>
-
     <section class="flex min-w-0 flex-1 flex-col">
       <header
         class="flex min-h-16 flex-wrap items-start justify-between gap-4 border-b border-n-weak px-6 py-3"
@@ -965,7 +894,7 @@ onUnmounted(() => {
               <div
                 v-if="isBoardDropdownOpen"
                 data-testid="kanban-board-switcher-dropdown"
-                class="absolute left-0 top-full z-10 mt-2 w-80 max-w-full overflow-hidden rounded-lg border border-n-weak bg-n-solid-1 shadow-sm"
+                class="absolute left-0 top-full z-10 mt-2 w-96 max-w-full overflow-hidden rounded-lg border border-n-weak bg-n-solid-1 shadow-sm"
               >
                 <button
                   v-for="board in boards"
@@ -980,15 +909,19 @@ onUnmounted(() => {
                     class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
                   />
                 </button>
+                <div v-if="isAdmin" class="border-t border-n-weak">
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-n-slate-12 hover:bg-n-alpha-1"
+                    @click="openBoardsOverview"
+                  >
+                    <i class="i-lucide-plus size-4 text-n-slate-11" />
+                    {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
+                  </button>
+                </div>
               </div>
             </div>
           </OnClickOutside>
-          <p
-            v-if="selectedBoard?.description"
-            class="mt-1 truncate text-sm text-n-slate-11"
-          >
-            {{ selectedBoard.description }}
-          </p>
         </div>
         <div
           v-if="selectedBoard"

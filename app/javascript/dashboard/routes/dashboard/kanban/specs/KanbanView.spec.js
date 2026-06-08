@@ -1576,9 +1576,9 @@ describe('KanbanView header navigation', () => {
     const wrapper = await mountView();
 
     await openStageCreateForm(wrapper);
-    await wrapper.findAll('input[type="text"]')[1].setValue('Qualified');
+    await wrapper.findAll('input[type="text"]')[0].setValue('Qualified');
     KanbanBoardsAPI.show.mockClear();
-    await wrapper.findAll('form')[1].trigger('submit.prevent');
+    await wrapper.findAll('form')[0].trigger('submit.prevent');
     await flushPromises();
 
     expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
@@ -1634,6 +1634,67 @@ describe('KanbanView header navigation', () => {
     expect(
       wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
     ).toBe(false);
+  });
+
+  it('does not render an internal sidebar', async () => {
+    const wrapper = await mountView();
+    expect(wrapper.find('aside').exists()).toBe(false);
+  });
+
+  it('does not render board description below the name', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { description: 'Pipeline description' })
+    );
+    expect(wrapper.text()).not.toContain('Pipeline description');
+  });
+
+  it('renders the dropdown with extra width', async () => {
+    const wrapper = await mountView();
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    const dropdown = wrapper.find(
+      '[data-testid="kanban-board-switcher-dropdown"]'
+    );
+    expect(dropdown.classes()).toContain('w-96');
+  });
+
+  it('shows a create board action for administrators in the dropdown', async () => {
+    const wrapper = await mountView(buildBoardResponse(), 'administrator');
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    const dropdown = wrapper.find(
+      '[data-testid="kanban-board-switcher-dropdown"]'
+    );
+    expect(dropdown.text()).toContain('KANBAN.OVERVIEW.CREATE_BOARD');
+  });
+
+  it('does not show a create board action for agents in the dropdown', async () => {
+    const wrapper = await mountView(buildBoardResponse(), 'agent');
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    const dropdown = wrapper.find(
+      '[data-testid="kanban-board-switcher-dropdown"]'
+    );
+    expect(dropdown.text()).not.toContain('KANBAN.OVERVIEW.CREATE_BOARD');
+  });
+
+  it('navigates to overview when create board is clicked in the dropdown', async () => {
+    const wrapper = await mountView(buildBoardResponse(), 'administrator');
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    const dropdown = wrapper.find(
+      '[data-testid="kanban-board-switcher-dropdown"]'
+    );
+    const createButton = dropdown.findAll('button').at(-1);
+    await createButton.trigger('click');
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_boards',
+      params: { accountId: '1' },
+    });
   });
 });
 
