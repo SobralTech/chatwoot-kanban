@@ -130,6 +130,57 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.next_cursor).to eq({ after_id: filtered_cards.first.id })
     end
 
+    it 'filters conversation cards by assignee ids when provided' do
+      second_agent = create(:user, account: account, role: :agent)
+      create_conversation_card(position: 1, assignee: agent)
+      filtered_card = create_conversation_card(position: 2, assignee: second_agent)
+
+      result = query(filtered_assignee_ids: [second_agent.id]).call
+
+      expect(result.cards).to eq([filtered_card])
+      expect(result.total_count).to eq(1)
+    end
+
+    it 'keeps cursor and has_more coherent for assignee filtered cards' do
+      second_agent = create(:user, account: account, role: :agent)
+      create_conversation_card(position: 1, assignee: agent)
+      filtered_cards = [
+        create_conversation_card(position: 2, assignee: second_agent),
+        create_conversation_card(position: 3, assignee: second_agent)
+      ]
+
+      result = query(limit: 1, filtered_assignee_ids: [second_agent.id]).call
+
+      expect(result.cards).to eq([filtered_cards.first])
+      expect(result.total_count).to eq(2)
+      expect(result.has_more).to be(true)
+      expect(result.next_cursor).to eq({ after_id: filtered_cards.first.id })
+    end
+
+    it 'combines inbox and assignee filters' do
+      second_agent = create(:user, account: account, role: :agent)
+      second_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: second_inbox)
+      create_conversation_card(position: 1, inbox: inbox, assignee: second_agent)
+      filtered_card = create_conversation_card(position: 2, inbox: second_inbox, assignee: second_agent)
+      create_conversation_card(position: 3, inbox: second_inbox, assignee: agent)
+
+      result = query(filtered_inbox_ids: [second_inbox.id], filtered_assignee_ids: [second_agent.id]).call
+
+      expect(result.cards).to eq([filtered_card])
+      expect(result.total_count).to eq(1)
+    end
+
+    it 'excludes manual cards when assignee filter is active' do
+      manual_card = create_visible_card(position: 1)
+      create_conversation_card(position: 2, assignee: agent)
+
+      result = query(filtered_assignee_ids: [agent.id]).call
+
+      expect(result.cards).not_to include(manual_card)
+      expect(result.total_count).to eq(1)
+    end
+
     it 'keeps historical cards visible without an explicit inbox filter' do
       historical_inbox = create(:inbox, account: account)
       create(:inbox_member, user: agent, inbox: historical_inbox)
@@ -290,16 +341,17 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
     end
   end
 
-  def query(limit: nil, cursor: nil, user: agent, account_user: nil, filtered_inbox_ids: nil)
+  def query(**options)
     described_class.new(
       account: account,
-      user: user,
+      user: options.fetch(:user, agent),
       kanban_board: kanban_board,
       kanban_stage: kanban_stage,
-      limit: limit,
-      cursor: cursor,
-      account_user: account_user,
-      filtered_inbox_ids: filtered_inbox_ids
+      limit: options[:limit],
+      cursor: options[:cursor],
+      account_user: options[:account_user],
+      filtered_inbox_ids: options[:filtered_inbox_ids],
+      filtered_assignee_ids: options[:filtered_assignee_ids]
     )
   end
 
@@ -358,6 +410,15 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
         position: 1
       }.merge(attributes)
     )
+  end
+
+  def create_conversation_card(attributes = {})
+    assignee = attributes.delete(:assignee)
+    card_inbox = attributes[:inbox] || inbox
+    contact = attributes[:contact] || create(:contact, account: account)
+    conversation = create(:conversation, account: account, inbox: card_inbox, contact: contact, assignee: assignee)
+
+    create_visible_card(attributes.merge(conversation: conversation, contact: contact, inbox: card_inbox, origin: 'conversation', subject: nil))
   end
 
   def avatar_fixture

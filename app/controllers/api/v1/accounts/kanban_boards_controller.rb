@@ -8,6 +8,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def show
     sanitized_inbox_filter_ids
+    sanitized_assignee_filter_ids
     @kanban_stages = @kanban_board.kanban_stages.active.ordered
     fetch_stage_card_results
   end
@@ -46,6 +47,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
         kanban_stage: kanban_stage,
         limit: @stage_card_limit,
         filtered_inbox_ids: sanitized_inbox_filter_ids,
+        filtered_assignee_ids: sanitized_assignee_filter_ids,
         visible_inbox_ids: board_list_inbox_ids,
         visible_team_ids: board_list_team_ids,
         account_user: Current.account_user
@@ -70,11 +72,37 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
     Array(params[:inbox_ids]).filter_map(&:presence).map(&:to_i).uniq
   end
 
+  def sanitized_assignee_filter_ids
+    return @sanitized_assignee_filter_ids if defined?(@sanitized_assignee_filter_ids)
+
+    assignee_ids = normalized_assignee_filter_ids
+    @sanitized_assignee_filter_ids =
+      if assignee_ids.blank?
+        nil
+      else
+        validate_account_user_ids!(assignee_ids)
+        assignee_ids
+      end
+  end
+
+  def normalized_assignee_filter_ids
+    Array(params[:assignee_ids]).filter_map(&:presence).map(&:to_i).uniq
+  end
+
   def validate_account_inbox_ids!(inbox_ids)
     return if inbox_ids.blank?
 
     valid_inbox_count = Inbox.where(account_id: Current.account.id, id: inbox_ids).count
     return if valid_inbox_count == inbox_ids.length
+
+    raise ActiveRecord::RecordInvalid, @kanban_board
+  end
+
+  def validate_account_user_ids!(user_ids)
+    return if user_ids.blank?
+
+    valid_user_count = Current.account.account_users.where(user_id: user_ids).count
+    return if valid_user_count == user_ids.length
 
     raise ActiveRecord::RecordInvalid, @kanban_board
   end

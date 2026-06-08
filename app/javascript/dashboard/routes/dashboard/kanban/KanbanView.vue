@@ -23,6 +23,7 @@ const { t } = useI18n();
 const store = useStore();
 
 const currentRole = useMapGetter('auth/getCurrentRole');
+const agents = useMapGetter('agents/getAgents');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
@@ -36,6 +37,7 @@ const hasError = ref(false);
 const actionError = ref('');
 const newStageName = ref('');
 const selectedInboxIds = ref([]);
+const selectedAssigneeIds = ref([]);
 const showCreateStageForm = ref(false);
 const isBoardDropdownOpen = ref(false);
 const editingStageId = ref(null);
@@ -128,6 +130,15 @@ const inboxFilterOptions = computed(() => {
 const hasInboxFilterOptions = computed(
   () => inboxFilterOptions.value.length > 0
 );
+const agentFilterOptions = computed(() =>
+  agents.value.map(agent => ({
+    value: agent.id,
+    label: agent.name || agent.email,
+  }))
+);
+const hasAgentFilterOptions = computed(
+  () => agentFilterOptions.value.length > 0
+);
 const stageListModel = computed({
   get: () => selectedBoard.value?.stages || [],
   set: nextStages => {
@@ -170,9 +181,17 @@ const currentInboxFilterParams = () =>
   selectedInboxIds.value.length > 0
     ? { inbox_ids: selectedInboxIds.value }
     : {};
+const currentAssigneeFilterParams = () =>
+  selectedAssigneeIds.value.length > 0
+    ? { assignee_ids: selectedAssigneeIds.value }
+    : {};
+const currentFilterParams = () => ({
+  ...currentInboxFilterParams(),
+  ...currentAssigneeFilterParams(),
+});
 const currentBoardRequestConfig = () =>
-  selectedInboxIds.value.length > 0
-    ? { params: currentInboxFilterParams() }
+  selectedInboxIds.value.length > 0 || selectedAssigneeIds.value.length > 0
+    ? { params: currentFilterParams() }
     : undefined;
 
 const getErrorMessage = (error, fallbackMessage) =>
@@ -258,7 +277,7 @@ const fetchStageCardsPage = async (stageId, params) => {
     stageId,
     {
       ...params,
-      ...currentInboxFilterParams(),
+      ...currentFilterParams(),
     }
   );
 
@@ -410,6 +429,11 @@ const refreshSelectedBoard = async () => {
 
 const updateInboxFilter = async inboxIds => {
   selectedInboxIds.value = [...new Set(inboxIds)];
+  await refreshSelectedBoard();
+};
+
+const updateAssigneeFilter = async assigneeIds => {
+  selectedAssigneeIds.value = [...new Set(assigneeIds)];
   await refreshSelectedBoard();
 };
 
@@ -700,6 +724,7 @@ const fetchBoards = async () => {
     await Promise.all([
       store.dispatch('kanbanBoards/fetchBoards'),
       inboxes.value.length ? Promise.resolve() : store.dispatch('inboxes/get'),
+      agents.value.length ? Promise.resolve() : store.dispatch('agents/get'),
     ]);
 
     const nextBoardId = activeBoardId.value || boards.value[0]?.id;
@@ -792,6 +817,11 @@ const onOpportunityOpenConversation = card => {
 };
 
 const handleRealtimeCardUpdated = async data => {
+  if (Object.keys(currentFilterParams()).length > 0) {
+    await refreshStageFirstPage(data.stage_id);
+    return;
+  }
+
   try {
     const response = await KanbanBoardsAPI.showCardById(
       selectedBoard.value.id,
@@ -842,6 +872,7 @@ watch(activeBoardId, (boardId, previousBoardId) => {
 
   if (previousBoardId && previousBoardId !== boardId) {
     selectedInboxIds.value = [];
+    selectedAssigneeIds.value = [];
   }
 
   newStageName.value = '';
@@ -934,15 +965,17 @@ onUnmounted(() => {
               @update:model-value="updateInboxFilter"
             />
           </div>
-          <button
-            type="button"
-            data-testid="kanban-agent-filter-placeholder"
-            class="flex items-center gap-2 rounded-md border border-n-weak px-3 py-2 text-sm text-n-slate-11"
-            disabled
-          >
-            <i class="i-lucide-users size-4" />
-            {{ t('KANBAN.FILTERS.AGENTS_SOON') }}
-          </button>
+          <div class="w-72 max-w-full" data-testid="kanban-agent-filter">
+            <TagMultiSelectComboBox
+              :model-value="selectedAssigneeIds"
+              :options="agentFilterOptions"
+              :placeholder="t('KANBAN.FILTERS.AGENTS')"
+              :search-placeholder="t('KANBAN.SETTINGS.AGENTS.SEARCH')"
+              :empty-state="t('KANBAN.SETTINGS.AGENTS.EMPTY')"
+              :disabled="!hasAgentFilterOptions"
+              @update:model-value="updateAssigneeFilter"
+            />
+          </div>
           <button
             v-if="isAdmin"
             type="button"

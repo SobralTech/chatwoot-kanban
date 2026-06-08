@@ -74,7 +74,16 @@ const buildInboxes = () => [
   { id: 3, name: 'Onboarding' },
 ];
 
-const createTestStore = (role = 'agent', inboxRecords = buildInboxes()) =>
+const buildAgents = () => [
+  { id: 7, name: 'Ada Lovelace', email: 'ada@example.com' },
+  { id: 8, name: 'Grace Hopper', email: 'grace@example.com' },
+];
+
+const createTestStore = (
+  role = 'agent',
+  inboxRecords = buildInboxes(),
+  agentRecords = buildAgents()
+) =>
   createStore({
     modules: {
       auth: {
@@ -91,6 +100,18 @@ const createTestStore = (role = 'agent', inboxRecords = buildInboxes()) =>
         },
         getters: {
           getAllInboxes: state => state.records,
+        },
+        actions: {
+          get: vi.fn(),
+        },
+      },
+      agents: {
+        namespaced: true,
+        state: {
+          records: agentRecords,
+        },
+        getters: {
+          getAgents: state => state.records,
         },
         actions: {
           get: vi.fn(),
@@ -184,6 +205,7 @@ const mountView = async (
     role = 'agent',
     boards = buildBoards(),
     inboxes = buildInboxes(),
+    agents = buildAgents(),
   } = options;
 
   KanbanBoardsAPI.get.mockResolvedValue({
@@ -202,7 +224,7 @@ const mountView = async (
     data: buildCard({ id: 501, kanban_stage_id: 100 }),
   });
 
-  const store = createTestStore(role, inboxes);
+  const store = createTestStore(role, inboxes, agents);
   const wrapper = shallowMount(KanbanView, {
     global: {
       plugins: [store],
@@ -329,7 +351,9 @@ const findLoadMoreButtons = wrapper =>
 const findAddItemPicker = wrapper =>
   wrapper.findComponent({ name: 'KanbanOpportunityPicker' });
 const findInboxFilter = wrapper =>
-  wrapper.findComponent({ name: 'TagMultiSelectComboBox' });
+  wrapper.findAllComponents({ name: 'TagMultiSelectComboBox' })[0];
+const findAgentFilter = wrapper =>
+  wrapper.findAllComponents({ name: 'TagMultiSelectComboBox' })[1];
 
 const openStageCreateForm = async wrapper => {
   await wrapper
@@ -1819,5 +1843,138 @@ describe('KanbanView inbox filter', () => {
     await flushPromises();
 
     expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
+  });
+});
+
+describe('KanbanView assignee filter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    mockRoute.params.boardId = '10';
+  });
+
+  it('renders account agents as filter options', async () => {
+    const wrapper = await mountView();
+
+    expect(findAgentFilter(wrapper).props('options')).toEqual([
+      { value: 7, label: 'Ada Lovelace' },
+      { value: 8, label: 'Grace Hopper' },
+    ]);
+  });
+
+  it('refetches the board with assignee_ids when the filter changes', async () => {
+    const wrapper = await mountView();
+
+    KanbanBoardsAPI.show.mockClear();
+    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7, 7]);
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
+      params: { assignee_ids: [7] },
+    });
+  });
+
+  it('preserves assignee_ids on load more requests', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard()], {
+        stages: [
+          buildBoardResponse().stages[0],
+          {
+            id: 200,
+            name: 'Stage B',
+            active: true,
+            position: 2,
+            cards: [buildCard()],
+            cards_count: 2,
+            pagination: buildPagination({
+              has_more: true,
+              next_cursor: { after_id: 502 },
+            }),
+          },
+        ],
+      })
+    );
+
+    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
+    await flushPromises();
+    KanbanBoardsAPI.getStageCards.mockClear();
+
+    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
+      limit: 20,
+      cursor: { after_id: 502 },
+      assignee_ids: [7],
+    });
+  });
+
+  it('preserves assignee_ids on realtime refreshes', async () => {
+    const wrapper = await mountView();
+
+    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
+    await flushPromises();
+    KanbanBoardsAPI.getStageCards.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.created',
+      data: { board_id: 10, stage_id: 100, card_id: 700 },
+    });
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+      assignee_ids: [7],
+    });
+  });
+
+  it('uses a filtered server refresh for realtime card updates', async () => {
+    const wrapper = await mountView();
+
+    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
+    await flushPromises();
+    KanbanBoardsAPI.showCardById.mockClear();
+    KanbanBoardsAPI.getStageCards.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.updated',
+      data: { board_id: 10, stage_id: 100, card_id: 501 },
+    });
+
+    expect(KanbanBoardsAPI.showCardById).not.toHaveBeenCalled();
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+      assignee_ids: [7],
+    });
+  });
+
+  it('clears the assignee filter when switching boards', async () => {
+    const wrapper = await mountView();
+
+    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
+    await flushPromises();
+    KanbanBoardsAPI.show.mockResolvedValueOnce({
+      data: buildBoardResponse([], { id: 11, name: 'Renewals Board' }),
+    });
+    KanbanBoardsAPI.show.mockClear();
+    mockRoute.params.boardId = '11';
+    await flushPromises();
+
+    expect(findAgentFilter(wrapper).props('modelValue')).toEqual([]);
+    expect(KanbanBoardsAPI.show).toHaveBeenLastCalledWith(11, undefined);
+  });
+
+  it('preserves inbox and assignee filters together', async () => {
+    const wrapper = await mountView();
+
+    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
+    await flushPromises();
+    KanbanBoardsAPI.show.mockClear();
+
+    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
+      params: { inbox_ids: [2], assignee_ids: [7] },
+    });
   });
 });

@@ -112,6 +112,85 @@ RSpec.describe 'Kanban stage cards API', type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
+    it 'filters cards and pagination by assignee ids' do
+      second_agent = create(:user, account: account, role: :agent)
+      create_conversation_card(position: 1, assignee: agent)
+      filtered_cards = [
+        create_conversation_card(position: 2, assignee: second_agent),
+        create_conversation_card(position: 3, assignee: second_agent)
+      ]
+
+      get stage_cards_path,
+          headers: agent.create_new_auth_token,
+          params: { limit: 1, assignee_ids: [second_agent.id] },
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['cards'].pluck('id')).to eq([filtered_cards.first.id])
+      expect(response.parsed_body['pagination']).to include(
+        'has_more' => true,
+        'next_cursor' => { 'after_id' => filtered_cards.first.id },
+        'total_count' => 2
+      )
+    end
+
+    it 'ignores duplicate assignee ids in the filter' do
+      card = create_conversation_card(position: 1, assignee: agent)
+
+      get stage_cards_path,
+          headers: agent.create_new_auth_token,
+          params: { assignee_ids: [agent.id, agent.id] },
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['cards'].pluck('id')).to eq([card.id])
+      expect(response.parsed_body['pagination']['total_count']).to eq(1)
+    end
+
+    it 'rejects assignee ids from another account' do
+      other_agent = create(:user, account: create(:account), role: :agent)
+
+      get stage_cards_path,
+          headers: agent.create_new_auth_token,
+          params: { assignee_ids: [other_agent.id] },
+          as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it 'combines inbox and assignee filters' do
+      second_agent = create(:user, account: account, role: :agent)
+      second_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: second_inbox)
+      create_conversation_card(position: 1, inbox: inbox, assignee: second_agent)
+      filtered_card = create_conversation_card(position: 2, inbox: second_inbox, assignee: second_agent)
+      create_conversation_card(position: 3, inbox: second_inbox, assignee: agent)
+
+      get stage_cards_path,
+          headers: agent.create_new_auth_token,
+          params: { inbox_ids: [second_inbox.id], assignee_ids: [second_agent.id] },
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['cards'].pluck('id')).to eq([filtered_card.id])
+      expect(response.parsed_body['pagination']['total_count']).to eq(1)
+    end
+
+    it 'excludes manual cards when assignee filter is active' do
+      manual_card = create_visible_card(position: 1)
+      conversation_card = create_conversation_card(position: 2, assignee: agent)
+
+      get stage_cards_path,
+          headers: agent.create_new_auth_token,
+          params: { assignee_ids: [agent.id] },
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['cards'].pluck('id')).to eq([conversation_card.id])
+      expect(response.parsed_body['cards'].pluck('id')).not_to include(manual_card.id)
+      expect(response.parsed_body['pagination']['total_count']).to eq(1)
+    end
+
     it 'uses the compact card payload' do
       card = create_visible_card(position: 1, subject: 'Expansion opportunity')
 
@@ -277,6 +356,15 @@ RSpec.describe 'Kanban stage cards API', type: :request do
         position: 1
       }.merge(attributes)
     )
+  end
+
+  def create_conversation_card(attributes = {})
+    assignee = attributes.delete(:assignee)
+    card_inbox = attributes[:inbox] || inbox
+    contact = attributes[:contact] || create(:contact, account: account)
+    conversation = create(:conversation, account: account, inbox: card_inbox, contact: contact, assignee: assignee)
+
+    create_visible_card(attributes.merge(conversation: conversation, contact: contact, inbox: card_inbox, origin: 'conversation', subject: nil))
   end
 
   def compact_card_keys

@@ -223,6 +223,76 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
+    it 'filters embedded cards and counts by assignee ids' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      inbox = create(:inbox, account: account)
+      second_agent = create(:user, account: account, role: :agent)
+      create(:inbox_member, user: agent, inbox: inbox)
+      create_board_listing_conversation_card(stage, inbox, assignee: agent, position: 1)
+      filtered_card = create_board_listing_conversation_card(stage, inbox, assignee: second_agent, position: 2)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          params: { assignee_ids: [second_agent.id] },
+          as: :json
+
+      response_stage = response.parsed_body['stages'].first
+      expect(response).to have_http_status(:success)
+      expect(response_stage['cards'].pluck('id')).to eq([filtered_card.id])
+      expect(response_stage['cards_count']).to eq(1)
+    end
+
+    it 'rejects assignee ids from another account' do
+      other_agent = create(:user, account: create(:account), role: :agent)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          params: { assignee_ids: [other_agent.id] },
+          as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it 'combines inbox and assignee filters for embedded cards' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      second_agent = create(:user, account: account, role: :agent)
+      inbox = create(:inbox, account: account)
+      second_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: inbox)
+      create(:inbox_member, user: agent, inbox: second_inbox)
+      create_board_listing_conversation_card(stage, inbox, assignee: second_agent, position: 1)
+      filtered_card = create_board_listing_conversation_card(stage, second_inbox, assignee: second_agent, position: 2)
+      create_board_listing_conversation_card(stage, second_inbox, assignee: agent, position: 3)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          params: { inbox_ids: [second_inbox.id], assignee_ids: [second_agent.id] },
+          as: :json
+
+      response_stage = response.parsed_body['stages'].first
+      expect(response).to have_http_status(:success)
+      expect(response_stage['cards'].pluck('id')).to eq([filtered_card.id])
+      expect(response_stage['cards_count']).to eq(1)
+    end
+
+    it 'excludes manual cards when filtering embedded cards by assignee ids' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: inbox)
+      manual_card = create_board_listing_manual_cards(stage, inbox, 1).first
+      conversation_card = create_board_listing_conversation_card(stage, inbox, assignee: agent, position: 2)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+          headers: agent.create_new_auth_token,
+          params: { assignee_ids: [agent.id] },
+          as: :json
+
+      response_stage = response.parsed_body['stages'].first
+      expect(response).to have_http_status(:success)
+      expect(response_stage['cards'].pluck('id')).to eq([conversation_card.id])
+      expect(response_stage['cards'].pluck('id')).not_to include(manual_card.id)
+    end
+
     it 'returns has_more false for stages with at most 20 cards' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       inbox = create(:inbox, account: account)
@@ -1276,6 +1346,20 @@ RSpec.describe 'Kanban Boards API', type: :request do
         position: index + 1
       )
     end
+  end
+
+  def create_board_listing_conversation_card(stage, inbox, assignee:, position:)
+    contact = create(:contact, account: account)
+    conversation = create(:conversation, account: account, inbox: inbox, contact: contact, assignee: assignee)
+    create(
+      :kanban_card,
+      :conversation_origin,
+      account: account,
+      kanban_board: kanban_board,
+      kanban_stage: stage,
+      conversation: conversation,
+      position: position
+    )
   end
 
   def query_budget_board_listing_context

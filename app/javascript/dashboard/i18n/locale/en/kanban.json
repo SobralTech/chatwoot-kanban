@@ -25,7 +25,7 @@
     },
     "FILTERS": {
       "INBOXES": "Inboxes",
-      "AGENTS_SOON": "Agents"
+      "AGENTS": "Agents"
     },
     "ACTIONS": {
       "CREATE_BOARD": "Add",

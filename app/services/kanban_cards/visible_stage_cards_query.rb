@@ -7,7 +7,7 @@ class KanbanCards::VisibleStageCardsQuery
 
   # rubocop:disable Metrics/ParameterLists
   def initialize(account:, user:, kanban_board:, kanban_stage:, limit: DEFAULT_LIMIT, cursor: nil, visible_inbox_ids: nil,
-                 visible_team_ids: nil, account_user: nil, filtered_inbox_ids: nil)
+                 visible_team_ids: nil, account_user: nil, filtered_inbox_ids: nil, filtered_assignee_ids: nil)
     @account = account
     @user = user
     @kanban_board = kanban_board
@@ -19,6 +19,8 @@ class KanbanCards::VisibleStageCardsQuery
     @account_user = account_user
     @filtered_inbox_ids =
       filtered_inbox_ids.nil? ? nil : Array(filtered_inbox_ids).uniq
+    @filtered_assignee_ids =
+      filtered_assignee_ids.nil? ? nil : Array(filtered_assignee_ids).uniq
   end
   # rubocop:enable Metrics/ParameterLists
 
@@ -42,7 +44,7 @@ class KanbanCards::VisibleStageCardsQuery
   private
 
   attr_reader :account, :user, :kanban_board, :kanban_stage, :limit, :cursor,
-              :filtered_inbox_ids
+              :filtered_inbox_ids, :filtered_assignee_ids
 
   def empty_result
     Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0)
@@ -63,6 +65,7 @@ class KanbanCards::VisibleStageCardsQuery
                        .where(account_id: account.id, kanban_board_id: kanban_board.id, kanban_stage_id: kanban_stage.id)
                        .where(visibility_condition)
                        .then { |scope| filtered_inbox_ids.nil? ? scope : scope.where(inbox_id: filtered_inbox_ids) }
+                       .then { |scope| filtered_assignee_ids.nil? ? scope : scope.where(conversations: { assignee_id: filtered_assignee_ids }) }
   end
 
   def paginated_card_ids(anchor)
