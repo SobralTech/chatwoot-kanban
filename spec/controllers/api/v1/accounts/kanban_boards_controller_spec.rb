@@ -331,9 +331,11 @@ RSpec.describe 'Kanban Boards API', type: :request do
     context 'when reading kanban cards' do
       it 'returns active conversation-origin kanban cards with the compact frontend payload' do
         stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New')
-        conversation = create(:conversation, account: account)
+        assignee = create(:user, :with_avatar, account: account, role: :agent, name: 'Ada Lovelace')
+        conversation = create(:conversation, account: account, assignee: assignee, priority: 'urgent')
         moved_at = 1.hour.ago.change(usec: 0)
         create(:inbox_member, user: agent, inbox: conversation.inbox)
+        due_at = 2.days.from_now.change(usec: 0)
         card = create(
           :kanban_card,
           :conversation_origin,
@@ -341,7 +343,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
           kanban_board: kanban_board,
           kanban_stage: stage,
           conversation: conversation,
-          position: 1
+          position: 1,
+          due_at: due_at
         )
         create(
           :conversation_kanban_state,
@@ -362,20 +365,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(response).to have_http_status(:success)
         expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
         expect(response_card.keys).to match_array(compact_card_keys)
-        expect(response_card).to include(
-          'id' => card.id,
-          'conversation_id' => conversation.display_id,
-          'kanban_stage_id' => stage.id,
-          'position' => 1,
-          'moved_by_id' => nil,
-          'moved_at' => nil,
-          'origin' => 'conversation',
-          'subject' => nil,
-          'active' => true
-        )
-        expect(response_card).not_to include('conversation', 'messages', 'unread_count')
-        expect(response_card['contact']).to include('id' => conversation.contact.id)
-        expect(response_card['inbox']).to include('id' => conversation.inbox.id)
+        expect_compact_conversation_payload(response_card, card, conversation, assignee, due_at)
       end
 
       it 'returns active manual kanban cards without conversations with nullable conversation fields' do
@@ -408,11 +398,13 @@ RSpec.describe 'Kanban Boards API', type: :request do
           'kanban_stage_id' => stage.id,
           'position' => 1,
           'conversation_id' => nil,
+          'conversation' => nil,
+          'assignee' => nil,
+          'priority' => nil,
           'moved_by_id' => nil,
           'moved_at' => nil
         )
         expect(response_card.keys).to match_array(compact_card_keys)
-        expect(response_card).not_to have_key('conversation')
         expect(response_card['contact']['id']).to eq(contact.id)
         expect(response_card['inbox']['id']).to eq(inbox.id)
       end
@@ -442,9 +434,12 @@ RSpec.describe 'Kanban Boards API', type: :request do
           'id' => card.id,
           'origin' => 'manual',
           'subject' => 'Renewal opportunity',
-          'conversation_id' => conversation.display_id
+          'conversation_id' => conversation.display_id,
+          'conversation' => {
+            'id' => conversation.id,
+            'display_id' => conversation.display_id
+          }
         )
-        expect(response_card).not_to have_key('conversation')
       end
 
       it 'excludes inactive, orphan, and unauthorized cards' do
@@ -754,7 +749,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
         end
 
         expect(response).to have_http_status(:success)
-        expect(response.parsed_body['stages'].first['cards'].first).not_to have_key('conversation')
+        expect(response.parsed_body['stages'].first['cards'].first['conversation']).to include('id' => conversation.id)
         expect(sql_queries.none? { |sql| sql.include?('FROM "messages"') }).to be(true), 'Board listing should not query messages'
       end
 
@@ -1490,7 +1485,45 @@ RSpec.describe 'Kanban Boards API', type: :request do
   end
 
   def compact_card_keys
-    %w[id kanban_stage_id position origin subject active contact inbox conversation_id moved_by_id moved_at]
+    %w[
+      id kanban_stage_id position origin subject active due_at contact inbox conversation_id priority conversation assignee moved_by_id moved_at
+    ]
+  end
+
+  def expect_compact_conversation_payload(response_card, card, conversation, assignee, due_at)
+    aggregate_failures do
+      expect_compact_conversation_fields(response_card, card, conversation, due_at)
+      expect_compact_assignee_fields(response_card, assignee)
+      expect_compact_payload_not_excessive(response_card, conversation)
+    end
+  end
+
+  def expect_compact_conversation_fields(response_card, card, conversation, due_at)
+    expect(response_card).to include(
+      'id' => card.id,
+      'conversation_id' => conversation.display_id,
+      'kanban_stage_id' => card.kanban_stage_id,
+      'position' => card.position,
+      'moved_by_id' => nil,
+      'moved_at' => nil,
+      'origin' => 'conversation',
+      'subject' => nil,
+      'active' => true,
+      'due_at' => due_at.iso8601,
+      'priority' => 'urgent'
+    )
+    expect(response_card['conversation']).to eq('id' => conversation.id, 'display_id' => conversation.display_id)
+  end
+
+  def expect_compact_assignee_fields(response_card, assignee)
+    expect(response_card['assignee']).to include('id' => assignee.id, 'name' => assignee.name, 'avatar_url' => assignee.avatar_url)
+  end
+
+  def expect_compact_payload_not_excessive(response_card, conversation)
+    expect(response_card['conversation']).not_to include('messages', 'meta', 'inbox_id')
+    expect(response_card).not_to include('messages', 'unread_count')
+    expect(response_card['contact']).to include('id' => conversation.contact.id)
+    expect(response_card['inbox']).to include('id' => conversation.inbox.id)
   end
 
   def authorization_membership_queries_for_board_listing

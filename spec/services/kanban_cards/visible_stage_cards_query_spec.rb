@@ -310,6 +310,18 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(query_counts[:channel_widgets]).to be <= 1
     end
 
+    it 'keeps compact payload assignee avatar queries bounded at the max page size' do
+      create_visible_cards_with_assignee_avatars(50)
+
+      sql_queries = collect_sql_queries { load_compact_payload_dependencies(limit: 50) }
+      query_counts = visible_stage_cards_query_counts(sql_queries)
+
+      expect(query_counts[:conversations]).to be <= 3
+      expect(query_counts[:users]).to be <= 1
+      expect(query_counts[:active_storage_attachments]).to be <= 3
+      expect(query_counts[:active_storage_blobs]).to be <= 3
+    end
+
     it 'does not query messages notes labels tags or taggings' do
       contact = create(:contact, account: account)
       conversation = create(:conversation, account: account, inbox: inbox, contact: contact)
@@ -388,12 +400,21 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
     end
   end
 
+  def create_visible_cards_with_assignee_avatars(count)
+    Array.new(count) do |index|
+      assignee = create(:user, :with_avatar, account: account, role: :agent)
+      create_conversation_card(assignee: assignee, position: index + 1, created_at: (count - index).minutes.ago)
+    end
+  end
+
   def load_compact_payload_dependencies(limit: nil)
     query(limit: limit).call.cards.each do |card|
       card.contact.avatar_url
       card.inbox.avatar_url
       card.inbox.channel.try(:provider)
       card.conversation&.display_id
+      card.conversation&.priority
+      card.conversation&.assignee&.avatar_url
     end
   end
 
@@ -441,6 +462,8 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
   def visible_stage_cards_query_counts(sql_queries)
     {
       kanban_cards: table_query_count(sql_queries, 'kanban_cards'),
+      conversations: table_query_count(sql_queries, 'conversations'),
+      users: table_query_count(sql_queries, 'users'),
       inbox_members: table_query_count(sql_queries, 'inbox_members'),
       team_members: table_query_count(sql_queries, 'team_members'),
       active_storage_attachments: table_query_count(sql_queries, 'active_storage_attachments'),

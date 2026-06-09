@@ -192,7 +192,8 @@ RSpec.describe 'Kanban stage cards API', type: :request do
     end
 
     it 'uses the compact card payload' do
-      card = create_visible_card(position: 1, subject: 'Expansion opportunity')
+      due_at = 2.days.from_now.change(usec: 0)
+      card = create_visible_card(position: 1, subject: 'Expansion opportunity', due_at: due_at)
 
       get stage_cards_path, headers: agent.create_new_auth_token, as: :json
 
@@ -206,13 +207,52 @@ RSpec.describe 'Kanban stage cards API', type: :request do
         'origin' => 'manual',
         'subject' => 'Expansion opportunity',
         'active' => true,
+        'due_at' => due_at.iso8601,
         'conversation_id' => nil,
+        'conversation' => nil,
+        'assignee' => nil,
+        'priority' => nil,
         'moved_by_id' => nil,
         'moved_at' => nil
       )
-      expect(response_card).not_to include('conversation', 'messages', 'unread_count')
+      expect(response_card).not_to include('messages', 'unread_count')
       expect(response_card['contact']).to include('id' => card.contact_id)
       expect(response_card['inbox']).to include('id' => inbox.id)
+    end
+
+    it 'uses the compact conversation payload' do
+      assignee = create(:user, :with_avatar, account: account, role: :agent, name: 'Ada Lovelace')
+      card = create_conversation_card(position: 1, assignee: assignee, conversation_attributes: { priority: 'high' })
+
+      get stage_cards_path, headers: agent.create_new_auth_token, as: :json
+
+      response_card = response.parsed_body['cards'].first
+      expect(response).to have_http_status(:success)
+      expect(response_card).to include(
+        'id' => card.id,
+        'conversation_id' => card.conversation.display_id,
+        'priority' => 'high'
+      )
+      expect(response_card['conversation']).to eq(
+        'id' => card.conversation.id,
+        'display_id' => card.conversation.display_id
+      )
+      expect(response_card['assignee']).to include(
+        'id' => assignee.id,
+        'name' => 'Ada Lovelace',
+        'avatar_url' => assignee.avatar_url
+      )
+      expect(response_card['conversation']).not_to include('messages', 'meta', 'inbox_id')
+      expect(response_card).not_to include('messages', 'unread_count')
+    end
+
+    it 'returns null assignee for unassigned conversation cards' do
+      create_conversation_card(position: 1)
+
+      get stage_cards_path, headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['cards'].first['assignee']).to be_nil
     end
 
     it 'uses a default limit of 20' do
@@ -360,15 +400,21 @@ RSpec.describe 'Kanban stage cards API', type: :request do
 
   def create_conversation_card(attributes = {})
     assignee = attributes.delete(:assignee)
+    conversation_attributes = attributes.delete(:conversation_attributes) || {}
     card_inbox = attributes[:inbox] || inbox
     contact = attributes[:contact] || create(:contact, account: account)
-    conversation = create(:conversation, account: account, inbox: card_inbox, contact: contact, assignee: assignee)
+    conversation = create(
+      :conversation,
+      { account: account, inbox: card_inbox, contact: contact, assignee: assignee }.merge(conversation_attributes)
+    )
 
     create_visible_card(attributes.merge(conversation: conversation, contact: contact, inbox: card_inbox, origin: 'conversation', subject: nil))
   end
 
   def compact_card_keys
-    %w[id kanban_stage_id position origin subject active contact inbox conversation_id moved_by_id moved_at]
+    %w[
+      id kanban_stage_id position origin subject active due_at contact inbox conversation_id priority conversation assignee moved_by_id moved_at
+    ]
   end
 
   def collect_sql_queries(&)

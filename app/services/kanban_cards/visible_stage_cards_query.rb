@@ -81,7 +81,7 @@ class KanbanCards::VisibleStageCardsQuery
     cards_by_id = KanbanCard
                   .where(id: ids)
                   .includes(
-                    :conversation,
+                    conversation: { assignee: { avatar_attachment: :blob } },
                     contact: { avatar_attachment: :blob },
                     inbox: [:channel, { avatar_attachment: :blob }]
                   ).index_by(&:id)
