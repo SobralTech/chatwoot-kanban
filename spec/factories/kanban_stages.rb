@@ -3,7 +3,7 @@ FactoryBot.define do
     account
     kanban_board { association(:kanban_board, account: account) }
     sequence(:name) { |n| "Stage #{n}" }
-    color { 'blue' }
+    color { 'slate' }
     position { 0 }
     active { true }
   end

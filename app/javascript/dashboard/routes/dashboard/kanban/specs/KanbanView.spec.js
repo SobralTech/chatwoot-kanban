@@ -6,6 +6,10 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
+import {
+  KANBAN_STAGE_COLOR_OPTIONS,
+  getKanbanStageColorClass,
+} from 'dashboard/helper/kanbanStageColors';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -1608,11 +1612,31 @@ describe('KanbanView header navigation', () => {
     expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
       stage: {
         name: 'Qualified',
-        color: 'blue',
+        color: 'slate',
         position: 2,
       },
     });
     expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
+  });
+
+  it('exposes the expanded stage color palette', () => {
+    expect(KANBAN_STAGE_COLOR_OPTIONS.map(option => option.value)).toEqual([
+      'slate',
+      'blue',
+      'teal',
+      'green',
+      'amber',
+      'orange',
+      'ruby',
+      'rose',
+      'violet',
+      'iris',
+    ]);
+  });
+
+  it('keeps rendering existing stage colors and falls back to slate', () => {
+    expect(getKanbanStageColorClass('blue')).toBe('bg-n-blue-9');
+    expect(getKanbanStageColorClass('unexpected')).toBe('bg-n-slate-9');
   });
 
   it('shows board settings button for administrators', async () => {

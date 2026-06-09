@@ -76,12 +76,16 @@
       "REMOVE_STAGE_NOT_EMPTY": "Move or remove all cards before removing this stage."
     },
     "COLORS": {
+      "SLATE": "slate",
       "BLUE": "blue",
       "TEAL": "teal",
+      "GREEN": "green",
       "AMBER": "amber",
+      "ORANGE": "orange",
       "RUBY": "ruby",
-      "IRIS": "iris",
-      "VIOLET": "violet"
+      "ROSE": "rose",
+      "VIOLET": "violet",
+      "IRIS": "iris"
     },
     "SETTINGS": {
       "TITLE": "Funnel settings",

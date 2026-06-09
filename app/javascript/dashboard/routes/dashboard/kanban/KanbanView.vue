@@ -11,6 +11,11 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
+import {
+  DEFAULT_KANBAN_STAGE_COLOR,
+  KANBAN_STAGE_COLOR_OPTIONS,
+  getKanbanStageColorOption,
+} from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import KanbanConversationCard from './KanbanConversationCard.vue';
@@ -55,7 +60,7 @@ const isCardDragging = ref(false);
 const hasCardDragChanged = ref(false);
 const suppressNextCardClick = ref(false);
 const isPersistingCardDrag = ref(false);
-const defaultStageColor = 'blue';
+const defaultStageColor = DEFAULT_KANBAN_STAGE_COLOR;
 const newStageColor = ref(defaultStageColor);
 const cardDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
@@ -68,38 +73,7 @@ const boardRefreshEvents = new Set([
   'kanban.stage.reordered',
 ]);
 
-const stageColorOptions = [
-  {
-    value: 'blue',
-    headerClass: 'bg-n-blue-9',
-    swatchClass: 'bg-n-blue-9',
-  },
-  {
-    value: 'teal',
-    headerClass: 'bg-n-teal-9',
-    swatchClass: 'bg-n-teal-9',
-  },
-  {
-    value: 'amber',
-    headerClass: 'bg-n-amber-9',
-    swatchClass: 'bg-n-amber-9',
-  },
-  {
-    value: 'ruby',
-    headerClass: 'bg-n-ruby-9',
-    swatchClass: 'bg-n-ruby-9',
-  },
-  {
-    value: 'iris',
-    headerClass: 'bg-n-iris-9',
-    swatchClass: 'bg-n-iris-9',
-  },
-  {
-    value: 'violet',
-    headerClass: 'bg-n-violet-9',
-    swatchClass: 'bg-n-violet-9',
-  },
-];
+const stageColorOptions = KANBAN_STAGE_COLOR_OPTIONS;
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
@@ -371,21 +345,23 @@ const loadMoreStageCards = async stage => {
   }
 };
 
-const getStageColorOption = color =>
-  stageColorOptions.find(option => option.value === color) ||
-  stageColorOptions[0];
+const getStageColorOption = getKanbanStageColorOption;
 
 const getStageHeaderClass = stage =>
   getStageColorOption(stage.color).headerClass;
 
 const getStageColorLabel = colorOption => {
   const labels = {
+    slate: t('KANBAN.COLORS.SLATE'),
     blue: t('KANBAN.COLORS.BLUE'),
     teal: t('KANBAN.COLORS.TEAL'),
+    green: t('KANBAN.COLORS.GREEN'),
     amber: t('KANBAN.COLORS.AMBER'),
+    orange: t('KANBAN.COLORS.ORANGE'),
     ruby: t('KANBAN.COLORS.RUBY'),
-    iris: t('KANBAN.COLORS.IRIS'),
+    rose: t('KANBAN.COLORS.ROSE'),
     violet: t('KANBAN.COLORS.VIOLET'),
+    iris: t('KANBAN.COLORS.IRIS'),
   };
 
   return labels[colorOption.value];

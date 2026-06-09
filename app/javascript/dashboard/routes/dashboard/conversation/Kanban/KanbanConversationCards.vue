@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import { getKanbanStageColorClass } from 'dashboard/helper/kanbanStageColors';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import { messageStamp } from 'shared/helpers/timeHelper';
 import { emitter } from 'shared/helpers/mitt';
@@ -113,18 +114,7 @@ const defaultSubject = computed(() => {
   return `${contactName} - ${inboxName}`;
 });
 
-const stageColorClass = color => {
-  const colorClasses = {
-    blue: 'bg-n-blue-9',
-    teal: 'bg-n-teal-9',
-    amber: 'bg-n-amber-9',
-    ruby: 'bg-n-ruby-9',
-    iris: 'bg-n-iris-9',
-    violet: 'bg-n-violet-9',
-  };
-
-  return colorClasses[color] || 'bg-n-slate-9';
-};
+const stageColorClass = getKanbanStageColorClass;
 
 const formatDueAt = value => {
   if (!value) return t('CONVERSATION_SIDEBAR.KANBAN.NOT_SET');

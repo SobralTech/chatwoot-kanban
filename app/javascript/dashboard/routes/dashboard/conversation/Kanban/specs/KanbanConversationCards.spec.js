@@ -471,6 +471,21 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.html()).toContain('background-color: rgb(255, 0, 0)');
   });
 
+  it('falls back to slate for unexpected stage colors', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: {
+        payload: [
+          buildCard({ kanban_stage: { id: 20, name: 'New', color: 'legacy' } }),
+        ],
+      },
+    });
+
+    const wrapper = mountComponent();
+    await flushPromises();
+
+    expect(wrapper.find('.bg-n-slate-9').exists()).toBe(true);
+  });
+
   it('renders read-only empty states for due date and labels', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard({ due_at: null, labels: [] })] },

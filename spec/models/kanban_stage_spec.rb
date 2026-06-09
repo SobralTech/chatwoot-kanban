@@ -1,6 +1,19 @@
 require 'rails_helper'
 
 RSpec.describe KanbanStage do
+  it 'uses slate as the default color for new stages' do
+    board = create(:kanban_board)
+
+    stage = described_class.create!(
+      account: board.account,
+      kanban_board: board,
+      name: 'New',
+      position: 1
+    )
+
+    expect(stage.color).to eq('slate')
+  end
+
   describe 'validations' do
     it 'prevents duplicate active names inside a board' do
       board = create(:kanban_board)
