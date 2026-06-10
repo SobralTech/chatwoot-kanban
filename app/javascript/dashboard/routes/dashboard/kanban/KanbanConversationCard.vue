@@ -3,6 +3,9 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
 import { dynamicTime } from 'shared/helpers/timeHelper';
+import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
+
+import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 
 const props = defineProps({
   card: {
@@ -41,6 +44,9 @@ const status = computed(
   () => conversation.value.status || t('KANBAN.CARD.UNKNOWN_STATUS')
 );
 const priority = computed(() => conversation.value.priority || '');
+const hasSupportedPriority = computed(() =>
+  Object.values(CONVERSATION_PRIORITY).includes(priority.value)
+);
 const assigneeName = computed(
   () => conversation.value?.meta?.assignee?.name || t('KANBAN.CARD.UNASSIGNED')
 );
@@ -120,9 +126,11 @@ const openDetails = event => {
         <span class="min-w-0 truncate">
           {{ t('KANBAN.CARD.ASSIGNEE', { assignee: assigneeName }) }}
         </span>
-        <span v-if="priority" class="flex-shrink-0 text-n-slate-10">
-          {{ t('KANBAN.CARD.PRIORITY', { priority }) }}
-        </span>
+        <CardPriorityIcon
+          v-if="hasSupportedPriority"
+          :priority="priority"
+          class="flex-shrink-0"
+        />
       </div>
       <span class="truncate text-n-slate-10">
         {{ t('KANBAN.CARD.LAST_ACTIVITY', { time: lastActivity }) }}

@@ -8,7 +8,6 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.CARD.CONVERSATION_ID': `#${values.id}`,
         'KANBAN.CARD.INBOX': `Inbox: ${values.inbox}`,
         'KANBAN.CARD.ASSIGNEE': `Assignee: ${values.assignee}`,
-        'KANBAN.CARD.PRIORITY': `Priority: ${values.priority}`,
         'KANBAN.CARD.LAST_ACTIVITY': `Last activity: ${values.time}`,
         'KANBAN.CARD.NO_LINKED_CONVERSATION': 'No linked conversation',
         'KANBAN.ACTIONS.REMOVE_CARD': 'Remove',
@@ -80,8 +79,65 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.text()).toContain('First message');
     expect(wrapper.text()).toContain('Inbox: Support Inbox');
     expect(wrapper.text()).toContain('Assignee: Agent Smith');
-    expect(wrapper.text()).toContain('Priority: high');
     expect(wrapper.text()).toContain('Last activity: just now');
+  });
+
+  it('shows the native priority indicator when priority is present', () => {
+    const wrapper = mountCard();
+    const priorityIcon = wrapper.findComponent({ name: 'CardPriorityIcon' });
+
+    expect(priorityIcon.exists()).toBe(true);
+    expect(priorityIcon.props('priority')).toBe('high');
+  });
+
+  it.each(['urgent', 'high', 'medium', 'low'])(
+    'uses the native priority indicator for %s priority',
+    priority => {
+      const wrapper = mountCard({
+        card: buildCard({
+          conversation: {
+            ...buildCard().conversation,
+            priority,
+          },
+        }),
+      });
+
+      expect(
+        wrapper.findComponent({ name: 'CardPriorityIcon' }).props()
+      ).toMatchObject({
+        priority,
+      });
+    }
+  );
+
+  it('does not render the priority indicator when priority is missing', () => {
+    const wrapper = mountCard({
+      card: buildCard({
+        conversation: {
+          ...buildCard().conversation,
+          priority: null,
+        },
+      }),
+    });
+
+    expect(wrapper.findComponent({ name: 'CardPriorityIcon' }).exists()).toBe(
+      false
+    );
+  });
+
+  it('does not render the priority indicator for unexpected priority values', () => {
+    const wrapper = mountCard({
+      card: buildCard({
+        conversation: {
+          ...buildCard().conversation,
+          priority: 'critical',
+        },
+      }),
+    });
+
+    expect(wrapper.findComponent({ name: 'CardPriorityIcon' }).exists()).toBe(
+      false
+    );
   });
 
   it('emits openDetails when the card surface is clicked', async () => {
@@ -112,6 +168,9 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.text()).toContain('Renewal follow-up');
     expect(wrapper.text()).toContain('Manual Contact');
     expect(wrapper.text()).toContain('Inbox: Sales Inbox');
+    expect(wrapper.findComponent({ name: 'CardPriorityIcon' }).exists()).toBe(
+      false
+    );
   });
 
   it('emits openDetails even when conversationId is null', async () => {
