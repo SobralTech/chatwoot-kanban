@@ -1486,7 +1486,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
   def compact_card_keys
     %w[
-      id kanban_stage_id position origin subject active due_at contact inbox conversation_id priority conversation assignee moved_by_id moved_at
+      id kanban_stage_id position origin subject active due_at stage_entered_at contact inbox conversation_id priority conversation assignee
+      moved_by_id moved_at
     ]
   end
 
@@ -1510,6 +1511,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       'subject' => nil,
       'active' => true,
       'due_at' => due_at.iso8601,
+      'stage_entered_at' => card.stage_entered_at.iso8601,
       'priority' => 'urgent'
     )
     expect(response_card['conversation']).to eq('id' => conversation.id, 'display_id' => conversation.display_id)

@@ -29,6 +29,14 @@ RSpec.describe KanbanCards::CreateFromConversationService do
       )
     end
 
+    it 'sets stage_entered_at' do
+      travel_to(Time.zone.parse('2026-06-09 12:00:00 UTC')) do
+        card = service.perform!
+
+        expect(card.stage_entered_at).to eq(Time.current)
+      end
+    end
+
     it 'shifts existing active cards down' do
       first_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1)
       second_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 2)

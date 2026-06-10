@@ -26,6 +26,16 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       )
     end
 
+    it 'sets stage_entered_at' do
+      board
+
+      travel_to(Time.zone.parse('2026-06-09 12:00:00 UTC')) do
+        service.perform!
+      end
+
+      expect(created_card.stage_entered_at).to eq(Time.zone.parse('2026-06-09 12:00:00 UTC'))
+    end
+
     it 'emits kanban.card.created with a compact payload' do
       board
       allow(Rails.configuration.dispatcher).to receive(:dispatch)

@@ -327,14 +327,23 @@ RSpec.describe 'Kanban Cards API', type: :request do
     it 'updates a card by stable ID' do
       next_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       card = create_manual_card(position: 1)
+      previous_stage_entered_at = 2.days.ago.change(usec: 0)
+      card.update_column(:stage_entered_at, previous_stage_entered_at) # rubocop:disable Rails/SkipsModelValidations
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
-            headers: agent.create_new_auth_token,
-            params: { card: { kanban_stage_id: next_stage.id } },
-            as: :json
+      travel_to(Time.zone.parse('2026-06-09 12:00:00 UTC')) do
+        patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
+              headers: agent.create_new_auth_token,
+              params: { card: { kanban_stage_id: next_stage.id } },
+              as: :json
+      end
 
       expect(response).to have_http_status(:success)
-      expect(card.reload).to have_attributes(kanban_stage_id: next_stage.id, position: 1)
+      expect(card.reload).to have_attributes(
+        kanban_stage_id: next_stage.id,
+        position: 1,
+        stage_entered_at: Time.zone.parse('2026-06-09 12:00:00 UTC')
+      )
+      expect(card.stage_entered_at).not_to eq(previous_stage_entered_at)
     end
 
     it 'rejects stable update when the board is inactive' do
@@ -352,6 +361,8 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
     it 'updates stable scalar card details' do
       card = create_manual_card(subject: 'Old opportunity')
+      previous_stage_entered_at = 2.days.ago.change(usec: 0)
+      card.update_column(:stage_entered_at, previous_stage_entered_at) # rubocop:disable Rails/SkipsModelValidations
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
             headers: agent.create_new_auth_token,
@@ -370,6 +381,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
         starts_at: Time.zone.parse('2026-06-01T09:00:00-03:00'),
         due_at: Time.zone.parse('2026-06-05T18:00:00-03:00')
       )
+      expect(card.stage_entered_at).to eq(previous_stage_entered_at)
       expect(response.parsed_body['starts_at']).to eq(card.starts_at.iso8601)
       expect(response.parsed_body['due_at']).to eq(card.due_at.iso8601)
     end
@@ -396,31 +408,39 @@ RSpec.describe 'Kanban Cards API', type: :request do
       create(:label, account: account, title: 'urgente')
       create(:label, account: account, title: 'vendas')
       card = create_manual_card(subject: 'Old opportunity')
+      previous_stage_entered_at = 2.days.ago.change(usec: 0)
+      card.update_column(:stage_entered_at, previous_stage_entered_at) # rubocop:disable Rails/SkipsModelValidations
 
-      patch stable_card_url(card),
-            headers: agent.create_new_auth_token,
-            params: {
-              card: {
-                subject: 'Cliente - Inbox',
-                kanban_stage_id: next_stage.id,
-                due_at: '2026-06-07T18:00:00-03:00',
-                labels: %w[urgente vendas]
-              }
-            },
-            as: :json
+      travel_to(Time.zone.parse('2026-06-09 12:00:00 UTC')) do
+        patch stable_card_url(card),
+              headers: agent.create_new_auth_token,
+              params: {
+                card: {
+                  subject: 'Cliente - Inbox',
+                  kanban_stage_id: next_stage.id,
+                  due_at: '2026-06-07T18:00:00-03:00',
+                  labels: %w[urgente vendas]
+                }
+              },
+              as: :json
+      end
 
       expect(response).to have_http_status(:success)
       expect(card.reload).to have_attributes(
         subject: 'Cliente - Inbox',
         kanban_stage_id: next_stage.id,
-        due_at: Time.zone.parse('2026-06-07T18:00:00-03:00')
+        due_at: Time.zone.parse('2026-06-07T18:00:00-03:00'),
+        stage_entered_at: Time.zone.parse('2026-06-09 12:00:00 UTC')
       )
+      expect(card.stage_entered_at).not_to eq(previous_stage_entered_at)
       expect(card.label_list).to contain_exactly('urgente', 'vendas')
     end
 
     it 'deduplicates stable card labels on metadata update' do
       create(:label, account: account, title: 'urgente')
       card = create_manual_card
+      previous_stage_entered_at = 2.days.ago.change(usec: 0)
+      card.update_column(:stage_entered_at, previous_stage_entered_at) # rubocop:disable Rails/SkipsModelValidations
 
       patch stable_card_url(card),
             headers: agent.create_new_auth_token,
@@ -429,6 +449,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(card.reload.label_list).to contain_exactly('urgente')
+      expect(card.stage_entered_at).to eq(previous_stage_entered_at)
     end
 
     it 'removes all stable card labels when labels is empty' do
@@ -638,6 +659,8 @@ RSpec.describe 'Kanban Cards API', type: :request do
       first_card = create_manual_card(position: 1)
       second_card = create_manual_card(position: 2, subject: 'Second opportunity')
       third_card = create_manual_card(position: 3, subject: 'Third opportunity')
+      previous_stage_entered_at = 2.days.ago.change(usec: 0)
+      third_card.update_column(:stage_entered_at, previous_stage_entered_at) # rubocop:disable Rails/SkipsModelValidations
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{third_card.id}/reorder",
             headers: agent.create_new_auth_token,
@@ -646,6 +669,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(third_card.reload.position).to eq(1)
+      expect(third_card.stage_entered_at).to eq(previous_stage_entered_at)
       expect(first_card.reload.position).to eq(2)
       expect(second_card.reload.position).to eq(3)
     end
@@ -680,14 +704,23 @@ RSpec.describe 'Kanban Cards API', type: :request do
       moving_card = create_manual_card(position: 1)
       source_card = create_manual_card(position: 2, subject: 'Source opportunity')
       destination_card = create_manual_card(kanban_stage: destination_stage, position: 1, subject: 'Destination opportunity')
+      previous_stage_entered_at = 2.days.ago.change(usec: 0)
+      moving_card.update_column(:stage_entered_at, previous_stage_entered_at) # rubocop:disable Rails/SkipsModelValidations
 
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{moving_card.id}/reorder",
-            headers: agent.create_new_auth_token,
-            params: { card: { kanban_stage_id: destination_stage.id, position: 1 } },
-            as: :json
+      travel_to(Time.zone.parse('2026-06-09 12:00:00 UTC')) do
+        patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{moving_card.id}/reorder",
+              headers: agent.create_new_auth_token,
+              params: { card: { kanban_stage_id: destination_stage.id, position: 1 } },
+              as: :json
+      end
 
       expect(response).to have_http_status(:success)
-      expect(moving_card.reload).to have_attributes(kanban_stage_id: destination_stage.id, position: 1)
+      expect(moving_card.reload).to have_attributes(
+        kanban_stage_id: destination_stage.id,
+        position: 1,
+        stage_entered_at: Time.zone.parse('2026-06-09 12:00:00 UTC')
+      )
+      expect(moving_card.stage_entered_at).not_to eq(previous_stage_entered_at)
       expect(source_card.reload.position).to eq(1)
       expect(destination_card.reload.position).to eq(2)
     end

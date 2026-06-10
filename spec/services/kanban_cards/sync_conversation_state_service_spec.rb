@@ -51,20 +51,29 @@ RSpec.describe KanbanCards::SyncConversationStateService do
     it 'mirrors stage changes' do
       new_stage = create(:kanban_stage, account: account, kanban_board: board)
       described_class.new(state).sync!
+      mirrored_card.update_column(:stage_entered_at, 2.days.ago.change(usec: 0)) # rubocop:disable Rails/SkipsModelValidations
 
       state.update!(kanban_stage: new_stage)
-      described_class.new(state).sync!
+      travel_to(Time.zone.parse('2026-06-09 12:00:00 UTC')) do
+        described_class.new(state).sync!
+      end
 
-      expect(mirrored_card.reload.kanban_stage).to eq(new_stage)
+      expect(mirrored_card.reload).to have_attributes(
+        kanban_stage: new_stage,
+        stage_entered_at: Time.zone.parse('2026-06-09 12:00:00 UTC')
+      )
     end
 
     it 'mirrors position changes' do
       described_class.new(state).sync!
+      previous_stage_entered_at = 2.days.ago.change(usec: 0)
+      mirrored_card.update_column(:stage_entered_at, previous_stage_entered_at) # rubocop:disable Rails/SkipsModelValidations
 
       state.update!(position: 7)
       described_class.new(state).sync!
 
       expect(mirrored_card.reload.position).to eq(7)
+      expect(mirrored_card.stage_entered_at).to eq(previous_stage_entered_at)
     end
 
     it 'reactivates an existing inactive mirrored card' do

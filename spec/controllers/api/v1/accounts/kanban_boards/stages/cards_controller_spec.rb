@@ -208,6 +208,7 @@ RSpec.describe 'Kanban stage cards API', type: :request do
         'subject' => 'Expansion opportunity',
         'active' => true,
         'due_at' => due_at.iso8601,
+        'stage_entered_at' => card.stage_entered_at.iso8601,
         'conversation_id' => nil,
         'conversation' => nil,
         'assignee' => nil,
@@ -413,7 +414,8 @@ RSpec.describe 'Kanban stage cards API', type: :request do
 
   def compact_card_keys
     %w[
-      id kanban_stage_id position origin subject active due_at contact inbox conversation_id priority conversation assignee moved_by_id moved_at
+      id kanban_stage_id position origin subject active due_at stage_entered_at contact inbox conversation_id priority conversation assignee
+      moved_by_id moved_at
     ]
   end
 

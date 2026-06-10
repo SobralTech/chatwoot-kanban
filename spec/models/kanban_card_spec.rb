@@ -236,6 +236,7 @@ RSpec.describe KanbanCard do
       ).merge(
         'position' => existing_card.position + 1,
         'active' => false,
+        'stage_entered_at' => Time.current,
         'created_at' => Time.current,
         'updated_at' => Time.current
       )

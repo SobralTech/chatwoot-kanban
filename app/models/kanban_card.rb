@@ -1,4 +1,5 @@
 # rubocop:disable Metrics/ClassLength
+# rubocop:disable Layout/LineLength
 # == Schema Information
 #
 # Table name: kanban_cards
@@ -9,6 +10,7 @@
 #  normalized_subject :string
 #  origin             :string           not null
 #  position           :integer          default(0), not null
+#  stage_entered_at   :datetime         not null
 #  starts_at          :datetime
 #  subject            :string
 #  created_at         :datetime         not null
@@ -32,6 +34,7 @@
 #  index_kanban_cards_on_conversation_id                       (conversation_id)
 #  index_kanban_cards_on_kanban_board_id_and_active            (kanban_board_id,active)
 #
+# rubocop:enable Layout/LineLength
 class KanbanCard < ApplicationRecord
   include Labelable
 
@@ -48,9 +51,11 @@ class KanbanCard < ApplicationRecord
   }
 
   before_validation :normalize_manual_subject
+  before_validation :set_stage_entered_at, if: :stage_entry_timestamp_required?
 
   validates :origin, presence: true
   validates :position, presence: true, numericality: { only_integer: true }
+  validates :stage_entered_at, presence: true
   validates :subject, presence: true, if: :manual?
   validates :normalized_subject, presence: true, if: :manual?
   validates :conversation, presence: true, if: :conversation?
@@ -187,7 +192,7 @@ class KanbanCard < ApplicationRecord
       position = index + 1
       next if card.position == position && card.kanban_stage_id == target_stage.id
 
-      [card.id, position]
+      [card.id, position, card.kanban_stage_id != target_stage.id]
     end
 
     return if changed_cards.blank?
@@ -198,14 +203,25 @@ class KanbanCard < ApplicationRecord
   end
 
   def bulk_position_update_sql(changed_cards, target_stage)
-    position_cases = changed_cards.map { |card_id, position| "WHEN #{card_id} THEN #{position}" }.join(' ')
-    stage_cases = changed_cards.map { |card_id, _position| "WHEN #{card_id} THEN #{target_stage.id}" }.join(' ')
+    current_time = self.class.connection.quote(Time.current)
+    position_cases = changed_cards.map { |card_id, position, _stage_changed| "WHEN #{card_id} THEN #{position}" }.join(' ')
+    stage_cases = changed_cards.map { |card_id, _position, _stage_changed| "WHEN #{card_id} THEN #{target_stage.id}" }.join(' ')
+    stage_entered_at_cases = changed_cards.filter_map do |card_id, _position, stage_changed|
+      "WHEN #{card_id} THEN #{current_time}" if stage_changed
+    end.join(' ')
 
     <<~SQL.squish
       position = CASE id #{position_cases} ELSE position END,
       kanban_stage_id = CASE id #{stage_cases} ELSE kanban_stage_id END,
-      updated_at = #{self.class.connection.quote(Time.current)}
+      #{stage_entered_at_update_sql(stage_entered_at_cases)}
+      updated_at = #{current_time}
     SQL
+  end
+
+  def stage_entered_at_update_sql(stage_entered_at_cases)
+    return 'stage_entered_at = stage_entered_at,' if stage_entered_at_cases.blank?
+
+    "stage_entered_at = CASE id #{stage_entered_at_cases} ELSE stage_entered_at END,"
   end
 
   def normalize_manual_subject
@@ -215,6 +231,14 @@ class KanbanCard < ApplicationRecord
     normalized_display_subject = subject.to_s.strip.gsub(/\s+/, ' ')
     self.subject = normalized_display_subject
     self.normalized_subject = normalized_display_subject.presence&.downcase
+  end
+
+  def stage_entry_timestamp_required?
+    new_record? || will_save_change_to_kanban_stage_id?
+  end
+
+  def set_stage_entered_at
+    self.stage_entered_at = Time.current
   end
 
   def validate_manual_uniqueness?

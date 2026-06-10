@@ -49,6 +49,14 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect(card).to be_manual
     end
 
+    it 'sets stage_entered_at' do
+      travel_to(Time.zone.parse('2026-06-09 12:00:00 UTC')) do
+        card = service.perform!
+
+        expect(card.stage_entered_at).to eq(Time.current)
+      end
+    end
+
     it 'inserts the card at the top of the selected stage' do
       create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1)
 

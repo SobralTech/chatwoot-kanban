@@ -12,6 +12,7 @@ json.moved_by_id nil
 json.moved_at nil
 json.created_at card.created_at.to_i
 json.updated_at card.updated_at.to_i
+json.stage_entered_at card.stage_entered_at&.iso8601 if card.respond_to?(:stage_entered_at)
 json.origin card.origin if card.respond_to?(:origin)
 json.subject card.subject if card.respond_to?(:subject)
 if stable_card
