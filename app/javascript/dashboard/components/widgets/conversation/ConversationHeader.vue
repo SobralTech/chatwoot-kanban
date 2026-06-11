@@ -6,13 +6,13 @@ import { useElementSize } from '@vueuse/core';
 import BackButton from '../BackButton.vue';
 import InboxName from '../InboxName.vue';
 import MoreActions from './MoreActions.vue';
-import Avatar from 'next/avatar/Avatar.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
 import ConversationCallButton from './ConversationCallButton.vue';
 import wootConstants from 'dashboard/constants/globals';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { snoozedReopenTime } from 'dashboard/helper/snoozeHelpers';
 import { useInbox } from 'dashboard/composables/useInbox';
+import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAlert } from 'dashboard/composables';
 import { useI18n } from 'vue-i18n';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -34,6 +34,7 @@ const route = useRoute();
 const conversationHeader = ref(null);
 const { width } = useElementSize(conversationHeader);
 const { isAWebWidgetInbox } = useInbox();
+const { updateUISettings } = useUISettings();
 
 const currentChat = computed(() => store.getters.getSelectedChat);
 const accountId = computed(() => store.getters.getCurrentAccountId);
@@ -103,6 +104,13 @@ const copyConversationId = async () => {
     // error
   }
 };
+
+const openContactDetails = () => {
+  updateUISettings({
+    is_contact_sidebar_open: true,
+    is_copilot_panel_open: false,
+  });
+};
 </script>
 
 <template>
@@ -118,20 +126,22 @@ const copyConversationId = async () => {
         :back-url="backButtonUrl"
         class="ltr:mr-2 rtl:ml-2"
       />
-      <Avatar
-        :name="currentContact.name"
-        :src="currentContact.thumbnail"
-        :size="32"
-        :status="currentContact.availability_status"
-        hide-offline-status
-        rounded-full
-      />
       <div
-        class="flex flex-col items-start min-w-0 ml-2 overflow-hidden rtl:ml-0 rtl:mr-2"
+        class="flex flex-col items-start min-w-0 overflow-hidden"
+        data-testid="conversation-header-contact"
       >
-        <div class="flex flex-row items-center max-w-full gap-1 p-0 m-0">
+        <button
+          type="button"
+          class="flex flex-row items-center max-w-full min-w-0 gap-1 p-0 m-0 text-left rounded-sm cursor-pointer hover:text-n-slate-12 focus:outline-none focus-visible:ring-1 focus-visible:ring-n-brand rtl:text-right"
+          :aria-label="$t('CONVERSATION_SIDEBAR.ACCORDION.CONTACT_DETAILS')"
+          :title="$t('CONVERSATION_SIDEBAR.ACCORDION.CONTACT_DETAILS')"
+          data-testid="conversation-header-contact-name"
+          @click="openContactDetails"
+          @keydown.enter.prevent="openContactDetails"
+          @keydown.space.prevent="openContactDetails"
+        >
           <span
-            class="text-sm font-medium truncate leading-tight text-n-slate-12"
+            class="min-w-0 text-sm font-medium leading-tight truncate text-n-slate-12"
           >
             {{ currentContact.name }}
           </span>
@@ -142,7 +152,7 @@ const copyConversationId = async () => {
             class="text-n-amber-10 my-0 mx-0 min-w-[14px] flex-shrink-0"
             icon="warning"
           />
-        </div>
+        </button>
 
         <div
           class="flex items-center gap-1 overflow-hidden text-xs conversation--header--actions text-n-slate-11 text-ellipsis whitespace-nowrap"
@@ -150,6 +160,7 @@ const copyConversationId = async () => {
           <button
             type="button"
             class="truncate text-label-small text-n-slate-11 hover:text-n-slate-12 !p-0 cucursor-pointer"
+            data-testid="conversation-header-conversation-id"
             @click="copyConversationId"
           >
             {{ `#${chat.id}` }}
