@@ -115,7 +115,7 @@ const openConversation = event => {
       <i class="i-lucide-trash size-5" />
     </button>
 
-    <div class="min-w-0 pe-8 text-left">
+    <div class="min-w-0 text-left">
       <p
         v-if="subject"
         class="truncate text-sm font-medium leading-4 text-n-slate-12"
