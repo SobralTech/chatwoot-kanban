@@ -1193,8 +1193,10 @@ onUnmounted(() => {
                   fallback-on-body
                   force-fallback
                   :disabled="isCardDragDisabled"
-                  ghost-class="opacity-60"
-                  chosen-class="opacity-90"
+                  ghost-class="opacity-30"
+                  chosen-class="cursor-grabbing"
+                  drag-class="rotate-1 cursor-grabbing shadow-lg ring-1 ring-n-brand/30"
+                  fallback-class="rotate-1 cursor-grabbing shadow-lg ring-1 ring-n-brand/30"
                   :animation="180"
                   @start="onCardDragStart"
                   @change="onCardDragChange(stage, $event)"
