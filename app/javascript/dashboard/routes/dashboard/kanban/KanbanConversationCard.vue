@@ -2,9 +2,13 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
-import { dynamicTime } from 'shared/helpers/timeHelper';
+import { format } from 'date-fns';
+import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
+import InboxName from 'dashboard/components/widgets/InboxName.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 
 const props = defineProps({
@@ -18,7 +22,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['openDetails', 'removeCard']);
+const emit = defineEmits(['openDetails', 'openConversation', 'removeCard']);
 
 const { t } = useI18n();
 const store = useStore();
@@ -37,18 +41,9 @@ const hasConversation = computed(() => !!props.card.conversationId);
 const contactName = computed(
   () => contact.value?.name || t('KANBAN.CARD.UNKNOWN_CONTACT')
 );
-const displayId = computed(() =>
-  t('KANBAN.CARD.CONVERSATION_ID', { id: props.card.conversationId })
-);
-const status = computed(
-  () => conversation.value.status || t('KANBAN.CARD.UNKNOWN_STATUS')
-);
 const priority = computed(() => conversation.value.priority || '');
 const hasSupportedPriority = computed(() =>
   Object.values(CONVERSATION_PRIORITY).includes(priority.value)
-);
-const assigneeName = computed(
-  () => conversation.value?.meta?.assignee?.name || t('KANBAN.CARD.UNASSIGNED')
 );
 const inboxName = computed(
   () =>
@@ -56,97 +51,149 @@ const inboxName = computed(
     conversation.value?.meta?.channel ||
     t('KANBAN.CARD.UNKNOWN_INBOX')
 );
-const lastActivityAt = computed(() => conversation.value.lastActivityAt);
-const lastActivity = computed(() =>
-  lastActivityAt.value
-    ? dynamicTime(lastActivityAt.value)
-    : t('KANBAN.CARD.UNKNOWN_LAST_ACTIVITY')
+const contactThumbnail = computed(
+  () => contact.value?.thumbnail || contact.value?.avatarUrl || ''
 );
-const lastMessage = computed(
-  () =>
-    (!hasConversation.value && t('KANBAN.CARD.NO_LINKED_CONVERSATION')) ||
-    conversation.value?.messages?.[0]?.content ||
-    conversation.value?.lastNonActivityMessage?.content ||
-    t('KANBAN.CARD.NO_MESSAGES')
+const assignee = computed(() => conversation.value?.meta?.assignee || null);
+const assigneeName = computed(() => assignee.value?.name || '');
+const assigneeThumbnail = computed(
+  () => assignee.value?.thumbnail || assignee.value?.avatarUrl || ''
 );
+const subject = computed(() => props.card.subject || '');
+
+const toUnixTimestamp = value => {
+  if (!value) return null;
+  if (typeof value === 'number') return value;
+
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? null : Math.floor(timestamp / 1000);
+};
+
+const stageEnteredAt = computed(() =>
+  toUnixTimestamp(props.card.stage_entered_at || props.card.stageEnteredAt)
+);
+const stageTime = computed(() =>
+  stageEnteredAt.value
+    ? shortTimestamp(dynamicTime(stageEnteredAt.value), true)
+    : ''
+);
+const dueAt = computed(() => props.card.due_at || props.card.dueAt);
+const dueAtLabel = computed(() => {
+  if (!dueAt.value) return '';
+
+  const dueDate = new Date(dueAt.value);
+  return Number.isNaN(dueDate.getTime()) ? '' : format(dueDate, 'MMM d');
+});
 
 const openDetails = event => {
   emit('openDetails', props.card, event);
+};
+
+const openConversation = event => {
+  if (!hasConversation.value) return;
+
+  emit('openConversation', props.card, event);
 };
 </script>
 
 <template>
   <article
-    class="card-drag-handle cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-3"
+    class="card-drag-handle group relative cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-3"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openDetails"
   >
-    <div class="text-left">
-      <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <p
-            v-if="card.subject"
-            class="truncate text-sm font-medium text-n-slate-12"
-          >
-            {{ card.subject }}
-          </p>
-          <h4
-            class="min-w-0 truncate text-sm text-n-slate-12"
-            :class="{ 'font-medium': !card.subject }"
-          >
-            {{ contactName }}
-          </h4>
-        </div>
-        <div class="flex items-center gap-2">
-          <span
-            v-if="hasConversation"
-            class="flex-shrink-0 text-xs text-n-slate-10"
-          >
-            {{ displayId }}
-          </span>
-        </div>
-      </div>
+    <button
+      type="button"
+      data-testid="kanban-card-remove"
+      class="no-drag pointer-events-auto absolute top-2 ltr:right-2 rtl:left-2 flex size-7 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-ruby-11 opacity-0 shadow-sm transition-opacity hover:bg-n-ruby-2 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-n-ruby-8 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+      :aria-label="t('KANBAN.ACTIONS.REMOVE_CARD')"
+      :title="t('KANBAN.ACTIONS.REMOVE_CARD')"
+      :disabled="!!activeActionKey"
+      @click.stop="emit('removeCard', card)"
+    >
+      <i class="i-lucide-trash size-4" />
+    </button>
 
-      <p class="mt-2 line-clamp-2 text-sm leading-5 text-n-slate-11">
-        {{ lastMessage }}
+    <div class="min-w-0 pe-8 text-left">
+      <p
+        v-if="subject"
+        class="truncate text-sm font-medium leading-5 text-n-slate-12"
+        :title="subject"
+      >
+        {{ subject }}
       </p>
-    </div>
 
-    <div class="mt-3 grid gap-2 text-xs text-n-slate-11">
-      <div class="flex items-center justify-between gap-2">
-        <span class="min-w-0 truncate">
-          {{ t('KANBAN.CARD.INBOX', { inbox: inboxName }) }}
-        </span>
-        <span class="flex-shrink-0 rounded-md bg-n-alpha-2 px-2 py-1">
-          {{ status }}
-        </span>
+      <div class="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          data-testid="kanban-card-contact-avatar"
+          class="no-drag relative flex flex-shrink-0 rounded-full focus:outline-none focus:ring-1 focus:ring-n-brand"
+          :title="contactName"
+          @click.stop="openConversation"
+        >
+          <Avatar
+            :name="contactName"
+            :src="contactThumbnail"
+            :size="36"
+            rounded-full
+          />
+          <span
+            v-if="inbox"
+            class="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full border border-n-surface-1 bg-n-surface-1"
+          >
+            <ChannelIcon :inbox="inbox" class="size-3 text-n-slate-11" />
+          </span>
+        </button>
+
+        <h4 class="min-w-0 flex-1 truncate text-sm font-medium text-n-slate-12">
+          {{ contactName }}
+        </h4>
+
+        <Avatar
+          v-if="assigneeName"
+          :name="assigneeName"
+          :src="assigneeThumbnail"
+          :size="24"
+          rounded-full
+        />
       </div>
-      <div class="flex items-center justify-between gap-2">
-        <span class="min-w-0 truncate">
-          {{ t('KANBAN.CARD.ASSIGNEE', { assignee: assigneeName }) }}
-        </span>
+
+      <div class="mt-2 flex min-w-0">
+        <div class="inline-flex max-w-full rounded-full bg-n-alpha-2 px-2 py-1">
+          <InboxName
+            :inbox="{ ...inbox, name: inboxName }"
+            :show-icon="false"
+            class="max-w-full"
+          />
+        </div>
+      </div>
+
+      <div
+        v-if="hasSupportedPriority || stageTime || dueAtLabel"
+        data-testid="kanban-card-meta"
+        class="mt-2 flex items-center justify-between gap-2 text-xs text-n-slate-10"
+      >
         <CardPriorityIcon
           v-if="hasSupportedPriority"
           :priority="priority"
           class="flex-shrink-0"
         />
-      </div>
-      <span class="truncate text-n-slate-10">
-        {{ t('KANBAN.CARD.LAST_ACTIVITY', { time: lastActivity }) }}
-      </span>
-    </div>
+        <span v-else />
 
-    <div class="mt-3 flex items-center justify-end">
-      <button
-        type="button"
-        class="no-drag flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
-        :disabled="!!activeActionKey"
-        @click.stop="emit('removeCard', card)"
-      >
-        <i class="i-lucide-trash size-4" />
-        {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
-      </button>
+        <div class="flex min-w-0 items-center justify-end gap-2">
+          <span
+            v-if="stageTime"
+            class="truncate"
+            :title="dynamicTime(stageEnteredAt)"
+          >
+            {{ stageTime }}
+          </span>
+          <span v-if="dueAtLabel" class="flex-shrink-0" :title="dueAt">
+            {{ dueAtLabel }}
+          </span>
+        </div>
+      </div>
     </div>
   </article>
 </template>
