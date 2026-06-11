@@ -98,7 +98,7 @@ const openConversation = event => {
 
 <template>
   <article
-    class="card-drag-handle group relative cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-3"
+    class="card-drag-handle group relative cursor-grab rounded-lg border border-n-weak bg-n-surface-1 px-3 py-2"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openDetails"
@@ -106,13 +106,13 @@ const openConversation = event => {
     <button
       type="button"
       data-testid="kanban-card-remove"
-      class="no-drag pointer-events-auto absolute top-2 ltr:right-2 rtl:left-2 flex size-7 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-ruby-11 opacity-0 shadow-sm transition-opacity hover:bg-n-ruby-2 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-n-ruby-8 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+      class="no-drag pointer-events-auto absolute top-1.5 ltr:right-1.5 rtl:left-1.5 flex size-8 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-ruby-11 opacity-0 shadow-sm transition-opacity hover:bg-n-ruby-2 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-n-ruby-8 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
       :aria-label="t('KANBAN.ACTIONS.REMOVE_CARD')"
       :title="t('KANBAN.ACTIONS.REMOVE_CARD')"
       :disabled="!!activeActionKey"
       @click.stop="emit('removeCard', card)"
     >
-      <i class="i-lucide-trash size-4" />
+      <i class="i-lucide-trash size-5" />
     </button>
 
     <div class="min-w-0 pe-8 text-left">
@@ -124,7 +124,7 @@ const openConversation = event => {
         {{ subject }}
       </p>
 
-      <div class="mt-2 flex items-center gap-2">
+      <div class="mt-1.5 flex items-center gap-2">
         <button
           type="button"
           data-testid="kanban-card-contact-avatar"
@@ -159,8 +159,10 @@ const openConversation = event => {
         />
       </div>
 
-      <div class="mt-2 flex min-w-0">
-        <div class="inline-flex max-w-full rounded-full bg-n-alpha-2 px-2 py-1">
+      <div class="mt-1.5 flex min-w-0">
+        <div
+          class="inline-flex max-w-full rounded-full bg-n-alpha-2 px-2 py-0.5"
+        >
           <InboxName
             :inbox="{ ...inbox, name: inboxName }"
             :show-icon="false"
@@ -172,7 +174,7 @@ const openConversation = event => {
       <div
         v-if="hasSupportedPriority || stageTime || dueAtLabel"
         data-testid="kanban-card-meta"
-        class="mt-2 flex items-center justify-between gap-2 text-xs text-n-slate-10"
+        class="mt-1.5 flex items-center justify-between gap-2 text-xs text-n-slate-10"
       >
         <CardPriorityIcon
           v-if="hasSupportedPriority"
