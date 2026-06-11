@@ -27,7 +27,7 @@ const props = defineProps({
     default: false,
   },
 });
-const emit = defineEmits(['openConversationSearch']);
+const emit = defineEmits(['openConversationSearch', 'toggleContactDetails']);
 
 const { t } = useI18n();
 const store = useStore();
@@ -109,6 +109,7 @@ const toggleContactDetails = () => {
   }
 
   updateUISettings(nextUISettings);
+  emit('toggleContactDetails', shouldOpenContactDetails);
 };
 </script>
 

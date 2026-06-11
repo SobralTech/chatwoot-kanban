@@ -232,6 +232,7 @@ describe('ConversationHeader', () => {
       .trigger('click');
 
     expectContactSidebarToOpen(1);
+    expect(wrapper.emitted('toggleContactDetails')[0]).toEqual([true]);
   });
 
   it('closes contact details when the open panel header area is clicked again', async () => {
@@ -245,6 +246,7 @@ describe('ConversationHeader', () => {
 
     expectContactSidebarToOpen(1);
     expectContactSidebarToClose(2);
+    expect(wrapper.emitted('toggleContactDetails')).toEqual([[true], [false]]);
   });
 
   it('toggles contact details when contact header children are clicked', async () => {

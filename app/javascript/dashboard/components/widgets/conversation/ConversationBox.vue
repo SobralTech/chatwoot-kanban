@@ -1,19 +1,18 @@
 <script>
 import { mapGetters } from 'vuex';
 import ConversationHeader from './ConversationHeader.vue';
+import ConversationSearchPanel from './ConversationSearchPanel.vue';
 import DashboardAppFrame from '../DashboardApp/Frame.vue';
 import EmptyState from './EmptyState/EmptyState.vue';
 import MessagesView from './MessagesView.vue';
-import MessageApi from 'dashboard/api/inbox/message';
-import NextButton from 'dashboard/components-next/button/Button.vue';
 
 export default {
   components: {
     ConversationHeader,
+    ConversationSearchPanel,
     DashboardAppFrame,
     EmptyState,
     MessagesView,
-    NextButton,
   },
   props: {
     inboxId: {
@@ -25,10 +24,6 @@ export default {
       type: Boolean,
       default: false,
     },
-    isContactPanelOpen: {
-      type: Boolean,
-      default: true,
-    },
     isOnExpandedLayout: {
       type: Boolean,
       default: true,
@@ -39,24 +34,14 @@ export default {
       activeIndex: 0,
       isConversationSearchOpen: false,
       conversationSearchQuery: '',
-      conversationSearchResults: [],
-      conversationSearchMeta: {},
-      conversationSearchError: null,
-      isSearchingConversationMessages: false,
-      activeConversationSearchResultIndex: -1,
-      conversationSearchAbortController: null,
-      conversationSearchRequestId: 0,
-      conversationSearchDebounceTimer: null,
-      isLoadingConversationSearchResult: false,
-      conversationSearchNavigationError: null,
-      conversationSearchNavigationController: null,
-      conversationSearchNavigationRequestId: 0,
+      activeConversationSearchResultId: null,
     };
   },
   computed: {
     ...mapGetters({
       currentChat: 'getSelectedChat',
       dashboardApps: 'dashboardApps/getRecords',
+      uiSettings: 'getUISettings',
     }),
     dashboardAppTabs() {
       return [
@@ -72,30 +57,6 @@ export default {
         })),
       ];
     },
-    showContactPanel() {
-      return this.isContactPanelOpen && this.currentChat.id;
-    },
-    conversationSearchTotalCount() {
-      return this.conversationSearchMeta.total_count || 0;
-    },
-    conversationSearchCurrentPosition() {
-      if (
-        !this.conversationSearchTotalCount ||
-        this.activeConversationSearchResultIndex < 0
-      ) {
-        return 0;
-      }
-
-      return this.activeConversationSearchResultIndex + 1;
-    },
-    conversationSearchCounter() {
-      return `${this.conversationSearchCurrentPosition}/${this.conversationSearchTotalCount}`;
-    },
-    activeConversationSearchResultId() {
-      return this.conversationSearchResults[
-        this.activeConversationSearchResultIndex
-      ]?.id;
-    },
   },
   watch: {
     'currentChat.inbox_id': {
@@ -109,7 +70,7 @@ export default {
     'currentChat.id'() {
       this.fetchLabels();
       this.activeIndex = 0;
-      this.resetConversationSearch();
+      this.closeConversationSearch();
     },
   },
   mounted() {
@@ -118,9 +79,6 @@ export default {
     document.addEventListener('keydown', this.onConversationSearchShortcut);
   },
   unmounted() {
-    this.abortConversationSearchRequest();
-    this.abortConversationSearchNavigationRequest();
-    this.clearConversationSearchDebounce();
     document.removeEventListener('keydown', this.onConversationSearchShortcut);
   },
   methods: {
@@ -137,92 +95,20 @@ export default {
       if (!this.currentChat.id) return;
 
       this.isConversationSearchOpen = true;
-      this.$nextTick(() => this.$refs.conversationSearchInput?.focus());
+      this.closeSidePanels();
+      this.$nextTick(() => this.$refs.conversationSearchPanel?.focusInput?.());
+    },
+    toggleConversationSearch() {
+      if (this.isConversationSearchOpen) {
+        this.closeConversationSearch();
+      } else {
+        this.openConversationSearch();
+      }
     },
     closeConversationSearch() {
       this.isConversationSearchOpen = false;
-      this.resetConversationSearch();
-    },
-    resetConversationSearch() {
-      this.abortConversationSearchRequest();
-      this.abortConversationSearchNavigationRequest();
-      this.clearConversationSearchDebounce();
       this.conversationSearchQuery = '';
-      this.conversationSearchResults = [];
-      this.conversationSearchMeta = {};
-      this.conversationSearchError = null;
-      this.conversationSearchNavigationError = null;
-      this.isSearchingConversationMessages = false;
-      this.isLoadingConversationSearchResult = false;
-      this.activeConversationSearchResultIndex = -1;
-      this.conversationSearchRequestId += 1;
-      this.conversationSearchNavigationRequestId += 1;
-    },
-    async searchConversationMessages(query) {
-      if (!this.currentChat.id) return;
-
-      const trimmedQuery = query.trim();
-      this.conversationSearchQuery = trimmedQuery;
-      this.conversationSearchError = null;
-      this.conversationSearchNavigationError = null;
-      this.abortConversationSearchNavigationRequest();
-
-      if (!trimmedQuery) {
-        this.resetConversationSearch();
-        return;
-      }
-
-      this.abortConversationSearchRequest();
-      const requestId = this.conversationSearchRequestId + 1;
-      this.conversationSearchRequestId = requestId;
-      this.conversationSearchAbortController = new AbortController();
-      this.isSearchingConversationMessages = true;
-
-      try {
-        const { data } = await MessageApi.searchMessages(this.currentChat.id, {
-          q: trimmedQuery,
-          signal: this.conversationSearchAbortController.signal,
-        });
-        if (!this.isLatestConversationSearchRequest(requestId, trimmedQuery)) {
-          return;
-        }
-        this.conversationSearchResults = data.payload || [];
-        this.conversationSearchMeta = data.meta || {};
-        if (this.conversationSearchResults.length) {
-          await this.selectConversationSearchResult(0);
-        } else {
-          this.activeConversationSearchResultIndex = -1;
-        }
-      } catch (error) {
-        if (!this.isLatestConversationSearchRequest(requestId, trimmedQuery)) {
-          return;
-        }
-        this.conversationSearchError = error;
-      } finally {
-        if (this.isLatestConversationSearchRequest(requestId, trimmedQuery)) {
-          this.isSearchingConversationMessages = false;
-        }
-      }
-    },
-    onConversationSearchInput(event) {
-      const { value } = event.target;
-      this.conversationSearchQuery = value;
-      this.clearConversationSearchDebounce();
-      this.conversationSearchDebounceTimer = setTimeout(() => {
-        this.searchConversationMessages(value);
-      }, 300);
-    },
-    onConversationSearchInputKeydown(event) {
-      if (event.key === 'Enter' && event.shiftKey) {
-        event.preventDefault();
-        this.selectPreviousConversationSearchResult();
-      } else if (event.key === 'Enter') {
-        event.preventDefault();
-        this.selectNextConversationSearchResult();
-      } else if (event.key === 'Escape') {
-        event.preventDefault();
-        this.closeConversationSearch();
-      }
+      this.activeConversationSearchResultId = null;
     },
     onConversationSearchShortcut(event) {
       if (!this.currentChat.id || event.key.toLowerCase() !== 'f') return;
@@ -236,7 +122,12 @@ export default {
       const focusedElement =
         target === document ? document.activeElement : target;
       if (!focusedElement || focusedElement === document.body) return false;
-      if (focusedElement === this.$refs.conversationSearchInput) return false;
+      if (
+        focusedElement ===
+        this.$refs.conversationSearchPanel?.$refs.conversationSearchInput
+      ) {
+        return false;
+      }
 
       const tagName = focusedElement.tagName?.toLowerCase();
       return (
@@ -244,179 +135,23 @@ export default {
         focusedElement.isContentEditable
       );
     },
-    clearConversationSearchDebounce() {
-      if (!this.conversationSearchDebounceTimer) return;
-
-      clearTimeout(this.conversationSearchDebounceTimer);
-      this.conversationSearchDebounceTimer = null;
+    closeSidePanels() {
+      this.$store.dispatch('updateUISettings', {
+        uiSettings: {
+          ...this.uiSettings,
+          is_contact_sidebar_open: false,
+          is_copilot_panel_open: false,
+        },
+      });
     },
-    async loadMoreConversationSearchResults() {
-      if (!this.currentChat.id || !this.conversationSearchMeta.has_more) return;
-
-      const query = this.conversationSearchQuery;
-      const requestId = this.conversationSearchRequestId + 1;
-      this.conversationSearchRequestId = requestId;
-      this.isSearchingConversationMessages = true;
-      this.conversationSearchError = null;
-
-      try {
-        const { data } = await MessageApi.searchMessages(this.currentChat.id, {
-          q: query,
-          limit: this.conversationSearchMeta.limit,
-          before_id: this.conversationSearchMeta.next_before_id,
-        });
-        if (!this.isLatestConversationSearchRequest(requestId, query)) {
-          return;
-        }
-        this.conversationSearchResults = [
-          ...this.conversationSearchResults,
-          ...(data.payload || []),
-        ];
-        this.conversationSearchMeta = data.meta || {};
-      } catch (error) {
-        if (!this.isLatestConversationSearchRequest(requestId, query)) {
-          return;
-        }
-        this.conversationSearchError = error;
-      } finally {
-        if (this.isLatestConversationSearchRequest(requestId, query)) {
-          this.isSearchingConversationMessages = false;
-        }
+    onContactDetailsToggle(isOpen) {
+      if (isOpen) {
+        this.closeConversationSearch();
       }
     },
-    async selectConversationSearchResult(index) {
-      if (index < 0 || index >= this.conversationSearchResults.length) return;
-
-      this.activeConversationSearchResultIndex = index;
-      this.conversationSearchNavigationError = null;
-
-      const result = this.conversationSearchResults[index];
-      if (this.isConversationSearchResultLoaded(result.id)) {
-        this.abortConversationSearchNavigationRequest();
-        this.isLoadingConversationSearchResult = false;
-        return;
-      }
-
-      await this.loadConversationSearchResultWindow(result.id);
-    },
-    selectNextConversationSearchResult() {
-      if (!this.conversationSearchResults.length) return;
-
-      const nextIndex =
-        (this.activeConversationSearchResultIndex + 1) %
-        this.conversationSearchResults.length;
-      this.selectConversationSearchResult(nextIndex);
-    },
-    selectPreviousConversationSearchResult() {
-      if (!this.conversationSearchResults.length) return;
-
-      const previousIndex =
-        (this.activeConversationSearchResultIndex -
-          1 +
-          this.conversationSearchResults.length) %
-        this.conversationSearchResults.length;
-      this.selectConversationSearchResult(previousIndex);
-    },
-    abortConversationSearchRequest() {
-      if (this.conversationSearchAbortController) {
-        this.conversationSearchAbortController.abort();
-        this.conversationSearchAbortController = null;
-      }
-    },
-    abortConversationSearchNavigationRequest() {
-      if (this.conversationSearchNavigationController) {
-        this.conversationSearchNavigationController.abort();
-        this.conversationSearchNavigationController = null;
-      }
-    },
-    isLatestConversationSearchRequest(requestId, query) {
-      return (
-        this.conversationSearchRequestId === requestId &&
-        this.conversationSearchQuery === query
-      );
-    },
-    isConversationSearchResultLoaded(messageId) {
-      return this.currentChat.messages?.some(
-        message => Number(message.id) === Number(messageId)
-      );
-    },
-    isLatestConversationSearchNavigationRequest({
-      requestId,
-      conversationId,
-      messageId,
-    }) {
-      return (
-        this.conversationSearchNavigationRequestId === requestId &&
-        Number(this.currentChat.id) === Number(conversationId) &&
-        Number(this.activeConversationSearchResultId) === Number(messageId)
-      );
-    },
-    isAbortError(error) {
-      return error?.name === 'AbortError' || error?.code === 'ERR_CANCELED';
-    },
-    async loadConversationSearchResultWindow(messageId) {
-      this.abortConversationSearchNavigationRequest();
-
-      const conversationId = this.currentChat.id;
-      const requestId = this.conversationSearchNavigationRequestId + 1;
-      this.conversationSearchNavigationRequestId = requestId;
-      this.conversationSearchNavigationController = new AbortController();
-      this.isLoadingConversationSearchResult = true;
-
-      try {
-        await this.$store.dispatch('mergeConversationMessageWindow', {
-          conversationId,
-          around: messageId,
-          before_limit: 20,
-          after_limit: 20,
-          signal: this.conversationSearchNavigationController.signal,
-        });
-
-        if (
-          !this.isLatestConversationSearchNavigationRequest({
-            requestId,
-            conversationId,
-            messageId,
-          })
-        ) {
-          return;
-        }
-
-        await new Promise(resolve => {
-          this.$nextTick(() => {
-            document
-              .getElementById(`message${messageId}`)
-              ?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
-            resolve();
-          });
-        });
-      } catch (error) {
-        if (
-          this.isAbortError(error) ||
-          !this.isLatestConversationSearchNavigationRequest({
-            requestId,
-            conversationId,
-            messageId,
-          })
-        ) {
-          return;
-        }
-
-        this.conversationSearchNavigationError =
-          error?.response?.status === 404
-            ? this.$t('CONVERSATION.SEARCH.MESSAGE_UNAVAILABLE')
-            : this.$t('CONVERSATION.SEARCH.FAILED_TO_LOAD_MESSAGE');
-      } finally {
-        if (
-          this.isLatestConversationSearchNavigationRequest({
-            requestId,
-            conversationId,
-            messageId,
-          })
-        ) {
-          this.isLoadingConversationSearchResult = false;
-        }
-      }
+    onConversationSearchStateChange({ query, activeResultId }) {
+      this.conversationSearchQuery = query;
+      this.activeConversationSearchResultId = activeResultId;
     },
   },
 };
@@ -436,7 +171,8 @@ export default {
       :class="{
         'border-b border-b-n-weak !pt-2': !dashboardApps.length,
       }"
-      @open-conversation-search="openConversationSearch"
+      @open-conversation-search="toggleConversationSearch"
+      @toggle-contact-details="onContactDetailsToggle"
     />
     <woot-tabs
       v-if="dashboardApps.length && currentChat.id"
@@ -453,94 +189,6 @@ export default {
         is-compact
       />
     </woot-tabs>
-    <div
-      v-if="isConversationSearchOpen"
-      class="flex items-center gap-2 px-3 py-2 border-b border-n-weak bg-n-surface-1"
-      data-testid="conversation-search-bar"
-    >
-      <div class="relative flex-1 min-w-0">
-        <fluent-icon
-          icon="search"
-          size="16"
-          class="absolute top-1/2 -translate-y-1/2 text-n-slate-10 ltr:left-2 rtl:right-2"
-        />
-        <input
-          ref="conversationSearchInput"
-          :value="conversationSearchQuery"
-          type="search"
-          class="block w-full h-8 py-1 text-sm rounded-lg border border-n-weak bg-n-surface-2 text-n-slate-12 placeholder:text-n-slate-10 focus:border-n-brand focus:ring-1 focus:ring-n-brand ltr:pl-8 ltr:pr-3 rtl:pr-8 rtl:pl-3"
-          :placeholder="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
-          :aria-label="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
-          data-testid="conversation-search-input"
-          @input="onConversationSearchInput"
-          @keydown="onConversationSearchInputKeydown"
-        />
-      </div>
-      <span
-        class="min-w-10 text-center text-xs tabular-nums text-n-slate-11"
-        data-testid="conversation-search-counter"
-      >
-        {{ conversationSearchCounter }}
-      </span>
-      <span
-        v-if="
-          isSearchingConversationMessages || isLoadingConversationSearchResult
-        "
-        class="text-xs text-n-slate-11"
-        data-testid="conversation-search-loading"
-      >
-        {{ $t('CONVERSATION.SEARCH.LOADING_MESSAGE') }}
-      </span>
-      <span
-        v-else-if="conversationSearchNavigationError || conversationSearchError"
-        class="text-xs text-n-ruby-11"
-        data-testid="conversation-search-error"
-      >
-        {{
-          conversationSearchNavigationError ||
-          $t('CONVERSATION.SEARCH.FAILED_TO_SEARCH_MESSAGES')
-        }}
-      </span>
-      <span
-        v-else-if="conversationSearchQuery && !conversationSearchTotalCount"
-        class="text-xs text-n-slate-11"
-        data-testid="conversation-search-no-results"
-      >
-        {{ $t('CONVERSATION.SEARCH.NO_RESULTS') }}
-      </span>
-      <NextButton
-        ghost
-        slate
-        xs
-        icon="i-lucide-chevron-up"
-        :disabled="!conversationSearchResults.length"
-        :title="$t('CONVERSATION.SEARCH.PREVIOUS_RESULT')"
-        :aria-label="$t('CONVERSATION.SEARCH.PREVIOUS_RESULT')"
-        data-testid="conversation-search-previous"
-        @click="selectPreviousConversationSearchResult"
-      />
-      <NextButton
-        ghost
-        slate
-        xs
-        icon="i-lucide-chevron-down"
-        :disabled="!conversationSearchResults.length"
-        :title="$t('CONVERSATION.SEARCH.NEXT_RESULT')"
-        :aria-label="$t('CONVERSATION.SEARCH.NEXT_RESULT')"
-        data-testid="conversation-search-next"
-        @click="selectNextConversationSearchResult"
-      />
-      <NextButton
-        ghost
-        slate
-        xs
-        icon="i-lucide-x"
-        :title="$t('CONVERSATION.SEARCH.CLOSE_SEARCH')"
-        :aria-label="$t('CONVERSATION.SEARCH.CLOSE_SEARCH')"
-        data-testid="conversation-search-close"
-        @click="closeConversationSearch"
-      />
-    </div>
     <div v-show="!activeIndex" class="flex h-full min-h-0 m-0">
       <MessagesView
         v-if="currentChat.id"
@@ -554,6 +202,12 @@ export default {
         :is-on-expanded-layout="isOnExpandedLayout"
       />
       <slot />
+      <ConversationSearchPanel
+        v-if="isConversationSearchOpen"
+        ref="conversationSearchPanel"
+        @close="closeConversationSearch"
+        @search-state-change="onConversationSearchStateChange"
+      />
     </div>
     <DashboardAppFrame
       v-for="(dashboardApp, index) in dashboardApps"

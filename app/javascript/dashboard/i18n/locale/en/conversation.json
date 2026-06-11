@@ -31,7 +31,13 @@
       "NO_RESULTS": "No results",
       "FAILED_TO_SEARCH_MESSAGES": "Failed to search messages",
       "MESSAGE_UNAVAILABLE": "Message unavailable",
-      "FAILED_TO_LOAD_MESSAGE": "Failed to load message"
+      "FAILED_TO_LOAD_MESSAGE": "Failed to load message",
+      "PANEL_TITLE": "Search messages",
+      "START_SEARCHING": "Search this conversation",
+      "LOAD_MORE": "Load more results",
+      "HAS_ATTACHMENT": "Has attachment",
+      "AGENT": "Agent",
+      "CONTACT": "Contact"
     },
     "UNREAD_MESSAGES": "Unread Messages",
     "UNREAD_MESSAGE": "Unread Message",
