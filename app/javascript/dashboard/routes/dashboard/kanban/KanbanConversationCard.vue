@@ -15,7 +15,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['openDetails', 'openConversation']);
+const emit = defineEmits(['openDetails', 'openConversation', 'removeCard']);
 
 defineOptions({
   inheritAttrs: false,
@@ -116,6 +116,10 @@ const openDetails = event => {
   emit('openDetails', props.card, event);
 };
 
+const removeCard = event => {
+  emit('removeCard', props.card, event);
+};
+
 const openConversation = event => {
   if (!hasConversation.value) return;
 
@@ -125,12 +129,37 @@ const openConversation = event => {
 
 <template>
   <article
-    class="card-drag-handle cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-2"
+    class="card-drag-handle group relative cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-2"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     :title="cardTitle"
-    @click="openDetails"
+    @click="openConversation"
   >
+    <div
+      class="absolute right-1.5 top-1.5 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      data-testid="kanban-card-hover-actions"
+    >
+      <button
+        type="button"
+        data-testid="kanban-card-edit"
+        class="no-drag flex size-6 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-slate-12"
+        :title="t('KANBAN.CARD.EDIT')"
+        :aria-label="t('KANBAN.CARD.EDIT')"
+        @click.stop="openDetails"
+      >
+        <i class="i-lucide-pencil size-3.5" />
+      </button>
+      <button
+        type="button"
+        data-testid="kanban-card-delete"
+        class="no-drag flex size-6 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-ruby-11"
+        :title="t('KANBAN.CARD.DELETE')"
+        :aria-label="t('KANBAN.CARD.DELETE')"
+        @click.stop="removeCard"
+      >
+        <i class="i-lucide-trash-2 size-3.5" />
+      </button>
+    </div>
     <div class="space-y-1 text-left">
       <h4
         class="truncate text-sm font-medium leading-5 text-n-slate-12"

@@ -196,6 +196,8 @@
       "UNKNOWN_STATUS": "Unknown",
       "UNKNOWN_LAST_ACTIVITY": "No activity",
       "UNASSIGNED": "Unassigned",
+      "EDIT": "Edit card",
+      "DELETE": "Delete card",
       "CONVERSATION_ID": "#{id}",
       "OPEN_CONVERSATION": "Open conversation with {contactName}",
       "INBOX": "Inbox: {inbox}",

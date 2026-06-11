@@ -7,6 +7,8 @@ vi.mock('vue-i18n', () => ({
       const translations = {
         'KANBAN.CARD.CONVERSATION_ID': `#${values.id}`,
         'KANBAN.CARD.NO_LINKED_CONVERSATION': 'No linked conversation',
+        'KANBAN.CARD.EDIT': 'Edit card',
+        'KANBAN.CARD.DELETE': 'Delete card',
       };
 
       return translations[key] || key;
@@ -178,14 +180,24 @@ describe('KanbanConversationCard', () => {
     );
   });
 
-  it('emits openDetails when the card surface is clicked', async () => {
+  it('emits openConversation when the card surface is clicked', async () => {
     const card = buildCard();
     const wrapper = mountCard({ card });
 
     await wrapper.find('article').trigger('click');
 
-    expect(wrapper.emitted('openDetails')).toHaveLength(1);
-    expect(wrapper.emitted('openDetails')[0][0]).toEqual(card);
+    expect(wrapper.emitted('openConversation')).toHaveLength(1);
+    expect(wrapper.emitted('openConversation')[0][0]).toEqual(card);
+    expect(wrapper.emitted('openDetails')).toBeUndefined();
+  });
+
+  it('does not emit openConversation when card surface has no conversation', async () => {
+    const wrapper = mountCard({ card: buildManualCard() });
+
+    await wrapper.find('article').trigger('click');
+
+    expect(wrapper.emitted('openConversation')).toBeUndefined();
+    expect(wrapper.emitted('openDetails')).toBeUndefined();
   });
 
   it('emits openConversation when contact avatar is clicked', async () => {
@@ -220,14 +232,46 @@ describe('KanbanConversationCard', () => {
     );
   });
 
-  it('emits openDetails even when conversationId is null', async () => {
-    const card = buildManualCard();
+  it('renders hover actions for edit and delete', () => {
+    const wrapper = mountCard();
+    const actions = wrapper.find('[data-testid="kanban-card-hover-actions"]');
+    const editButton = wrapper.find('[data-testid="kanban-card-edit"]');
+    const deleteButton = wrapper.find('[data-testid="kanban-card-delete"]');
+
+    expect(actions.exists()).toBe(true);
+    expect(actions.classes()).toEqual(
+      expect.arrayContaining([
+        'opacity-0',
+        'group-hover:opacity-100',
+        'group-focus-within:opacity-100',
+      ])
+    );
+    expect(editButton.attributes('title')).toBe('Edit card');
+    expect(editButton.attributes('aria-label')).toBe('Edit card');
+    expect(deleteButton.attributes('title')).toBe('Delete card');
+    expect(deleteButton.attributes('aria-label')).toBe('Delete card');
+  });
+
+  it('emits openDetails when edit action is clicked', async () => {
+    const card = buildCard();
     const wrapper = mountCard({ card });
 
-    await wrapper.find('article').trigger('click');
+    await wrapper.find('[data-testid="kanban-card-edit"]').trigger('click');
 
     expect(wrapper.emitted('openDetails')).toHaveLength(1);
     expect(wrapper.emitted('openDetails')[0][0]).toEqual(card);
+    expect(wrapper.emitted('openConversation')).toBeUndefined();
+  });
+
+  it('emits removeCard when delete action is clicked', async () => {
+    const card = buildCard();
+    const wrapper = mountCard({ card });
+
+    await wrapper.find('[data-testid="kanban-card-delete"]').trigger('click');
+
+    expect(wrapper.emitted('removeCard')).toHaveLength(1);
+    expect(wrapper.emitted('removeCard')[0][0]).toEqual(card);
+    expect(wrapper.emitted('openConversation')).toBeUndefined();
   });
 
   it('does not emit openConversation when manual card avatar is clicked', async () => {

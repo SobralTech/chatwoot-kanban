@@ -1320,7 +1320,7 @@ describe('KanbanView drag and drop', () => {
     expect(cardDraggable.props('preventOnFilter')).toBe(false);
   });
 
-  it('blocks click navigation immediately after card drag', async () => {
+  it('blocks conversation navigation immediately after card drag', async () => {
     const wrapper = await mountView();
     const cardDraggable = findCardDraggables(wrapper)[0];
     const cardComponent = wrapper.findComponent({
@@ -1329,7 +1329,7 @@ describe('KanbanView drag and drop', () => {
 
     cardDraggable.vm.$emit('start');
     cardDraggable.vm.$emit('end');
-    cardComponent.vm.$emit('openDetails', { conversationId: 123 }, {});
+    cardComponent.vm.$emit('openConversation', { conversationId: 123 }, {});
     await flushPromises();
 
     expect(mockPush).not.toHaveBeenCalled();
