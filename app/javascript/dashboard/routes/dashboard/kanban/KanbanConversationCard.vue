@@ -98,7 +98,7 @@ const openConversation = event => {
 
 <template>
   <article
-    class="card-drag-handle group relative cursor-grab rounded-lg border border-n-weak bg-n-surface-1 px-3 py-2"
+    class="card-drag-handle group relative cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-2"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openDetails"
@@ -118,13 +118,13 @@ const openConversation = event => {
     <div class="min-w-0 pe-8 text-left">
       <p
         v-if="subject"
-        class="truncate text-sm font-medium leading-5 text-n-slate-12"
+        class="truncate text-sm font-medium leading-4 text-n-slate-12"
         :title="subject"
       >
         {{ subject }}
       </p>
 
-      <div class="mt-1.5 flex items-center gap-2">
+      <div class="mt-1 flex items-center gap-1.5">
         <button
           type="button"
           data-testid="kanban-card-contact-avatar"
@@ -135,18 +135,20 @@ const openConversation = event => {
           <Avatar
             :name="contactName"
             :src="contactThumbnail"
-            :size="36"
+            :size="28"
             rounded-full
           />
           <span
             v-if="inbox"
-            class="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full border border-n-surface-1 bg-n-surface-1"
+            class="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full border border-n-surface-1 bg-n-surface-1"
           >
-            <ChannelIcon :inbox="inbox" class="size-3 text-n-slate-11" />
+            <ChannelIcon :inbox="inbox" class="size-2.5 text-n-slate-11" />
           </span>
         </button>
 
-        <h4 class="min-w-0 flex-1 truncate text-sm font-medium text-n-slate-12">
+        <h4
+          class="min-w-0 flex-1 truncate text-xs font-medium leading-4 text-n-slate-12"
+        >
           {{ contactName }}
         </h4>
 
@@ -154,14 +156,14 @@ const openConversation = event => {
           v-if="assigneeName"
           :name="assigneeName"
           :src="assigneeThumbnail"
-          :size="24"
+          :size="18"
           rounded-full
         />
       </div>
 
-      <div class="mt-1.5 flex min-w-0">
+      <div class="mt-1 flex min-w-0">
         <div
-          class="inline-flex max-w-full rounded-full bg-n-alpha-2 px-2 py-0.5"
+          class="inline-flex max-w-full items-center rounded-md bg-n-alpha-2 px-1.5 py-0.5 text-xs leading-4"
         >
           <InboxName
             :inbox="{ ...inbox, name: inboxName }"
@@ -174,16 +176,16 @@ const openConversation = event => {
       <div
         v-if="hasSupportedPriority || stageTime || dueAtLabel"
         data-testid="kanban-card-meta"
-        class="mt-1.5 flex items-center justify-between gap-2 text-xs text-n-slate-10"
+        class="mt-1 flex items-center justify-between gap-1.5 text-xs leading-4 text-n-slate-10"
       >
         <CardPriorityIcon
           v-if="hasSupportedPriority"
           :priority="priority"
-          class="flex-shrink-0"
+          class="flex-shrink-0 !size-3.5"
         />
         <span v-else />
 
-        <div class="flex min-w-0 items-center justify-end gap-2">
+        <div class="flex min-w-0 items-center justify-end gap-1.5">
           <span
             v-if="stageTime"
             class="truncate"
