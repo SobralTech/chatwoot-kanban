@@ -3,7 +3,6 @@ import { createStore } from 'vuex';
 import { ref } from 'vue';
 
 import ConversationHeader from '../ConversationHeader.vue';
-import { copyTextToClipboard } from 'shared/helpers/clipboard';
 
 vi.mock('vue-router', async importOriginal => {
   const actual = await importOriginal();
@@ -23,10 +22,6 @@ vi.mock('@vueuse/core', () => ({
   }),
 }));
 
-vi.mock('shared/helpers/clipboard', () => ({
-  copyTextToClipboard: vi.fn(),
-}));
-
 describe('ConversationHeader', () => {
   let chat;
   let contact;
@@ -34,9 +29,15 @@ describe('ConversationHeader', () => {
   let store;
   let updateUISettings;
   let wrapper;
+  let callButtonClick;
+  let resolveButtonClick;
+  let menuButtonClick;
 
   const createWrapper = () => {
     updateUISettings = vi.fn();
+    callButtonClick = vi.fn();
+    resolveButtonClick = vi.fn();
+    menuButtonClick = vi.fn();
 
     store = createStore({
       getters: {
@@ -79,9 +80,18 @@ describe('ConversationHeader', () => {
             name: 'BackButton',
             template: '<a data-testid="back-button" />',
           },
+          Avatar: {
+            name: 'Avatar',
+            props: ['name', 'src', 'size', 'status'],
+            template: '<span data-testid="contact-avatar" />',
+          },
           ConversationCallButton: {
             name: 'ConversationCallButton',
-            template: '<button data-testid="conversation-call-button" />',
+            template:
+              '<button data-testid="conversation-call-button" @click="onClick" />',
+            methods: {
+              onClick: callButtonClick,
+            },
           },
           FluentIcon: {
             name: 'FluentIcon',
@@ -93,7 +103,16 @@ describe('ConversationHeader', () => {
           },
           MoreActions: {
             name: 'MoreActions',
-            template: '<button data-testid="more-actions-button" />',
+            template: `
+              <div>
+                <button data-testid="resolve-action-button" @click="onResolve" />
+                <button data-testid="more-actions-button" @click="onMenu" />
+              </div>
+            `,
+            methods: {
+              onResolve: resolveButtonClick,
+              onMenu: menuButtonClick,
+            },
           },
           SLACardLabel: {
             name: 'SLACardLabel',
@@ -135,68 +154,99 @@ describe('ConversationHeader', () => {
       id: 7,
       channel_type: 'Channel::Email',
     };
-    copyTextToClipboard.mockResolvedValue();
   });
 
   afterEach(() => {
     wrapper?.unmount();
   });
 
-  it('does not render the contact avatar in the conversation header', () => {
+  it('renders the contact avatar in the conversation header', () => {
     createWrapper();
 
-    expect(wrapper.findComponent({ name: 'Avatar' }).exists()).toBe(false);
-    expect(wrapper.html()).not.toContain('avatar.png');
+    const avatar = wrapper.getComponent({ name: 'Avatar' });
+
+    expect(avatar.props()).toEqual({
+      name: 'Ada Lovelace',
+      src: 'https://example.com/avatar.png',
+      size: 32,
+      status: 'online',
+    });
   });
 
-  it('does not keep avatar spacing around the contact name', () => {
+  it('keeps avatar spacing around the contact name', () => {
     createWrapper();
 
-    const contactArea = wrapper.get(
-      '[data-testid="conversation-header-contact"]'
-    );
+    const contactText = wrapper
+      .get('[data-testid="conversation-header-contact-name"]')
+      .element.closest('.ml-2');
 
-    expect(contactArea.classes()).not.toContain('ml-2');
-    expect(contactArea.classes()).not.toContain('rtl:mr-2');
+    expect(contactText).not.toBeNull();
   });
 
-  it('opens contact details when the contact name is clicked', async () => {
+  it('opens contact details when the main contact header area is clicked', async () => {
+    createWrapper();
+
+    await wrapper
+      .get('[data-testid="conversation-header-contact"]')
+      .trigger('click');
+
+    expectContactSidebarToOpen();
+  });
+
+  it('opens contact details when contact header children are clicked', async () => {
     createWrapper();
 
     await wrapper
       .get('[data-testid="conversation-header-contact-name"]')
       .trigger('click');
+    await wrapper
+      .get('[data-testid="conversation-header-conversation-id"]')
+      .trigger('click');
+    await wrapper.get('[data-testid="contact-avatar"]').trigger('click');
 
+    expect(updateUISettings).toHaveBeenCalledTimes(3);
     expectContactSidebarToOpen();
   });
 
-  it('opens contact details from the contact name with Enter and Space', async () => {
+  it('opens contact details from the main contact header area with Enter and Space', async () => {
     createWrapper();
-    const contactNameButton = wrapper.get(
-      '[data-testid="conversation-header-contact-name"]'
+    const contactHeaderArea = wrapper.get(
+      '[data-testid="conversation-header-contact"]'
     );
 
-    await contactNameButton.trigger('keydown.enter');
-    await contactNameButton.trigger('keydown.space');
+    await contactHeaderArea.trigger('keydown.enter');
+    await contactHeaderArea.trigger('keydown.space');
 
     expect(updateUISettings).toHaveBeenCalledTimes(2);
     expectContactSidebarToOpen();
   });
 
-  it('keeps the remaining header actions available', async () => {
+  it('does not open contact details when the resolve action is clicked', async () => {
     createWrapper();
 
-    expect(
-      wrapper.get('[data-testid="conversation-call-button"]').exists()
-    ).toBe(true);
-    expect(wrapper.get('[data-testid="more-actions-button"]').exists()).toBe(
-      true
-    );
+    await wrapper.get('[data-testid="resolve-action-button"]').trigger('click');
+
+    expect(resolveButtonClick).toHaveBeenCalled();
+    expect(updateUISettings).not.toHaveBeenCalled();
+  });
+
+  it('does not open contact details when the actions menu is clicked', async () => {
+    createWrapper();
+
+    await wrapper.get('[data-testid="more-actions-button"]').trigger('click');
+
+    expect(menuButtonClick).toHaveBeenCalled();
+    expect(updateUISettings).not.toHaveBeenCalled();
+  });
+
+  it('keeps the remaining header actions available without opening contact details', async () => {
+    createWrapper();
 
     await wrapper
-      .get('[data-testid="conversation-header-conversation-id"]')
+      .get('[data-testid="conversation-call-button"]')
       .trigger('click');
 
-    expect(copyTextToClipboard).toHaveBeenCalledWith('42');
+    expect(callButtonClick).toHaveBeenCalled();
+    expect(updateUISettings).not.toHaveBeenCalled();
   });
 });
