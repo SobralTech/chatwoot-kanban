@@ -58,6 +58,7 @@ const showRemoveCardConfirmation = ref(false);
 const showRemoveStageConfirmation = ref(false);
 const isCardDragging = ref(false);
 const hasCardDragChanged = ref(false);
+const activeCardDropStageId = ref(null);
 const suppressNextCardClick = ref(false);
 const isPersistingCardDrag = ref(false);
 const defaultStageColor = DEFAULT_KANBAN_STAGE_COLOR;
@@ -581,6 +582,12 @@ const onStageDragEnd = async event => {
 const onCardDragStart = () => {
   isCardDragging.value = true;
   hasCardDragChanged.value = false;
+  activeCardDropStageId.value = null;
+};
+
+const onCardDragMove = event => {
+  activeCardDropStageId.value = Number(event?.to?.dataset?.stageId) || null;
+  return true;
 };
 
 const onCardDragChange = async (stage, event) => {
@@ -641,7 +648,13 @@ const onCardDragEnd = () => {
 
   isCardDragging.value = false;
   hasCardDragChanged.value = false;
+  activeCardDropStageId.value = null;
 };
+
+const getCardDropZoneClass = stageId =>
+  isCardDragging.value && activeCardDropStageId.value === stageId
+    ? 'bg-n-alpha-2 ring-1 ring-n-brand'
+    : '';
 
 const openRemoveCardConfirmation = card => {
   cardPendingRemoval.value = card;
@@ -1183,7 +1196,9 @@ onUnmounted(() => {
                 <Draggable
                   :list="stage.cards"
                   item-key="id"
-                  class="flex min-h-48 flex-1 flex-col gap-2 rounded-md"
+                  :data-stage-id="stage.id"
+                  class="flex min-h-48 flex-1 flex-col gap-2 rounded-md transition-colors"
+                  :class="getCardDropZoneClass(stage.id)"
                   :group="{ name: 'kanban-cards' }"
                   handle=".card-drag-handle"
                   :filter="cardDragFilter"
@@ -1193,9 +1208,12 @@ onUnmounted(() => {
                   fallback-on-body
                   force-fallback
                   :disabled="isCardDragDisabled"
-                  ghost-class="opacity-60"
-                  chosen-class="opacity-90"
+                  ghost-class="opacity-0"
+                  chosen-class="opacity-0 cursor-grabbing"
+                  drag-class="rotate-2 cursor-grabbing shadow-lg ring-2 ring-n-brand opacity-95"
+                  fallback-class="rotate-2 cursor-grabbing shadow-lg ring-2 ring-n-brand opacity-95"
                   :animation="180"
+                  :move="onCardDragMove"
                   @start="onCardDragStart"
                   @change="onCardDragChange(stage, $event)"
                   @end="onCardDragEnd"

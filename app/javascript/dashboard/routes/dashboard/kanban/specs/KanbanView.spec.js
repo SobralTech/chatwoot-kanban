@@ -301,6 +301,26 @@ const mountView = async (
               type: Boolean,
               default: false,
             },
+            ghostClass: {
+              type: String,
+              default: '',
+            },
+            chosenClass: {
+              type: String,
+              default: '',
+            },
+            dragClass: {
+              type: String,
+              default: '',
+            },
+            fallbackClass: {
+              type: String,
+              default: '',
+            },
+            move: {
+              type: Function,
+              default: undefined,
+            },
             disabled: {
               type: Boolean,
               default: false,
@@ -1068,6 +1088,55 @@ describe('KanbanView drag and drop', () => {
     });
   });
 
+  it('refreshes affected stages and clears drag state when card reorder fails', async () => {
+    KanbanBoardsAPI.reorderCardById.mockRejectedValueOnce(new Error('failed'));
+    KanbanBoardsAPI.getStageCards
+      .mockResolvedValueOnce({
+        data: {
+          cards: [buildCard({ id: 501, kanban_stage_id: 100 })],
+          pagination: buildPagination({ total_count: 1 }),
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          cards: [],
+          pagination: buildPagination({ total_count: 0 }),
+        },
+      });
+    const wrapper = await mountView();
+    const cardDraggables = findCardDraggables(wrapper);
+    const targetStageCardDraggable = cardDraggables.find(
+      draggable => draggable.props('list').length === 0
+    );
+
+    cardDraggables[0].vm.$emit('start');
+    cardDraggables[0].props('move')({
+      to: { dataset: { stageId: '200' } },
+    });
+    targetStageCardDraggable.vm.$emit('change', {
+      added: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 1,
+        },
+        newIndex: 0,
+      },
+    });
+    cardDraggables[0].vm.$emit('end');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
+      limit: 20,
+    });
+    expect(targetStageCardDraggable.classes()).not.toContain('bg-n-alpha-2');
+    expect(targetStageCardDraggable.classes()).not.toContain('ring-n-brand');
+  });
+
   it('makes the empty stage card list a configured drop zone', async () => {
     const wrapper = await mountView();
     const emptyStageDraggable = findCardDraggables(wrapper).find(
@@ -1083,6 +1152,57 @@ describe('KanbanView drag and drop', () => {
     expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
     expect(emptyStageDraggable.props('fallbackOnBody')).toBe(true);
     expect(emptyStageDraggable.props('forceFallback')).toBe(true);
+  });
+
+  it('configures Sortable card drag feedback classes', async () => {
+    const wrapper = await mountView();
+    const cardDraggable = findCardDraggables(wrapper)[0];
+
+    expect(cardDraggable.props('ghostClass')).toBe('opacity-0');
+    expect(cardDraggable.props('chosenClass')).toContain('opacity-0');
+    expect(cardDraggable.props('chosenClass')).toContain('cursor-grabbing');
+    expect(cardDraggable.props('dragClass')).toContain('rotate-2');
+    expect(cardDraggable.props('dragClass')).toContain('cursor-grabbing');
+    expect(cardDraggable.props('fallbackClass')).toContain('rotate-2');
+    expect(cardDraggable.props('fallbackClass')).toContain('shadow-lg');
+    expect(cardDraggable.props('move')).toEqual(expect.any(Function));
+  });
+
+  it('highlights the stage currently receiving a dragged card', async () => {
+    const wrapper = await mountView();
+    const cardDraggables = findCardDraggables(wrapper);
+    const targetStageDraggable = cardDraggables.find(
+      draggable => draggable.props('list').length === 0
+    );
+
+    cardDraggables[0].vm.$emit('start');
+    cardDraggables[0].props('move')({
+      to: { dataset: { stageId: '200' } },
+    });
+    await nextTick();
+
+    expect(targetStageDraggable.classes()).toContain('bg-n-alpha-2');
+    expect(targetStageDraggable.classes()).toContain('ring-n-brand');
+  });
+
+  it('clears card drag target highlight when drag ends', async () => {
+    const wrapper = await mountView();
+    const cardDraggables = findCardDraggables(wrapper);
+    const targetStageDraggable = cardDraggables.find(
+      draggable => draggable.props('list').length === 0
+    );
+
+    cardDraggables[0].vm.$emit('start');
+    cardDraggables[0].props('move')({
+      to: { dataset: { stageId: '200' } },
+    });
+    await nextTick();
+
+    cardDraggables[0].vm.$emit('end');
+    await nextTick();
+
+    expect(targetStageDraggable.classes()).not.toContain('bg-n-alpha-2');
+    expect(targetStageDraggable.classes()).not.toContain('ring-n-brand');
   });
 
   it('shows an add item action in each stage body', async () => {
