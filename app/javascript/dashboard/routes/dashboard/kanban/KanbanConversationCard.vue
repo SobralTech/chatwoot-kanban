@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
@@ -23,6 +23,9 @@ defineOptions({
 
 const { t } = useI18n();
 const store = useStore();
+const pointerStart = ref(null);
+const hasPointerMoved = ref(false);
+const dragClickThreshold = 5;
 
 const conversation = computed(() => props.card.conversation || {});
 const contact = computed(
@@ -120,7 +123,32 @@ const removeCard = event => {
   emit('removeCard', props.card, event);
 };
 
+const onCardPointerDown = event => {
+  pointerStart.value = {
+    x: event.clientX,
+    y: event.clientY,
+  };
+  hasPointerMoved.value = false;
+};
+
+const onCardPointerMove = event => {
+  if (!pointerStart.value || hasPointerMoved.value) return;
+
+  const deltaX = Math.abs(event.clientX - pointerStart.value.x);
+  const deltaY = Math.abs(event.clientY - pointerStart.value.y);
+  hasPointerMoved.value =
+    deltaX > dragClickThreshold || deltaY > dragClickThreshold;
+};
+
 const openConversation = event => {
+  if (hasPointerMoved.value) {
+    hasPointerMoved.value = false;
+    pointerStart.value = null;
+    return;
+  }
+
+  pointerStart.value = null;
+
   if (!hasConversation.value) return;
 
   emit('openConversation', props.card, event);
@@ -133,16 +161,18 @@ const openConversation = event => {
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     :title="cardTitle"
+    @pointerdown="onCardPointerDown"
+    @pointermove="onCardPointerMove"
     @click="openConversation"
   >
     <div
-      class="absolute right-1.5 top-1.5 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+      class="pointer-events-none absolute right-1.5 top-1.5 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
       data-testid="kanban-card-hover-actions"
     >
       <button
         type="button"
         data-testid="kanban-card-edit"
-        class="no-drag flex size-7 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-slate-12"
+        class="no-drag pointer-events-auto flex size-7 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-slate-12"
         :title="t('KANBAN.CARD.EDIT')"
         :aria-label="t('KANBAN.CARD.EDIT')"
         @click.stop="openDetails"
@@ -152,7 +182,7 @@ const openConversation = event => {
       <button
         type="button"
         data-testid="kanban-card-delete"
-        class="no-drag flex size-7 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-ruby-11"
+        class="no-drag pointer-events-auto flex size-7 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-ruby-11"
         :title="t('KANBAN.CARD.DELETE')"
         :aria-label="t('KANBAN.CARD.DELETE')"
         @click.stop="removeCard"
