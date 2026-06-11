@@ -2,9 +2,10 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
-import { dynamicTime } from 'shared/helpers/timeHelper';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import InboxName from 'dashboard/components/widgets/InboxName.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 
 const props = defineProps({
@@ -12,13 +13,13 @@ const props = defineProps({
     type: Object,
     required: true,
   },
-  activeActionKey: {
-    type: String,
-    default: '',
-  },
 });
 
-const emit = defineEmits(['openDetails', 'removeCard']);
+const emit = defineEmits(['openDetails']);
+
+defineOptions({
+  inheritAttrs: false,
+});
 
 const { t } = useI18n();
 const store = useStore();
@@ -37,37 +38,78 @@ const hasConversation = computed(() => !!props.card.conversationId);
 const contactName = computed(
   () => contact.value?.name || t('KANBAN.CARD.UNKNOWN_CONTACT')
 );
-const displayId = computed(() =>
-  t('KANBAN.CARD.CONVERSATION_ID', { id: props.card.conversationId })
+const subject = computed(() => props.card.subject || contactName.value);
+const contactAvatar = computed(
+  () =>
+    contact.value?.thumbnail ||
+    contact.value?.avatarUrl ||
+    contact.value?.avatar_url ||
+    ''
 );
-const status = computed(
-  () => conversation.value.status || t('KANBAN.CARD.UNKNOWN_STATUS')
+const priority = computed(
+  () => props.card.priority || conversation.value.priority || ''
 );
-const priority = computed(() => conversation.value.priority || '');
 const hasSupportedPriority = computed(() =>
   Object.values(CONVERSATION_PRIORITY).includes(priority.value)
 );
-const assigneeName = computed(
-  () => conversation.value?.meta?.assignee?.name || t('KANBAN.CARD.UNASSIGNED')
+const assignee = computed(
+  () => props.card.assignee || conversation.value?.meta?.assignee || null
 );
-const inboxName = computed(
-  () =>
+const hasAssignee = computed(() => !!assignee.value?.name);
+const assigneeAvatar = computed(
+  () => assignee.value?.avatarUrl || assignee.value?.avatar_url || ''
+);
+const normalizedInbox = computed(() => ({
+  ...(inbox.value || {}),
+  name:
     inbox.value?.name ||
     conversation.value?.meta?.channel ||
-    t('KANBAN.CARD.UNKNOWN_INBOX')
+    t('KANBAN.CARD.UNKNOWN_INBOX'),
+}));
+const stageEnteredAt = computed(
+  () => props.card.stageEnteredAt || props.card.stage_entered_at
 );
-const lastActivityAt = computed(() => conversation.value.lastActivityAt);
-const lastActivity = computed(() =>
-  lastActivityAt.value
-    ? dynamicTime(lastActivityAt.value)
-    : t('KANBAN.CARD.UNKNOWN_LAST_ACTIVITY')
-);
-const lastMessage = computed(
-  () =>
-    (!hasConversation.value && t('KANBAN.CARD.NO_LINKED_CONVERSATION')) ||
-    conversation.value?.messages?.[0]?.content ||
-    conversation.value?.lastNonActivityMessage?.content ||
-    t('KANBAN.CARD.NO_MESSAGES')
+const stageDuration = computed(() => {
+  if (!stageEnteredAt.value) return '';
+
+  const enteredAt = new Date(stageEnteredAt.value).getTime();
+  if (Number.isNaN(enteredAt)) return '';
+
+  const elapsedMinutes = Math.max(
+    Math.floor((Date.now() - enteredAt) / 60000),
+    0
+  );
+  if (elapsedMinutes < 60) return `${elapsedMinutes || 1}m`;
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `${elapsedHours}h`;
+
+  return `${Math.floor(elapsedHours / 24)}d`;
+});
+const dueAt = computed(() => props.card.dueAt || props.card.due_at);
+const dueDate = computed(() => {
+  if (!dueAt.value) return '';
+
+  const date = new Date(dueAt.value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+});
+const dueDateTitle = computed(() => {
+  if (!dueAt.value) return '';
+
+  const date = new Date(dueAt.value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toLocaleString();
+});
+const cardTitle = computed(() =>
+  hasConversation.value
+    ? t('KANBAN.CARD.CONVERSATION_ID', { id: props.card.conversationId })
+    : t('KANBAN.CARD.NO_LINKED_CONVERSATION')
 );
 
 const openDetails = event => {
@@ -77,76 +119,72 @@ const openDetails = event => {
 
 <template>
   <article
-    class="card-drag-handle cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-3"
+    class="card-drag-handle cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-2"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
+    :title="cardTitle"
     @click="openDetails"
   >
-    <div class="text-left">
-      <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <p
-            v-if="card.subject"
-            class="truncate text-sm font-medium text-n-slate-12"
-          >
-            {{ card.subject }}
-          </p>
-          <h4
-            class="min-w-0 truncate text-sm text-n-slate-12"
-            :class="{ 'font-medium': !card.subject }"
-          >
-            {{ contactName }}
-          </h4>
-        </div>
-        <div class="flex items-center gap-2">
-          <span
-            v-if="hasConversation"
-            class="flex-shrink-0 text-xs text-n-slate-10"
-          >
-            {{ displayId }}
-          </span>
-        </div>
+    <div class="space-y-1 text-left">
+      <h4
+        class="truncate text-sm font-medium leading-5 text-n-slate-12"
+        :title="subject"
+      >
+        {{ subject }}
+      </h4>
+
+      <div class="flex min-w-0 items-center gap-1.5">
+        <Avatar
+          :name="contactName"
+          :src="contactAvatar"
+          :size="20"
+          rounded-full
+        />
+        <span
+          class="min-w-0 flex-1 truncate text-xs leading-4 text-n-slate-11"
+          :title="contactName"
+        >
+          {{ contactName }}
+        </span>
+        <Avatar
+          v-if="hasAssignee"
+          :name="assignee.name"
+          :src="assigneeAvatar"
+          :size="18"
+          rounded-full
+          :title="assignee.name"
+        />
       </div>
 
-      <p class="mt-2 line-clamp-2 text-sm leading-5 text-n-slate-11">
-        {{ lastMessage }}
-      </p>
-    </div>
-
-    <div class="mt-3 grid gap-2 text-xs text-n-slate-11">
-      <div class="flex items-center justify-between gap-2">
-        <span class="min-w-0 truncate">
-          {{ t('KANBAN.CARD.INBOX', { inbox: inboxName }) }}
-        </span>
-        <span class="flex-shrink-0 rounded-md bg-n-alpha-2 px-2 py-1">
-          {{ status }}
-        </span>
+      <div
+        class="inline-flex max-w-full items-center rounded-md bg-n-alpha-2 px-1.5 py-0.5"
+      >
+        <InboxName :inbox="normalizedInbox" class="min-w-0" />
       </div>
-      <div class="flex items-center justify-between gap-2">
-        <span class="min-w-0 truncate">
-          {{ t('KANBAN.CARD.ASSIGNEE', { assignee: assigneeName }) }}
-        </span>
+
+      <div class="flex min-w-0 items-center gap-2 text-xs text-n-slate-10">
         <CardPriorityIcon
           v-if="hasSupportedPriority"
           :priority="priority"
-          class="flex-shrink-0"
+          class="flex-shrink-0 !size-3.5"
         />
+        <span class="flex-1" />
+        <span
+          v-if="stageDuration"
+          class="flex-shrink-0 tabular-nums"
+          :title="stageEnteredAt"
+        >
+          {{ stageDuration }}
+        </span>
+        <span
+          v-if="dueDate"
+          class="flex min-w-0 flex-shrink-0 items-center gap-1 truncate"
+          :title="dueDateTitle"
+        >
+          <i class="i-lucide-calendar size-3" />
+          {{ dueDate }}
+        </span>
       </div>
-      <span class="truncate text-n-slate-10">
-        {{ t('KANBAN.CARD.LAST_ACTIVITY', { time: lastActivity }) }}
-      </span>
-    </div>
-
-    <div class="mt-3 flex items-center justify-end">
-      <button
-        type="button"
-        class="no-drag flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
-        :disabled="!!activeActionKey"
-        @click.stop="emit('removeCard', card)"
-      >
-        <i class="i-lucide-trash size-4" />
-        {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
-      </button>
     </div>
   </article>
 </template>
