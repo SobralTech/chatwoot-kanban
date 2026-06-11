@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
@@ -23,9 +23,6 @@ defineOptions({
 
 const { t } = useI18n();
 const store = useStore();
-const pointerStart = ref(null);
-const hasPointerMoved = ref(false);
-const dragClickThreshold = 5;
 
 const conversation = computed(() => props.card.conversation || {});
 const contact = computed(
@@ -123,32 +120,7 @@ const removeCard = event => {
   emit('removeCard', props.card, event);
 };
 
-const onCardPointerDown = event => {
-  pointerStart.value = {
-    x: event.clientX,
-    y: event.clientY,
-  };
-  hasPointerMoved.value = false;
-};
-
-const onCardPointerMove = event => {
-  if (!pointerStart.value || hasPointerMoved.value) return;
-
-  const deltaX = Math.abs(event.clientX - pointerStart.value.x);
-  const deltaY = Math.abs(event.clientY - pointerStart.value.y);
-  hasPointerMoved.value =
-    deltaX > dragClickThreshold || deltaY > dragClickThreshold;
-};
-
 const openConversation = event => {
-  if (hasPointerMoved.value) {
-    hasPointerMoved.value = false;
-    pointerStart.value = null;
-    return;
-  }
-
-  pointerStart.value = null;
-
   if (!hasConversation.value) return;
 
   emit('openConversation', props.card, event);
@@ -157,12 +129,10 @@ const openConversation = event => {
 
 <template>
   <article
-    class="card-drag-handle group relative cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-2"
+    class="card-drag-handle group relative cursor-grab select-none rounded-lg border border-n-weak bg-n-surface-1 p-2"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     :title="cardTitle"
-    @pointerdown="onCardPointerDown"
-    @pointermove="onCardPointerMove"
     @click="openConversation"
   >
     <div

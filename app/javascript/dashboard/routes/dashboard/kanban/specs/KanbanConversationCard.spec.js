@@ -191,28 +191,14 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.emitted('openDetails')).toBeUndefined();
   });
 
-  it('does not emit openConversation when pointer movement turns the click into a drag', async () => {
+  it('keeps the root article as the Sortable card handle', () => {
     const wrapper = mountCard();
     const card = wrapper.find('article');
 
-    card.element.dispatchEvent(
-      new MouseEvent('pointerdown', {
-        bubbles: true,
-        clientX: 10,
-        clientY: 10,
-      })
+    expect(card.classes()).toEqual(
+      expect.arrayContaining(['card-drag-handle', 'cursor-grab', 'select-none'])
     );
-    card.element.dispatchEvent(
-      new MouseEvent('pointermove', {
-        bubbles: true,
-        clientX: 20,
-        clientY: 10,
-      })
-    );
-    await card.trigger('click');
-
-    expect(wrapper.emitted('openConversation')).toBeUndefined();
-    expect(wrapper.emitted('openDetails')).toBeUndefined();
+    expect(card.classes()).not.toContain('no-drag');
   });
 
   it('does not emit openConversation when card surface has no conversation', async () => {
@@ -271,8 +257,12 @@ describe('KanbanConversationCard', () => {
         'group-focus-within:opacity-100',
       ])
     );
-    expect(editButton.classes()).toContain('pointer-events-auto');
-    expect(deleteButton.classes()).toContain('pointer-events-auto');
+    expect(editButton.classes()).toEqual(
+      expect.arrayContaining(['pointer-events-auto', 'no-drag'])
+    );
+    expect(deleteButton.classes()).toEqual(
+      expect.arrayContaining(['pointer-events-auto', 'no-drag'])
+    );
     expect(editButton.attributes('title')).toBe('Edit card');
     expect(editButton.attributes('aria-label')).toBe('Edit card');
     expect(deleteButton.attributes('title')).toBe('Delete card');
