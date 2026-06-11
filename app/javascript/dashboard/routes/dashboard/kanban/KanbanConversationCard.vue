@@ -142,22 +142,22 @@ const openConversation = event => {
       <button
         type="button"
         data-testid="kanban-card-edit"
-        class="no-drag flex size-6 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-slate-12"
+        class="no-drag flex size-7 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-slate-12"
         :title="t('KANBAN.CARD.EDIT')"
         :aria-label="t('KANBAN.CARD.EDIT')"
         @click.stop="openDetails"
       >
-        <i class="i-lucide-pencil size-3.5" />
+        <i class="i-lucide-pencil size-4" />
       </button>
       <button
         type="button"
         data-testid="kanban-card-delete"
-        class="no-drag flex size-6 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-ruby-11"
+        class="no-drag flex size-7 items-center justify-center rounded-md bg-n-surface-1 text-n-slate-11 shadow-sm ring-1 ring-n-weak hover:bg-n-alpha-2 hover:text-n-ruby-11"
         :title="t('KANBAN.CARD.DELETE')"
         :aria-label="t('KANBAN.CARD.DELETE')"
         @click.stop="removeCard"
       >
-        <i class="i-lucide-trash-2 size-3.5" />
+        <i class="i-lucide-trash-2 size-4" />
       </button>
     </div>
     <div class="space-y-1 text-left">
