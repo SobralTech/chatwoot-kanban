@@ -33,7 +33,7 @@ const route = useRoute();
 const conversationHeader = ref(null);
 const { width } = useElementSize(conversationHeader);
 const { isAWebWidgetInbox } = useInbox();
-const { updateUISettings } = useUISettings();
+const { uiSettings, updateUISettings } = useUISettings();
 const headerSeparator = '\u2022';
 
 const currentChat = computed(() => store.getters.getSelectedChat);
@@ -96,11 +96,17 @@ const hasMultipleInboxes = computed(
 
 const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
 
-const openContactDetails = () => {
-  updateUISettings({
-    is_contact_sidebar_open: true,
-    is_copilot_panel_open: false,
-  });
+const toggleContactDetails = () => {
+  const shouldOpenContactDetails = !uiSettings.value.is_contact_sidebar_open;
+  const nextUISettings = {
+    is_contact_sidebar_open: shouldOpenContactDetails,
+  };
+
+  if (shouldOpenContactDetails) {
+    nextUISettings.is_copilot_panel_open = false;
+  }
+
+  updateUISettings(nextUISettings);
 };
 </script>
 
@@ -123,9 +129,9 @@ const openContactDetails = () => {
         class="flex items-center flex-1 min-w-0 overflow-hidden rounded-md cursor-pointer group focus:outline-none focus-visible:ring-1 focus-visible:ring-n-brand"
         :aria-label="$t('CONVERSATION_SIDEBAR.ACCORDION.CONTACT_DETAILS')"
         data-testid="conversation-header-contact"
-        @click="openContactDetails"
-        @keydown.enter.prevent="openContactDetails"
-        @keydown.space.prevent="openContactDetails"
+        @click="toggleContactDetails"
+        @keydown.enter.prevent="toggleContactDetails"
+        @keydown.space.prevent="toggleContactDetails"
       >
         <Avatar
           :name="currentContact.name"

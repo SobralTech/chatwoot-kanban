@@ -28,25 +28,35 @@ describe('ConversationHeader', () => {
   let inbox;
   let store;
   let updateUISettings;
+  let uiSettings;
   let wrapper;
   let callButtonClick;
   let resolveButtonClick;
   let menuButtonClick;
 
-  const createWrapper = () => {
-    updateUISettings = vi.fn();
+  const createWrapper = ({
+    isContactSidebarOpen = false,
+    isCopilotPanelOpen = true,
+  } = {}) => {
+    uiSettings = {
+      is_contact_sidebar_open: isContactSidebarOpen,
+      is_copilot_panel_open: isCopilotPanelOpen,
+    };
+    updateUISettings = vi.fn(({ state }, { uiSettings: nextUISettings }) => {
+      state.uiSettings = nextUISettings;
+    });
     callButtonClick = vi.fn();
     resolveButtonClick = vi.fn();
     menuButtonClick = vi.fn();
 
     store = createStore({
+      state: {
+        uiSettings,
+      },
       getters: {
         getSelectedChat: () => chat,
         getCurrentAccountId: () => 1,
-        getUISettings: () => ({
-          is_contact_sidebar_open: false,
-          is_copilot_panel_open: true,
-        }),
+        getUISettings: state => state.uiSettings,
       },
       actions: {
         updateUISettings,
@@ -125,13 +135,39 @@ describe('ConversationHeader', () => {
     return wrapper;
   };
 
-  const expectContactSidebarToOpen = () => {
+  const expectContactSidebarToOpen = callIndex => {
     expect(updateUISettings).toHaveBeenCalledWith(expect.any(Object), {
       uiSettings: {
         is_contact_sidebar_open: true,
         is_copilot_panel_open: false,
       },
     });
+
+    if (callIndex) {
+      expect(updateUISettings).toHaveBeenNthCalledWith(
+        callIndex,
+        expect.any(Object),
+        {
+          uiSettings: {
+            is_contact_sidebar_open: true,
+            is_copilot_panel_open: false,
+          },
+        }
+      );
+    }
+  };
+
+  const expectContactSidebarToClose = callIndex => {
+    expect(updateUISettings).toHaveBeenNthCalledWith(
+      callIndex,
+      expect.any(Object),
+      {
+        uiSettings: {
+          is_contact_sidebar_open: false,
+          is_copilot_panel_open: false,
+        },
+      }
+    );
   };
 
   beforeEach(() => {
@@ -183,17 +219,30 @@ describe('ConversationHeader', () => {
     expect(contactText).not.toBeNull();
   });
 
-  it('opens contact details when the main contact header area is clicked', async () => {
+  it('opens contact details when the closed panel header area is clicked', async () => {
     createWrapper();
 
     await wrapper
       .get('[data-testid="conversation-header-contact"]')
       .trigger('click');
 
-    expectContactSidebarToOpen();
+    expectContactSidebarToOpen(1);
   });
 
-  it('opens contact details when contact header children are clicked', async () => {
+  it('closes contact details when the open panel header area is clicked again', async () => {
+    createWrapper();
+    const contactHeaderArea = wrapper.get(
+      '[data-testid="conversation-header-contact"]'
+    );
+
+    await contactHeaderArea.trigger('click');
+    await contactHeaderArea.trigger('click');
+
+    expectContactSidebarToOpen(1);
+    expectContactSidebarToClose(2);
+  });
+
+  it('toggles contact details when contact header children are clicked', async () => {
     createWrapper();
 
     await wrapper
@@ -205,23 +254,38 @@ describe('ConversationHeader', () => {
     await wrapper.get('[data-testid="contact-avatar"]').trigger('click');
 
     expect(updateUISettings).toHaveBeenCalledTimes(3);
-    expectContactSidebarToOpen();
+    expectContactSidebarToOpen(1);
+    expectContactSidebarToClose(2);
+    expectContactSidebarToOpen(3);
   });
 
-  it('opens contact details from the main contact header area with Enter and Space', async () => {
+  it('toggles contact details from the main contact header area with Enter', async () => {
     createWrapper();
     const contactHeaderArea = wrapper.get(
       '[data-testid="conversation-header-contact"]'
     );
 
     await contactHeaderArea.trigger('keydown.enter');
-    await contactHeaderArea.trigger('keydown.space');
+    await contactHeaderArea.trigger('keydown.enter');
 
-    expect(updateUISettings).toHaveBeenCalledTimes(2);
-    expectContactSidebarToOpen();
+    expectContactSidebarToOpen(1);
+    expectContactSidebarToClose(2);
   });
 
-  it('does not open contact details when the resolve action is clicked', async () => {
+  it('toggles contact details from the main contact header area with Space', async () => {
+    createWrapper();
+    const contactHeaderArea = wrapper.get(
+      '[data-testid="conversation-header-contact"]'
+    );
+
+    await contactHeaderArea.trigger('keydown.space');
+    await contactHeaderArea.trigger('keydown.space');
+
+    expectContactSidebarToOpen(1);
+    expectContactSidebarToClose(2);
+  });
+
+  it('does not toggle contact details when the resolve action is clicked', async () => {
     createWrapper();
 
     await wrapper.get('[data-testid="resolve-action-button"]').trigger('click');
@@ -230,7 +294,7 @@ describe('ConversationHeader', () => {
     expect(updateUISettings).not.toHaveBeenCalled();
   });
 
-  it('does not open contact details when the actions menu is clicked', async () => {
+  it('does not toggle contact details when the actions menu is clicked', async () => {
     createWrapper();
 
     await wrapper.get('[data-testid="more-actions-button"]').trigger('click');
