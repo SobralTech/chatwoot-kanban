@@ -124,6 +124,11 @@ describe('ConversationHeader', () => {
               onMenu: menuButtonClick,
             },
           },
+          NextButton: {
+            name: 'NextButton',
+            template:
+              '<button data-testid="conversation-header-search-button" />',
+          },
           SLACardLabel: {
             name: 'SLACardLabel',
             template: '<span data-testid="sla-card-label" />',
@@ -291,6 +296,30 @@ describe('ConversationHeader', () => {
     await wrapper.get('[data-testid="resolve-action-button"]').trigger('click');
 
     expect(resolveButtonClick).toHaveBeenCalled();
+    expect(updateUISettings).not.toHaveBeenCalled();
+  });
+
+  it('renders a search action in the conversation header', () => {
+    createWrapper();
+
+    const searchButton = wrapper.get(
+      '[data-testid="conversation-header-search-button"]'
+    );
+
+    expect(searchButton.attributes('title')).toBe('Search in conversation');
+    expect(searchButton.attributes('aria-label')).toBe(
+      'Search in conversation'
+    );
+  });
+
+  it('emits search action without toggling contact details', async () => {
+    createWrapper();
+
+    await wrapper
+      .get('[data-testid="conversation-header-search-button"]')
+      .trigger('click');
+
+    expect(wrapper.emitted('openConversationSearch')).toHaveLength(1);
     expect(updateUISettings).not.toHaveBeenCalled();
   });
 

@@ -436,6 +436,7 @@ export default {
       :class="{
         'border-b border-b-n-weak !pt-2': !dashboardApps.length,
       }"
+      @open-conversation-search="openConversationSearch"
     />
     <woot-tabs
       v-if="dashboardApps.length && currentChat.id"

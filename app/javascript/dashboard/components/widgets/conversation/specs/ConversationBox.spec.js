@@ -116,6 +116,17 @@ describe('ConversationBox', () => {
     expect(wrapper.vm.isConversationSearchOpen).toBe(true);
   });
 
+  it('opens search from the conversation header action', async () => {
+    createWrapper();
+
+    wrapper
+      .findComponent({ name: 'ConversationHeader' })
+      .vm.$emit('openConversationSearch');
+    await nextTick();
+
+    expect(wrapper.vm.isConversationSearchOpen).toBe(true);
+  });
+
   it('does not hijack shortcut without a selected conversation', async () => {
     currentChat = {};
     createWrapper();

@@ -9,6 +9,7 @@ import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
 import ConversationCallButton from './ConversationCallButton.vue';
+import NextButton from 'dashboard/components-next/button/Button.vue';
 import wootConstants from 'dashboard/constants/globals';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { snoozedReopenTime } from 'dashboard/helper/snoozeHelpers';
@@ -26,6 +27,7 @@ const props = defineProps({
     default: false,
   },
 });
+const emit = defineEmits(['openConversationSearch']);
 
 const { t } = useI18n();
 const store = useStore();
@@ -192,6 +194,17 @@ const toggleContactDetails = () => {
         class="hidden md:flex"
       />
       <ConversationCallButton :inbox="inbox" :chat="currentChat" />
+      <NextButton
+        v-tooltip="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
+        sm
+        ghost
+        slate
+        icon="i-lucide-search"
+        :title="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
+        :aria-label="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
+        data-testid="conversation-header-search-button"
+        @click.stop="emit('openConversationSearch')"
+      />
       <MoreActions :conversation-id="currentChat.id" />
     </div>
   </div>
