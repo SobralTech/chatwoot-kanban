@@ -305,22 +305,6 @@ const mountView = async (
               type: Boolean,
               default: false,
             },
-            ghostClass: {
-              type: String,
-              default: '',
-            },
-            chosenClass: {
-              type: String,
-              default: '',
-            },
-            dragClass: {
-              type: String,
-              default: '',
-            },
-            fallbackClass: {
-              type: String,
-              default: '',
-            },
           },
           computed: {
             draggableItems() {
@@ -1099,15 +1083,6 @@ describe('KanbanView drag and drop', () => {
     expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
     expect(emptyStageDraggable.props('fallbackOnBody')).toBe(true);
     expect(emptyStageDraggable.props('forceFallback')).toBe(true);
-    expect(emptyStageDraggable.props('ghostClass')).toBe('opacity-30');
-    expect(emptyStageDraggable.props('chosenClass')).toBe('cursor-grabbing');
-    expect(emptyStageDraggable.props('dragClass')).toBe(
-      'rotate-1 cursor-grabbing shadow-lg ring-1 ring-n-brand/30'
-    );
-    expect(emptyStageDraggable.props('fallbackClass')).toBe(
-      'rotate-1 cursor-grabbing shadow-lg ring-1 ring-n-brand/30'
-    );
-    expect(emptyStageDraggable.props('chosenClass')).not.toContain('opacity-0');
   });
 
   it('shows an add item action in each stage body', async () => {
