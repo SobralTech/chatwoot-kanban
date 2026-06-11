@@ -1417,6 +1417,36 @@ describe('KanbanView drag and drop', () => {
     expect(modal.exists()).toBe(true);
   });
 
+  it('navigates to conversation on card openConversation event', async () => {
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit(
+      'openConversation',
+      { id: 501, conversationId: 123 },
+      {}
+    );
+    await flushPromises();
+
+    expect(mockPush).toHaveBeenCalledWith({
+      path: '/app/accounts/1/conversations/123',
+    });
+  });
+
+  it('does not navigate from card openConversation event without conversationId', async () => {
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openConversation', { id: 501 }, {});
+    await flushPromises();
+
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
   it('passes boardId and cardId to opportunity modal', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({

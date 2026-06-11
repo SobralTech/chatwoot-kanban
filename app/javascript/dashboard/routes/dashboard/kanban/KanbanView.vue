@@ -739,6 +739,8 @@ const removeStageMessageValue = computed(
 );
 
 const openConversation = (card, event = {}) => {
+  if (!card?.conversationId) return;
+
   if (suppressNextCardClick.value) {
     suppressNextCardClick.value = false;
     return;
@@ -1209,6 +1211,7 @@ onUnmounted(() => {
                       :card="card"
                       :active-action-key="activeActionKey"
                       @open-details="openDetails"
+                      @open-conversation="openConversation"
                       @remove-card="openRemoveCardConfirmation"
                     />
                   </template>

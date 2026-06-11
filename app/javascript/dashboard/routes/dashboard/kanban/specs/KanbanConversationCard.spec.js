@@ -81,11 +81,10 @@ const mountCard = ({ card = buildCard(), activeActionKey = '' } = {}) =>
           props: ['name', 'src', 'size'],
           template: '<span class="avatar-stub" :title="name">{{ name }}</span>',
         },
-        InboxName: {
-          name: 'InboxName',
+        ChannelIcon: {
+          name: 'ChannelIcon',
           props: ['inbox'],
-          template:
-            '<span class="inbox-pill-stub" :title="inbox.name">{{ inbox.name }}</span>',
+          template: '<span class="channel-icon-stub" :title="inbox.name" />',
         },
       },
     },
@@ -118,6 +117,9 @@ describe('KanbanConversationCard', () => {
 
     expect(priorityIcon.exists()).toBe(true);
     expect(priorityIcon.props('priority')).toBe('high');
+    expect(wrapper.find('[data-testid="priority-indicator"]').exists()).toBe(
+      true
+    );
   });
 
   it.each(['urgent', 'high', 'medium', 'low'])(
@@ -155,6 +157,9 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.findComponent({ name: 'CardPriorityIcon' }).exists()).toBe(
       false
     );
+    expect(wrapper.find('[data-testid="priority-indicator"]').exists()).toBe(
+      false
+    );
   });
 
   it('does not render the priority indicator for unexpected priority values', () => {
@@ -181,6 +186,17 @@ describe('KanbanConversationCard', () => {
 
     expect(wrapper.emitted('openDetails')).toHaveLength(1);
     expect(wrapper.emitted('openDetails')[0][0]).toEqual(card);
+  });
+
+  it('emits openConversation when contact avatar is clicked', async () => {
+    const card = buildCard();
+    const wrapper = mountCard({ card });
+
+    await wrapper.find('[data-testid="contact-avatar"]').trigger('click');
+
+    expect(wrapper.emitted('openConversation')).toHaveLength(1);
+    expect(wrapper.emitted('openConversation')[0][0]).toEqual(card);
+    expect(wrapper.emitted('openDetails')).toBeUndefined();
   });
 
   it('renders subject above contact name when subject is present', () => {
@@ -214,6 +230,18 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.emitted('openDetails')[0][0]).toEqual(card);
   });
 
+  it('does not emit openConversation when manual card avatar is clicked', async () => {
+    const wrapper = mountCard({ card: buildManualCard() });
+
+    await wrapper.find('[data-testid="contact-avatar"]').trigger('click');
+
+    expect(wrapper.emitted('openConversation')).toBeUndefined();
+    expect(wrapper.emitted('openDetails')).toBeUndefined();
+    expect(wrapper.find('[data-testid="contact-avatar"]').classes()).toContain(
+      'cursor-default'
+    );
+  });
+
   it('does not render inline Contact Notes UI', () => {
     const wrapper = mountCard();
 
@@ -230,7 +258,7 @@ describe('KanbanConversationCard', () => {
     expect(avatars[0].props()).toMatchObject({
       name: 'Jane Doe',
       src: 'https://example.com/jane.png',
-      size: 20,
+      size: 28,
     });
     expect(avatars[1].props()).toMatchObject({
       name: 'Agent Smith',
@@ -256,9 +284,28 @@ describe('KanbanConversationCard', () => {
 
   it('renders inbox as a compact pill', () => {
     const wrapper = mountCard();
+    const pill = wrapper.find('[data-testid="inbox-pill"]');
 
-    expect(wrapper.find('.inbox-pill-stub').text()).toBe('Support Inbox');
-    expect(wrapper.find('.rounded-md.bg-n-alpha-2').exists()).toBe(true);
+    expect(pill.text()).toBe('Support Inbox');
+    expect(pill.findComponent({ name: 'ChannelIcon' }).exists()).toBe(false);
+    expect(pill.classes()).toEqual(
+      expect.arrayContaining(['rounded-md', 'bg-n-alpha-2'])
+    );
+  });
+
+  it('renders the inbox badge over the contact avatar', () => {
+    const wrapper = mountCard();
+    const avatar = wrapper.find('[data-testid="contact-avatar"]');
+    const badge = avatar.find('[data-testid="inbox-avatar-badge"]');
+
+    expect(badge.exists()).toBe(true);
+    expect(badge.findComponent({ name: 'ChannelIcon' }).props('inbox')).toEqual(
+      expect.objectContaining({ name: 'Support Inbox' })
+    );
+    expect(avatar.classes()).toContain('relative');
+    expect(badge.classes()).toEqual(
+      expect.arrayContaining(['absolute', '-bottom-0.5', '-right-0.5'])
+    );
   });
 
   it('renders due date only when dueAt exists', () => {

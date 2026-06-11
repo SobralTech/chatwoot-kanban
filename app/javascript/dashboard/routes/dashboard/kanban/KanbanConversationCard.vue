@@ -5,7 +5,7 @@ import { useStore } from 'dashboard/composables/store';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
-import InboxName from 'dashboard/components/widgets/InboxName.vue';
+import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 
 const props = defineProps({
@@ -15,7 +15,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['openDetails']);
+const emit = defineEmits(['openDetails', 'openConversation']);
 
 defineOptions({
   inheritAttrs: false,
@@ -115,6 +115,12 @@ const cardTitle = computed(() =>
 const openDetails = event => {
   emit('openDetails', props.card, event);
 };
+
+const openConversation = event => {
+  if (!hasConversation.value) return;
+
+  emit('openConversation', props.card, event);
+};
 </script>
 
 <template>
@@ -134,12 +140,50 @@ const openDetails = event => {
       </h4>
 
       <div class="flex min-w-0 items-center gap-1.5">
-        <Avatar
-          :name="contactName"
-          :src="contactAvatar"
-          :size="20"
-          rounded-full
-        />
+        <button
+          v-if="hasConversation"
+          type="button"
+          data-testid="contact-avatar"
+          class="relative flex size-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-full"
+          :title="contactName"
+          :aria-label="contactName"
+          @click.stop="openConversation"
+        >
+          <Avatar
+            :name="contactName"
+            :src="contactAvatar"
+            :size="28"
+            rounded-full
+          />
+          <span
+            data-testid="inbox-avatar-badge"
+            class="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-n-surface-1 ring-1 ring-n-weak"
+            :title="normalizedInbox.name"
+          >
+            <ChannelIcon :inbox="normalizedInbox" class="size-2.5" />
+          </span>
+        </button>
+        <div
+          v-else
+          data-testid="contact-avatar"
+          class="relative flex size-7 flex-shrink-0 cursor-default items-center justify-center rounded-full"
+          :title="contactName"
+          @click.stop
+        >
+          <Avatar
+            :name="contactName"
+            :src="contactAvatar"
+            :size="28"
+            rounded-full
+          />
+          <span
+            data-testid="inbox-avatar-badge"
+            class="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-n-surface-1 ring-1 ring-n-weak"
+            :title="normalizedInbox.name"
+          >
+            <ChannelIcon :inbox="normalizedInbox" class="size-2.5" />
+          </span>
+        </div>
         <span
           class="min-w-0 flex-1 truncate text-xs leading-4 text-n-slate-11"
           :title="contactName"
@@ -157,16 +201,20 @@ const openDetails = event => {
       </div>
 
       <div
+        data-testid="inbox-pill"
         class="inline-flex max-w-full items-center rounded-md bg-n-alpha-2 px-1.5 py-0.5"
+        :title="normalizedInbox.name"
       >
-        <InboxName :inbox="normalizedInbox" class="min-w-0" />
+        <span class="truncate text-label-small text-n-slate-11">
+          {{ normalizedInbox.name }}
+        </span>
       </div>
 
       <div class="flex min-w-0 items-center gap-2 text-xs text-n-slate-10">
         <CardPriorityIcon
           v-if="hasSupportedPriority"
+          data-testid="priority-indicator"
           :priority="priority"
-          class="flex-shrink-0 !size-3.5"
         />
         <span class="flex-1" />
         <span
