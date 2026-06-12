@@ -1275,6 +1275,7 @@ onUnmounted(() => {
     >
       <KanbanOpportunityDetailsModal
         :board-id="selectedBoard.id"
+        :board-name="selectedBoard.name"
         :card-id="selectedOpportunityCardId"
         @close="closeOpportunityDetails"
         @updated="onOpportunityUpdated"

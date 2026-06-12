@@ -1,11 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import camelcaseKeys from 'camelcase-keys';
 
-import ContactNotesAPI from 'dashboard/api/contactNotes';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
-import ContactNoteItem from 'dashboard/components-next/Contacts/ContactsSidebar/components/ContactNoteItem.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
@@ -14,6 +11,10 @@ const props = defineProps({
   boardId: {
     type: [Number, String],
     required: true,
+  },
+  boardName: {
+    type: String,
+    default: '',
   },
   cardId: {
     type: [Number, String],
@@ -29,6 +30,7 @@ const accountLabels = useMapGetter('labels/getLabels');
 
 const card = ref(null);
 const subject = ref('');
+const description = ref('');
 const startsAt = ref('');
 const dueAt = ref('');
 const isLoading = ref(false);
@@ -41,23 +43,36 @@ const labelsLoadError = ref('');
 const labelsSaveError = ref('');
 const subjectError = ref('');
 const selectedLabelTitles = ref([]);
-const notes = ref([]);
-const noteContent = ref('');
-const isLoadingNotes = ref(false);
-const isCreatingNote = ref(false);
-const notesLoadError = ref('');
-const notesSaveError = ref('');
 
+const modalTitle = computed(() =>
+  props.boardName
+    ? t('KANBAN.OPPORTUNITY_DETAILS.TITLE_WITH_BOARD', {
+        boardName: props.boardName,
+      })
+    : t('KANBAN.OPPORTUNITY_DETAILS.TITLE')
+);
+const cardDisplayId = computed(() => card.value?.id || props.cardId);
 const hasConversation = computed(() => !!card.value?.conversationId);
-const contactId = computed(() => card.value?.contact?.id);
+const conversationDisplayId = computed(
+  () => card.value?.conversationId || card.value?.conversation?.id
+);
+const conversationAssignee = computed(
+  () => card.value?.conversation?.meta?.assignee || card.value?.assignee
+);
+const assigneeName = computed(
+  () =>
+    conversationAssignee.value?.name ||
+    t('KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED')
+);
+const contactName = computed(
+  () =>
+    card.value?.contact?.name ||
+    card.value?.contact?.email ||
+    card.value?.contact?.phone_number ||
+    t('KANBAN.OPPORTUNITY_DETAILS.NO_CONTACT')
+);
 const selectedLabelTitleSet = computed(
   () => new Set(selectedLabelTitles.value)
-);
-const formattedNotes = computed(() =>
-  notes.value.map(note => ({
-    ...note,
-    contactId: note.contactId || contactId.value,
-  }))
 );
 
 const normalizeCard = payload => ({
@@ -95,11 +110,10 @@ const getErrorMessage = (error, fallback) => {
   return error?.response?.data?.message || error?.message || fallback;
 };
 
-const getWrittenBy = note => note?.user?.name || t('KANBAN.NOTES.BOT');
-
 const setFormState = payload => {
   card.value = normalizeCard(payload);
   subject.value = card.value.subject || '';
+  description.value = card.value.description || '';
   startsAt.value = formatDateTimeInput(card.value.startsAt);
   dueAt.value = formatDateTimeInput(card.value.dueAt);
 };
@@ -129,28 +143,6 @@ const loadLabels = async () => {
   }
 };
 
-const loadNotes = async () => {
-  notes.value = [];
-  notesLoadError.value = '';
-  notesSaveError.value = '';
-
-  if (!contactId.value) return;
-
-  isLoadingNotes.value = true;
-
-  try {
-    const response = await ContactNotesAPI.get(contactId.value);
-    notes.value = camelcaseKeys(response.data || [], { deep: true });
-  } catch (error) {
-    notesLoadError.value = getErrorMessage(
-      error,
-      t('KANBAN.NOTES.FETCH_ERROR')
-    );
-  } finally {
-    isLoadingNotes.value = false;
-  }
-};
-
 const loadCard = async () => {
   isLoading.value = true;
   loadError.value = '';
@@ -161,7 +153,6 @@ const loadCard = async () => {
       props.cardId
     );
     setFormState(response.data || {});
-    loadNotes();
   } catch (error) {
     loadError.value = getErrorMessage(
       error,
@@ -169,36 +160,6 @@ const loadCard = async () => {
     );
   } finally {
     isLoading.value = false;
-  }
-};
-
-const createNote = async () => {
-  const content = noteContent.value.trim();
-  notesSaveError.value = '';
-
-  if (!content) {
-    notesSaveError.value = t('KANBAN.NOTES.REQUIRED');
-    return;
-  }
-
-  if (!contactId.value || isCreatingNote.value) return;
-
-  isCreatingNote.value = true;
-
-  try {
-    const response = await ContactNotesAPI.create(contactId.value, content);
-    notes.value = [
-      camelcaseKeys(response.data || {}, { deep: true }),
-      ...notes.value,
-    ];
-    noteContent.value = '';
-  } catch (error) {
-    notesSaveError.value = getErrorMessage(
-      error,
-      t('KANBAN.NOTES.CREATE_ERROR')
-    );
-  } finally {
-    isCreatingNote.value = false;
   }
 };
 
@@ -219,6 +180,7 @@ const saveCard = async () => {
   try {
     const payload = {
       subject: trimmedSubject,
+      description: description.value.trim() ? description.value : null,
       starts_at: toIso8601(startsAt.value),
       due_at: toIso8601(dueAt.value),
     };
@@ -286,12 +248,24 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex max-h-[80vh] w-full max-w-xl flex-col overflow-auto">
-    <div class="flex items-start justify-between gap-3 px-6 pt-6">
-      <woot-modal-header
-        class="min-w-0 !px-0 !pt-0"
-        :header-title="t('KANBAN.OPPORTUNITY_DETAILS.TITLE')"
-      />
+  <div
+    class="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-n-background"
+  >
+    <div
+      class="flex items-start justify-between gap-4 border-b border-n-weak px-6 py-5"
+    >
+      <div class="min-w-0">
+        <h2 class="mb-1 truncate text-base font-semibold text-n-slate-12">
+          {{ modalTitle }}
+        </h2>
+        <p
+          v-if="cardDisplayId"
+          data-testid="kanban-opportunity-card-id"
+          class="mb-0 text-xs text-n-slate-11"
+        >
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.CARD_ID', { id: cardDisplayId }) }}
+        </p>
+      </div>
       <button
         type="button"
         data-testid="kanban-opportunity-close"
@@ -303,7 +277,7 @@ onMounted(() => {
       </button>
     </div>
 
-    <div class="px-6 pb-6">
+    <div class="overflow-auto px-6 py-5">
       <p
         v-if="isLoading"
         data-testid="kanban-opportunity-loading"
@@ -323,207 +297,199 @@ onMounted(() => {
       <form
         v-else-if="card"
         data-testid="kanban-opportunity-form"
-        class="grid gap-4"
+        class="grid gap-5"
         @submit.prevent="saveCard"
       >
-        <NextInput
-          v-model="subject"
-          data-testid="kanban-opportunity-subject"
-          :label="t('KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE')"
-          :message="subjectError"
-          :message-type="subjectError ? 'error' : 'info'"
-          autofocus
-          @input="subjectError = ''"
-        />
+        <div
+          data-testid="kanban-opportunity-layout"
+          class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"
+        >
+          <section class="grid min-w-0 content-start gap-4">
+            <NextInput
+              v-model="subject"
+              data-testid="kanban-opportunity-subject"
+              :label="t('KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE')"
+              :message="subjectError"
+              :message-type="subjectError ? 'error' : 'info'"
+              autofocus
+              @input="subjectError = ''"
+            />
 
-        <div class="grid gap-3 sm:grid-cols-2">
-          <NextInput
-            v-model="startsAt"
-            type="datetime-local"
-            data-testid="kanban-opportunity-starts-at"
-            :label="t('KANBAN.OPPORTUNITY_DETAILS.START_DATE')"
-          />
-          <NextInput
-            v-model="dueAt"
-            type="datetime-local"
-            data-testid="kanban-opportunity-due-at"
-            :label="t('KANBAN.OPPORTUNITY_DETAILS.DUE_DATE')"
-          />
-        </div>
-
-        <section class="grid gap-3 rounded-lg border border-n-weak p-3">
-          <div class="flex items-center justify-between gap-3">
-            <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-              {{ t('KANBAN.OPPORTUNITY_DETAILS.LABELS') }}
-            </h3>
-            <div class="flex items-center gap-1">
-              <button
-                type="button"
-                data-testid="kanban-opportunity-save-labels"
-                class="flex size-7 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                :aria-label="
-                  isSavingLabels
-                    ? t('KANBAN.OPPORTUNITY_DETAILS.SAVING_LABELS')
-                    : t('KANBAN.OPPORTUNITY_DETAILS.SAVE_LABELS')
-                "
-                :disabled="isSavingLabels"
-                @click="saveLabels"
-              >
-                <i class="i-lucide-save size-4" />
-              </button>
-            </div>
-          </div>
-
-          <p
-            v-if="labelsLoadError"
-            data-testid="kanban-opportunity-labels-load-error"
-            class="mb-0 text-sm text-n-ruby-11"
-          >
-            {{ labelsLoadError }}
-          </p>
-
-          <div
-            v-if="accountLabels.length"
-            data-testid="kanban-opportunity-labels"
-            class="flex flex-wrap gap-2"
-          >
-            <button
-              v-for="label in accountLabels"
-              :key="label.id || label.title"
-              type="button"
-              data-testid="kanban-opportunity-label"
-              class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition"
-              :class="
-                selectedLabelTitleSet.has(label.title)
-                  ? 'border-n-blue-9 bg-n-blue-3 text-n-blue-12'
-                  : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12'
-              "
-              :aria-pressed="selectedLabelTitleSet.has(label.title)"
-              @click="toggleLabel(label.title)"
-            >
-              <span
-                class="size-2 rounded-full"
-                :style="{ backgroundColor: label.color }"
-              />
-              <span>{{ label.title }}</span>
-              <i
-                v-if="selectedLabelTitleSet.has(label.title)"
-                class="i-lucide-check size-3"
-              />
-            </button>
-          </div>
-
-          <p
-            v-else-if="!isLoadingLabels"
-            data-testid="kanban-opportunity-no-labels"
-            class="mb-0 text-sm text-n-slate-11"
-          >
-            {{ t('KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_AVAILABLE') }}
-          </p>
-
-          <p
-            v-if="labelsSaveError"
-            data-testid="kanban-opportunity-labels-save-error"
-            class="mb-0 text-sm text-n-ruby-11"
-          >
-            {{ labelsSaveError }}
-          </p>
-        </section>
-
-        <section class="grid gap-3 rounded-lg border border-n-weak p-3">
-          <div class="flex items-center justify-between gap-3">
-            <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-              {{ t('KANBAN.NOTES.TITLE') }}
-            </h3>
-            <button
-              type="button"
-              data-testid="kanban-opportunity-refresh-notes"
-              class="flex size-7 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-              :aria-label="t('KANBAN.NOTES.REFRESH')"
-              :disabled="!contactId || isLoadingNotes"
-              @click="loadNotes"
-            >
-              <i class="i-lucide-refresh-cw size-4" />
-            </button>
-          </div>
-
-          <p
-            v-if="!contactId"
-            data-testid="kanban-opportunity-notes-no-contact"
-            class="mb-0 text-sm text-n-slate-11"
-          >
-            {{ t('KANBAN.NOTES.NO_CONTACT') }}
-          </p>
-
-          <template v-else>
-            <div class="grid gap-2">
+            <label class="grid gap-1.5">
+              <span class="text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION') }}
+              </span>
               <textarea
-                v-model="noteContent"
-                rows="3"
-                data-testid="kanban-opportunity-note-content"
-                class="min-w-0 resize-none rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                :placeholder="t('KANBAN.NOTES.PLACEHOLDER')"
-                @input="notesSaveError = ''"
+                v-model="description"
+                rows="12"
+                data-testid="kanban-opportunity-description"
+                class="min-h-56 min-w-0 resize-y rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                :placeholder="
+                  t('KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_PLACEHOLDER')
+                "
               />
-              <button
-                type="button"
-                data-testid="kanban-opportunity-add-note"
-                class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-                :aria-label="t('KANBAN.NOTES.ADD')"
-                :disabled="!noteContent.trim() || isCreatingNote"
-                @click="createNote"
+            </label>
+          </section>
+
+          <aside class="grid min-w-0 content-start gap-4">
+            <section class="grid gap-2 rounded-lg border border-n-weak p-3">
+              <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE') }}
+              </h3>
+              <p
+                data-testid="kanban-opportunity-assignee"
+                class="mb-0 text-sm text-n-slate-11"
               >
-                <i class="i-lucide-plus size-4" />
-              </button>
-            </div>
+                {{ assigneeName }}
+              </p>
+            </section>
 
-            <p
-              v-if="notesSaveError"
-              data-testid="kanban-opportunity-notes-save-error"
-              class="mb-0 text-sm text-n-ruby-11"
-            >
-              {{ notesSaveError }}
-            </p>
+            <section class="grid gap-3 rounded-lg border border-n-weak p-3">
+              <div class="flex items-center justify-between gap-3">
+                <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+                  {{ t('KANBAN.OPPORTUNITY_DETAILS.LABELS') }}
+                </h3>
+                <button
+                  type="button"
+                  data-testid="kanban-opportunity-save-labels"
+                  class="flex size-7 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                  :aria-label="
+                    isSavingLabels
+                      ? t('KANBAN.OPPORTUNITY_DETAILS.SAVING_LABELS')
+                      : t('KANBAN.OPPORTUNITY_DETAILS.SAVE_LABELS')
+                  "
+                  :disabled="isSavingLabels"
+                  @click="saveLabels"
+                >
+                  <i class="i-lucide-save size-4" />
+                </button>
+              </div>
 
-            <p
-              v-if="isLoadingNotes"
-              data-testid="kanban-opportunity-notes-loading"
-              class="mb-0 text-sm text-n-slate-11"
-            >
-              {{ t('KANBAN.NOTES.LOADING') }}
-            </p>
+              <p
+                v-if="labelsLoadError"
+                data-testid="kanban-opportunity-labels-load-error"
+                class="mb-0 text-sm text-n-ruby-11"
+              >
+                {{ labelsLoadError }}
+              </p>
 
-            <p
-              v-else-if="notesLoadError"
-              data-testid="kanban-opportunity-notes-load-error"
-              class="mb-0 text-sm text-n-ruby-11"
-            >
-              {{ notesLoadError }}
-            </p>
+              <div
+                v-if="accountLabels.length"
+                data-testid="kanban-opportunity-labels"
+                class="flex flex-wrap gap-2"
+              >
+                <button
+                  v-for="label in accountLabels"
+                  :key="label.id || label.title"
+                  type="button"
+                  data-testid="kanban-opportunity-label"
+                  class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition"
+                  :class="
+                    selectedLabelTitleSet.has(label.title)
+                      ? 'border-n-blue-9 bg-n-blue-3 text-n-blue-12'
+                      : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12'
+                  "
+                  :aria-pressed="selectedLabelTitleSet.has(label.title)"
+                  @click="toggleLabel(label.title)"
+                >
+                  <span
+                    class="size-2 rounded-full"
+                    :style="{ backgroundColor: label.color }"
+                  />
+                  <span>{{ label.title }}</span>
+                  <i
+                    v-if="selectedLabelTitleSet.has(label.title)"
+                    class="i-lucide-check size-3"
+                  />
+                </button>
+              </div>
 
-            <div
-              v-else-if="formattedNotes.length"
-              data-testid="kanban-opportunity-notes"
-              class="grid gap-3"
-            >
-              <ContactNoteItem
-                v-for="note in formattedNotes"
-                :key="note.id"
-                :note="note"
-                :written-by="getWrittenBy(note)"
-                collapsible
+              <p
+                v-else-if="!isLoadingLabels"
+                data-testid="kanban-opportunity-no-labels"
+                class="mb-0 text-sm text-n-slate-11"
+              >
+                {{ t('KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_AVAILABLE') }}
+              </p>
+
+              <p
+                v-if="labelsSaveError"
+                data-testid="kanban-opportunity-labels-save-error"
+                class="mb-0 text-sm text-n-ruby-11"
+              >
+                {{ labelsSaveError }}
+              </p>
+            </section>
+
+            <section class="grid gap-3 rounded-lg border border-n-weak p-3">
+              <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.OPPORTUNITY_DETAILS.CONVERSATION') }}
+              </h3>
+              <p
+                v-if="hasConversation"
+                data-testid="kanban-opportunity-conversation"
+                class="mb-0 text-sm text-n-slate-11"
+              >
+                {{
+                  t('KANBAN.OPPORTUNITY_DETAILS.CONVERSATION_ID', {
+                    id: conversationDisplayId,
+                  })
+                }}
+              </p>
+              <p
+                v-else
+                data-testid="kanban-opportunity-no-conversation"
+                class="mb-0 flex items-center gap-2 text-sm text-n-slate-11"
+              >
+                <i class="i-lucide-message-square-off size-4" />
+                {{ t('KANBAN.OPPORTUNITY_DETAILS.NO_LINKED_CONVERSATION') }}
+              </p>
+              <NextButton
+                v-if="hasConversation"
+                type="button"
+                outline
+                slate
+                xs
+                data-testid="kanban-opportunity-open-conversation"
+                icon="i-lucide-message-square"
+                :label="t('KANBAN.OPPORTUNITY_DETAILS.OPEN_CONVERSATION')"
+                @click="openConversation"
               />
-            </div>
+            </section>
 
-            <p
-              v-else
-              data-testid="kanban-opportunity-notes-empty"
-              class="mb-0 text-sm text-n-slate-11"
-            >
-              {{ t('KANBAN.NOTES.EMPTY') }}
-            </p>
-          </template>
-        </section>
+            <section class="grid gap-2 rounded-lg border border-n-weak p-3">
+              <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.OPPORTUNITY_DETAILS.CONTACT') }}
+              </h3>
+              <p
+                data-testid="kanban-opportunity-contact"
+                class="mb-0 text-sm text-n-slate-11"
+              >
+                {{ contactName }}
+              </p>
+            </section>
+
+            <section class="grid gap-3 rounded-lg border border-n-weak p-3">
+              <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.OPPORTUNITY_DETAILS.DATES') }}
+              </h3>
+              <div class="grid gap-3">
+                <NextInput
+                  v-model="startsAt"
+                  type="datetime-local"
+                  data-testid="kanban-opportunity-starts-at"
+                  :label="t('KANBAN.OPPORTUNITY_DETAILS.START_DATE')"
+                />
+                <NextInput
+                  v-model="dueAt"
+                  type="datetime-local"
+                  data-testid="kanban-opportunity-due-at"
+                  :label="t('KANBAN.OPPORTUNITY_DETAILS.DUE_DATE')"
+                />
+              </div>
+            </section>
+          </aside>
+        </div>
 
         <p
           v-if="saveError"
@@ -534,28 +500,17 @@ onMounted(() => {
         </p>
 
         <div
-          class="flex items-center justify-between gap-3 border-t border-n-weak pt-4"
+          class="flex items-center justify-end gap-3 border-t border-n-weak pt-4"
         >
           <NextButton
-            v-if="hasConversation"
             type="button"
             outline
             slate
             sm
-            data-testid="kanban-opportunity-open-conversation"
-            icon="i-lucide-message-square"
-            :label="t('KANBAN.OPPORTUNITY_DETAILS.OPEN_CONVERSATION')"
-            @click="openConversation"
+            data-testid="kanban-opportunity-cancel"
+            :label="t('KANBAN.OPPORTUNITY_DETAILS.CANCEL')"
+            @click="emit('close')"
           />
-          <p
-            v-else
-            data-testid="kanban-opportunity-no-conversation"
-            class="mb-0 flex items-center gap-2 text-sm text-n-slate-11"
-          >
-            <i class="i-lucide-message-square-off size-4" />
-            {{ t('KANBAN.OPPORTUNITY_DETAILS.NO_LINKED_CONVERSATION') }}
-          </p>
-
           <NextButton
             type="submit"
             sm

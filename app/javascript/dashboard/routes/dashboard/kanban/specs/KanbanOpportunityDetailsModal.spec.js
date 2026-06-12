@@ -1,6 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import KanbanOpportunityDetailsModal from '../KanbanOpportunityDetailsModal.vue';
-import ContactNotesAPI from 'dashboard/api/contactNotes';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
 const storeMocks = vi.hoisted(() => ({
@@ -10,12 +9,26 @@ const storeMocks = vi.hoisted(() => ({
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: key => {
+    t: (key, params = {}) => {
       const translations = {
         'KANBAN.OPPORTUNITY_DETAILS.TITLE': 'Opportunity details',
+        'KANBAN.OPPORTUNITY_DETAILS.TITLE_WITH_BOARD':
+          'Edit opportunity in {boardName}',
+        'KANBAN.OPPORTUNITY_DETAILS.CARD_ID': 'Card #{id}',
         'KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE': 'Title',
+        'KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION': 'Description',
+        'KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_PLACEHOLDER':
+          'Add a single note for this card',
+        'KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE': 'Agent',
+        'KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED': 'Unassigned',
+        'KANBAN.OPPORTUNITY_DETAILS.CONVERSATION': 'Conversation',
+        'KANBAN.OPPORTUNITY_DETAILS.CONVERSATION_ID': 'Conversation #{id}',
+        'KANBAN.OPPORTUNITY_DETAILS.CONTACT': 'Contact',
+        'KANBAN.OPPORTUNITY_DETAILS.NO_CONTACT': 'No contact linked',
+        'KANBAN.OPPORTUNITY_DETAILS.DATES': 'Dates',
         'KANBAN.OPPORTUNITY_DETAILS.START_DATE': 'Start date',
         'KANBAN.OPPORTUNITY_DETAILS.DUE_DATE': 'Due date',
+        'KANBAN.OPPORTUNITY_DETAILS.CANCEL': 'Cancel',
         'KANBAN.OPPORTUNITY_DETAILS.SAVE': 'Save',
         'KANBAN.OPPORTUNITY_DETAILS.SAVING': 'Saving...',
         'KANBAN.OPPORTUNITY_DETAILS.LABELS': 'Labels',
@@ -36,20 +49,13 @@ vi.mock('vue-i18n', () => ({
           'Could not save opportunity details.',
         'KANBAN.OPPORTUNITY_DETAILS.REQUIRED_TITLE': 'Title is required.',
         'KANBAN.OPPORTUNITY_DETAILS.CLOSE': 'Close opportunity details',
-        'KANBAN.NOTES.TITLE': 'Contact notes',
-        'KANBAN.NOTES.LOADING': 'Loading notes...',
-        'KANBAN.NOTES.EMPTY': 'No notes yet.',
-        'KANBAN.NOTES.NO_CONTACT': 'No contact is linked to this conversation.',
-        'KANBAN.NOTES.PLACEHOLDER': 'Add a contact note',
-        'KANBAN.NOTES.ADD': 'Add note',
-        'KANBAN.NOTES.REFRESH': 'Refresh notes',
-        'KANBAN.NOTES.REQUIRED': 'Enter a note before adding it.',
-        'KANBAN.NOTES.BOT': 'Bot',
-        'KANBAN.NOTES.CREATE_ERROR': 'Could not add the contact note.',
-        'KANBAN.NOTES.FETCH_ERROR': 'Could not load contact notes.',
       };
 
-      return translations[key] || key;
+      return Object.entries(params).reduce(
+        (message, [name, value]) =>
+          message.replace(`{${name}}`, value).replace(`#{${name}}`, value),
+        translations[key] || key
+      );
     },
   }),
 }));
@@ -60,13 +66,6 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     updateCardDetailsById: vi.fn(),
     getCardLabels: vi.fn(),
     updateCardLabels: vi.fn(),
-  },
-}));
-
-vi.mock('dashboard/api/contactNotes', () => ({
-  default: {
-    get: vi.fn(),
-    create: vi.fn(),
   },
 }));
 
@@ -113,32 +112,18 @@ const nextButtonStub = {
   `,
 };
 
-const contactNoteItemStub = {
-  props: ['note', 'writtenBy'],
-  template: `
-    <article data-testid="kanban-opportunity-note">
-      <span>{{ writtenBy }}</span>
-      <time v-if="note.createdAt">{{ note.createdAt }}</time>
-      <p>{{ note.content }}</p>
-    </article>
-  `,
-};
-
 const buildCard = overrides => ({
   id: 501,
   subject: 'Enterprise expansion',
+  description: 'Follow up with procurement next week.',
   startsAt: '2026-06-01T09:00',
   dueAt: '2026-06-05T18:00',
   conversationId: 42,
+  conversation: {
+    id: 42,
+    meta: { assignee: { id: 7, name: 'Jane Agent' } },
+  },
   contact: { id: 91, name: 'Acme Buyer' },
-  ...overrides,
-});
-
-const buildNote = overrides => ({
-  id: 1,
-  content: 'First contact note',
-  created_at: 1780304400,
-  user: { id: 7, name: 'Jane Agent' },
   ...overrides,
 });
 
@@ -153,8 +138,6 @@ const mountModal = async ({
   resolveLabels = true,
   accountLabels = labels,
   assignedLabels = [labels[0]],
-  notes = [],
-  resolveNotes = true,
 } = {}) => {
   storeMocks.labels = accountLabels;
   storeMocks.dispatch.mockResolvedValue();
@@ -169,24 +152,16 @@ const mountModal = async ({
     KanbanBoardsAPI.showCardById.mockResolvedValue({ data: card });
   }
 
-  if (resolveNotes) {
-    ContactNotesAPI.get.mockResolvedValue({ data: notes });
-  }
-
   const wrapper = mount(KanbanOpportunityDetailsModal, {
     props: {
       boardId: 10,
+      boardName: 'Sales funnel',
       cardId: 501,
     },
     global: {
       stubs: {
         NextInput: nextInputStub,
         NextButton: nextButtonStub,
-        ContactNoteItem: contactNoteItemStub,
-        WootModalHeader: {
-          props: ['headerTitle'],
-          template: '<header>{{ headerTitle }}</header>',
-        },
       },
     },
   });
@@ -198,6 +173,8 @@ const mountModal = async ({
 
 const subjectInput = wrapper =>
   wrapper.find('[data-testid="kanban-opportunity-subject"]');
+const descriptionInput = wrapper =>
+  wrapper.find('[data-testid="kanban-opportunity-description"]');
 const startsAtInput = wrapper =>
   wrapper.find('[data-testid="kanban-opportunity-starts-at"]');
 const dueAtInput = wrapper =>
@@ -208,16 +185,11 @@ const labelButtons = wrapper =>
   wrapper.findAll('[data-testid="kanban-opportunity-label"]');
 const saveLabelsButton = wrapper =>
   wrapper.find('[data-testid="kanban-opportunity-save-labels"]');
-const noteContentInput = wrapper =>
-  wrapper.find('[data-testid="kanban-opportunity-note-content"]');
-const addNoteButton = wrapper =>
-  wrapper.find('[data-testid="kanban-opportunity-add-note"]');
 
 describe('KanbanOpportunityDetailsModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storeMocks.labels = [];
-    ContactNotesAPI.get.mockResolvedValue({ data: [] });
   });
 
   it('loads detail through showCardById', async () => {
@@ -226,10 +198,21 @@ describe('KanbanOpportunityDetailsModal', () => {
     expect(KanbanBoardsAPI.showCardById).toHaveBeenCalledWith(10, 501);
   });
 
-  it('loads notes using card contact ID', async () => {
-    await mountModal();
+  it('renders a wide two-column layout', async () => {
+    const wrapper = await mountModal();
 
-    expect(ContactNotesAPI.get).toHaveBeenCalledWith(91);
+    expect(wrapper.text()).toContain('Edit opportunity in Sales funnel');
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-layout"]').classes()
+    ).toContain('lg:grid-cols-[minmax(0,1fr)_22rem]');
+  });
+
+  it('renders card ID in the header', async () => {
+    const wrapper = await mountModal();
+
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-card-id"]').text()
+    ).toContain('Card #501');
   });
 
   it('renders loading state', async () => {
@@ -237,13 +220,13 @@ describe('KanbanOpportunityDetailsModal', () => {
     const wrapper = mount(KanbanOpportunityDetailsModal, {
       props: {
         boardId: 10,
+        boardName: 'Sales funnel',
         cardId: 501,
       },
       global: {
         stubs: {
           NextInput: nextInputStub,
           NextButton: nextButtonStub,
-          WootModalHeader: true,
         },
       },
     });
@@ -268,292 +251,82 @@ describe('KanbanOpportunityDetailsModal', () => {
     ).toContain('Load failed');
   });
 
-  it('renders notes loading state', async () => {
-    ContactNotesAPI.get.mockReturnValue(new Promise(() => {}));
-    const wrapper = await mountModal({ resolveNotes: false });
-
-    await flushPromises();
-
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-notes-loading"]').text()
-    ).toContain('Loading notes...');
-  });
-
-  it('renders notes empty state', async () => {
-    const wrapper = await mountModal({ notes: [] });
-
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-notes-empty"]').text()
-    ).toContain('No notes yet.');
-  });
-
-  it('renders notes returned by API', async () => {
-    const wrapper = await mountModal({
-      notes: [buildNote({ content: 'Follow up next week' })],
-    });
-
-    const note = wrapper.find('[data-testid="kanban-opportunity-note"]');
-    expect(note.text()).toContain('Jane Agent');
-    expect(note.text()).toContain('1780304400');
-    expect(note.text()).toContain('Follow up next week');
-  });
-
-  it('renders notes-load error', async () => {
-    ContactNotesAPI.get.mockRejectedValue({
-      response: { data: { message: 'Notes load failed' } },
-    });
-    const wrapper = await mountModal({ resolveNotes: false });
-
-    await flushPromises();
-
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-notes-load-error"]').text()
-    ).toContain('Notes load failed');
-  });
-
-  it('rejects blank note locally', async () => {
-    const wrapper = await mountModal();
-
-    await noteContentInput(wrapper).setValue('   ');
-
-    expect(addNoteButton(wrapper).attributes('disabled')).toBeDefined();
-    expect(ContactNotesAPI.create).not.toHaveBeenCalled();
-  });
-
-  it('valid note calls ContactNotesAPI.create', async () => {
-    ContactNotesAPI.create.mockResolvedValue({ data: buildNote() });
-    const wrapper = await mountModal();
-
-    await noteContentInput(wrapper).setValue('Call buyer');
-    await addNoteButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(ContactNotesAPI.create).toHaveBeenCalledWith(91, 'Call buyer');
-  });
-
-  it('submitted note content is trimmed', async () => {
-    ContactNotesAPI.create.mockResolvedValue({ data: buildNote() });
-    const wrapper = await mountModal();
-
-    await noteContentInput(wrapper).setValue('  Call buyer  ');
-    await addNoteButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(ContactNotesAPI.create).toHaveBeenCalledWith(91, 'Call buyer');
-  });
-
-  it('prevents duplicate note submission while pending', async () => {
-    ContactNotesAPI.create.mockReturnValue(new Promise(() => {}));
-    const wrapper = await mountModal();
-
-    await noteContentInput(wrapper).setValue('Call buyer');
-    await addNoteButton(wrapper).trigger('click');
-
-    expect(addNoteButton(wrapper).attributes('disabled')).toBeDefined();
-
-    await addNoteButton(wrapper).trigger('click');
-    expect(ContactNotesAPI.create).toHaveBeenCalledTimes(1);
-  });
-
-  it('successful submit clears textarea', async () => {
-    ContactNotesAPI.create.mockResolvedValue({ data: buildNote() });
-    const wrapper = await mountModal();
-
-    await noteContentInput(wrapper).setValue('Call buyer');
-    await addNoteButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(noteContentInput(wrapper).element.value).toBe('');
-  });
-
-  it('successful submit updates rendered notes', async () => {
-    ContactNotesAPI.create.mockResolvedValue({
-      data: buildNote({ content: 'New note' }),
-    });
-    const wrapper = await mountModal({
-      notes: [buildNote({ id: 2, content: 'Existing note' })],
-    });
-
-    await noteContentInput(wrapper).setValue('New note');
-    await addNoteButton(wrapper).trigger('click');
-    await flushPromises();
-
-    const noteTexts = wrapper
-      .findAll('[data-testid="kanban-opportunity-note"]')
-      .map(note => note.text());
-    expect(noteTexts[0]).toContain('New note');
-    expect(noteTexts[1]).toContain('Existing note');
-  });
-
-  it('renders notes-save error', async () => {
-    ContactNotesAPI.create.mockRejectedValue({
-      response: { data: { message: 'Notes save failed' } },
-    });
-    const wrapper = await mountModal();
-
-    await noteContentInput(wrapper).setValue('Call buyer');
-    await addNoteButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-notes-save-error"]').text()
-    ).toContain('Notes save failed');
-  });
-
-  it('missing contact does not call notes API', async () => {
-    const wrapper = await mountModal({ card: buildCard({ contact: null }) });
-
-    expect(ContactNotesAPI.get).not.toHaveBeenCalled();
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-notes-no-contact"]').text()
-    ).toContain('No contact is linked to this conversation.');
-  });
-
-  it('renders subject', async () => {
+  it('loads subject', async () => {
     const wrapper = await mountModal();
 
     expect(subjectInput(wrapper).element.value).toBe('Enterprise expansion');
   });
 
-  it('renders startsAt and dueAt', async () => {
+  it('loads description', async () => {
+    const wrapper = await mountModal();
+
+    expect(descriptionInput(wrapper).element.value).toBe(
+      'Follow up with procurement next week.'
+    );
+  });
+
+  it('loads startsAt and dueAt', async () => {
     const wrapper = await mountModal();
 
     expect(startsAtInput(wrapper).element.value).toBe('2026-06-01T09:00');
     expect(dueAtInput(wrapper).element.value).toBe('2026-06-05T18:00');
   });
 
-  it('loads assigned card labels through getCardLabels', async () => {
-    await mountModal();
-
-    expect(KanbanBoardsAPI.getCardLabels).toHaveBeenCalledWith(10, 501);
-  });
-
-  it('loads available account labels through existing pattern', async () => {
-    await mountModal();
-
-    expect(storeMocks.dispatch).toHaveBeenCalledWith('labels/get');
-  });
-
-  it('renders label title and color', async () => {
-    const wrapper = await mountModal();
-    const firstLabel = labelButtons(wrapper)[0];
-
-    expect(firstLabel.text()).toContain('hot');
-    expect(firstLabel.find('span').element.style.backgroundColor).toBe(
-      'rgb(255, 0, 0)'
-    );
-  });
-
-  it('marks assigned labels as selected', async () => {
-    const wrapper = await mountModal();
-
-    expect(labelButtons(wrapper)[0].attributes('aria-pressed')).toBe('true');
-    expect(labelButtons(wrapper)[1].attributes('aria-pressed')).toBe('false');
-  });
-
-  it('allows selecting label', async () => {
-    const wrapper = await mountModal();
-
-    await labelButtons(wrapper)[1].trigger('click');
-
-    expect(labelButtons(wrapper)[1].attributes('aria-pressed')).toBe('true');
-  });
-
-  it('allows deselecting label', async () => {
-    const wrapper = await mountModal();
-
-    await labelButtons(wrapper)[0].trigger('click');
-
-    expect(labelButtons(wrapper)[0].attributes('aria-pressed')).toBe('false');
-  });
-
-  it('saves full selected-title array through updateCardLabels', async () => {
-    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
-      data: { payload: labels },
-    });
-    const wrapper = await mountModal();
-
-    await labelButtons(wrapper)[1].trigger('click');
-    await saveLabelsButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledWith(10, 501, [
-      'hot',
-      'enterprise',
-    ]);
-  });
-
-  it('supports clearing all labels with []', async () => {
-    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
-      data: { payload: [] },
-    });
-    const wrapper = await mountModal();
-
-    await labelButtons(wrapper)[0].trigger('click');
-    await saveLabelsButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledWith(10, 501, []);
-  });
-
-  it('prevents duplicate label save while pending', async () => {
-    KanbanBoardsAPI.updateCardLabels.mockReturnValue(new Promise(() => {}));
-    const wrapper = await mountModal();
-
-    await saveLabelsButton(wrapper).trigger('click');
-
-    expect(saveLabelsButton(wrapper).attributes('disabled')).toBeDefined();
-
-    await saveLabelsButton(wrapper).trigger('click');
-    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders labels-loading error', async () => {
-    KanbanBoardsAPI.getCardLabels.mockRejectedValue({
-      response: { data: { message: 'Labels load failed' } },
-    });
-    const wrapper = await mountModal({ resolveLabels: false });
-
-    await flushPromises();
-
-    expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-labels-load-error"]')
-        .text()
-    ).toContain('Labels load failed');
-  });
-
-  it('renders labels-save error', async () => {
-    KanbanBoardsAPI.updateCardLabels.mockRejectedValue({
-      response: { data: { message: 'Labels save failed' } },
-    });
-    const wrapper = await mountModal();
-
-    await saveLabelsButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-labels-save-error"]')
-        .text()
-    ).toContain('Labels save failed');
-  });
-
-  it('saves trimmed subject', async () => {
+  it('saves description with existing scalar fields', async () => {
     KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
-      data: buildCard({ subject: 'Renewal' }),
+      data: buildCard({ description: 'Updated card note' }),
     });
     const wrapper = await mountModal();
 
-    await subjectInput(wrapper).setValue('  Renewal  ');
+    await descriptionInput(wrapper).setValue('Updated card note');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
       10,
       501,
-      expect.objectContaining({ subject: 'Renewal' })
+      expect.objectContaining({
+        subject: 'Enterprise expansion',
+        description: 'Updated card note',
+      })
     );
+  });
+
+  it('clears description with null', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
+      data: buildCard({ description: null }),
+    });
+    const wrapper = await mountModal();
+
+    await descriptionInput(wrapper).setValue('');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
+      10,
+      501,
+      expect.objectContaining({ description: null })
+    );
+  });
+
+  it('preserves edited text on save error', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockRejectedValue({
+      response: { data: { message: 'Save failed' } },
+    });
+    const wrapper = await mountModal();
+
+    await subjectInput(wrapper).setValue('Preserved subject');
+    await descriptionInput(wrapper).setValue('Preserved description');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    expect(subjectInput(wrapper).element.value).toBe('Preserved subject');
+    expect(descriptionInput(wrapper).element.value).toBe(
+      'Preserved description'
+    );
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-save-error"]').text()
+    ).toContain('Save failed');
   });
 
   it('saves optional date values', async () => {
@@ -619,22 +392,8 @@ describe('KanbanOpportunityDetailsModal', () => {
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledTimes(1);
   });
 
-  it('renders backend save error', async () => {
-    KanbanBoardsAPI.updateCardDetailsById.mockRejectedValue({
-      response: { data: { errors: { subject: ['has already been taken'] } } },
-    });
-    const wrapper = await mountModal();
-
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
-
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-save-error"]').text()
-    ).toContain('has already been taken');
-  });
-
   it('emits updated on successful save', async () => {
-    const updatedCard = buildCard({ subject: 'Updated opportunity' });
+    const updatedCard = buildCard({ description: 'Updated note' });
     KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
       data: updatedCard,
     });
@@ -646,9 +405,12 @@ describe('KanbanOpportunityDetailsModal', () => {
     expect(wrapper.emitted('updated')).toEqual([[updatedCard]]);
   });
 
-  it('renders open conversation action for linked card', async () => {
+  it('renders linked conversation and open action', async () => {
     const wrapper = await mountModal();
 
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-conversation"]').text()
+    ).toContain('Conversation #42');
     expect(
       wrapper
         .find('[data-testid="kanban-opportunity-open-conversation"]')
@@ -669,7 +431,7 @@ describe('KanbanOpportunityDetailsModal', () => {
 
   it('renders no linked conversation for unlinked card', async () => {
     const wrapper = await mountModal({
-      card: buildCard({ conversationId: null }),
+      card: buildCard({ conversationId: null, conversation: null }),
     });
 
     expect(
@@ -677,61 +439,102 @@ describe('KanbanOpportunityDetailsModal', () => {
     ).toContain('No linked conversation');
   });
 
-  it('scalar save preserves labels state', async () => {
-    const wrapper = await mountModal({
-      assignedLabels: [labels[0]],
-    });
+  it('renders linked contact', async () => {
+    const wrapper = await mountModal();
 
-    await subjectInput(wrapper).setValue('Updated subject');
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-contact"]').text()
+    ).toContain('Acme Buyer');
+  });
+
+  it('renders assignee as read-only text', async () => {
+    const wrapper = await mountModal();
+
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-assignee"]').text()
+    ).toContain('Jane Agent');
+  });
+
+  it('loads assigned card labels through getCardLabels', async () => {
+    await mountModal();
+
+    expect(KanbanBoardsAPI.getCardLabels).toHaveBeenCalledWith(10, 501);
+  });
+
+  it('loads available account labels through existing pattern', async () => {
+    await mountModal();
+
+    expect(storeMocks.dispatch).toHaveBeenCalledWith('labels/get');
+  });
+
+  it('renders label title and color', async () => {
+    const wrapper = await mountModal();
+    const firstLabel = labelButtons(wrapper)[0];
+
+    expect(firstLabel.text()).toContain('hot');
+    expect(firstLabel.find('span').element.style.backgroundColor).toBe(
+      'rgb(255, 0, 0)'
+    );
+  });
+
+  it('marks assigned labels as selected', async () => {
+    const wrapper = await mountModal();
 
     expect(labelButtons(wrapper)[0].attributes('aria-pressed')).toBe('true');
     expect(labelButtons(wrapper)[1].attributes('aria-pressed')).toBe('false');
   });
 
-  it('labels save preserves scalar form state', async () => {
-    const wrapper = await mountModal({
-      assignedLabels: [labels[0]],
+  it('labels continue saving through updateCardLabels', async () => {
+    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
+      data: { payload: labels },
     });
+    const wrapper = await mountModal();
+
+    await labelButtons(wrapper)[1].trigger('click');
+    await saveLabelsButton(wrapper).trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledWith(10, 501, [
+      'hot',
+      'enterprise',
+    ]);
+  });
+
+  it('labels save preserves scalar form state', async () => {
+    const wrapper = await mountModal();
 
     await subjectInput(wrapper).setValue('Modified subject');
+    await descriptionInput(wrapper).setValue('Modified description');
     await saveLabelsButton(wrapper).trigger('click');
     await flushPromises();
 
     expect(subjectInput(wrapper).element.value).toBe('Modified subject');
+    expect(descriptionInput(wrapper).element.value).toBe(
+      'Modified description'
+    );
     expect(startsAtInput(wrapper).element.value).toBe('2026-06-01T09:00');
     expect(dueAtInput(wrapper).element.value).toBe('2026-06-05T18:00');
   });
 
-  it('notes save preserves scalar form and labels state', async () => {
-    const wrapper = await mountModal({
-      assignedLabels: [labels[0]],
-      notes: [],
-    });
-
-    await subjectInput(wrapper).setValue('Preserved subject');
-    await noteContentInput(wrapper).setValue('New contact note');
-    ContactNotesAPI.create.mockResolvedValue({
-      data: buildNote({ content: 'New contact note' }),
-    });
-    await addNoteButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(subjectInput(wrapper).element.value).toBe('Preserved subject');
-    expect(startsAtInput(wrapper).element.value).toBe('2026-06-01T09:00');
-    expect(dueAtInput(wrapper).element.value).toBe('2026-06-05T18:00');
-    expect(labelButtons(wrapper)[0].attributes('aria-pressed')).toBe('true');
-    expect(labelButtons(wrapper)[1].attributes('aria-pressed')).toBe('false');
-  });
-
-  it('emits close', async () => {
+  it('does not render an add-note action', async () => {
     const wrapper = await mountModal();
 
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-add-note"]').exists()
+    ).toBe(false);
+    expect(wrapper.text()).not.toContain('Add note');
+  });
+
+  it('emits close from cancel and close actions', async () => {
+    const wrapper = await mountModal();
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-cancel"]')
+      .trigger('click');
     await wrapper
       .find('[data-testid="kanban-opportunity-close"]')
       .trigger('click');
 
-    expect(wrapper.emitted('close')).toHaveLength(1);
+    expect(wrapper.emitted('close')).toHaveLength(2);
   });
 });
