@@ -10,6 +10,7 @@ FactoryBot.define do
     origin { 'manual' }
     position { 0 }
     active { true }
+    description { nil }
     starts_at { nil }
     due_at { nil }
 

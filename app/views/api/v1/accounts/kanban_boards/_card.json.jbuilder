@@ -16,6 +16,7 @@ json.stage_entered_at card.stage_entered_at&.iso8601 if card.respond_to?(:stage_
 json.origin card.origin if card.respond_to?(:origin)
 json.subject card.subject if card.respond_to?(:subject)
 if stable_card
+  json.description card.description
   json.starts_at card.starts_at&.iso8601
   json.due_at card.due_at&.iso8601
 end

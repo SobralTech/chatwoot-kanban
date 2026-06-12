@@ -218,6 +218,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response.parsed_body).to include(
         'id' => card.id,
         'subject' => 'Cotação de notebooks',
+        'description' => nil,
         'starts_at' => nil,
         'due_at' => nil,
         'conversation_id' => nil,
@@ -360,7 +361,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
     end
 
     it 'updates stable scalar card details' do
-      card = create_manual_card(subject: 'Old opportunity')
+      card = create_manual_card(subject: 'Old opportunity', description: 'Existing note')
       previous_stage_entered_at = 2.days.ago.change(usec: 0)
       card.update_column(:stage_entered_at, previous_stage_entered_at) # rubocop:disable Rails/SkipsModelValidations
 
@@ -369,6 +370,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
             params: {
               card: {
                 subject: 'Cotação de notebooks',
+                description: 'Anotação única do card',
                 starts_at: '2026-06-01T09:00:00-03:00',
                 due_at: '2026-06-05T18:00:00-03:00'
               }
@@ -378,12 +380,40 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(card.reload).to have_attributes(
         subject: 'Cotação de notebooks',
+        description: 'Anotação única do card',
         starts_at: Time.zone.parse('2026-06-01T09:00:00-03:00'),
         due_at: Time.zone.parse('2026-06-05T18:00:00-03:00')
       )
       expect(card.stage_entered_at).to eq(previous_stage_entered_at)
+      expect(response.parsed_body['description']).to eq('Anotação única do card')
       expect(response.parsed_body['starts_at']).to eq(card.starts_at.iso8601)
       expect(response.parsed_body['due_at']).to eq(card.due_at.iso8601)
+    end
+
+    it 'clears stable card description with blank strings' do
+      card = create_manual_card(description: 'Anotação existente')
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { description: '' } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload.description).to be_nil
+      expect(response.parsed_body['description']).to be_nil
+    end
+
+    it 'clears stable card description with null' do
+      card = create_manual_card(description: 'Anotação existente')
+
+      patch stable_card_url(card),
+            headers: agent.create_new_auth_token,
+            params: { card: { description: nil } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload.description).to be_nil
+      expect(response.parsed_body['description']).to be_nil
     end
 
     it 'emits kanban.card.updated with a compact payload for scalar updates' do

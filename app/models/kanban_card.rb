@@ -6,6 +6,7 @@
 #
 #  id                 :bigint           not null, primary key
 #  active             :boolean          default(TRUE), not null
+#  description        :text
 #  due_at             :datetime
 #  normalized_subject :string
 #  origin             :string           not null
@@ -51,6 +52,7 @@ class KanbanCard < ApplicationRecord
   }
 
   before_validation :normalize_manual_subject
+  before_validation :normalize_blank_description
   before_validation :set_stage_entered_at, if: :stage_entry_timestamp_required?
 
   validates :origin, presence: true
@@ -231,6 +233,10 @@ class KanbanCard < ApplicationRecord
     normalized_display_subject = subject.to_s.strip.gsub(/\s+/, ' ')
     self.subject = normalized_display_subject
     self.normalized_subject = normalized_display_subject.presence&.downcase
+  end
+
+  def normalize_blank_description
+    self.description = nil if description.blank?
   end
 
   def stage_entry_timestamp_required?
