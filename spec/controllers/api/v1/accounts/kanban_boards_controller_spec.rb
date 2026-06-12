@@ -68,6 +68,74 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body.pluck('name')).to include('Restricted')
     end
+
+    it 'returns overview summary data for boards' do
+      first_stage = create(
+        :kanban_stage,
+        account: account,
+        kanban_board: kanban_board,
+        name: 'Lead',
+        color: 'blue',
+        position: 1
+      )
+      second_stage = create(
+        :kanban_stage,
+        account: account,
+        kanban_board: kanban_board,
+        name: 'Won',
+        color: 'green',
+        position: 2
+      )
+      inactive_stage = create(
+        :kanban_stage,
+        account: account,
+        kanban_board: kanban_board,
+        name: 'Archived',
+        active: false,
+        position: 3
+      )
+      inbox = create(:inbox, account: account, name: 'Sales Inbox')
+      visible_user = create(:user, account: account, name: 'Paula Agent')
+
+      kanban_board.update!(visibility_mode: 'selected_agents', inbox_scope_mode: 'selected_inboxes')
+      create(:kanban_board_member, account: account, kanban_board: kanban_board, user: visible_user)
+      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: first_stage, inbox: inbox)
+      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: second_stage, inbox: inbox)
+      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: second_stage, inbox: inbox)
+      create(
+        :kanban_card,
+        account: account,
+        kanban_board: kanban_board,
+        kanban_stage: inactive_stage,
+        inbox: inbox,
+        active: false
+      )
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards",
+          headers: administrator.create_new_auth_token,
+          as: :json
+
+      board_payload = response.parsed_body.first
+      expect(response).to have_http_status(:success)
+      expect(board_payload).to include(
+        'cards_count' => 3,
+        'visibility_mode' => 'selected_agents',
+        'inbox_scope_mode' => 'selected_inboxes'
+      )
+      expect(board_payload['stages_summary']).to eq(
+        [
+          { 'id' => first_stage.id, 'name' => 'Lead', 'color' => 'blue', 'cards_count' => 1 },
+          { 'id' => second_stage.id, 'name' => 'Won', 'color' => 'green', 'cards_count' => 2 }
+        ]
+      )
+      expect(board_payload['visible_users']).to contain_exactly(
+        hash_including('id' => visible_user.id, 'name' => 'Paula Agent', 'avatar_url' => anything)
+      )
+      expect(board_payload['allowed_inboxes']).to contain_exactly(
+        hash_including('id' => inbox.id, 'name' => 'Sales Inbox', 'channel_type' => inbox.channel_type)
+      )
+    end
   end
 
   describe 'GET /api/v1/accounts/{account.id}/kanban_boards/{id}' do

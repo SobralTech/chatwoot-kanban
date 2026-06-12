@@ -3,7 +3,8 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
   before_action :fetch_kanban_board, only: [:show, :update, :destroy]
 
   def index
-    @kanban_boards = policy_scope(KanbanBoard).ordered
+    @kanban_boards = policy_scope(KanbanBoard).ordered.to_a
+    fetch_overview_data
   end
 
   def show
@@ -31,6 +32,48 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def fetch_kanban_board
     @kanban_board = policy_scope(KanbanBoard).find(params[:id])
+  end
+
+  def fetch_overview_data
+    board_ids = @kanban_boards.map(&:id)
+
+    @overview_stages_by_board_id = {}
+    @overview_cards_count_by_board_id = {}
+    @overview_cards_count_by_stage_id = {}
+    @overview_visible_users_by_board_id = {}
+    @overview_allowed_inboxes_by_board_id = {}
+
+    return if board_ids.blank?
+
+    overview_stages = KanbanStage.where(account_id: Current.account.id, kanban_board_id: board_ids)
+                                 .active.ordered.to_a
+    stage_ids = overview_stages.map(&:id)
+
+    @overview_stages_by_board_id = overview_stages.group_by(&:kanban_board_id)
+    @overview_cards_count_by_board_id = KanbanCard.active
+                                                  .where(account_id: Current.account.id, kanban_board_id: board_ids)
+                                                  .group(:kanban_board_id).count
+    @overview_cards_count_by_stage_id = KanbanCard.active
+                                                  .where(account_id: Current.account.id, kanban_stage_id: stage_ids)
+                                                  .group(:kanban_stage_id).count
+    @overview_visible_users_by_board_id = overview_visible_users_by_board_id(board_ids)
+    @overview_allowed_inboxes_by_board_id = overview_allowed_inboxes_by_board_id(board_ids)
+  end
+
+  def overview_visible_users_by_board_id(board_ids)
+    KanbanBoardMember.includes(user: { avatar_attachment: :blob })
+                     .where(account_id: Current.account.id, kanban_board_id: board_ids)
+                     .order(:user_id)
+                     .group_by(&:kanban_board_id)
+                     .transform_values { |members| members.map(&:user) }
+  end
+
+  def overview_allowed_inboxes_by_board_id(board_ids)
+    KanbanBoardInbox.includes(:inbox)
+                    .where(account_id: Current.account.id, kanban_board_id: board_ids)
+                    .order(:inbox_id)
+                    .group_by(&:kanban_board_id)
+                    .transform_values { |board_inboxes| board_inboxes.map(&:inbox) }
   end
 
   def kanban_board_params
