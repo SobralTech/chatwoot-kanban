@@ -13,11 +13,14 @@
     "OVERVIEW": {
       "TITLE": "Funis",
       "DESCRIPTION": "Organize suas conversas em fluxos de trabalho manuais.",
-      "CREATE_BOARD": "Novo funil",
+      "CREATE_BOARD": "Adicionar Funil",
       "EMPTY_ADMIN": "Ainda não há quadros kanban. Crie seu primeiro funil para começar.",
       "EMPTY_AGENT": "Nenhum quadro kanban disponível.",
       "LOADING": "Carregando funis...",
-      "ERROR": "Não foi possível carregar os funis."
+      "ERROR": "Não foi possível carregar os funis.",
+      "EMPTY_STAGES": "Nenhuma etapa configurada.",
+      "OPPORTUNITIES_COUNT": "{count} oportunidades",
+      "EXTRA_COUNT": "+{count}"
     },
     "BOARD_FORM": {
       "AUTO_CREATE_CARDS": "Criar cartões automaticamente para novas conversas",

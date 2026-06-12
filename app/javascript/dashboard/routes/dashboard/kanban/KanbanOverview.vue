@@ -7,6 +7,9 @@ import { useAlert } from 'dashboard/composables';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import camelcaseKeys from 'camelcase-keys';
 import Button from 'dashboard/components-next/button/Button.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import { getInboxIconByType } from 'dashboard/helper/inbox';
+import { getKanbanStageColorClass } from 'dashboard/helper/kanbanStageColors';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -36,6 +39,26 @@ const openBoard = boardId => {
     },
   });
 };
+
+const boardCardsCount = board => board.cards_count ?? board.cardsCount ?? 0;
+const boardStages = board => board.stages_summary || board.stagesSummary || [];
+const boardUsers = board => board.visible_users || board.visibleUsers || [];
+const boardInboxes = board =>
+  board.allowed_inboxes || board.allowedInboxes || [];
+const boardVisibilityMode = board =>
+  board.visibility_mode || board.visibilityMode || 'all_agents';
+const boardInboxScopeMode = board =>
+  board.inbox_scope_mode || board.inboxScopeMode || 'all_inboxes';
+
+const previewItems = (items, limit = 4) => items.slice(0, limit);
+const extraItemsCount = (items, limit = 4) => Math.max(items.length - limit, 0);
+
+const inboxIcon = inbox =>
+  getInboxIconByType(
+    inbox.channel_type || inbox.channelType,
+    inbox.medium,
+    'line'
+  );
 
 const createBoard = async () => {
   const name = newBoardName.value.trim();
@@ -87,15 +110,14 @@ onMounted(async () => {
 
 <template>
   <main class="flex h-full min-h-0 w-full bg-n-surface-1 text-n-slate-12">
-    <div class="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
-      <header class="flex items-center justify-between gap-4">
+    <div
+      class="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8 lg:px-10"
+    >
+      <header class="flex flex-wrap items-center justify-between gap-4">
         <div class="min-w-0">
-          <h1 class="text-2xl font-medium text-n-slate-12">
+          <h1 class="text-2xl font-semibold text-n-slate-12">
             {{ t('KANBAN.OVERVIEW.TITLE') }}
           </h1>
-          <p class="mt-1 text-sm text-n-slate-11">
-            {{ t('KANBAN.OVERVIEW.DESCRIPTION') }}
-          </p>
         </div>
         <div v-if="isAdmin" class="flex flex-shrink-0 gap-2">
           <Button
@@ -111,7 +133,7 @@ onMounted(async () => {
 
       <form
         v-if="showCreateForm"
-        class="flex gap-2 rounded-lg border border-n-weak bg-n-surface-2 p-4"
+        class="flex flex-col gap-3 rounded-lg border border-n-weak bg-n-surface-2 p-4 sm:flex-row"
         @submit.prevent="createBoard"
       >
         <input
@@ -122,7 +144,7 @@ onMounted(async () => {
         />
         <button
           type="submit"
-          class="flex flex-shrink-0 items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          class="flex flex-shrink-0 items-center justify-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="!newBoardName.trim() || isCreatingBoard"
         >
           <i class="i-lucide-check size-4" />
@@ -130,7 +152,7 @@ onMounted(async () => {
         </button>
         <button
           type="button"
-          class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
+          class="flex flex-shrink-0 items-center justify-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
           @click="showCreateForm = false"
         >
           <i class="i-lucide-x size-4" />
@@ -181,25 +203,134 @@ onMounted(async () => {
         />
       </div>
 
-      <div
-        v-else-if="hasBoards"
-        class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
-      >
+      <div v-else-if="hasBoards" class="flex flex-col gap-3">
         <button
           v-for="board in boards"
           :key="board.id"
           type="button"
-          class="flex min-h-32 flex-col gap-2 rounded-lg border border-n-weak bg-n-surface-2 p-5 text-left transition-colors hover:border-n-brand hover:bg-n-alpha-1"
+          data-testid="overview-board-card"
+          class="group flex w-full flex-col gap-5 rounded-lg border border-n-weak bg-n-surface-2 p-5 text-left transition-colors hover:border-n-brand hover:bg-n-alpha-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-n-brand"
           @click="openBoard(board.id)"
         >
-          <span class="text-base font-medium text-n-slate-12">
-            {{ board.name }}
-          </span>
-          <p
-            v-if="board.description"
-            class="line-clamp-2 text-sm text-n-slate-11"
+          <div
+            class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"
           >
-            {{ board.description }}
+            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+              <span class="truncate text-base font-semibold text-n-slate-12">
+                {{ board.name }}
+              </span>
+              <span
+                class="inline-flex items-center rounded-full bg-n-alpha-2 px-2.5 py-1 text-xs font-medium text-n-slate-11"
+                data-testid="overview-cards-count"
+              >
+                {{
+                  t('KANBAN.OVERVIEW.OPPORTUNITIES_COUNT', {
+                    count: boardCardsCount(board),
+                  })
+                }}
+              </span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 lg:justify-end">
+              <div class="flex items-center" data-testid="overview-agent-list">
+                <template v-if="boardVisibilityMode(board) === 'all_agents'">
+                  <span
+                    class="inline-flex items-center gap-1.5 rounded-full border border-n-weak bg-n-surface-1 px-2.5 py-1 text-xs font-medium text-n-slate-11"
+                  >
+                    <i class="i-lucide-users size-3.5" />
+                    {{ t('KANBAN.SETTINGS.AGENTS.ALL') }}
+                  </span>
+                </template>
+                <template v-else>
+                  <Avatar
+                    v-for="user in previewItems(boardUsers(board))"
+                    :key="user.id"
+                    :name="user.name"
+                    :src="user.avatar_url || user.avatarUrl || ''"
+                    :size="28"
+                    rounded-full
+                    class="-ml-2 first:ml-0 ring-2 ring-n-surface-2"
+                    data-testid="overview-agent-avatar"
+                  />
+                  <span
+                    v-if="extraItemsCount(boardUsers(board))"
+                    class="-ml-2 inline-flex size-7 items-center justify-center rounded-full bg-n-alpha-2 text-xs font-medium text-n-slate-11 ring-2 ring-n-surface-2"
+                  >
+                    {{
+                      t('KANBAN.OVERVIEW.EXTRA_COUNT', {
+                        count: extraItemsCount(boardUsers(board)),
+                      })
+                    }}
+                  </span>
+                </template>
+              </div>
+
+              <div
+                class="flex flex-wrap items-center gap-2"
+                data-testid="overview-inbox-list"
+              >
+                <template v-if="boardInboxScopeMode(board) === 'all_inboxes'">
+                  <span
+                    class="inline-flex items-center gap-1.5 rounded-full border border-n-weak bg-n-surface-1 px-2.5 py-1 text-xs font-medium text-n-slate-11"
+                    data-testid="overview-inbox-pill"
+                  >
+                    <i class="i-lucide-inbox size-3.5" />
+                    {{ t('KANBAN.SETTINGS.INBOXES.ALL') }}
+                  </span>
+                </template>
+                <template v-else>
+                  <span
+                    v-for="inbox in previewItems(boardInboxes(board))"
+                    :key="inbox.id"
+                    class="inline-flex max-w-40 items-center gap-1.5 rounded-full border border-n-weak bg-n-surface-1 px-2.5 py-1 text-xs font-medium text-n-slate-11"
+                    data-testid="overview-inbox-pill"
+                  >
+                    <i
+                      :class="inboxIcon(inbox)"
+                      class="size-3.5 flex-shrink-0"
+                    />
+                    <span class="truncate">{{ inbox.name }}</span>
+                  </span>
+                  <span
+                    v-if="extraItemsCount(boardInboxes(board))"
+                    class="inline-flex items-center rounded-full bg-n-alpha-2 px-2 py-1 text-xs font-medium text-n-slate-11"
+                  >
+                    {{
+                      t('KANBAN.OVERVIEW.EXTRA_COUNT', {
+                        count: extraItemsCount(boardInboxes(board)),
+                      })
+                    }}
+                  </span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="boardStages(board).length"
+            class="flex flex-wrap gap-2"
+            data-testid="overview-stage-list"
+          >
+            <span
+              v-for="stage in boardStages(board)"
+              :key="stage.id"
+              class="inline-flex max-w-full items-center gap-2 rounded-full border border-n-weak bg-n-surface-1 px-3 py-1.5 text-xs font-medium text-n-slate-11"
+              data-testid="overview-stage-pill"
+            >
+              <span
+                class="size-2 flex-shrink-0 rounded-full"
+                :class="getKanbanStageColorClass(stage.color)"
+              />
+              <span class="truncate">{{ stage.name }}</span>
+              <span
+                class="inline-flex min-w-5 justify-center rounded-full bg-n-alpha-2 px-1.5 py-0.5 text-[11px] font-semibold text-n-slate-12"
+              >
+                {{ stage.cards_count ?? stage.cardsCount ?? 0 }}
+              </span>
+            </span>
+          </div>
+          <p v-else class="text-sm text-n-slate-11">
+            {{ t('KANBAN.OVERVIEW.EMPTY_STAGES') }}
           </p>
         </button>
       </div>

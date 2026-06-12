@@ -13,11 +13,14 @@
     "OVERVIEW": {
       "TITLE": "Funnels",
       "DESCRIPTION": "Organize your conversations into manual workflows.",
-      "CREATE_BOARD": "New funnel",
+      "CREATE_BOARD": "Add funnel",
       "EMPTY_ADMIN": "No kanban boards yet. Create your first funnel to get started.",
       "EMPTY_AGENT": "No kanban boards available.",
       "LOADING": "Loading funnels...",
-      "ERROR": "Could not load funnels."
+      "ERROR": "Could not load funnels.",
+      "EMPTY_STAGES": "No stages configured.",
+      "OPPORTUNITIES_COUNT": "{count} opportunities",
+      "EXTRA_COUNT": "+{count}"
     },
     "BOARD_FORM": {
       "AUTO_CREATE_CARDS": "Create cards automatically for new conversations",

@@ -9,7 +9,8 @@ const mockPush = vi.fn();
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: key => key,
+    t: (key, params) =>
+      params?.count !== undefined ? `${key} ${params.count}` : key,
   }),
 }));
 
@@ -62,6 +63,12 @@ const mountOverview = async (role = 'agent') => {
     global: {
       plugins: [store],
       stubs: {
+        Avatar: {
+          name: 'Avatar',
+          props: ['name', 'src', 'size'],
+          template:
+            '<span class="avatar-stub" data-testid="overview-agent-avatar">{{ name }} {{ src }} {{ size }}</span>',
+        },
         Button: {
           name: 'Button',
           props: ['icon', 'label', 'color', 'size'],
@@ -125,8 +132,15 @@ describe('KanbanOverview', () => {
   it('lists visible boards', async () => {
     KanbanBoardsAPI.get.mockResolvedValue({
       data: [
-        { id: 1, name: 'Sales Board', description: 'Sales pipeline' },
-        { id: 2, name: 'Support Board', description: '' },
+        {
+          id: 1,
+          name: 'Sales Board',
+          cards_count: 3,
+          visibility_mode: 'all_agents',
+          inbox_scope_mode: 'all_inboxes',
+          stages_summary: [],
+        },
+        { id: 2, name: 'Support Board', cards_count: 0 },
       ],
     });
     const wrapper = await mountOverview();
@@ -135,7 +149,10 @@ describe('KanbanOverview', () => {
 
     expect(wrapper.text()).toContain('Sales Board');
     expect(wrapper.text()).toContain('Support Board');
-    expect(wrapper.text()).toContain('Sales pipeline');
+    expect(wrapper.findAll('[data-testid="overview-board-card"]')).toHaveLength(
+      2
+    );
+    expect(wrapper.text()).toContain('KANBAN.OVERVIEW.OPPORTUNITIES_COUNT 3');
   });
 
   it('navigates to board on click', async () => {
@@ -146,7 +163,7 @@ describe('KanbanOverview', () => {
     await flushPromises();
     await nextTick();
 
-    const boardButton = wrapper.find('button');
+    const boardButton = wrapper.find('[data-testid="overview-board-card"]');
     await boardButton.trigger('click');
 
     expect(mockPush).toHaveBeenCalledWith({
@@ -170,6 +187,94 @@ describe('KanbanOverview', () => {
     await nextTick();
 
     expect(wrapper.text()).not.toContain('KANBAN.OVERVIEW.CREATE_BOARD');
+  });
+
+  it('renders stages summary pills', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          name: 'Sales Board',
+          cards_count: 6,
+          stages_summary: [
+            { id: 11, name: 'Lead', color: 'blue', cards_count: 2 },
+            { id: 12, name: 'Won', color: 'green', cards_count: 4 },
+          ],
+        },
+      ],
+    });
+    const wrapper = await mountOverview();
+    await flushPromises();
+    await nextTick();
+
+    const stages = wrapper.findAll('[data-testid="overview-stage-pill"]');
+    expect(stages).toHaveLength(2);
+    expect(wrapper.text()).toContain('Lead');
+    expect(wrapper.text()).toContain('Won');
+    expect(wrapper.text()).toContain('2');
+    expect(wrapper.text()).toContain('4');
+  });
+
+  it('renders visible agent avatars', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          name: 'Sales Board',
+          visibility_mode: 'selected_agents',
+          visible_users: [
+            {
+              id: 1,
+              name: 'Alice Agent',
+              avatar_url: 'https://example.com/alice.png',
+            },
+            { id: 2, name: 'Bob Agent', avatar_url: '' },
+          ],
+        },
+      ],
+    });
+    const wrapper = await mountOverview();
+    await flushPromises();
+    await nextTick();
+
+    const avatars = wrapper.findAll('[data-testid="overview-agent-avatar"]');
+    expect(avatars).toHaveLength(2);
+    expect(wrapper.text()).toContain('Alice Agent');
+    expect(wrapper.text()).toContain('https://example.com/alice.png');
+    expect(wrapper.text()).toContain('Bob Agent');
+  });
+
+  it('renders linked inbox indicators', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          name: 'Sales Board',
+          inbox_scope_mode: 'selected_inboxes',
+          allowed_inboxes: [
+            {
+              id: 1,
+              name: 'Website',
+              channel_type: 'Channel::WebWidget',
+            },
+            {
+              id: 2,
+              name: 'Email',
+              channel_type: 'Channel::Email',
+            },
+          ],
+        },
+      ],
+    });
+    const wrapper = await mountOverview();
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.findAll('[data-testid="overview-inbox-pill"]')).toHaveLength(
+      2
+    );
+    expect(wrapper.text()).toContain('Website');
+    expect(wrapper.text()).toContain('Email');
   });
 
   it('creates board and navigates to it', async () => {
