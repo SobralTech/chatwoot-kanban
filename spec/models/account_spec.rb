@@ -18,14 +18,6 @@ RSpec.describe Account do
   it { is_expected.to have_many(:categories).dependent(:destroy_async) }
   it { is_expected.to have_many(:teams).dependent(:destroy_async) }
 
-  describe 'defaults' do
-    it 'allows agents to create kanban boards by default' do
-      account = described_class.new
-
-      expect(account.allow_agent_kanban_board_creation).to be(true)
-    end
-  end
-
   # This validation happens in ApplicationRecord
   describe 'length validations' do
     let(:account) { create(:account) }

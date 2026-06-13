@@ -21,18 +21,6 @@ RSpec.describe KanbanBoardPolicy, type: :policy do
     it { is_expected.to permit(admin_context, KanbanBoard) }
     it { is_expected.to permit(agent_context, KanbanBoard) }
     it { is_expected.not_to permit(other_context, KanbanBoard) }
-
-    it 'allows administrators when agent board creation is disabled' do
-      account.update!(allow_agent_kanban_board_creation: false)
-
-      expect(policy).to permit(admin_context, KanbanBoard)
-    end
-
-    it 'rejects agents when agent board creation is disabled' do
-      account.update!(allow_agent_kanban_board_creation: false)
-
-      expect(policy).not_to permit(agent_context, KanbanBoard)
-    end
   end
 
   permissions :update?, :destroy? do

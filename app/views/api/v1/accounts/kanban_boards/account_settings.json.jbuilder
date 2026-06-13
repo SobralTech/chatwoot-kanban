@@ -1,1 +1,0 @@
-json.allow_agent_kanban_board_creation Current.account.allow_agent_kanban_board_creation

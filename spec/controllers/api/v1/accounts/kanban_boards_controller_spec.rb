@@ -93,52 +93,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
     end
   end
 
-  describe 'GET /api/v1/accounts/{account.id}/kanban_boards/settings' do
-    it 'returns account kanban settings for agents' do
-      account.update!(allow_agent_kanban_board_creation: false)
-
-      get "/api/v1/accounts/#{account.id}/kanban_boards/settings",
-          headers: agent.create_new_auth_token,
-          as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(response.parsed_body).to eq('allow_agent_kanban_board_creation' => false)
-    end
-
-    it 'rejects users outside the account' do
-      other_user = create(:user)
-
-      get "/api/v1/accounts/#{account.id}/kanban_boards/settings",
-          headers: other_user.create_new_auth_token,
-          as: :json
-
-      expect(response).to have_http_status(:unauthorized)
-    end
-  end
-
-  describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/settings' do
-    it 'updates account kanban settings for administrators' do
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/settings",
-            headers: administrator.create_new_auth_token,
-            params: { account: { allow_agent_kanban_board_creation: false } },
-            as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(account.reload.allow_agent_kanban_board_creation).to be(false)
-      expect(response.parsed_body).to eq('allow_agent_kanban_board_creation' => false)
-    end
-
-    it 'rejects agents' do
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/settings",
-            headers: agent.create_new_auth_token,
-            params: { account: { allow_agent_kanban_board_creation: false } },
-            as: :json
-
-      expect(response).to have_http_status(:unauthorized)
-      expect(account.reload.allow_agent_kanban_board_creation).to be(true)
-    end
-  end
-
   describe 'GET /api/v1/accounts/{account.id}/kanban_boards/{id}' do
     it 'returns board stages and cards' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New')
@@ -1011,8 +965,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
     let(:payload) { { kanban_board: { name: 'Support', description: 'Support funnel', position: 1 } } }
 
     it 'creates a board for administrators' do
-      account.update!(allow_agent_kanban_board_creation: false)
-
       expect do
         post "/api/v1/accounts/#{account.id}/kanban_boards",
              headers: administrator.create_new_auth_token,
@@ -1026,7 +978,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
     end
 
-    it 'creates a board for agents when account allows it' do
+    it 'creates a board for agents' do
       expect do
         post "/api/v1/accounts/#{account.id}/kanban_boards",
              headers: agent.create_new_auth_token,
@@ -1055,11 +1007,11 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body['auto_create_cards_from_conversations']).to be(true)
     end
 
-    it 'returns unauthorized for agents when account disables it' do
-      account.update!(allow_agent_kanban_board_creation: false)
+    it 'returns unauthorized for users outside the account' do
+      other_user = create(:user)
 
       post "/api/v1/accounts/#{account.id}/kanban_boards",
-           headers: agent.create_new_auth_token,
+           headers: other_user.create_new_auth_token,
            params: payload,
            as: :json
 

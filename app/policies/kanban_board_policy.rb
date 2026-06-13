@@ -8,7 +8,7 @@ class KanbanBoardPolicy < ApplicationPolicy
   end
 
   def create?
-    administrator? || agent_allowed_to_create_boards?
+    administrator? || agent?
   end
 
   def update?
@@ -51,9 +51,5 @@ class KanbanBoardPolicy < ApplicationPolicy
 
   def agent?
     account_user&.agent?
-  end
-
-  def agent_allowed_to_create_boards?
-    agent? && account.allow_agent_kanban_board_creation?
   end
 end

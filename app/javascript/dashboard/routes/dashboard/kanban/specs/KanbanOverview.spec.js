@@ -4,7 +4,6 @@ import { createStore } from 'vuex';
 import KanbanOverview from '../KanbanOverview.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
-import { useAlert } from 'dashboard/composables';
 
 const mockPush = vi.fn();
 
@@ -13,10 +12,6 @@ vi.mock('vue-i18n', () => ({
     t: (key, params) => {
       const translations = {
         'KANBAN.OVERVIEW.CREATE_BOARD': 'Adicionar Funil',
-        'KANBAN.OVERVIEW.ALLOW_AGENT_CREATION':
-          'Permitir que agentes criem funis',
-        'KANBAN.OVERVIEW.AGENT_CREATION_SETTING_ERROR':
-          'Erro ao atualizar permissão',
       };
 
       if (params?.count !== undefined) return `${key} ${params.count}`;
@@ -43,8 +38,6 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     get: vi.fn(),
     create: vi.fn(),
-    getAccountSettings: vi.fn(),
-    updateAccountSettings: vi.fn(),
   },
 }));
 
@@ -71,28 +64,7 @@ const createTestStore = (role = 'agent') =>
     },
   });
 
-const mountOverview = async (
-  role = 'agent',
-  {
-    allowAgentKanbanBoardCreation = true,
-    rejectAccountSettings = false,
-    pendingAccountSettings = false,
-  } = {}
-) => {
-  if (pendingAccountSettings) {
-    KanbanBoardsAPI.getAccountSettings.mockReturnValue(new Promise(() => {}));
-  } else if (rejectAccountSettings) {
-    KanbanBoardsAPI.getAccountSettings.mockRejectedValue(
-      new Error('Settings API error')
-    );
-  } else {
-    KanbanBoardsAPI.getAccountSettings.mockResolvedValue({
-      data: {
-        allow_agent_kanban_board_creation: allowAgentKanbanBoardCreation,
-      },
-    });
-  }
-
+const mountOverview = async (role = 'agent') => {
   const store = createTestStore(role);
   const dispatchSpy = vi.spyOn(store, 'dispatch');
   const wrapper = shallowMount(KanbanOverview, {
@@ -125,9 +97,6 @@ describe('KanbanOverview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
-    KanbanBoardsAPI.getAccountSettings.mockResolvedValue({
-      data: { allow_agent_kanban_board_creation: true },
-    });
   });
 
   it('renders the overview page without redirecting', async () => {
@@ -150,18 +119,6 @@ describe('KanbanOverview', () => {
     await nextTick();
 
     expect(wrapper.text()).toContain('KANBAN.OVERVIEW.ERROR');
-  });
-
-  it('shows board error state when account settings request fails too', async () => {
-    KanbanBoardsAPI.get.mockRejectedValue(new Error('API error'));
-    const wrapper = await mountOverview('agent', {
-      rejectAccountSettings: true,
-    });
-    await flushPromises();
-    await nextTick();
-
-    expect(wrapper.text()).toContain('KANBAN.OVERVIEW.ERROR');
-    expect(wrapper.text()).not.toContain('KANBAN.OVERVIEW.LOADING');
   });
 
   it('shows empty state for admin with create option', async () => {
@@ -205,36 +162,6 @@ describe('KanbanOverview', () => {
       2
     );
     expect(wrapper.text()).toContain('KANBAN.OVERVIEW.OPPORTUNITIES_COUNT 3');
-  });
-
-  it('lists visible boards when account settings request fails', async () => {
-    KanbanBoardsAPI.get.mockResolvedValue({
-      data: [{ id: 1, name: 'Sales Board' }],
-    });
-    const wrapper = await mountOverview('agent', {
-      rejectAccountSettings: true,
-    });
-    await flushPromises();
-    await nextTick();
-
-    expect(wrapper.text()).toContain('Sales Board');
-    expect(wrapper.text()).not.toContain('KANBAN.OVERVIEW.LOADING');
-    expect(
-      wrapper.find('[data-testid="overview-create-board-button"]').exists()
-    ).toBe(true);
-  });
-
-  it('lists visible boards without waiting for account settings', async () => {
-    KanbanBoardsAPI.get.mockResolvedValue({
-      data: [{ id: 1, name: 'Sales Board' }],
-    });
-    const wrapper = await mountOverview('agent', {
-      pendingAccountSettings: true,
-    });
-    await flushPromises();
-    await nextTick();
-
-    expect(wrapper.text()).toContain('Sales Board');
     expect(wrapper.text()).not.toContain('KANBAN.OVERVIEW.LOADING');
   });
 
@@ -285,7 +212,7 @@ describe('KanbanOverview', () => {
     expect(createButton.text()).toContain('Adicionar Funil');
   });
 
-  it('agent sees create button when account allows it', async () => {
+  it('agent sees create button', async () => {
     const wrapper = await mountOverview();
     await flushPromises();
     await nextTick();
@@ -296,82 +223,6 @@ describe('KanbanOverview', () => {
 
     expect(createButton.exists()).toBe(true);
     expect(createButton.text()).toContain('Adicionar Funil');
-  });
-
-  it('agent does not see create button when account disables it', async () => {
-    const wrapper = await mountOverview('agent', {
-      allowAgentKanbanBoardCreation: false,
-    });
-    await flushPromises();
-    await nextTick();
-
-    expect(
-      wrapper.find('[data-testid="overview-create-board-button"]').exists()
-    ).toBe(false);
-  });
-
-  it('admin sees agent creation permission toggle', async () => {
-    const wrapper = await mountOverview('administrator');
-    await flushPromises();
-    await nextTick();
-
-    const toggle = wrapper.find(
-      '[data-testid="overview-agent-creation-toggle"]'
-    );
-
-    expect(toggle.exists()).toBe(true);
-    expect(toggle.element.checked).toBe(true);
-    expect(wrapper.text()).toContain('Permitir que agentes criem funis');
-  });
-
-  it('agent does not see agent creation permission toggle', async () => {
-    const wrapper = await mountOverview();
-    await flushPromises();
-    await nextTick();
-
-    expect(
-      wrapper.find('[data-testid="overview-agent-creation-toggle"]').exists()
-    ).toBe(false);
-  });
-
-  it('updates agent creation permission setting', async () => {
-    KanbanBoardsAPI.updateAccountSettings.mockResolvedValue({
-      data: { allow_agent_kanban_board_creation: false },
-    });
-    const wrapper = await mountOverview('administrator');
-    await flushPromises();
-    await nextTick();
-
-    const toggle = wrapper.find(
-      '[data-testid="overview-agent-creation-toggle"]'
-    );
-    await toggle.setValue(false);
-    await flushPromises();
-    await nextTick();
-
-    expect(KanbanBoardsAPI.updateAccountSettings).toHaveBeenCalledWith({
-      account: { allow_agent_kanban_board_creation: false },
-    });
-    expect(toggle.element.checked).toBe(false);
-  });
-
-  it('reverts agent creation permission setting when update fails', async () => {
-    KanbanBoardsAPI.updateAccountSettings.mockRejectedValue(
-      new Error('API error')
-    );
-    const wrapper = await mountOverview('administrator');
-    await flushPromises();
-    await nextTick();
-
-    const toggle = wrapper.find(
-      '[data-testid="overview-agent-creation-toggle"]'
-    );
-    await toggle.setValue(false);
-    await flushPromises();
-    await nextTick();
-
-    expect(toggle.element.checked).toBe(true);
-    expect(useAlert).toHaveBeenCalledWith('Erro ao atualizar permissão');
   });
 
   it('clicking create button opens the board creation flow', async () => {

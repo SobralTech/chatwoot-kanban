@@ -1,7 +1,5 @@
 class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseController
-  before_action :check_authorization, except: [:account_settings, :update_account_settings]
-  before_action :check_admin_authorization?, only: [:update_account_settings]
-  before_action :check_account_settings_authorization, only: [:account_settings]
+  before_action :check_authorization
   before_action :fetch_kanban_board, only: [:show, :update, :destroy]
 
   def index
@@ -18,13 +16,6 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def create
     @kanban_board = KanbanBoard.create!(kanban_board_params.merge(account: Current.account))
-  end
-
-  def account_settings; end
-
-  def update_account_settings
-    Current.account.update!(account_settings_params)
-    render :account_settings
   end
 
   def update
@@ -94,14 +85,6 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def kanban_board_params
     params.require(:kanban_board).permit(:name, :description, :position, :active, :auto_create_cards_from_conversations)
-  end
-
-  def account_settings_params
-    params.require(:account).permit(:allow_agent_kanban_board_creation)
-  end
-
-  def check_account_settings_authorization
-    authorize(KanbanBoard, :index?)
   end
 
   def fetch_stage_card_results
