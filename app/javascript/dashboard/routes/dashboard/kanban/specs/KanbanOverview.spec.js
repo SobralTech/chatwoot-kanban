@@ -4,6 +4,7 @@ import { createStore } from 'vuex';
 import KanbanOverview from '../KanbanOverview.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
+import { COLOR_OPTIONS } from 'dashboard/components-next/button/constants';
 
 const mockPush = vi.fn();
 
@@ -223,6 +224,25 @@ describe('KanbanOverview', () => {
 
     expect(createButton.exists()).toBe(true);
     expect(createButton.text()).toContain('Adicionar Funil');
+  });
+
+  it('uses valid Button colors in the overview actions', async () => {
+    KanbanBoardsAPI.get.mockRejectedValue(new Error('API error'));
+    const wrapper = await mountOverview('administrator');
+    await flushPromises();
+    await nextTick();
+
+    const buttons = wrapper.findAllComponents({ name: 'Button' });
+    buttons.forEach(button => {
+      expect(COLOR_OPTIONS).toContain(button.props('color'));
+    });
+
+    const createButtons = buttons.filter(
+      button => button.props('label') === 'Adicionar Funil'
+    );
+    createButtons.forEach(button => {
+      expect(button.props('color')).toBe('blue');
+    });
   });
 
   it('clicking create button opens the board creation flow', async () => {

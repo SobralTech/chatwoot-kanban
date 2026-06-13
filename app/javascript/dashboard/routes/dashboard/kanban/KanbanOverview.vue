@@ -126,7 +126,7 @@ onMounted(async () => {
             icon="i-lucide-plus"
             data-testid="overview-create-board-button"
             :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
-            color="primary"
+            color="blue"
             size="sm"
             @click="showCreateForm = true"
           />
@@ -177,8 +177,8 @@ onMounted(async () => {
           {{ t('KANBAN.OVERVIEW.ERROR') }}
         </p>
         <Button
-          label="KANBAN.ACTIONS.RETRY"
-          color="secondary"
+          :label="t('KANBAN.ACTIONS.RETRY')"
+          color="slate"
           size="sm"
           @click="retryFetch"
         />
@@ -199,7 +199,7 @@ onMounted(async () => {
           icon="i-lucide-plus"
           data-testid="overview-create-board-button"
           :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
-          color="primary"
+          color="blue"
           size="sm"
           @click="showCreateForm = true"
         />
