@@ -9,8 +9,15 @@ const mockPush = vi.fn();
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key, params) =>
-      params?.count !== undefined ? `${key} ${params.count}` : key,
+    t: (key, params) => {
+      const translations = {
+        'KANBAN.OVERVIEW.CREATE_BOARD': 'Adicionar Funil',
+      };
+
+      if (params?.count !== undefined) return `${key} ${params.count}`;
+
+      return translations[key] || key;
+    },
   }),
 }));
 
@@ -59,6 +66,7 @@ const createTestStore = (role = 'agent') =>
 
 const mountOverview = async (role = 'agent') => {
   const store = createTestStore(role);
+  const dispatchSpy = vi.spyOn(store, 'dispatch');
   const wrapper = shallowMount(KanbanOverview, {
     global: {
       plugins: [store],
@@ -81,6 +89,7 @@ const mountOverview = async (role = 'agent') => {
 
   await flushPromises();
   await nextTick();
+  wrapper.dispatchSpy = dispatchSpy;
   return wrapper;
 };
 
@@ -178,7 +187,28 @@ describe('KanbanOverview', () => {
     await flushPromises();
     await nextTick();
 
-    expect(wrapper.find('.btn-stub').exists()).toBe(true);
+    const createButton = wrapper.find(
+      '[data-testid="overview-create-board-button"]'
+    );
+    expect(createButton.exists()).toBe(true);
+    expect(createButton.text()).toContain('Adicionar Funil');
+  });
+
+  it('admin sees create button at the top when boards exist', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({
+      data: [{ id: 1, name: 'Sales Board' }],
+    });
+    const wrapper = await mountOverview('administrator');
+    await flushPromises();
+    await nextTick();
+
+    const header = wrapper.find('header');
+    const createButton = header.find(
+      '[data-testid="overview-create-board-button"]'
+    );
+
+    expect(createButton.exists()).toBe(true);
+    expect(createButton.text()).toContain('Adicionar Funil');
   });
 
   it('agent does not see create button', async () => {
@@ -186,7 +216,25 @@ describe('KanbanOverview', () => {
     await flushPromises();
     await nextTick();
 
-    expect(wrapper.text()).not.toContain('KANBAN.OVERVIEW.CREATE_BOARD');
+    expect(
+      wrapper.find('[data-testid="overview-create-board-button"]').exists()
+    ).toBe(false);
+  });
+
+  it('clicking create button opens the board creation flow', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({
+      data: [{ id: 1, name: 'Sales Board' }],
+    });
+    const wrapper = await mountOverview('administrator');
+    await flushPromises();
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="overview-create-board-button"]')
+      .trigger('click');
+    await nextTick();
+
+    expect(wrapper.find('form').exists()).toBe(true);
   });
 
   it('renders stages summary pills', async () => {
@@ -301,6 +349,9 @@ describe('KanbanOverview', () => {
     await flushPromises();
     await nextTick();
 
+    expect(wrapper.dispatchSpy).toHaveBeenCalledWith(
+      'kanbanBoards/refreshBoards'
+    );
     expect(mockPush).toHaveBeenCalledWith({
       name: 'kanban_board_show',
       params: { accountId: '1', boardId: 99 },

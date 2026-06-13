@@ -123,7 +123,8 @@ onMounted(async () => {
           <Button
             v-if="!showCreateForm"
             icon="i-lucide-plus"
-            label="KANBAN.OVERVIEW.CREATE_BOARD"
+            data-testid="overview-create-board-button"
+            :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
             color="primary"
             size="sm"
             @click="showCreateForm = true"
@@ -196,7 +197,8 @@ onMounted(async () => {
         <Button
           v-if="isAdmin"
           icon="i-lucide-plus"
-          label="KANBAN.OVERVIEW.CREATE_BOARD"
+          data-testid="overview-create-board-button"
+          :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
           color="primary"
           size="sm"
           @click="showCreateForm = true"
