@@ -27,7 +27,7 @@ const showCreateForm = ref(false);
 const newBoardName = ref('');
 const isCreatingBoard = ref(false);
 const isSavingAgentCreationSetting = ref(false);
-const allowAgentKanbanBoardCreation = ref(null);
+const allowAgentKanbanBoardCreation = ref(true);
 const hasFetched = ref(false);
 
 const hasBoards = computed(() => boards.value.length > 0);
@@ -100,10 +100,14 @@ const createBoard = async () => {
 };
 
 const fetchAccountSettings = async () => {
-  const response = await KanbanBoardsAPI.getAccountSettings();
-  const settings = camelcaseKeys(response.data || {});
-  allowAgentKanbanBoardCreation.value =
-    settings.allowAgentKanbanBoardCreation === true;
+  try {
+    const response = await KanbanBoardsAPI.getAccountSettings();
+    const settings = camelcaseKeys(response.data || {});
+    allowAgentKanbanBoardCreation.value =
+      settings.allowAgentKanbanBoardCreation === true;
+  } catch {
+    allowAgentKanbanBoardCreation.value = true;
+  }
 };
 
 const updateAgentCreationSetting = async event => {
@@ -139,11 +143,10 @@ const retryFetch = () => {
 
 onMounted(async () => {
   hasFetched.value = true;
+  fetchAccountSettings();
+
   try {
-    await Promise.all([
-      store.dispatch('kanbanBoards/fetchBoards'),
-      fetchAccountSettings(),
-    ]);
+    await store.dispatch('kanbanBoards/fetchBoards');
   } catch {
     // Error is handled by the store's error state
   }

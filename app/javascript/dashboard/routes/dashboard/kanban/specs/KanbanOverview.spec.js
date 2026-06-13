@@ -73,13 +73,26 @@ const createTestStore = (role = 'agent') =>
 
 const mountOverview = async (
   role = 'agent',
-  { allowAgentKanbanBoardCreation = true } = {}
+  {
+    allowAgentKanbanBoardCreation = true,
+    rejectAccountSettings = false,
+    pendingAccountSettings = false,
+  } = {}
 ) => {
-  KanbanBoardsAPI.getAccountSettings.mockResolvedValue({
-    data: {
-      allow_agent_kanban_board_creation: allowAgentKanbanBoardCreation,
-    },
-  });
+  if (pendingAccountSettings) {
+    KanbanBoardsAPI.getAccountSettings.mockReturnValue(new Promise(() => {}));
+  } else if (rejectAccountSettings) {
+    KanbanBoardsAPI.getAccountSettings.mockRejectedValue(
+      new Error('Settings API error')
+    );
+  } else {
+    KanbanBoardsAPI.getAccountSettings.mockResolvedValue({
+      data: {
+        allow_agent_kanban_board_creation: allowAgentKanbanBoardCreation,
+      },
+    });
+  }
+
   const store = createTestStore(role);
   const dispatchSpy = vi.spyOn(store, 'dispatch');
   const wrapper = shallowMount(KanbanOverview, {
@@ -139,6 +152,18 @@ describe('KanbanOverview', () => {
     expect(wrapper.text()).toContain('KANBAN.OVERVIEW.ERROR');
   });
 
+  it('shows board error state when account settings request fails too', async () => {
+    KanbanBoardsAPI.get.mockRejectedValue(new Error('API error'));
+    const wrapper = await mountOverview('agent', {
+      rejectAccountSettings: true,
+    });
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.text()).toContain('KANBAN.OVERVIEW.ERROR');
+    expect(wrapper.text()).not.toContain('KANBAN.OVERVIEW.LOADING');
+  });
+
   it('shows empty state for admin with create option', async () => {
     KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
     const wrapper = await mountOverview('administrator');
@@ -180,6 +205,37 @@ describe('KanbanOverview', () => {
       2
     );
     expect(wrapper.text()).toContain('KANBAN.OVERVIEW.OPPORTUNITIES_COUNT 3');
+  });
+
+  it('lists visible boards when account settings request fails', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({
+      data: [{ id: 1, name: 'Sales Board' }],
+    });
+    const wrapper = await mountOverview('agent', {
+      rejectAccountSettings: true,
+    });
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Sales Board');
+    expect(wrapper.text()).not.toContain('KANBAN.OVERVIEW.LOADING');
+    expect(
+      wrapper.find('[data-testid="overview-create-board-button"]').exists()
+    ).toBe(true);
+  });
+
+  it('lists visible boards without waiting for account settings', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({
+      data: [{ id: 1, name: 'Sales Board' }],
+    });
+    const wrapper = await mountOverview('agent', {
+      pendingAccountSettings: true,
+    });
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Sales Board');
+    expect(wrapper.text()).not.toContain('KANBAN.OVERVIEW.LOADING');
   });
 
   it('navigates to board on click', async () => {
