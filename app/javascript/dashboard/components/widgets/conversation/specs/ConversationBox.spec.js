@@ -9,16 +9,21 @@ describe('ConversationBox', () => {
   let store;
   let wrapper;
   let updateUISettings;
+  let uiSettings;
 
   const createWrapper = () => {
+    uiSettings = {
+      is_contact_sidebar_open: false,
+      is_copilot_panel_open: false,
+    };
     updateUISettings = vi.fn();
     store = createStore({
+      state: {
+        uiSettings,
+      },
       getters: {
         getSelectedChat: () => currentChat,
-        getUISettings: () => ({
-          is_contact_sidebar_open: true,
-          is_copilot_panel_open: true,
-        }),
+        getUISettings: state => state.uiSettings,
       },
       actions: {
         'conversationLabels/get': vi.fn(),
@@ -45,13 +50,6 @@ describe('ConversationBox', () => {
         },
         stubs: {
           ConversationHeader: true,
-          ConversationSearchPanel: {
-            name: 'ConversationSearchPanel',
-            template: '<aside data-testid="conversation-search-panel" />',
-            methods: {
-              focusInput: vi.fn(),
-            },
-          },
           MessagesView: true,
           EmptyState: true,
           DashboardAppFrame: true,
@@ -92,9 +90,8 @@ describe('ConversationBox', () => {
     await nextTick();
 
     expect(event.defaultPrevented).toBe(true);
-    expect(
-      wrapper.find('[data-testid="conversation-search-panel"]').exists()
-    ).toBe(true);
+    expect(wrapper.vm.isConversationSearchOpen).toBe(true);
+    expect(wrapper.emitted('conversationSearchOpen')).toHaveLength(1);
   });
 
   it('opens search panel with Cmd+F when a conversation exists', async () => {
@@ -128,7 +125,7 @@ describe('ConversationBox', () => {
     expect(wrapper.vm.isConversationSearchOpen).toBe(false);
   });
 
-  it('does not render the old inline search bar', async () => {
+  it('does not render the search panel inside the old conversation area', async () => {
     createWrapper();
 
     wrapper.vm.openConversationSearch();
@@ -139,7 +136,13 @@ describe('ConversationBox', () => {
     ).toBe(false);
     expect(
       wrapper.find('[data-testid="conversation-search-panel"]').exists()
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      wrapper
+        .find('[data-testid="conversation-main-region"]')
+        .find('[data-testid="conversation-search-panel"]')
+        .exists()
+    ).toBe(false);
   });
 
   it('does not hijack shortcut without a selected conversation', async () => {
@@ -205,6 +208,17 @@ describe('ConversationBox', () => {
     expect(wrapper.vm.isConversationSearchOpen).toBe(false);
   });
 
+  it('closes search when the contact panel is opened from another side panel control', async () => {
+    createWrapper();
+    wrapper.vm.openConversationSearch();
+    await nextTick();
+
+    store.state.uiSettings.is_contact_sidebar_open = true;
+    await nextTick();
+
+    expect(wrapper.vm.isConversationSearchOpen).toBe(false);
+  });
+
   it('keeps search open when contact details are closed from the header', async () => {
     createWrapper();
     wrapper.vm.openConversationSearch();
@@ -223,12 +237,10 @@ describe('ConversationBox', () => {
     wrapper.vm.openConversationSearch();
     await nextTick();
 
-    wrapper
-      .findComponent({ name: 'ConversationSearchPanel' })
-      .vm.$emit('searchStateChange', {
-        query: 'billing',
-        activeResultId: 2,
-      });
+    wrapper.vm.onConversationSearchStateChange({
+      query: 'billing',
+      activeResultId: 2,
+    });
     await nextTick();
 
     const messagesView = wrapper.findComponent({ name: 'MessagesView' });
@@ -244,13 +256,12 @@ describe('ConversationBox', () => {
     wrapper.vm.openConversationSearch();
     await nextTick();
 
-    wrapper
-      .findComponent({ name: 'ConversationSearchPanel' })
-      .vm.$emit('close');
+    wrapper.vm.closeConversationSearch();
     await nextTick();
 
     expect(wrapper.vm.isConversationSearchOpen).toBe(false);
     expect(wrapper.vm.conversationSearchQuery).toBe('');
     expect(wrapper.vm.activeConversationSearchResultId).toBeNull();
+    expect(wrapper.emitted('conversationSearchClose')).toHaveLength(1);
   });
 });

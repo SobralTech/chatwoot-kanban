@@ -10,6 +10,7 @@ import CmdBarConversationSnooze from 'dashboard/routes/dashboard/commands/CmdBar
 import { emitter } from 'shared/helpers/mitt';
 import SidepanelSwitch from 'dashboard/components-next/Conversation/SidepanelSwitch.vue';
 import ConversationSidebar from 'dashboard/components/widgets/conversation/ConversationSidebar.vue';
+import ConversationSearchPanel from 'dashboard/components/widgets/conversation/ConversationSearchPanel.vue';
 
 export default {
   components: {
@@ -18,6 +19,7 @@ export default {
     CmdBarConversationSnooze,
     SidepanelSwitch,
     ConversationSidebar,
+    ConversationSearchPanel,
   },
   beforeRouteLeave(to, from, next) {
     // Clear selected state if navigating away from a conversation to a route without a conversationId to prevent stale data issues
@@ -66,6 +68,7 @@ export default {
   data() {
     return {
       showSearchModal: false,
+      isConversationSearchOpen: false,
     };
   },
   computed: {
@@ -90,6 +93,10 @@ export default {
 
     shouldShowSidebar() {
       if (!this.currentChat.id) {
+        return false;
+      }
+
+      if (this.isConversationSearchOpen) {
         return false;
       }
 
@@ -190,6 +197,18 @@ export default {
     closeSearch() {
       this.showSearchModal = false;
     },
+    openConversationSearch() {
+      this.isConversationSearchOpen = true;
+    },
+    closeConversationSearch() {
+      this.isConversationSearchOpen = false;
+    },
+    closeConversationSearchPanel() {
+      this.$refs.conversationBox?.closeConversationSearch();
+    },
+    onConversationSearchStateChange(searchState) {
+      this.$refs.conversationBox?.onConversationSearchStateChange(searchState);
+    },
   },
 };
 </script>
@@ -208,11 +227,19 @@ export default {
     />
     <ConversationBox
       v-if="showMessageView"
+      ref="conversationBox"
       :inbox-id="inboxId"
       :is-on-expanded-layout="isOnExpandedLayout"
+      @conversation-search-open="openConversationSearch"
+      @conversation-search-close="closeConversationSearch"
     >
       <SidepanelSwitch v-if="currentChat.id" />
     </ConversationBox>
+    <ConversationSearchPanel
+      v-if="isConversationSearchOpen"
+      @close="closeConversationSearchPanel"
+      @search-state-change="onConversationSearchStateChange"
+    />
     <ConversationSidebar v-if="shouldShowSidebar" :current-chat="currentChat" />
     <CmdBarConversationSnooze />
   </section>

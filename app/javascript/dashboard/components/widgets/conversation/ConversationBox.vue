@@ -1,7 +1,6 @@
 <script>
 import { mapGetters } from 'vuex';
 import ConversationHeader from './ConversationHeader.vue';
-import ConversationSearchPanel from './ConversationSearchPanel.vue';
 import DashboardAppFrame from '../DashboardApp/Frame.vue';
 import EmptyState from './EmptyState/EmptyState.vue';
 import MessagesView from './MessagesView.vue';
@@ -9,7 +8,6 @@ import MessagesView from './MessagesView.vue';
 export default {
   components: {
     ConversationHeader,
-    ConversationSearchPanel,
     DashboardAppFrame,
     EmptyState,
     MessagesView,
@@ -29,6 +27,7 @@ export default {
       default: true,
     },
   },
+  emits: ['conversationSearchOpen', 'conversationSearchClose'],
   data() {
     return {
       activeIndex: 0,
@@ -72,6 +71,11 @@ export default {
       this.activeIndex = 0;
       this.closeConversationSearch();
     },
+    'uiSettings.is_contact_sidebar_open'(isOpen) {
+      if (isOpen) {
+        this.closeConversationSearch();
+      }
+    },
   },
   mounted() {
     this.fetchLabels();
@@ -95,8 +99,8 @@ export default {
       if (!this.currentChat.id) return;
 
       this.isConversationSearchOpen = true;
+      this.$emit('conversationSearchOpen');
       this.closeSidePanels();
-      this.$nextTick(() => this.$refs.conversationSearchPanel?.focusInput?.());
     },
     toggleConversationSearch() {
       if (this.isConversationSearchOpen) {
@@ -106,9 +110,13 @@ export default {
       }
     },
     closeConversationSearch() {
+      const wasOpen = this.isConversationSearchOpen;
       this.isConversationSearchOpen = false;
       this.conversationSearchQuery = '';
       this.activeConversationSearchResultId = null;
+      if (wasOpen) {
+        this.$emit('conversationSearchClose');
+      }
     },
     onConversationSearchShortcut(event) {
       if (!this.currentChat.id || event.key.toLowerCase() !== 'f') return;
@@ -189,7 +197,11 @@ export default {
         is-compact
       />
     </woot-tabs>
-    <div v-show="!activeIndex" class="flex h-full min-h-0 m-0">
+    <div
+      v-show="!activeIndex"
+      class="flex h-full min-h-0 m-0"
+      data-testid="conversation-main-region"
+    >
       <MessagesView
         v-if="currentChat.id"
         :inbox-id="inboxId"
@@ -202,12 +214,6 @@ export default {
         :is-on-expanded-layout="isOnExpandedLayout"
       />
       <slot />
-      <ConversationSearchPanel
-        v-if="isConversationSearchOpen"
-        ref="conversationSearchPanel"
-        @close="closeConversationSearch"
-        @search-state-change="onConversationSearchStateChange"
-      />
     </div>
     <DashboardAppFrame
       v-for="(dashboardApp, index) in dashboardApps"

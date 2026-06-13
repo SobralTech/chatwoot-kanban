@@ -14,6 +14,7 @@ import ConversationBox from 'dashboard/components/widgets/conversation/Conversat
 import InboxEmptyState from './InboxEmptyState.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import ConversationSidebar from 'dashboard/components/widgets/conversation/ConversationSidebar.vue';
+import ConversationSearchPanel from 'dashboard/components/widgets/conversation/ConversationSearchPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -21,6 +22,8 @@ const store = useStore();
 const { uiSettings } = useUISettings();
 
 const isConversationLoading = ref(false);
+const isConversationSearchOpen = ref(false);
+const conversationBox = ref(null);
 
 const notification = useMapGetter('notifications/getFilteredNotifications');
 const currentChat = useMapGetter('getSelectedChat');
@@ -67,12 +70,28 @@ const activeNotificationIndex = computed(() => {
 });
 
 const isContactPanelOpen = computed(() => {
-  if (currentChat.value.id) {
+  if (currentChat.value.id && !isConversationSearchOpen.value) {
     const { is_contact_sidebar_open: isContactSidebarOpen } = uiSettings.value;
     return isContactSidebarOpen;
   }
   return false;
 });
+
+const openConversationSearch = () => {
+  isConversationSearchOpen.value = true;
+};
+
+const closeConversationSearch = () => {
+  isConversationSearchOpen.value = false;
+};
+
+const closeConversationSearchPanel = () => {
+  conversationBox.value?.closeConversationSearch();
+};
+
+const onConversationSearchStateChange = searchState => {
+  conversationBox.value?.onConversationSearchStateChange(searchState);
+};
 
 const findConversation = () => {
   return conversationById.value(conversationId.value);
@@ -207,13 +226,21 @@ onMounted(async () => {
       </div>
       <div v-else class="flex h-[calc(100%-48px)] min-w-0">
         <ConversationBox
+          ref="conversationBox"
           class="flex-1 [&.conversation-details-wrap]:!border-0"
           is-inbox-view
           :inbox-id="inboxId"
           :is-on-expanded-layout="false"
+          @conversation-search-open="openConversationSearch"
+          @conversation-search-close="closeConversationSearch"
         >
           <SidepanelSwitch v-if="currentChat.id" />
         </ConversationBox>
+        <ConversationSearchPanel
+          v-if="isConversationSearchOpen"
+          @close="closeConversationSearchPanel"
+          @search-state-change="onConversationSearchStateChange"
+        />
         <ConversationSidebar
           v-if="isContactPanelOpen"
           :current-chat="currentChat"
