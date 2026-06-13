@@ -26,9 +26,14 @@ const error = useMapGetter('kanbanBoards/kanbanBoardsError');
 const showCreateForm = ref(false);
 const newBoardName = ref('');
 const isCreatingBoard = ref(false);
+const isSavingAgentCreationSetting = ref(false);
+const allowAgentKanbanBoardCreation = ref(null);
 const hasFetched = ref(false);
 
 const hasBoards = computed(() => boards.value.length > 0);
+const canCreateBoard = computed(
+  () => isAdmin.value || allowAgentKanbanBoardCreation.value === true
+);
 
 const openBoard = boardId => {
   router.push({
@@ -62,7 +67,7 @@ const inboxIcon = inbox =>
 
 const createBoard = async () => {
   const name = newBoardName.value.trim();
-  if (!name || isCreatingBoard.value) return;
+  if (!name || isCreatingBoard.value || !canCreateBoard.value) return;
 
   isCreatingBoard.value = true;
 
@@ -94,6 +99,40 @@ const createBoard = async () => {
   }
 };
 
+const fetchAccountSettings = async () => {
+  const response = await KanbanBoardsAPI.getAccountSettings();
+  const settings = camelcaseKeys(response.data || {});
+  allowAgentKanbanBoardCreation.value =
+    settings.allowAgentKanbanBoardCreation === true;
+};
+
+const updateAgentCreationSetting = async event => {
+  const previousValue = allowAgentKanbanBoardCreation.value;
+  const nextValue = event.target.checked;
+
+  allowAgentKanbanBoardCreation.value = nextValue;
+  isSavingAgentCreationSetting.value = true;
+
+  try {
+    const response = await KanbanBoardsAPI.updateAccountSettings({
+      account: {
+        allow_agent_kanban_board_creation: nextValue,
+      },
+    });
+    const settings = camelcaseKeys(response.data || {});
+    allowAgentKanbanBoardCreation.value =
+      settings.allowAgentKanbanBoardCreation === true;
+  } catch (err) {
+    allowAgentKanbanBoardCreation.value = previousValue;
+    const message =
+      err?.response?.data?.error ||
+      t('KANBAN.OVERVIEW.AGENT_CREATION_SETTING_ERROR');
+    useAlert(message);
+  } finally {
+    isSavingAgentCreationSetting.value = false;
+  }
+};
+
 const retryFetch = () => {
   store.dispatch('kanbanBoards/fetchBoards');
 };
@@ -101,7 +140,10 @@ const retryFetch = () => {
 onMounted(async () => {
   hasFetched.value = true;
   try {
-    await store.dispatch('kanbanBoards/fetchBoards');
+    await Promise.all([
+      store.dispatch('kanbanBoards/fetchBoards'),
+      fetchAccountSettings(),
+    ]);
   } catch {
     // Error is handled by the store's error state
   }
@@ -119,9 +161,23 @@ onMounted(async () => {
             {{ t('KANBAN.OVERVIEW.TITLE') }}
           </h1>
         </div>
-        <div v-if="isAdmin" class="flex flex-shrink-0 gap-2">
+        <div class="flex flex-shrink-0 items-center gap-4">
+          <label
+            v-if="isAdmin"
+            class="flex items-center gap-2 text-sm font-medium text-n-slate-11"
+          >
+            <input
+              type="checkbox"
+              class="h-4 w-4 cursor-pointer rounded border border-n-weak accent-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+              data-testid="overview-agent-creation-toggle"
+              :checked="allowAgentKanbanBoardCreation === true"
+              :disabled="isSavingAgentCreationSetting"
+              @change="updateAgentCreationSetting"
+            />
+            {{ t('KANBAN.OVERVIEW.ALLOW_AGENT_CREATION') }}
+          </label>
           <Button
-            v-if="!showCreateForm"
+            v-if="canCreateBoard && !showCreateForm"
             icon="i-lucide-plus"
             data-testid="overview-create-board-button"
             :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
@@ -195,7 +251,7 @@ onMounted(async () => {
           }}
         </p>
         <Button
-          v-if="isAdmin"
+          v-if="canCreateBoard"
           icon="i-lucide-plus"
           data-testid="overview-create-board-button"
           :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"

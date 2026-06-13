@@ -4,6 +4,7 @@ import { createStore } from 'vuex';
 import KanbanOverview from '../KanbanOverview.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
+import { useAlert } from 'dashboard/composables';
 
 const mockPush = vi.fn();
 
@@ -12,6 +13,10 @@ vi.mock('vue-i18n', () => ({
     t: (key, params) => {
       const translations = {
         'KANBAN.OVERVIEW.CREATE_BOARD': 'Adicionar Funil',
+        'KANBAN.OVERVIEW.ALLOW_AGENT_CREATION':
+          'Permitir que agentes criem funis',
+        'KANBAN.OVERVIEW.AGENT_CREATION_SETTING_ERROR':
+          'Erro ao atualizar permissão',
       };
 
       if (params?.count !== undefined) return `${key} ${params.count}`;
@@ -38,6 +43,8 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     get: vi.fn(),
     create: vi.fn(),
+    getAccountSettings: vi.fn(),
+    updateAccountSettings: vi.fn(),
   },
 }));
 
@@ -64,7 +71,15 @@ const createTestStore = (role = 'agent') =>
     },
   });
 
-const mountOverview = async (role = 'agent') => {
+const mountOverview = async (
+  role = 'agent',
+  { allowAgentKanbanBoardCreation = true } = {}
+) => {
+  KanbanBoardsAPI.getAccountSettings.mockResolvedValue({
+    data: {
+      allow_agent_kanban_board_creation: allowAgentKanbanBoardCreation,
+    },
+  });
   const store = createTestStore(role);
   const dispatchSpy = vi.spyOn(store, 'dispatch');
   const wrapper = shallowMount(KanbanOverview, {
@@ -81,7 +96,7 @@ const mountOverview = async (role = 'agent') => {
           name: 'Button',
           props: ['icon', 'label', 'color', 'size'],
           template:
-            '<button class="btn-stub" @click="$emit(\'click\')">{{ label }}<slot /></button>',
+            '<button v-bind="$attrs" class="btn-stub" @click="$emit(\'click\')">{{ label }}<slot /></button>',
         },
       },
     },
@@ -97,6 +112,9 @@ describe('KanbanOverview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
+    KanbanBoardsAPI.getAccountSettings.mockResolvedValue({
+      data: { allow_agent_kanban_board_creation: true },
+    });
   });
 
   it('renders the overview page without redirecting', async () => {
@@ -211,8 +229,23 @@ describe('KanbanOverview', () => {
     expect(createButton.text()).toContain('Adicionar Funil');
   });
 
-  it('agent does not see create button', async () => {
+  it('agent sees create button when account allows it', async () => {
     const wrapper = await mountOverview();
+    await flushPromises();
+    await nextTick();
+
+    const createButton = wrapper.find(
+      '[data-testid="overview-create-board-button"]'
+    );
+
+    expect(createButton.exists()).toBe(true);
+    expect(createButton.text()).toContain('Adicionar Funil');
+  });
+
+  it('agent does not see create button when account disables it', async () => {
+    const wrapper = await mountOverview('agent', {
+      allowAgentKanbanBoardCreation: false,
+    });
     await flushPromises();
     await nextTick();
 
@@ -221,11 +254,75 @@ describe('KanbanOverview', () => {
     ).toBe(false);
   });
 
+  it('admin sees agent creation permission toggle', async () => {
+    const wrapper = await mountOverview('administrator');
+    await flushPromises();
+    await nextTick();
+
+    const toggle = wrapper.find(
+      '[data-testid="overview-agent-creation-toggle"]'
+    );
+
+    expect(toggle.exists()).toBe(true);
+    expect(toggle.element.checked).toBe(true);
+    expect(wrapper.text()).toContain('Permitir que agentes criem funis');
+  });
+
+  it('agent does not see agent creation permission toggle', async () => {
+    const wrapper = await mountOverview();
+    await flushPromises();
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="overview-agent-creation-toggle"]').exists()
+    ).toBe(false);
+  });
+
+  it('updates agent creation permission setting', async () => {
+    KanbanBoardsAPI.updateAccountSettings.mockResolvedValue({
+      data: { allow_agent_kanban_board_creation: false },
+    });
+    const wrapper = await mountOverview('administrator');
+    await flushPromises();
+    await nextTick();
+
+    const toggle = wrapper.find(
+      '[data-testid="overview-agent-creation-toggle"]'
+    );
+    await toggle.setValue(false);
+    await flushPromises();
+    await nextTick();
+
+    expect(KanbanBoardsAPI.updateAccountSettings).toHaveBeenCalledWith({
+      account: { allow_agent_kanban_board_creation: false },
+    });
+    expect(toggle.element.checked).toBe(false);
+  });
+
+  it('reverts agent creation permission setting when update fails', async () => {
+    KanbanBoardsAPI.updateAccountSettings.mockRejectedValue(
+      new Error('API error')
+    );
+    const wrapper = await mountOverview('administrator');
+    await flushPromises();
+    await nextTick();
+
+    const toggle = wrapper.find(
+      '[data-testid="overview-agent-creation-toggle"]'
+    );
+    await toggle.setValue(false);
+    await flushPromises();
+    await nextTick();
+
+    expect(toggle.element.checked).toBe(true);
+    expect(useAlert).toHaveBeenCalledWith('Erro ao atualizar permissão');
+  });
+
   it('clicking create button opens the board creation flow', async () => {
     KanbanBoardsAPI.get.mockResolvedValue({
       data: [{ id: 1, name: 'Sales Board' }],
     });
-    const wrapper = await mountOverview('administrator');
+    const wrapper = await mountOverview('agent');
     await flushPromises();
     await nextTick();
 

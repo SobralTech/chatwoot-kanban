@@ -18,6 +18,8 @@
       "EMPTY_AGENT": "No kanban boards available.",
       "LOADING": "Loading funnels...",
       "ERROR": "Could not load funnels.",
+      "ALLOW_AGENT_CREATION": "Allow agents to create funnels",
+      "AGENT_CREATION_SETTING_ERROR": "Could not update the funnel creation setting.",
       "EMPTY_STAGES": "No stages configured.",
       "OPPORTUNITIES_COUNT": "{count} opportunities",
       "EXTRA_COUNT": "+{count}"
