@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
@@ -25,8 +25,10 @@ const error = useMapGetter('kanbanBoards/kanbanBoardsError');
 
 const showCreateForm = ref(false);
 const newBoardName = ref('');
+const createBoardError = ref('');
 const isCreatingBoard = ref(false);
 const hasFetched = ref(false);
+const createBoardInput = ref(null);
 
 const hasBoards = computed(() => boards.value.length > 0);
 
@@ -38,6 +40,18 @@ const openBoard = boardId => {
       boardId,
     },
   });
+};
+
+const openCreateForm = () => {
+  showCreateForm.value = true;
+  createBoardError.value = '';
+  nextTick(() => createBoardInput.value?.focus());
+};
+
+const closeCreateForm = () => {
+  showCreateForm.value = false;
+  newBoardName.value = '';
+  createBoardError.value = '';
 };
 
 const boardCardsCount = board => board.cards_count ?? board.cardsCount ?? 0;
@@ -65,6 +79,7 @@ const createBoard = async () => {
   if (!name || isCreatingBoard.value) return;
 
   isCreatingBoard.value = true;
+  createBoardError.value = '';
 
   try {
     const response = await KanbanBoardsAPI.create({
@@ -76,7 +91,7 @@ const createBoard = async () => {
     const board = camelcaseKeys(response.data || {}, { deep: true });
     newBoardName.value = '';
     showCreateForm.value = false;
-    store.dispatch('kanbanBoards/refreshBoards');
+    await store.dispatch('kanbanBoards/refreshBoards');
     router.push({
       name: 'kanban_board_show',
       params: {
@@ -88,7 +103,7 @@ const createBoard = async () => {
   } catch (err) {
     const message =
       err?.response?.data?.error || t('KANBAN.ACTIONS.CREATE_BOARD_ERROR');
-    useAlert(message);
+    createBoardError.value = message;
   } finally {
     isCreatingBoard.value = false;
   }
@@ -122,45 +137,73 @@ onMounted(async () => {
         </div>
         <div class="flex flex-shrink-0 items-center gap-4">
           <Button
-            v-if="!showCreateForm"
             icon="i-lucide-plus"
             data-testid="overview-create-board-button"
             :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
             color="blue"
             size="sm"
-            @click="showCreateForm = true"
+            @click="openCreateForm"
           />
         </div>
       </header>
 
-      <form
+      <div
         v-if="showCreateForm"
-        class="flex flex-col gap-3 rounded-lg border border-n-weak bg-n-surface-2 p-4 sm:flex-row"
-        @submit.prevent="createBoard"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-n-slate-12/40 px-4 backdrop-blur-sm"
+        data-testid="overview-create-board-modal"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="t('KANBAN.OVERVIEW.CREATE_BOARD_MODAL_TITLE')"
+        @keydown.escape.prevent="closeCreateForm"
       >
-        <input
-          v-model="newBoardName"
-          type="text"
-          class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-          :placeholder="t('KANBAN.ACTIONS.BOARD_NAME_PLACEHOLDER')"
-        />
-        <button
-          type="submit"
-          class="flex flex-shrink-0 items-center justify-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="!newBoardName.trim() || isCreatingBoard"
+        <form
+          class="w-full max-w-sm rounded-lg border border-n-weak bg-n-surface-1 p-4 shadow-xl"
+          @submit.prevent="createBoard"
         >
-          <i class="i-lucide-check size-4" />
-          {{ t('KANBAN.ACTIONS.CREATE_BOARD') }}
-        </button>
-        <button
-          type="button"
-          class="flex flex-shrink-0 items-center justify-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
-          @click="showCreateForm = false"
-        >
-          <i class="i-lucide-x size-4" />
-          {{ t('KANBAN.ACTIONS.CANCEL') }}
-        </button>
-      </form>
+          <label
+            for="overview-create-board-name"
+            class="mb-2 block text-sm font-medium text-n-slate-12"
+          >
+            {{ t('KANBAN.OVERVIEW.CREATE_BOARD_MODAL_TITLE') }}
+          </label>
+          <input
+            id="overview-create-board-name"
+            ref="createBoardInput"
+            v-model="newBoardName"
+            type="text"
+            class="w-full rounded-md border border-n-weak bg-n-surface-2 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+            :placeholder="t('KANBAN.ACTIONS.BOARD_NAME_PLACEHOLDER')"
+            @keydown.enter.prevent="createBoard"
+          />
+          <p
+            v-if="createBoardError"
+            class="mt-2 text-sm text-n-ruby-11"
+            data-testid="overview-create-board-error"
+          >
+            {{ createBoardError }}
+          </p>
+          <div class="mt-4 flex justify-end gap-2">
+            <button
+              type="submit"
+              class="flex size-9 items-center justify-center rounded-md border border-n-weak bg-n-surface-2 text-n-slate-12 transition-colors hover:bg-n-teal-9 hover:text-white focus:outline-none focus:ring-2 focus:ring-n-teal-8 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-n-surface-2 disabled:hover:text-n-slate-12"
+              :disabled="!newBoardName.trim() || isCreatingBoard"
+              :aria-label="t('KANBAN.ACTIONS.CONFIRM_CREATE_BOARD')"
+              :title="t('KANBAN.ACTIONS.CONFIRM_CREATE_BOARD')"
+            >
+              <i class="i-lucide-check size-4" />
+            </button>
+            <button
+              type="button"
+              class="flex size-9 items-center justify-center rounded-md border border-n-weak bg-n-surface-2 text-n-slate-12 transition-colors hover:bg-n-ruby-9 hover:text-white focus:outline-none focus:ring-2 focus:ring-n-ruby-8"
+              :aria-label="t('KANBAN.ACTIONS.CANCEL_CREATE_BOARD')"
+              :title="t('KANBAN.ACTIONS.CANCEL_CREATE_BOARD')"
+              @click="closeCreateForm"
+            >
+              <i class="i-lucide-x size-4" />
+            </button>
+          </div>
+        </form>
+      </div>
 
       <div
         v-if="isLoading"
@@ -195,14 +238,6 @@ onMounted(async () => {
               : t('KANBAN.OVERVIEW.EMPTY_AGENT')
           }}
         </p>
-        <Button
-          icon="i-lucide-plus"
-          data-testid="overview-create-board-button"
-          :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
-          color="blue"
-          size="sm"
-          @click="showCreateForm = true"
-        />
       </div>
 
       <div v-else-if="hasBoards" class="flex flex-col gap-3">

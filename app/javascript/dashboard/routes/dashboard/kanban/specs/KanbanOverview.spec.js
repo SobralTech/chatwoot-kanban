@@ -13,6 +13,10 @@ vi.mock('vue-i18n', () => ({
     t: (key, params) => {
       const translations = {
         'KANBAN.OVERVIEW.CREATE_BOARD': 'Adicionar Funil',
+        'KANBAN.ACTIONS.CONFIRM_CREATE_BOARD': 'Criar funil',
+        'KANBAN.ACTIONS.CANCEL_CREATE_BOARD': 'Cancelar criação do funil',
+        'KANBAN.ACTIONS.CREATE_BOARD_ERROR':
+          'Não foi possível criar o quadro kanban.',
       };
 
       if (params?.count !== undefined) return `${key} ${params.count}`;
@@ -196,6 +200,24 @@ describe('KanbanOverview', () => {
     expect(createButton.text()).toContain('Adicionar Funil');
   });
 
+  it('renders only one create button in the overview', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
+    const wrapper = await mountOverview('administrator');
+    await flushPromises();
+    await nextTick();
+
+    const createButtons = wrapper.findAll(
+      '[data-testid="overview-create-board-button"]'
+    );
+
+    expect(createButtons).toHaveLength(1);
+    expect(
+      wrapper
+        .find('header [data-testid="overview-create-board-button"]')
+        .exists()
+    ).toBe(true);
+  });
+
   it('admin sees create button at the top when boards exist', async () => {
     KanbanBoardsAPI.get.mockResolvedValue({
       data: [{ id: 1, name: 'Sales Board' }],
@@ -245,7 +267,7 @@ describe('KanbanOverview', () => {
     });
   });
 
-  it('clicking create button opens the board creation flow', async () => {
+  it('clicking create button opens the board creation modal', async () => {
     KanbanBoardsAPI.get.mockResolvedValue({
       data: [{ id: 1, name: 'Sales Board' }],
     });
@@ -258,7 +280,68 @@ describe('KanbanOverview', () => {
       .trigger('click');
     await nextTick();
 
-    expect(wrapper.find('form').exists()).toBe(true);
+    expect(
+      wrapper.find('[data-testid="overview-create-board-modal"]').exists()
+    ).toBe(true);
+  });
+
+  it('cancel closes the create modal and clears the board name', async () => {
+    const wrapper = await mountOverview();
+    await flushPromises();
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="overview-create-board-button"]')
+      .trigger('click');
+    await nextTick();
+    await wrapper.find('input[type="text"]').setValue('New Board');
+
+    await wrapper
+      .find('[aria-label="Cancelar criação do funil"]')
+      .trigger('click');
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="overview-create-board-modal"]').exists()
+    ).toBe(false);
+
+    await wrapper
+      .find('[data-testid="overview-create-board-button"]')
+      .trigger('click');
+    await nextTick();
+
+    expect(wrapper.find('input[type="text"]').element.value).toBe('');
+  });
+
+  it('escape closes the create modal', async () => {
+    const wrapper = await mountOverview();
+    await flushPromises();
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="overview-create-board-button"]')
+      .trigger('click');
+    await nextTick();
+    await wrapper
+      .find('[data-testid="overview-create-board-modal"]')
+      .trigger('keydown', { key: 'Escape' });
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="overview-create-board-modal"]').exists()
+    ).toBe(false);
+  });
+
+  it('empty state does not render a second create button', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
+    const wrapper = await mountOverview();
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.text()).toContain('KANBAN.OVERVIEW.EMPTY_AGENT');
+    expect(
+      wrapper.findAll('[data-testid="overview-create-board-button"]')
+    ).toHaveLength(1);
   });
 
   it('renders stages summary pills', async () => {
@@ -380,5 +463,68 @@ describe('KanbanOverview', () => {
       name: 'kanban_board_show',
       params: { accountId: '1', boardId: 99 },
     });
+  });
+
+  it('enter creates board and navigates to it', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
+    KanbanBoardsAPI.create.mockResolvedValue({
+      data: { id: 100, name: 'Enter Board' },
+    });
+
+    const wrapper = await mountOverview('administrator');
+    await flushPromises();
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="overview-create-board-button"]')
+      .trigger('click');
+    await nextTick();
+    const input = wrapper.find('input[type="text"]');
+    await input.setValue('Enter Board');
+    await input.trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    await nextTick();
+
+    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
+      kanban_board: {
+        name: 'Enter Board',
+        position: 0,
+      },
+    });
+    expect(wrapper.dispatchSpy).toHaveBeenCalledWith(
+      'kanbanBoards/refreshBoards'
+    );
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_board_show',
+      params: { accountId: '1', boardId: 100 },
+    });
+  });
+
+  it('preserves typed text and shows an error when create fails', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
+    KanbanBoardsAPI.create.mockRejectedValue({
+      response: { data: { error: 'Name is already taken' } },
+    });
+
+    const wrapper = await mountOverview('administrator');
+    await flushPromises();
+    await nextTick();
+
+    await wrapper
+      .find('[data-testid="overview-create-board-button"]')
+      .trigger('click');
+    await nextTick();
+    const input = wrapper.find('input[type="text"]');
+    await input.setValue('Existing Board');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.find('input[type="text"]').element.value).toBe(
+      'Existing Board'
+    );
+    expect(
+      wrapper.find('[data-testid="overview-create-board-error"]').text()
+    ).toBe('Name is already taken');
   });
 });
