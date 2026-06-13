@@ -127,6 +127,8 @@ Rails.application.routes.draw do
           resources :campaigns, only: [:index, :create, :show, :update, :destroy]
           resources :dashboard_apps, only: [:index, :show, :create, :update, :destroy]
           resources :kanban_boards, only: [:index, :create, :show, :destroy] do
+            get :settings, on: :collection, action: :account_settings
+            patch :settings, on: :collection, action: :update_account_settings
             patch '', on: :member, action: :update
 
             scope module: :kanban_boards do

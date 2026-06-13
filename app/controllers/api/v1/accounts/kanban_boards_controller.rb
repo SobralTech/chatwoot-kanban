@@ -1,5 +1,7 @@
 class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseController
-  before_action :check_authorization
+  before_action :check_authorization, except: [:account_settings, :update_account_settings]
+  before_action :check_admin_authorization?, only: [:update_account_settings]
+  before_action :check_account_settings_authorization, only: [:account_settings]
   before_action :fetch_kanban_board, only: [:show, :update, :destroy]
 
   def index
@@ -16,6 +18,13 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def create
     @kanban_board = KanbanBoard.create!(kanban_board_params.merge(account: Current.account))
+  end
+
+  def account_settings; end
+
+  def update_account_settings
+    Current.account.update!(account_settings_params)
+    render :account_settings
   end
 
   def update
@@ -45,19 +54,26 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
     return if board_ids.blank?
 
-    overview_stages = KanbanStage.where(account_id: Current.account.id, kanban_board_id: board_ids)
-                                 .active.ordered.to_a
+    overview_stages = active_overview_stages(board_ids)
     stage_ids = overview_stages.map(&:id)
 
     @overview_stages_by_board_id = overview_stages.group_by(&:kanban_board_id)
-    @overview_cards_count_by_board_id = KanbanCard.active
-                                                  .where(account_id: Current.account.id, kanban_board_id: board_ids)
-                                                  .group(:kanban_board_id).count
-    @overview_cards_count_by_stage_id = KanbanCard.active
-                                                  .where(account_id: Current.account.id, kanban_stage_id: stage_ids)
-                                                  .group(:kanban_stage_id).count
+    @overview_cards_count_by_board_id = active_kanban_card_counts(:kanban_board_id, kanban_board_id: board_ids)
+    @overview_cards_count_by_stage_id = active_kanban_card_counts(:kanban_stage_id, kanban_stage_id: stage_ids)
     @overview_visible_users_by_board_id = overview_visible_users_by_board_id(board_ids)
     @overview_allowed_inboxes_by_board_id = overview_allowed_inboxes_by_board_id(board_ids)
+  end
+
+  def active_overview_stages(board_ids)
+    KanbanStage.where(account_id: Current.account.id, kanban_board_id: board_ids)
+               .active.ordered.to_a
+  end
+
+  def active_kanban_card_counts(group_key, filters)
+    KanbanCard.active
+              .where(account_id: Current.account.id)
+              .where(filters)
+              .group(group_key).count
   end
 
   def overview_visible_users_by_board_id(board_ids)
@@ -78,6 +94,14 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def kanban_board_params
     params.require(:kanban_board).permit(:name, :description, :position, :active, :auto_create_cards_from_conversations)
+  end
+
+  def account_settings_params
+    params.require(:account).permit(:allow_agent_kanban_board_creation)
+  end
+
+  def check_account_settings_authorization
+    authorize(KanbanBoard, :index?)
   end
 
   def fetch_stage_card_results

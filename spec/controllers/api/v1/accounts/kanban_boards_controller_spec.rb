@@ -70,47 +70,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
     end
 
     it 'returns overview summary data for boards' do
-      first_stage = create(
-        :kanban_stage,
-        account: account,
-        kanban_board: kanban_board,
-        name: 'Lead',
-        color: 'blue',
-        position: 1
-      )
-      second_stage = create(
-        :kanban_stage,
-        account: account,
-        kanban_board: kanban_board,
-        name: 'Won',
-        color: 'green',
-        position: 2
-      )
-      inactive_stage = create(
-        :kanban_stage,
-        account: account,
-        kanban_board: kanban_board,
-        name: 'Archived',
-        active: false,
-        position: 3
-      )
-      inbox = create(:inbox, account: account, name: 'Sales Inbox')
-      visible_user = create(:user, account: account, name: 'Paula Agent')
-
-      kanban_board.update!(visibility_mode: 'selected_agents', inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_member, account: account, kanban_board: kanban_board, user: visible_user)
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
-      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: first_stage, inbox: inbox)
-      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: second_stage, inbox: inbox)
-      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: second_stage, inbox: inbox)
-      create(
-        :kanban_card,
-        account: account,
-        kanban_board: kanban_board,
-        kanban_stage: inactive_stage,
-        inbox: inbox,
-        active: false
-      )
+      overview_data = create_overview_summary_data
 
       get "/api/v1/accounts/#{account.id}/kanban_boards",
           headers: administrator.create_new_auth_token,
@@ -123,18 +83,59 @@ RSpec.describe 'Kanban Boards API', type: :request do
         'visibility_mode' => 'selected_agents',
         'inbox_scope_mode' => 'selected_inboxes'
       )
-      expect(board_payload['stages_summary']).to eq(
-        [
-          { 'id' => first_stage.id, 'name' => 'Lead', 'color' => 'blue', 'cards_count' => 1 },
-          { 'id' => second_stage.id, 'name' => 'Won', 'color' => 'green', 'cards_count' => 2 }
-        ]
-      )
+      expect(board_payload['stages_summary']).to eq(overview_stages_summary(overview_data))
       expect(board_payload['visible_users']).to contain_exactly(
-        hash_including('id' => visible_user.id, 'name' => 'Paula Agent', 'avatar_url' => anything)
+        hash_including('id' => overview_data[:visible_user].id, 'name' => 'Paula Agent', 'avatar_url' => anything)
       )
       expect(board_payload['allowed_inboxes']).to contain_exactly(
-        hash_including('id' => inbox.id, 'name' => 'Sales Inbox', 'channel_type' => inbox.channel_type)
+        hash_including('id' => overview_data[:inbox].id, 'name' => 'Sales Inbox', 'channel_type' => overview_data[:inbox].channel_type)
       )
+    end
+  end
+
+  describe 'GET /api/v1/accounts/{account.id}/kanban_boards/settings' do
+    it 'returns account kanban settings for agents' do
+      account.update!(allow_agent_kanban_board_creation: false)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/settings",
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to eq('allow_agent_kanban_board_creation' => false)
+    end
+
+    it 'rejects users outside the account' do
+      other_user = create(:user)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/settings",
+          headers: other_user.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/settings' do
+    it 'updates account kanban settings for administrators' do
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/settings",
+            headers: administrator.create_new_auth_token,
+            params: { account: { allow_agent_kanban_board_creation: false } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(account.reload.allow_agent_kanban_board_creation).to be(false)
+      expect(response.parsed_body).to eq('allow_agent_kanban_board_creation' => false)
+    end
+
+    it 'rejects agents' do
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/settings",
+            headers: agent.create_new_auth_token,
+            params: { account: { allow_agent_kanban_board_creation: false } },
+            as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(account.reload.allow_agent_kanban_board_creation).to be(true)
     end
   end
 
@@ -1010,6 +1011,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
     let(:payload) { { kanban_board: { name: 'Support', description: 'Support funnel', position: 1 } } }
 
     it 'creates a board for administrators' do
+      account.update!(allow_agent_kanban_board_creation: false)
+
       expect do
         post "/api/v1/accounts/#{account.id}/kanban_boards",
              headers: administrator.create_new_auth_token,
@@ -1023,6 +1026,24 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
     end
 
+    it 'creates a board for agents when account allows it' do
+      expect do
+        post "/api/v1/accounts/#{account.id}/kanban_boards",
+             headers: agent.create_new_auth_token,
+             params: payload,
+             as: :json
+      end.to change(KanbanBoard, :count).by(1)
+
+      created_board = KanbanBoard.last
+      expect(response).to have_http_status(:success)
+      expect(created_board).to have_attributes(
+        name: 'Support',
+        account_id: account.id,
+        visibility_mode: 'all_agents',
+        inbox_scope_mode: 'all_inboxes'
+      )
+    end
+
     it 'accepts automatic card creation setting' do
       post "/api/v1/accounts/#{account.id}/kanban_boards",
            headers: administrator.create_new_auth_token,
@@ -1034,7 +1055,9 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body['auto_create_cards_from_conversations']).to be(true)
     end
 
-    it 'returns unauthorized for agents' do
+    it 'returns unauthorized for agents when account disables it' do
+      account.update!(allow_agent_kanban_board_creation: false)
+
       post "/api/v1/accounts/#{account.id}/kanban_boards",
            headers: agent.create_new_auth_token,
            params: payload,
@@ -1361,6 +1384,16 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body['auto_create_cards_from_conversations']).to be(false)
     end
 
+    it 'rejects agents' do
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+            headers: agent.create_new_auth_token,
+            params: { kanban_board: { name: 'Updated Sales' } },
+            as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(kanban_board.reload.name).to eq('Sales')
+    end
+
     it 'does not return a default stage id' do
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
             headers: administrator.create_new_auth_token,
@@ -1384,6 +1417,15 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:no_content)
       expect(kanban_board.reload).not_to be_active
     end
+
+    it 'rejects agents' do
+      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(kanban_board.reload).to be_active
+    end
   end
 
   def create_query_budget_board_listing_cards
@@ -1394,6 +1436,43 @@ RSpec.describe 'Kanban Boards API', type: :request do
     create_query_budget_hidden_records(context, expected_card_ids)
 
     expected_card_ids
+  end
+
+  def create_overview_summary_data
+    first_stage = create_overview_stage(name: 'Lead', color: 'blue', position: 1)
+    second_stage = create_overview_stage(name: 'Won', color: 'green', position: 2)
+    inactive_stage = create_overview_stage(name: 'Archived', active: false, position: 3)
+    inbox = create(:inbox, account: account, name: 'Sales Inbox')
+    visible_user = create(:user, account: account, name: 'Paula Agent')
+
+    create_overview_board_access(inbox, visible_user)
+    create_overview_cards(first_stage, second_stage, inactive_stage, inbox)
+
+    { first_stage: first_stage, second_stage: second_stage, inbox: inbox, visible_user: visible_user }
+  end
+
+  def create_overview_board_access(inbox, visible_user)
+    kanban_board.update!(visibility_mode: 'selected_agents', inbox_scope_mode: 'selected_inboxes')
+    create(:kanban_board_member, account: account, kanban_board: kanban_board, user: visible_user)
+    create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+  end
+
+  def create_overview_cards(first_stage, second_stage, inactive_stage, inbox)
+    create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: first_stage, inbox: inbox)
+    create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: second_stage, inbox: inbox)
+    create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: second_stage, inbox: inbox)
+    create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: inactive_stage, inbox: inbox, active: false)
+  end
+
+  def create_overview_stage(attributes)
+    create(:kanban_stage, { account: account, kanban_board: kanban_board }.merge(attributes))
+  end
+
+  def overview_stages_summary(overview_data)
+    [
+      { 'id' => overview_data[:first_stage].id, 'name' => 'Lead', 'color' => 'blue', 'cards_count' => 1 },
+      { 'id' => overview_data[:second_stage].id, 'name' => 'Won', 'color' => 'green', 'cards_count' => 2 }
+    ]
   end
 
   def create_board_listing_manual_cards(stage, inbox, count)
