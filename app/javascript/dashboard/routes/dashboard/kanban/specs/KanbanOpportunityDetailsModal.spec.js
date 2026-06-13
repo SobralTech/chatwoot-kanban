@@ -198,13 +198,25 @@ describe('KanbanOpportunityDetailsModal', () => {
     expect(KanbanBoardsAPI.showCardById).toHaveBeenCalledWith(10, 501);
   });
 
-  it('renders a wide two-column layout', async () => {
+  it('renders a responsive two-column layout with more space for description', async () => {
     const wrapper = await mountModal();
 
     expect(wrapper.text()).toContain('Edit opportunity in Sales funnel');
     expect(
+      wrapper.find('[data-testid="kanban-opportunity-form"]').classes()
+    ).toContain('grid');
+    expect(
       wrapper.find('[data-testid="kanban-opportunity-layout"]').classes()
-    ).toContain('lg:grid-cols-[minmax(0,1fr)_22rem]');
+    ).toContain('lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]');
+  });
+
+  it('renders title and description controls at full width', async () => {
+    const wrapper = await mountModal();
+
+    expect(subjectInput(wrapper).classes()).toContain('w-full');
+    expect(descriptionInput(wrapper).classes()).toEqual(
+      expect.arrayContaining(['w-full', 'min-h-[18rem]'])
+    );
   });
 
   it('renders card ID in the header', async () => {

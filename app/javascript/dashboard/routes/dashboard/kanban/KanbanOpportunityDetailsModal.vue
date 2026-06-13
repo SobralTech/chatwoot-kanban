@@ -249,7 +249,7 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-n-background"
+    class="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-n-background"
   >
     <div
       class="flex items-start justify-between gap-4 border-b border-n-weak px-6 py-5"
@@ -302,12 +302,13 @@ onMounted(() => {
       >
         <div
           data-testid="kanban-opportunity-layout"
-          class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]"
+          class="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
         >
           <section class="grid min-w-0 content-start gap-4">
             <NextInput
               v-model="subject"
               data-testid="kanban-opportunity-subject"
+              class="w-full"
               :label="t('KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE')"
               :message="subjectError"
               :message-type="subjectError ? 'error' : 'info'"
@@ -323,7 +324,7 @@ onMounted(() => {
                 v-model="description"
                 rows="12"
                 data-testid="kanban-opportunity-description"
-                class="min-h-56 min-w-0 resize-y rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                class="min-h-[18rem] w-full min-w-0 resize-y rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
                 :placeholder="
                   t('KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_PLACEHOLDER')
                 "
