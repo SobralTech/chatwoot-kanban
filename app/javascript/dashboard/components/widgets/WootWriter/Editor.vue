@@ -110,6 +110,7 @@ const emit = defineEmits([
   'input',
   'update:modelValue',
   'executeCopilotAction',
+  'sendCannedResponse',
 ]);
 
 const { t } = useI18n();
@@ -685,10 +686,20 @@ function insertSpecialContent(type, content) {
     return;
   }
 
+  if (type === 'cannedResponse' && content?.mode === 'quick_send') {
+    const { from, to } = range.value;
+    state = editorView.state.apply(editorView.state.tr.delete(from, to));
+    editorView.updateState(state);
+    emitOnChange();
+    emit('sendCannedResponse', content);
+    showCannedMenu.value = false;
+    return;
+  }
+
   let { node, from, to } = getContentNode(
     editorView,
     type,
-    content,
+    type === 'cannedResponse' ? content.content : content,
     range.value,
     props.variables
   );

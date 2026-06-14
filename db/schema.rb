@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_14_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_14_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -311,12 +311,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_110000) do
     t.index ["scheduled_at"], name: "index_campaigns_on_scheduled_at"
   end
 
+  create_table "canned_response_steps", force: :cascade do |t|
+    t.bigint "canned_response_id", null: false
+    t.string "step_type", default: "text", null: false
+    t.text "content"
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["canned_response_id", "position"], name: "index_canned_response_steps_on_canned_response_id_and_position"
+    t.index ["canned_response_id"], name: "index_canned_response_steps_on_canned_response_id"
+  end
+
   create_table "canned_responses", id: :serial, force: :cascade do |t|
     t.integer "account_id", null: false
     t.string "short_code"
     t.text "content"
     t.datetime "created_at", precision: nil, null: false
     t.datetime "updated_at", precision: nil, null: false
+    t.string "mode", default: "insert", null: false
   end
 
   create_table "captain_assistant_responses", force: :cascade do |t|
@@ -1450,6 +1462,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_110000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "canned_response_steps", "canned_responses"
   add_foreign_key "conversation_assistant_messages", "accounts"
   add_foreign_key "conversation_assistant_messages", "conversations"
   add_foreign_key "conversation_assistant_messages", "messages", column: "sent_message_id"

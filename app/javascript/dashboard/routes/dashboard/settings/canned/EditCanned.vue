@@ -17,6 +17,8 @@ export default {
     id: { type: Number, default: null },
     edcontent: { type: String, default: '' },
     edshortCode: { type: String, default: '' },
+    edmode: { type: String, default: 'insert' },
+    edsteps: { type: Array, default: () => [] },
     onClose: { type: Function, default: () => {} },
   },
   setup() {
@@ -30,6 +32,16 @@ export default {
       },
       shortCode: this.edshortCode,
       content: this.edcontent,
+      mode: this.edmode || 'insert',
+      steps: this.edsteps.length
+        ? this.edsteps.map(step => ({
+            step_type: step.step_type,
+            content: step.content || '',
+            file: null,
+            file_name: step.file_name || '',
+            file_blob_id: step.file_blob_id || '',
+          }))
+        : [{ step_type: 'text', content: '', file: null }],
       show: true,
     };
   },
@@ -38,13 +50,31 @@ export default {
       required,
       minLength: minLength(2),
     },
-    content: {
-      required,
-    },
+    content: {},
   },
   computed: {
     pageTitle() {
       return `${this.$t('CANNED_MGMT.EDIT.TITLE')} - ${this.edshortCode}`;
+    },
+    isQuickSend() {
+      return this.mode === 'quick_send';
+    },
+    isStepInvalid() {
+      if (!this.isQuickSend) return false;
+
+      return this.steps.some(step => {
+        if (step.step_type === 'text') return !step.content?.trim();
+        return !step.file && !step.file_blob_id;
+      });
+    },
+    isSubmitDisabled() {
+      const contentInvalid = !this.isQuickSend && !this.content?.trim();
+      return (
+        this.v$.shortCode.$invalid ||
+        contentInvalid ||
+        this.isStepInvalid ||
+        this.editCanned.showLoading
+      );
     },
   },
   methods: {
@@ -55,19 +85,48 @@ export default {
     resetForm() {
       this.shortCode = '';
       this.content = '';
+      this.mode = 'insert';
+      this.steps = [{ step_type: 'text', content: '', file: null }];
       this.v$.shortCode.$reset();
       this.v$.content.$reset();
+    },
+    addStep(stepType = 'text') {
+      this.steps.push({ step_type: stepType, content: '', file: null });
+    },
+    removeStep(index) {
+      if (this.steps.length === 1) return;
+      this.steps.splice(index, 1);
+    },
+    onStepTypeChange(step) {
+      step.content = '';
+      step.file = null;
+      step.file_name = '';
+      step.file_blob_id = '';
+    },
+    onStepFileChange(event, step) {
+      const [file] = event.target.files;
+      step.file = file;
+      step.file_name = file?.name || '';
+      step.file_blob_id = '';
+    },
+    payload() {
+      const firstTextStep = this.steps.find(step => step.step_type === 'text');
+      return {
+        id: this.id,
+        short_code: this.shortCode,
+        content: this.isQuickSend
+          ? firstTextStep?.content || this.shortCode
+          : this.content,
+        mode: this.mode,
+        steps: this.isQuickSend ? this.steps : undefined,
+      };
     },
     editCannedResponse() {
       // Show loading on button
       this.editCanned.showLoading = true;
       // Make API Calls
       this.$store
-        .dispatch('updateCannedResponse', {
-          id: this.id,
-          short_code: this.shortCode,
-          content: this.content,
-        })
+        .dispatch('updateCannedResponse', this.payload())
         .then(() => {
           // Reset Form, Show success message
           this.editCanned.showLoading = false;
@@ -107,6 +166,20 @@ export default {
 
         <div class="w-full">
           <label :class="{ error: v$.content.$error }">
+            {{ $t('CANNED_MGMT.EDIT.FORM.MODE.LABEL') }}
+            <select v-model="mode">
+              <option value="insert">
+                {{ $t('CANNED_MGMT.EDIT.FORM.MODE.INSERT') }}
+              </option>
+              <option value="quick_send">
+                {{ $t('CANNED_MGMT.EDIT.FORM.MODE.QUICK_SEND') }}
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <div v-if="!isQuickSend" class="w-full">
+          <label :class="{ error: v$.content.$error }">
             {{ $t('CANNED_MGMT.EDIT.FORM.CONTENT.LABEL') }}
           </label>
           <div class="editor-wrap">
@@ -122,6 +195,82 @@ export default {
             />
           </div>
         </div>
+        <div v-else class="flex flex-col w-full gap-3">
+          <label>
+            {{ $t('CANNED_MGMT.EDIT.FORM.STEPS.LABEL') }}
+          </label>
+          <div
+            v-for="(step, index) in steps"
+            :key="index"
+            class="flex flex-col gap-2 p-3 border rounded-md border-n-weak"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-sm text-n-slate-11">
+                {{
+                  $t('CANNED_MGMT.EDIT.FORM.STEPS.ITEM', { number: index + 1 })
+                }}
+              </span>
+              <NextButton
+                v-if="steps.length > 1"
+                faded
+                slate
+                sm
+                type="button"
+                :label="$t('CANNED_MGMT.EDIT.FORM.STEPS.REMOVE')"
+                @click.prevent="removeStep(index)"
+              />
+            </div>
+            <select v-model="step.step_type" @change="onStepTypeChange(step)">
+              <option value="text">
+                {{ $t('CANNED_MGMT.EDIT.FORM.STEPS.TEXT') }}
+              </option>
+              <option value="image">
+                {{ $t('CANNED_MGMT.EDIT.FORM.STEPS.IMAGE') }}
+              </option>
+              <option value="audio">
+                {{ $t('CANNED_MGMT.EDIT.FORM.STEPS.AUDIO') }}
+              </option>
+            </select>
+            <textarea
+              v-if="step.step_type === 'text'"
+              v-model="step.content"
+              rows="3"
+              :placeholder="$t('CANNED_MGMT.EDIT.FORM.STEPS.TEXT_PLACEHOLDER')"
+            />
+            <input
+              v-else
+              type="file"
+              :accept="step.step_type === 'image' ? 'image/*' : 'audio/*'"
+              @change="onStepFileChange($event, step)"
+            />
+            <span v-if="step.file_name" class="text-xs text-n-slate-11">
+              {{ step.file_name }}
+            </span>
+          </div>
+          <div class="flex gap-2">
+            <NextButton
+              faded
+              slate
+              type="button"
+              :label="$t('CANNED_MGMT.EDIT.FORM.STEPS.ADD_TEXT')"
+              @click.prevent="addStep('text')"
+            />
+            <NextButton
+              faded
+              slate
+              type="button"
+              :label="$t('CANNED_MGMT.EDIT.FORM.STEPS.ADD_IMAGE')"
+              @click.prevent="addStep('image')"
+            />
+            <NextButton
+              faded
+              slate
+              type="button"
+              :label="$t('CANNED_MGMT.EDIT.FORM.STEPS.ADD_AUDIO')"
+              @click.prevent="addStep('audio')"
+            />
+          </div>
+        </div>
         <div class="flex flex-row justify-end w-full gap-2 px-0 py-2">
           <NextButton
             faded
@@ -133,11 +282,7 @@ export default {
           <NextButton
             type="submit"
             :label="$t('CANNED_MGMT.EDIT.FORM.SUBMIT')"
-            :disabled="
-              v$.content.$invalid ||
-              v$.shortCode.$invalid ||
-              editCanned.showLoading
-            "
+            :disabled="isSubmitDisabled"
             :is-loading="editCanned.showLoading"
           />
         </div>

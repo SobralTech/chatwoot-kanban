@@ -17,7 +17,8 @@
         "SHORT_CODE": "Atalho",
         "CONTENT": "Conteúdo",
         "ACTIONS": "Ações"
-      }
+      },
+      "QUICK_SEND": "Envio rápido"
     },
     "ADD": {
       "TITLE": "Adicionar resposta pronta",
@@ -33,6 +34,23 @@
           "LABEL": "Mensagem",
           "PLACEHOLDER": "Por favor, escreva a mensagem que deseja salvar como um modelo para usar posteriormente.",
           "ERROR": "A mensagem é obrigatória."
+        },
+        "MODE": {
+          "LABEL": "Modo",
+          "INSERT": "Inserir no editor",
+          "QUICK_SEND": "Envio rápido"
+        },
+        "STEPS": {
+          "LABEL": "Mensagens",
+          "ITEM": "Mensagem {number}",
+          "TEXT": "Texto",
+          "IMAGE": "Imagem",
+          "AUDIO": "Áudio",
+          "TEXT_PLACEHOLDER": "Escreva a mensagem que será enviada.",
+          "ADD_TEXT": "Adicionar texto",
+          "ADD_IMAGE": "Adicionar imagem",
+          "ADD_AUDIO": "Adicionar áudio",
+          "REMOVE": "Remover"
         },
         "SUBMIT": "Enviar"
       },
@@ -54,6 +72,23 @@
           "LABEL": "Mensagem",
           "PLACEHOLDER": "Por favor, escreva a mensagem que deseja salvar como um modelo para usar posteriormente.",
           "ERROR": "A mensagem é obrigatória."
+        },
+        "MODE": {
+          "LABEL": "Modo",
+          "INSERT": "Inserir no editor",
+          "QUICK_SEND": "Envio rápido"
+        },
+        "STEPS": {
+          "LABEL": "Mensagens",
+          "ITEM": "Mensagem {number}",
+          "TEXT": "Texto",
+          "IMAGE": "Imagem",
+          "AUDIO": "Áudio",
+          "TEXT_PLACEHOLDER": "Escreva a mensagem que será enviada.",
+          "ADD_TEXT": "Adicionar texto",
+          "ADD_IMAGE": "Adicionar imagem",
+          "ADD_AUDIO": "Adicionar áudio",
+          "REMOVE": "Remover"
         },
         "SUBMIT": "Enviar"
       },

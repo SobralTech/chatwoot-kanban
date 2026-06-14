@@ -752,6 +752,27 @@ export default {
     toggleCannedMenu(value) {
       this.showCannedMenu = value;
     },
+    async sendCannedResponse(cannedResponse) {
+      if (!cannedResponse?.id || this.isEditorDisabled) return;
+
+      try {
+        await this.$store.dispatch('sendCannedResponse', {
+          id: cannedResponse.id,
+          conversationId: this.currentChat.id,
+        });
+        emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
+        emitter.emit(BUS_EVENTS.MESSAGE_SENT);
+        this.removeFromDraft();
+        useTrack(CONVERSATION_EVENTS.SENT_MESSAGE, {
+          channelType: this.channelType,
+          quickSend: true,
+        });
+      } catch (error) {
+        const errorMessage =
+          error?.message || this.$t('CONVERSATION.MESSAGE_ERROR');
+        useAlert(errorMessage);
+      }
+    },
     toggleVariablesMenu(value) {
       this.showVariablesMenu = value;
     },
@@ -1369,6 +1390,7 @@ export default {
           @toggle-variables-menu="toggleVariablesMenu"
           @clear-selection="clearEditorSelection"
           @execute-copilot-action="executeCopilotAction"
+          @send-canned-response="sendCannedResponse"
         />
 
         <QuotedEmailPreview

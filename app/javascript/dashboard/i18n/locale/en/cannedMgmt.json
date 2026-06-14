@@ -17,7 +17,8 @@
         "SHORT_CODE": "Short code",
         "CONTENT": "Content",
         "ACTIONS": "Actions"
-      }
+      },
+      "QUICK_SEND": "Quick send"
     },
     "ADD": {
       "TITLE": "Add canned response",
@@ -33,6 +34,23 @@
           "LABEL": "Message",
           "PLACEHOLDER": "Please write the message you want to save as a template to use later.",
           "ERROR": "Message is required."
+        },
+        "MODE": {
+          "LABEL": "Mode",
+          "INSERT": "Insert in composer",
+          "QUICK_SEND": "Quick send"
+        },
+        "STEPS": {
+          "LABEL": "Messages",
+          "ITEM": "Message {number}",
+          "TEXT": "Text",
+          "IMAGE": "Image",
+          "AUDIO": "Audio",
+          "TEXT_PLACEHOLDER": "Write the message to send.",
+          "ADD_TEXT": "Add text",
+          "ADD_IMAGE": "Add image",
+          "ADD_AUDIO": "Add audio",
+          "REMOVE": "Remove"
         },
         "SUBMIT": "Submit"
       },
@@ -54,6 +72,23 @@
           "LABEL": "Message",
           "PLACEHOLDER": "Please write the message you want to save as a template to use later.",
           "ERROR": "Message is required."
+        },
+        "MODE": {
+          "LABEL": "Mode",
+          "INSERT": "Insert in composer",
+          "QUICK_SEND": "Quick send"
+        },
+        "STEPS": {
+          "LABEL": "Messages",
+          "ITEM": "Message {number}",
+          "TEXT": "Text",
+          "IMAGE": "Image",
+          "AUDIO": "Audio",
+          "TEXT_PLACEHOLDER": "Write the message to send.",
+          "ADD_TEXT": "Add text",
+          "ADD_IMAGE": "Add image",
+          "ADD_AUDIO": "Add audio",
+          "REMOVE": "Remove"
         },
         "SUBMIT": "Submit"
       },

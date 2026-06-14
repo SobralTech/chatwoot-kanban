@@ -3,6 +3,14 @@ require 'rails_helper'
 RSpec.describe 'Canned Responses API', type: :request do
   let(:account) { create(:account) }
 
+  def serialized_response(canned_response)
+    canned_response.as_json.merge(
+      'steps' => canned_response.canned_response_steps.ordered.map do |step|
+        step.as_json(methods: [:file_url, :file_name, :file_blob_id])
+      end
+    )
+  end
+
   before do
     create(:canned_response, account: account, content: 'Hey {{ contact.name }}, Thanks for reaching out', short_code: 'name-short-code')
   end
@@ -25,7 +33,7 @@ RSpec.describe 'Canned Responses API', type: :request do
             as: :json
 
         expect(response).to have_http_status(:success)
-        expect(response.parsed_body).to eq(account.canned_responses.as_json)
+        expect(response.parsed_body).to eq(account.canned_responses.map { |record| serialized_response(record) })
       end
 
       it 'returns all the canned responses the user searched for' do
@@ -43,7 +51,7 @@ RSpec.describe 'Canned Responses API', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(response.parsed_body).to eq(
-          [cr3, cr2, cr1].as_json
+          [cr3, cr2, cr1].map { |record| serialized_response(record) }
         )
       end
     end
@@ -71,6 +79,28 @@ RSpec.describe 'Canned Responses API', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(account.canned_responses.count).to eq(2)
+      end
+
+      it 'creates a quick send canned response with steps' do
+        params = {
+          canned_response: {
+            short_code: 'quick',
+            mode: 'quick_send',
+            steps: [
+              { step_type: 'text', content: 'First message', position: 0 },
+              { step_type: 'text', content: 'Second message', position: 1 }
+            ]
+          }
+        }
+
+        post "/api/v1/accounts/#{account.id}/canned_responses",
+             params: params,
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['mode']).to eq('quick_send')
+        expect(response.parsed_body['steps'].pluck('content')).to eq(['First message', 'Second message'])
       end
     end
   end
@@ -125,6 +155,33 @@ RSpec.describe 'Canned Responses API', type: :request do
         expect(response).to have_http_status(:success)
         expect(CannedResponse.count).to eq(0)
       end
+    end
+  end
+
+  describe 'POST /api/v1/accounts/{account.id}/canned_responses/:id/send_response' do
+    let(:agent) { create(:user, account: account, role: :agent) }
+    let(:inbox) { create(:inbox, account: account) }
+    let(:conversation) { create(:conversation, account: account, inbox: inbox) }
+    let(:canned_response) do
+      account.canned_responses.build(mode: 'quick_send', content: 'First message', short_code: 'quick').tap do |record|
+        record.canned_response_steps.build(step_type: 'text', content: 'First message', position: 0)
+        record.canned_response_steps.build(step_type: 'text', content: 'Second message', position: 1)
+        record.save!
+      end
+    end
+
+    before do
+      create(:inbox_member, inbox: inbox, user: agent)
+    end
+
+    it 'sends all quick send steps as separate outgoing messages' do
+      post "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}/send_response",
+           params: { conversation_id: conversation.display_id },
+           headers: agent.create_new_auth_token,
+           as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(conversation.messages.outgoing.pluck(:content)).to eq(['First message', 'Second message'])
     end
   end
 end
