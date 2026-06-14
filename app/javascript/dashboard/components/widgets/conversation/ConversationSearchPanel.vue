@@ -425,7 +425,7 @@ export default {
           ref="conversationSearchInput"
           :value="conversationSearchQuery"
           type="search"
-          class="block w-full h-9 rounded-lg border border-n-weak bg-n-surface-1 py-1 pl-12 pr-12 text-sm text-n-slate-12 placeholder:text-n-slate-10 focus:border-n-brand focus:ring-1 focus:ring-n-brand rtl:pl-12 rtl:pr-10"
+          class="reset-base block w-full h-9 mb-0 rounded-lg border border-n-weak bg-n-surface-1 py-1 pl-12 pr-12 text-sm text-n-slate-12 placeholder:text-n-slate-10 focus:border-n-brand focus:outline-none focus:ring-1 focus:ring-n-brand rtl:pl-12 rtl:pr-10"
           :placeholder="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
           :aria-label="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
           data-testid="conversation-search-input"
