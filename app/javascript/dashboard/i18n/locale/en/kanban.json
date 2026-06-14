@@ -64,6 +64,7 @@
       "CREATE_BOARD_ERROR": "Could not create the kanban board.",
       "CREATE_STAGE_SUCCESS": "Kanban stage created.",
       "CREATE_STAGE_ERROR": "Could not create the kanban stage.",
+      "STAGE_NAME_TAKEN": "A stage with this name already exists.",
       "ADD_CARD_SUCCESS": "Conversation added to the board.",
       "ADD_CARD_ERROR": "Could not add the conversation. Check the conversation ID and try again.",
       "REMOVE_CARD_SUCCESS": "Card removed from the board.",

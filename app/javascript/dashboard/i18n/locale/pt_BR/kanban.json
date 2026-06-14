@@ -64,6 +64,7 @@
       "CREATE_BOARD_ERROR": "Não foi possível criar o quadro kanban.",
       "CREATE_STAGE_SUCCESS": "Etapa do kanban criada.",
       "CREATE_STAGE_ERROR": "Não foi possível criar a etapa do kanban.",
+      "STAGE_NAME_TAKEN": "Já existe uma etapa com esse nome.",
       "ADD_CARD_SUCCESS": "Conversa adicionada ao quadro.",
       "ADD_CARD_ERROR": "Não foi possível adicionar a conversa. Verifique o ID da conversa e tente novamente.",
       "REMOVE_CARD_SUCCESS": "Cartão removido do quadro.",

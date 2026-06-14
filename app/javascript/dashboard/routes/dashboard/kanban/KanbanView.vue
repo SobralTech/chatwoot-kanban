@@ -39,7 +39,6 @@ const isCreatingStage = ref(false);
 const selectedOpportunityCardId = ref(null);
 const activeActionKey = ref('');
 const hasError = ref(false);
-const actionError = ref('');
 const selectedInboxIds = ref([]);
 const selectedAssigneeIds = ref([]);
 const isBoardDropdownOpen = ref(false);
@@ -173,9 +172,15 @@ const getErrorMessage = (error, fallbackMessage) =>
   error?.message ||
   fallbackMessage;
 
+const isNameTakenError = error => {
+  const errorMessage = String(getErrorMessage(error, '')).toLowerCase();
+  return errorMessage.includes('name') && errorMessage.includes('taken');
+};
+
 const showActionError = (error, fallbackMessage) => {
-  const message = getErrorMessage(error, fallbackMessage);
-  actionError.value = message;
+  const message = isNameTakenError(error)
+    ? t('KANBAN.ACTIONS.STAGE_NAME_TAKEN')
+    : getErrorMessage(error, fallbackMessage);
   useAlert(message);
 };
 
@@ -441,6 +446,23 @@ const findCreatedStage = (createdStage, temporaryName) => {
   return stages.value.find(stage => stage.name === temporaryName);
 };
 
+const getUniqueTemporaryStageName = () => {
+  const baseName = t('KANBAN.ACTIONS.NEW_STAGE_NAME');
+  const existingNames = new Set(stages.value.map(stage => stage.name));
+
+  if (!existingNames.has(baseName)) return baseName;
+
+  let suffix = 1;
+  let nextName = `${baseName} (${suffix})`;
+
+  while (existingNames.has(nextName)) {
+    suffix += 1;
+    nextName = `${baseName} (${suffix})`;
+  }
+
+  return nextName;
+};
+
 const startEditingStage = stage => {
   editingStageId.value = stage.id;
   stageNames.value = {
@@ -457,10 +479,9 @@ const startEditingStage = stage => {
 const createStage = async () => {
   if (!selectedBoard.value?.id || isCreatingStage.value) return;
 
-  const name = t('KANBAN.ACTIONS.NEW_STAGE_NAME');
+  const name = getUniqueTemporaryStageName();
 
   isCreatingStage.value = true;
-  actionError.value = '';
 
   try {
     const response = await KanbanBoardsAPI.createStage(selectedBoard.value.id, {
@@ -493,7 +514,6 @@ const updateStage = async stage => {
   if (!selectedBoard.value?.id || !name || activeActionKey.value) return;
 
   activeActionKey.value = `update-stage-${stage.id}`;
-  actionError.value = '';
 
   try {
     await KanbanBoardsAPI.updateStage(selectedBoard.value.id, stage.id, {
@@ -531,7 +551,6 @@ const removeStage = async stage => {
   if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
 
   activeActionKey.value = `remove-stage-${stage.id}`;
-  actionError.value = '';
 
   try {
     await KanbanBoardsAPI.deleteStage(selectedBoard.value.id, stage.id);
@@ -570,7 +589,6 @@ const reorderStageByPosition = async (stage, position) => {
   if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
 
   activeActionKey.value = `reorder-stage-${stage.id}`;
-  actionError.value = '';
 
   try {
     await KanbanBoardsAPI.reorderStage(selectedBoard.value.id, stage.id, {
@@ -626,7 +644,6 @@ const onCardDragChange = async (stage, event) => {
 
   isPersistingCardDrag.value = true;
   activeActionKey.value = `reorder-card-${card.id}`;
-  actionError.value = '';
   const payload = {
     card: {
       kanban_stage_id: stage.id,
@@ -676,7 +693,6 @@ const removeCard = async card => {
   if (!selectedBoard.value?.id || activeActionKey.value) return;
 
   activeActionKey.value = `remove-card-${card.id}`;
-  actionError.value = '';
 
   try {
     await KanbanBoardsAPI.deleteCardById(selectedBoard.value.id, card.id);
@@ -981,13 +997,6 @@ onUnmounted(() => {
           </template>
         </div>
       </header>
-
-      <div
-        v-if="actionError"
-        class="border-b border-n-weak bg-n-ruby-2 px-6 py-2 text-sm text-n-ruby-11"
-      >
-        {{ actionError }}
-      </div>
 
       <div
         v-if="hasError"
