@@ -58,8 +58,8 @@ const settingsPayload = {
 const boardPayload = {
   id: 10,
   stages: [
-    { id: 100, name: 'Lead', color: 'blue', position: 1 },
-    { id: 200, name: 'Won', color: 'green', position: 2 },
+    { id: 100, name: 'Lead', color: 'blue', position: 1, cards_count: 3 },
+    { id: 200, name: 'Won', color: 'green', position: 2, cards_count: 0 },
   ],
 };
 
@@ -210,6 +210,17 @@ describe('KanbanBoardSettings', () => {
     expect(stages).toHaveLength(2);
     expect(stages[0].text()).toContain('Lead');
     expect(stages[1].text()).toContain('Won');
+  });
+
+  it('renders stage card counts in the settings page', async () => {
+    const { wrapper } = await mountSettings();
+
+    const counts = wrapper.findAll(
+      '[data-testid="kanban-settings-stage-card-count"]'
+    );
+    expect(counts).toHaveLength(2);
+    expect(counts[0].text()).toBe('3');
+    expect(counts[1].text()).toBe('0');
   });
 
   it('creates a new stage from settings', async () => {

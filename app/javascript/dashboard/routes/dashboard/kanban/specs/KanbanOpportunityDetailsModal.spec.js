@@ -202,12 +202,20 @@ describe('KanbanOpportunityDetailsModal', () => {
     const wrapper = await mountModal();
 
     expect(wrapper.text()).toContain('Edit opportunity in Sales funnel');
+    expect(wrapper.classes()).toEqual(
+      expect.arrayContaining([
+        'mx-auto',
+        'w-full',
+        'max-w-[calc(100vw-2rem)]',
+        '2xl:max-w-[96rem]',
+      ])
+    );
     expect(
       wrapper.find('[data-testid="kanban-opportunity-form"]').classes()
     ).toContain('grid');
     expect(
       wrapper.find('[data-testid="kanban-opportunity-layout"]').classes()
-    ).toContain('lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]');
+    ).toContain('xl:grid-cols-[minmax(0,4fr)_minmax(16rem,1fr)]');
   });
 
   it('renders title and description controls at full width', async () => {
@@ -215,7 +223,7 @@ describe('KanbanOpportunityDetailsModal', () => {
 
     expect(subjectInput(wrapper).classes()).toContain('w-full');
     expect(descriptionInput(wrapper).classes()).toEqual(
-      expect.arrayContaining(['w-full', 'min-h-[18rem]'])
+      expect.arrayContaining(['max-w-full', 'w-full', 'min-h-[18rem]'])
     );
   });
 

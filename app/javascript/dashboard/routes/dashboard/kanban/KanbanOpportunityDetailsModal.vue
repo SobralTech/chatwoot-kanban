@@ -249,10 +249,10 @@ onMounted(() => {
 
 <template>
   <div
-    class="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-n-background"
+    class="mx-auto flex max-h-[92vh] w-full max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl bg-n-background 2xl:max-w-[96rem]"
   >
     <div
-      class="flex items-start justify-between gap-4 border-b border-n-weak px-6 py-5"
+      class="flex items-start justify-between gap-4 border-b border-n-weak px-5 py-4"
     >
       <div class="min-w-0">
         <h2 class="mb-1 truncate text-base font-semibold text-n-slate-12">
@@ -277,7 +277,7 @@ onMounted(() => {
       </button>
     </div>
 
-    <div class="overflow-auto px-6 py-5">
+    <div class="overflow-auto px-5 py-4">
       <p
         v-if="isLoading"
         data-testid="kanban-opportunity-loading"
@@ -302,7 +302,7 @@ onMounted(() => {
       >
         <div
           data-testid="kanban-opportunity-layout"
-          class="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]"
+          class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,4fr)_minmax(16rem,1fr)]"
         >
           <section class="grid min-w-0 content-start gap-4">
             <NextInput
@@ -324,7 +324,7 @@ onMounted(() => {
                 v-model="description"
                 rows="12"
                 data-testid="kanban-opportunity-description"
-                class="min-h-[18rem] w-full min-w-0 resize-y rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                class="min-h-[18rem] max-w-full w-full min-w-0 resize-y rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
                 :placeholder="
                   t('KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_PLACEHOLDER')
                 "

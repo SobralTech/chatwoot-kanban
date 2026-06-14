@@ -7,6 +7,7 @@ import camelcaseKeys from 'camelcase-keys';
 import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
+import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
@@ -27,12 +28,11 @@ const router = useRouter();
 const { t } = useI18n();
 const store = useStore();
 
-const currentRole = useMapGetter('auth/getCurrentRole');
 const agents = useMapGetter('agents/getAgents');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
-const isAdmin = computed(() => currentRole.value === 'administrator');
+const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
@@ -966,15 +966,15 @@ onUnmounted(() => {
               v-if="isAdmin"
               type="button"
               data-testid="kanban-board-settings-button"
-              class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+              class="flex size-10 items-center justify-center rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
               :aria-label="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
               :title="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
               @click="openBoardSettings"
             >
-              <i class="i-lucide-settings size-4" />
+              <span class="i-lucide-settings size-4" />
             </button>
             <div
-              class="w-56 max-w-full [&_.tag-multi-select-trigger]:!min-h-8 [&_.tag-multi-select-trigger]:!gap-1.5 [&_.tag-multi-select-trigger]:!px-2.5 [&_.tag-multi-select-trigger]:!py-1.5 [&_.tag-multi-select-trigger_span]:!text-xs"
+              class="w-48 max-w-full flex-none"
               data-testid="kanban-inbox-filter"
             >
               <TagMultiSelectComboBox
@@ -988,7 +988,7 @@ onUnmounted(() => {
               />
             </div>
             <div
-              class="w-56 max-w-full [&_.tag-multi-select-trigger]:!min-h-8 [&_.tag-multi-select-trigger]:!gap-1.5 [&_.tag-multi-select-trigger]:!px-2.5 [&_.tag-multi-select-trigger]:!py-1.5 [&_.tag-multi-select-trigger_span]:!text-xs"
+              class="w-48 max-w-full flex-none"
               data-testid="kanban-agent-filter"
             >
               <TagMultiSelectComboBox
@@ -1274,6 +1274,8 @@ onUnmounted(() => {
     <woot-modal
       v-if="selectedOpportunityCardId && selectedBoard"
       :show="!!selectedOpportunityCardId"
+      :show-close-button="false"
+      size="modal-big"
       :on-close="closeOpportunityDetails"
     >
       <KanbanOpportunityDetailsModal

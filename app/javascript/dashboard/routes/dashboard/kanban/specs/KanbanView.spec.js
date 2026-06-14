@@ -93,6 +93,9 @@ const createTestStore = (
   agentRecords = buildAgents()
 ) =>
   createStore({
+    getters: {
+      getCurrentRole: () => role,
+    },
     modules: {
       auth: {
         namespaced: true,
@@ -277,7 +280,7 @@ const mountView = async (
         },
         WootModal: {
           name: 'WootModal',
-          props: ['show'],
+          props: ['show', 'showCloseButton', 'size'],
           template: '<div v-if="show" class="woot-modal-stub"><slot /></div>',
         },
         Draggable: {
@@ -1479,6 +1482,20 @@ describe('KanbanView drag and drop', () => {
     expect(modal.props('cardId')).toBe(501);
   });
 
+  it('hides the outer opportunity modal close button', async () => {
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+
+    const modal = wrapper.findComponent({ name: 'WootModal' });
+    expect(modal.props('showCloseButton')).toBe(false);
+    expect(modal.props('size')).toBe('modal-big');
+  });
+
   it('closes opportunity modal and clears selected card', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
@@ -1944,10 +1961,23 @@ describe('KanbanView header navigation', () => {
 
   it('shows board settings button for administrators', async () => {
     const wrapper = await mountView(buildBoardResponse(), 'administrator');
+    const settingsButton = wrapper.find(
+      '[data-testid="kanban-board-settings-button"]'
+    );
 
-    expect(
-      wrapper.find('[data-testid="kanban-board-settings-button"]').exists()
-    ).toBe(true);
+    expect(settingsButton.exists()).toBe(true);
+    expect(settingsButton.element.tagName).toBe('BUTTON');
+    expect(settingsButton.classes()).toEqual(
+      expect.arrayContaining([
+        'size-10',
+        'rounded-lg',
+        'text-n-slate-11',
+        'hover:bg-n-alpha-2',
+      ])
+    );
+    expect(settingsButton.find('.i-lucide-settings').classes()).toContain(
+      'size-4'
+    );
   });
 
   it('renders board settings before the inbox filter', async () => {
@@ -1983,18 +2013,19 @@ describe('KanbanView header navigation', () => {
 
   it('keeps board header filters compact', async () => {
     const wrapper = await mountView();
-    const compactClasses = [
-      'w-56',
-      '[&_.tag-multi-select-trigger]:!min-h-8',
-      '[&_.tag-multi-select-trigger]:!px-2.5',
-      '[&_.tag-multi-select-trigger]:!py-1.5',
-      '[&_.tag-multi-select-trigger_span]:!text-xs',
-    ];
+    const compactClasses = ['w-48', 'max-w-full', 'flex-none'];
 
     compactClasses.forEach(className => {
       expect(findInboxFilterWrapper(wrapper).classes()).toContain(className);
       expect(findAgentFilterWrapper(wrapper).classes()).toContain(className);
     });
+
+    expect(findInboxFilterWrapper(wrapper).classes().join(' ')).not.toContain(
+      'tag-multi-select-trigger'
+    );
+    expect(findAgentFilterWrapper(wrapper).classes().join(' ')).not.toContain(
+      'tag-multi-select-trigger'
+    );
   });
 
   it('does not open the board switcher when only one board is visible', async () => {

@@ -224,6 +224,9 @@ const importExistingConversations = async () => {
 const getStageColorClass = stage =>
   getKanbanStageColorOption(stage.color).swatchClass;
 
+const getStageCardsCount = stage =>
+  stage.cardsCount ?? stage.cards?.length ?? 0;
+
 const openCreateStageForm = () => {
   showCreateStageForm.value = true;
 };
@@ -515,6 +518,12 @@ onMounted(fetchSettings);
                   />
                   <span class="min-w-0 truncate text-sm text-n-slate-12">
                     {{ stage.name }}
+                  </span>
+                  <span
+                    data-testid="kanban-settings-stage-card-count"
+                    class="ml-auto flex-none rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
+                  >
+                    {{ getStageCardsCount(stage) }}
                   </span>
                 </div>
               </template>
