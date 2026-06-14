@@ -278,7 +278,6 @@
       }
     },
     "ASSISTANT": {
-      "INTERNAL_NOTICE": "Internal assistant. This question will not be sent to the customer.",
       "LOADING": "Loading assistant history...",
       "LOAD_ERROR": "Unable to load assistant history.",
       "ASK_ERROR": "Unable to ask the assistant. Please try again.",

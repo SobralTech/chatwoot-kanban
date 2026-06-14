@@ -89,6 +89,31 @@ describe('ConversationAssistantPanel', () => {
     });
   });
 
+  it('asks the assistant with Enter', async () => {
+    const wrapper = createWrapper();
+    await flushPromises();
+
+    await wrapper.find('textarea').setValue('Pergunta pelo enter');
+    await wrapper.find('textarea').trigger('keydown.enter');
+    await flushPromises();
+
+    expect(AssistantMessagesAPI.create).toHaveBeenCalledWith({
+      conversationId: 12,
+      question: 'Pergunta pelo enter',
+    });
+  });
+
+  it('keeps Shift+Enter as a textarea line break', async () => {
+    const wrapper = createWrapper();
+    await flushPromises();
+
+    await wrapper.find('textarea').setValue('Linha 1');
+    await wrapper.find('textarea').trigger('keydown.enter', { shiftKey: true });
+    await flushPromises();
+
+    expect(AssistantMessagesAPI.create).not.toHaveBeenCalled();
+  });
+
   it('copies only the suggested reply', async () => {
     const wrapper = createWrapper();
     await flushPromises();
@@ -146,14 +171,18 @@ describe('ConversationAssistantPanel', () => {
     );
   });
 
+  it('does not render sources section when sources are empty', async () => {
+    AssistantMessagesAPI.get.mockResolvedValue({
+      data: [{ ...assistantMessage, sources: [] }],
+    });
+    const wrapper = createWrapper();
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain('CONVERSATION.ASSISTANT.SOURCES');
+  });
+
   it('defines assistant i18n keys in en and pt_BR', () => {
-    expect(
-      enConversationMessages.CONVERSATION.ASSISTANT.INTERNAL_NOTICE
-    ).toBeTruthy();
     expect(enConversationMessages.CONVERSATION.REPLYBOX.ASSISTANT).toBeTruthy();
-    expect(
-      ptBRConversationMessages.CONVERSATION.ASSISTANT.INTERNAL_NOTICE
-    ).toBeTruthy();
     expect(
       ptBRConversationMessages.CONVERSATION.REPLYBOX.ASSISTANT
     ).toBeTruthy();

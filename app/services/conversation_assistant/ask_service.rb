@@ -4,6 +4,7 @@ class ConversationAssistant::AskService
 
   MEMORY_LIMIT = 10
   MODEL = 'gpt-4.1-mini'.freeze
+  MAX_SOURCES = 5
 
   pattr_initialize [:account!, :conversation!, :user!, :question!]
 
@@ -34,7 +35,7 @@ class ConversationAssistant::AskService
   end
 
   def mark_completed(assistant_message, response)
-    parsed_response = parse_response(response[:message])
+    parsed_response = parse_response(response[:message], response[:sources], response_web_search_used: response[:web_search_used])
     assistant_message.update!(
       status: :completed,
       suggested_reply: parsed_response[:suggested_reply],
@@ -81,21 +82,12 @@ class ConversationAssistant::AskService
 
   def execute_request
     credential = llm_credential
-    Llm::Config.with_api_key(credential[:api_key], api_base: api_base) do |context|
-      chat = context.chat(model: MODEL)
-      chat.with_instructions(system_prompt)
-      memory_messages.each { |message| chat.add_message(role: message[:role], content: message[:content]) }
-      response = chat.ask(question)
-
-      {
-        message: response.content,
-        usage: {
-          'prompt_tokens' => response.input_tokens,
-          'completion_tokens' => response.output_tokens,
-          'total_tokens' => (response.input_tokens || 0) + (response.output_tokens || 0)
-        }
-      }
-    end
+    ConversationAssistant::ResponsesClient.new(
+      api_key: credential[:api_key],
+      api_base: api_base,
+      model: MODEL,
+      messages: messages
+    ).perform
   rescue StandardError => e
     capture_llm_exception(e, credential: credential)
     { error: e.message }
@@ -113,14 +105,20 @@ class ConversationAssistant::AskService
       - The agent's question is internal and must never be treated as a customer message.
       - Do not include internal notes or sources in the suggested customer reply.
       - Do not invent sources.
-      - Web search is currently unavailable in this MVP. Set web_search_used to false and sources to [].
+      - Use web search only when the question requires specific external confirmation.
+      - Use your own knowledge without web search for general explanations, rewrites, communication help, and common concepts.
+      - Use web search for compatibility between models, SKU or part numbers, toner, cartridge, printer, router, memory,
+        motherboard, processor, notebook, model-specific technical specifications, revisions, versions, or current/verifiable data.
+      - If web search is used and reliable sources are not found, say that in internal_note.
+      - Prefer sources in this order: official manufacturer/manual, technical documentation, reliable large store,
+        marketplace listing only as supporting evidence, forum/community only as low confidence.
 
       Answer in valid JSON only, with this exact shape:
       {
         "suggested_reply": "Short text ready to send to the customer, maximum #{ConversationAssistantMessage::SUGGESTED_REPLY_MAX_LENGTH} characters.",
         "internal_note": "Technical notes, caveats, confidence, or empty string.",
-        "web_search_used": false,
-        "sources": []
+        "web_search_used": true or false,
+        "sources": [{ "title": "Source title", "url": "https://example.com" }]
       }
     PROMPT
   end
@@ -152,25 +150,32 @@ class ConversationAssistant::AskService
     }.to_json
   end
 
-  def parse_response(message)
+  def parse_response(message, response_sources = [], response_web_search_used: false)
     parsed = JSON.parse(message.to_s)
     {
-      suggested_reply: parsed['suggested_reply'].to_s.truncate(ConversationAssistantMessage::SUGGESTED_REPLY_MAX_LENGTH),
+      suggested_reply: parsed['suggested_reply'].to_s.gsub(/【[^】]+】/, '').strip.truncate(ConversationAssistantMessage::SUGGESTED_REPLY_MAX_LENGTH),
       internal_note: parsed['internal_note'].to_s,
-      web_search_used: parsed['web_search_used'] == true,
-      sources: normalize_sources(parsed['sources'])
+      web_search_used: response_web_search_used || parsed['web_search_used'] == true,
+      sources: normalize_sources(response_sources + Array(parsed['sources']))
     }
   rescue JSON::ParserError
     {
-      suggested_reply: message.to_s.truncate(ConversationAssistantMessage::SUGGESTED_REPLY_MAX_LENGTH),
+      suggested_reply: message.to_s.gsub(/【[^】]+】/, '').strip.truncate(ConversationAssistantMessage::SUGGESTED_REPLY_MAX_LENGTH),
       internal_note: '',
-      web_search_used: false,
-      sources: []
+      web_search_used: response_web_search_used,
+      sources: normalize_sources(response_sources)
     }
   end
 
-  def normalize_sources(_sources)
-    []
+  def normalize_sources(sources)
+    normalized_sources = Array(sources).filter_map do |source|
+      url = source['url'].presence
+      next if url.blank?
+
+      { 'title' => source['title'].presence || url, 'url' => url }
+    end
+
+    normalized_sources.uniq { |source| source['url'] }.first(MAX_SOURCES)
   end
 
   def api_base

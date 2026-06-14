@@ -68,6 +68,13 @@ const askAssistant = async () => {
   }
 };
 
+const handleQuestionKeydown = event => {
+  if (event.shiftKey) return;
+
+  event.preventDefault();
+  askAssistant();
+};
+
 const copyReply = async message => {
   await copyTextToClipboard(message.suggested_reply || '');
   useAlert(t('CONVERSATION.ASSISTANT.COPIED'));
@@ -101,12 +108,6 @@ onMounted(fetchMessages);
 
 <template>
   <div class="px-3 pb-3 space-y-3">
-    <div
-      class="rounded-lg border border-n-iris-4 bg-n-iris-3 text-n-iris-12 px-3 py-2 text-sm"
-    >
-      {{ t('CONVERSATION.ASSISTANT.INTERNAL_NOTICE') }}
-    </div>
-
     <div v-if="isFetching" class="text-sm text-n-slate-11">
       {{ t('CONVERSATION.ASSISTANT.LOADING') }}
     </div>
@@ -210,6 +211,7 @@ onMounted(fetchMessages);
         v-model="question"
         class="w-full min-h-24 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
         :placeholder="t('CONVERSATION.ASSISTANT.PLACEHOLDER')"
+        @keydown.enter="handleQuestionKeydown"
       />
       <div class="flex items-center justify-between gap-2">
         <span
