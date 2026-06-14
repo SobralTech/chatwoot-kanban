@@ -7,6 +7,26 @@ describe('useChannelIcon', () => {
     expect(icon).toBe('i-woot-api');
   });
 
+  it('returns WhatsApp icon for API channel when editable inbox name includes WhatsApp', () => {
+    const inbox = {
+      id: 1,
+      name: 'Whatsapp Sales',
+      channel_type: 'Channel::Api',
+    };
+    const { value: icon } = useChannelIcon(inbox);
+    expect(icon).toBe('i-woot-whatsapp');
+  });
+
+  it('prioritizes the editable inbox name over the channel type for WhatsApp inboxes', () => {
+    const inbox = {
+      id: 1,
+      name: 'Acme Support Whatsapp',
+      channel_type: 'Channel::WebWidget',
+    };
+    const { value: icon } = useChannelIcon(inbox);
+    expect(icon).toBe('i-woot-whatsapp');
+  });
+
   it('returns correct icon for Facebook channel', () => {
     const inbox = { channel_type: 'Channel::FacebookPage' };
     const { value: icon } = useChannelIcon(inbox);

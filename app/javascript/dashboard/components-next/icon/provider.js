@@ -24,8 +24,11 @@ export function useChannelIcon(inbox) {
 
   const channelIcon = computed(() => {
     const inboxDetails = inbox.value || inbox;
-    const type = inboxDetails.channel_type;
-    let icon = channelTypeIconMap[type];
+    const type = inboxDetails.channel_type || inboxDetails.channelType;
+    const inboxName = inboxDetails.name || '';
+    let icon = inboxName.toLowerCase().includes('whatsapp')
+      ? 'i-woot-whatsapp'
+      : channelTypeIconMap[type];
 
     if (type === INBOX_TYPES.EMAIL && inboxDetails.provider) {
       if (Object.keys(providerIconMap).includes(inboxDetails.provider)) {

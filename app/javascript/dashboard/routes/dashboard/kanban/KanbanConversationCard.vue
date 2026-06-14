@@ -140,9 +140,9 @@ const openConversation = event => {
           />
           <span
             v-if="inbox"
-            class="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full border border-n-surface-1 bg-n-surface-1"
+            class="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border border-n-surface-1 bg-n-surface-1"
           >
-            <ChannelIcon :inbox="inbox" class="size-2.5 text-n-slate-11" />
+            <ChannelIcon :inbox="inbox" class="size-3.5 text-n-slate-11" />
           </span>
         </button>
 
