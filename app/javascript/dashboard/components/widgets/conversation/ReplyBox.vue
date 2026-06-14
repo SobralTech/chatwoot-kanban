@@ -14,6 +14,7 @@ import ReplyBottomPanel from 'dashboard/components/widgets/WootWriter/ReplyBotto
 import CopilotReplyBottomPanel from 'dashboard/components/widgets/WootWriter/CopilotReplyBottomPanel.vue';
 import ArticleSearchPopover from 'dashboard/routes/dashboard/helpcenter/components/ArticleSearch/SearchPopover.vue';
 import CopilotEditorSection from './CopilotEditorSection.vue';
+import ConversationAssistantPanel from './ConversationAssistantPanel.vue';
 import MessageSignatureMissingAlert from './MessageSignatureMissingAlert.vue';
 import ReplyBoxBanner from './ReplyBoxBanner.vue';
 import QuotedEmailPreview from './QuotedEmailPreview.vue';
@@ -77,6 +78,7 @@ export default {
     WootMessageEditor,
     QuotedEmailPreview,
     CopilotEditorSection,
+    ConversationAssistantPanel,
     CopilotReplyBottomPanel,
   },
   mixins: [inboxMixin, fileUploadMixin, keyboardEventListenerMixins],
@@ -314,7 +316,8 @@ export default {
     },
     replyBoxClass() {
       return {
-        'is-private': this.isPrivate,
+        'is-private': this.isPrivate && !this.isOnAssistant,
+        'is-assistant': this.isOnAssistant,
         'is-focused': this.isFocused || this.hasAttachments,
       };
     },
@@ -329,6 +332,9 @@ export default {
     },
     isOnPrivateNote() {
       return this.replyType === REPLY_EDITOR_MODES.NOTE;
+    },
+    isOnAssistant() {
+      return this.replyType === REPLY_EDITOR_MODES.ASSISTANT;
     },
     isOnExpandedLayout() {
       const {
@@ -454,7 +460,7 @@ export default {
         this.copilot.reset();
       }
 
-      if (this.isOnPrivateNote) {
+      if (this.isOnPrivateNote || this.isOnAssistant) {
         return;
       }
 
@@ -925,7 +931,12 @@ export default {
       this.$store.dispatch('draftMessages/setReplyEditorMode', {
         mode,
       });
-      if (canReply || this.isAWhatsAppChannel || this.isAPIInbox)
+      if (
+        mode === REPLY_EDITOR_MODES.ASSISTANT ||
+        canReply ||
+        this.isAWhatsAppChannel ||
+        this.isAPIInbox
+      )
         this.replyType = mode;
       if (this.isRecordingAudio) {
         this.toggleAudioRecorder();
@@ -937,6 +948,13 @@ export default {
     addIntoEditor(content) {
       this.updateEditorSelectionWith = content;
       this.onFocus();
+    },
+    insertAssistantReply(content) {
+      this.setReplyMode(REPLY_EDITOR_MODES.REPLY);
+      this.$nextTick(() => {
+        this.message = content;
+        this.onFocus();
+      });
     },
     executeCopilotAction(action, data) {
       this.copilot.execute(action, data);
@@ -1227,6 +1245,10 @@ export default {
       this.message = acceptedMessage;
       this.setCopilotAcceptedMessage(acceptedMessage);
     },
+    onAssistantSentToCustomer() {
+      emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
+      emitter.emit(BUS_EVENTS.MESSAGE_SENT);
+    },
   },
 };
 </script>
@@ -1267,14 +1289,23 @@ export default {
       leave-from-class="opacity-100 translate-y-0 scale-100"
       leave-to-class="opacity-0 translate-y-2 scale-[0.98]"
     >
-      <div :key="copilot.editorTransitionKey.value" class="reply-box__top">
+      <div
+        :key="isOnAssistant ? 'assistant' : copilot.editorTransitionKey.value"
+        class="reply-box__top"
+      >
+        <ConversationAssistantPanel
+          v-if="isOnAssistant"
+          :conversation-id="conversationId"
+          @insert-reply="insertAssistantReply"
+          @sent-to-customer="onAssistantSentToCustomer"
+        />
         <ReplyToMessage
-          v-if="shouldShowReplyToMessage"
+          v-if="!isOnAssistant && shouldShowReplyToMessage"
           :message="inReplyTo"
           @dismiss="resetReplyToMessage"
         />
         <EmojiInput
-          v-if="showEmojiPicker"
+          v-if="!isOnAssistant && showEmojiPicker"
           v-on-clickaway="hideEmojiPicker"
           :class="{
             'emoji-dialog--expanded': isOnExpandedLayout,
@@ -1282,13 +1313,13 @@ export default {
           :on-click="addIntoEditor"
         />
         <ReplyEmailHead
-          v-if="showReplyHead && isDefaultEditorMode"
+          v-if="!isOnAssistant && showReplyHead && isDefaultEditorMode"
           v-model:cc-emails="ccEmails"
           v-model:bcc-emails="bccEmails"
           v-model:to-emails="toEmails"
         />
         <AudioRecorder
-          v-if="showAudioRecorderEditor"
+          v-if="!isOnAssistant && showAudioRecorderEditor"
           ref="audioRecorderInput"
           :audio-record-format="audioRecordFormat"
           @recorder-progress-changed="onRecordProgressChanged"
@@ -1297,7 +1328,9 @@ export default {
           @pause="recordingAudioState = 'paused'"
         />
         <CopilotEditorSection
-          v-if="copilot.isActive.value && !showAudioRecorderEditor"
+          v-if="
+            !isOnAssistant && copilot.isActive.value && !showAudioRecorderEditor
+          "
           :show-copilot-editor="copilot.showEditor.value"
           :is-generating-content="copilot.isGenerating.value"
           :generated-content="copilot.generatedContent.value"
@@ -1310,7 +1343,7 @@ export default {
           @send="copilot.sendFollowUp"
         />
         <WootMessageEditor
-          v-else-if="!showAudioRecorderEditor"
+          v-else-if="!isOnAssistant && !showAudioRecorderEditor"
           ref="messageEditor"
           v-model="message"
           :conversation-id="conversationId"
@@ -1339,7 +1372,9 @@ export default {
         />
 
         <QuotedEmailPreview
-          v-if="shouldShowQuotedPreview && isDefaultEditorMode"
+          v-if="
+            !isOnAssistant && shouldShowQuotedPreview && isDefaultEditorMode
+          "
           :quoted-email-text="quotedEmailText"
           :preview-text="quotedEmailPreviewText"
           class="mb-2"
@@ -1347,7 +1382,7 @@ export default {
         />
 
         <div
-          v-if="hasAttachments && isDefaultEditorMode"
+          v-if="!isOnAssistant && hasAttachments && isDefaultEditorMode"
           class="bg-transparent py-0 mb-2"
           @paste="onPaste"
         >
@@ -1359,6 +1394,7 @@ export default {
         </div>
         <MessageSignatureMissingAlert
           v-if="
+            !isOnAssistant &&
             isSignatureEnabledForInbox &&
             !isSignatureAvailable &&
             isDefaultEditorMode
@@ -1378,14 +1414,14 @@ export default {
       leave-to-class="opacity-0 translate-y-2 scale-[0.98]"
     >
       <CopilotReplyBottomPanel
-        v-if="copilot.isActive.value"
+        v-if="!isOnAssistant && copilot.isActive.value"
         key="copilot-bottom-panel"
         :is-generating-content="copilot.isButtonDisabled.value"
         @submit="onSubmitCopilotReply"
         @cancel="copilot.reset"
       />
       <ReplyBottomPanel
-        v-else
+        v-else-if="!isOnAssistant"
         key="reply-bottom-panel"
         :conversation-id="conversationId"
         :enable-multiple-file-upload="enableMultipleFileUpload"
@@ -1455,6 +1491,10 @@ export default {
 
   &.is-private {
     @apply bg-n-solid-amber dark:border-n-amber-3/10 border-n-amber-12/5;
+  }
+
+  &.is-assistant {
+    @apply bg-n-iris-2 dark:border-n-iris-3/20 border-n-iris-8/20;
   }
 }
 

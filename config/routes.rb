@@ -167,6 +167,11 @@ Rails.application.routes.draw do
                   post :retry
                 end
               end
+              resources :assistant_messages, only: [:index, :create] do
+                member do
+                  post :send_to_customer
+                end
+              end
               resources :assignments, only: [:create]
               resources :kanban_cards, only: [:index, :create]
               resources :labels, only: [:create, :index]

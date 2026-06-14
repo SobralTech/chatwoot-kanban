@@ -232,6 +232,7 @@
     "REPLYBOX": {
       "REPLY": "Reply",
       "PRIVATE_NOTE": "Private Note",
+      "ASSISTANT": "Assistant",
       "SEND": "Send",
       "CREATE": "Add Note",
       "INSERT_READ_MORE": "Read more",
@@ -275,6 +276,26 @@
         "COLLAPSE": "Collapse preview",
         "EXPAND": "Expand preview"
       }
+    },
+    "ASSISTANT": {
+      "INTERNAL_NOTICE": "Internal assistant. This question will not be sent to the customer.",
+      "LOADING": "Loading assistant history...",
+      "LOAD_ERROR": "Unable to load assistant history.",
+      "ASK_ERROR": "Unable to ask the assistant. Please try again.",
+      "SEND_TO_CUSTOMER_ERROR": "Unable to send the assistant reply to the customer.",
+      "PLACEHOLDER": "Ask an internal question for the assistant...",
+      "ASK": "Ask",
+      "CHARACTERS_REMAINING": "characters remaining",
+      "QUESTION_LABEL": "Question",
+      "SUGGESTED_REPLY": "Suggested reply to customer",
+      "INTERNAL_NOTE": "Internal note",
+      "SOURCES": "Sources consulted",
+      "COPY": "Copy",
+      "COPIED": "Assistant reply copied",
+      "INSERT_IN_MESSAGE": "Insert in message",
+      "SEND_TO_CUSTOMER": "Send to customer",
+      "SENT_TO_CUSTOMER": "Assistant reply sent to customer",
+      "SENT": "Sent"
     },
     "VISIBLE_TO_AGENTS": "Private Note: Only visible to you and your team",
     "CHANGE_STATUS": "Conversation status changed",

@@ -18,74 +18,92 @@ const props = defineProps({
   },
 });
 
-defineEmits(['toggleMode']);
+const emit = defineEmits(['setMode']);
 
 const wootEditorReplyMode = useTemplateRef('wootEditorReplyMode');
 const wootEditorPrivateMode = useTemplateRef('wootEditorPrivateMode');
+const wootEditorAssistantMode = useTemplateRef('wootEditorAssistantMode');
 
 const replyModeSize = useElementSize(wootEditorReplyMode);
 const privateModeSize = useElementSize(wootEditorPrivateMode);
+const assistantModeSize = useElementSize(wootEditorAssistantMode);
 
-/**
- * Computed boolean indicating if the editor is in private note mode
- * When isReplyRestricted is true, force switch to private note
- * Otherwise, respect the current mode prop
- * @type {ComputedRef<boolean>}
- */
-const isPrivate = computed(() => {
+const activeMode = computed(() => {
   if (props.isReplyRestricted) {
-    // Force switch to private note when replies are restricted
-    return true;
+    return props.mode === REPLY_EDITOR_MODES.ASSISTANT
+      ? REPLY_EDITOR_MODES.ASSISTANT
+      : REPLY_EDITOR_MODES.NOTE;
   }
-  // Otherwise respect the current mode
-  return props.mode === REPLY_EDITOR_MODES.NOTE;
+
+  return props.mode;
 });
 
-/**
- * Computes the width of the sliding background chip in pixels
- * Includes 16px of padding in the calculation
- * @type {ComputedRef<string>}
- */
 const width = computed(() => {
-  const widthToUse = isPrivate.value
-    ? privateModeSize.width.value
-    : replyModeSize.width.value;
+  const sizeMap = {
+    [REPLY_EDITOR_MODES.REPLY]: replyModeSize.width.value,
+    [REPLY_EDITOR_MODES.NOTE]: privateModeSize.width.value,
+    [REPLY_EDITOR_MODES.ASSISTANT]: assistantModeSize.width.value,
+  };
 
-  const widthWithPadding = widthToUse + 16;
-  return `${widthWithPadding}px`;
+  return `${(sizeMap[activeMode.value] || replyModeSize.width.value) + 16}px`;
 });
 
-/**
- * Computes the X translation value for the sliding background chip
- * Translates by the width of reply mode + padding when in private mode
- * @type {ComputedRef<string>}
- */
 const translateValue = computed(() => {
-  const xTranslate = isPrivate.value ? replyModeSize.width.value + 16 : 0;
+  if (activeMode.value === REPLY_EDITOR_MODES.NOTE) {
+    return `${replyModeSize.width.value + 16}px`;
+  }
 
-  return `${xTranslate}px`;
+  if (activeMode.value === REPLY_EDITOR_MODES.ASSISTANT) {
+    return `${replyModeSize.width.value + privateModeSize.width.value + 32}px`;
+  }
+
+  return '0px';
 });
+
+const setMode = mode => {
+  emit('setMode', mode);
+};
 </script>
 
 <template>
-  <button
+  <div
     class="flex items-center w-auto h-8 p-1 transition-all border rounded-full bg-n-alpha-2 group relative duration-300 ease-in-out z-0 active:scale-[0.995] active:duration-75"
-    :disabled="disabled || isReplyRestricted"
     :class="{
-      'cursor-not-allowed': disabled || isReplyRestricted,
+      'cursor-not-allowed': disabled,
     }"
-    @click="$emit('toggleMode')"
   >
-    <div ref="wootEditorReplyMode" class="flex items-center gap-1 px-2 z-20">
+    <button
+      ref="wootEditorReplyMode"
+      class="flex items-center gap-1 px-2 z-20 h-6"
+      :disabled="disabled || isReplyRestricted"
+      type="button"
+      @click="setMode(REPLY_EDITOR_MODES.REPLY)"
+    >
       {{ $t('CONVERSATION.REPLYBOX.REPLY') }}
-    </div>
-    <div ref="wootEditorPrivateMode" class="flex items-center gap-1 px-2 z-20">
+    </button>
+    <button
+      ref="wootEditorPrivateMode"
+      class="flex items-center gap-1 px-2 z-20 h-6"
+      :disabled="disabled"
+      type="button"
+      @click="setMode(REPLY_EDITOR_MODES.NOTE)"
+    >
       {{ $t('CONVERSATION.REPLYBOX.PRIVATE_NOTE') }}
-    </div>
+    </button>
+    <button
+      ref="wootEditorAssistantMode"
+      class="flex items-center gap-1 px-2 z-20 h-6"
+      :disabled="disabled"
+      type="button"
+      @click="setMode(REPLY_EDITOR_MODES.ASSISTANT)"
+    >
+      <span class="i-ph-sparkle-fill" />
+      {{ $t('CONVERSATION.REPLYBOX.ASSISTANT') }}
+    </button>
     <div
       class="absolute shadow-sm rounded-full h-6 w-[var(--chip-width)] ease-in-out translate-x-[var(--translate-x)] rtl:translate-x-[var(--rtl-translate-x)] bg-n-solid-1"
       :class="{
-        'transition-all duration-300': !disabled && !isReplyRestricted,
+        'transition-all duration-300': !disabled,
       }"
       :style="{
         '--chip-width': width,
@@ -93,5 +111,5 @@ const translateValue = computed(() => {
         '--rtl-translate-x': `calc(-1 * var(--translate-x))`,
       }"
     />
-  </button>
+  </div>
 </template>

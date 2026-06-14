@@ -220,6 +220,7 @@
     "REPLYBOX": {
       "REPLY": "Responder",
       "PRIVATE_NOTE": "Mensagem Privada",
+      "ASSISTANT": "Assistente",
       "SEND": "Enviar",
       "CREATE": "Enviar",
       "INSERT_READ_MORE": "Saiba mais",
@@ -263,6 +264,26 @@
         "COLLAPSE": "Recolher a prévia",
         "EXPAND": "Expandir a prévia"
       }
+    },
+    "ASSISTANT": {
+      "INTERNAL_NOTICE": "Assistente interno. Esta pergunta não será enviada ao cliente.",
+      "LOADING": "Carregando histórico do assistente...",
+      "LOAD_ERROR": "Não foi possível carregar o histórico do assistente.",
+      "ASK_ERROR": "Não foi possível consultar o assistente. Tente novamente.",
+      "SEND_TO_CUSTOMER_ERROR": "Não foi possível enviar a resposta do assistente ao cliente.",
+      "PLACEHOLDER": "Faça uma pergunta interna para o assistente...",
+      "ASK": "Perguntar",
+      "CHARACTERS_REMAINING": "caracteres restantes",
+      "QUESTION_LABEL": "Pergunta",
+      "SUGGESTED_REPLY": "Resposta sugerida ao cliente",
+      "INTERNAL_NOTE": "Observação interna",
+      "SOURCES": "Fontes consultadas",
+      "COPY": "Copiar",
+      "COPIED": "Resposta do assistente copiada",
+      "INSERT_IN_MESSAGE": "Inserir na mensagem",
+      "SEND_TO_CUSTOMER": "Enviar ao cliente",
+      "SENT_TO_CUSTOMER": "Resposta do assistente enviada ao cliente",
+      "SENT": "Enviada"
     },
     "VISIBLE_TO_AGENTS": "Mensagem Privada: Apenas visível para você e seu time",
     "CHANGE_STATUS": "Estado da conversa mudou",

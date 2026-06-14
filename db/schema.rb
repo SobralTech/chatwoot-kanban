@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_14_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_14_110000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -668,6 +668,29 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_100000) do
     t.index ["identifier", "account_id"], name: "uniq_identifier_per_account_contact", unique: true
     t.index ["name", "email", "phone_number", "identifier"], name: "index_contacts_on_name_email_phone_number_identifier", opclass: :gin_trgm_ops, using: :gin
     t.index ["phone_number", "account_id"], name: "index_contacts_on_phone_number_and_account_id"
+  end
+
+  create_table "conversation_assistant_messages", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "user_id", null: false
+    t.text "question", null: false
+    t.text "suggested_reply"
+    t.text "internal_note"
+    t.jsonb "sources", default: [], null: false
+    t.string "model"
+    t.boolean "web_search_used", default: false, null: false
+    t.jsonb "usage", default: {}, null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "sent_to_customer_at"
+    t.bigint "sent_message_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "conversation_id", "user_id", "created_at"], name: "idx_conversation_assistant_messages_memory"
+    t.index ["account_id"], name: "index_conversation_assistant_messages_on_account_id"
+    t.index ["conversation_id"], name: "index_conversation_assistant_messages_on_conversation_id"
+    t.index ["sent_message_id"], name: "index_conversation_assistant_messages_on_sent_message_id"
+    t.index ["user_id"], name: "index_conversation_assistant_messages_on_user_id"
   end
 
   create_table "conversation_kanban_states", force: :cascade do |t|
@@ -1427,6 +1450,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_14_100000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "conversation_assistant_messages", "accounts"
+  add_foreign_key "conversation_assistant_messages", "conversations"
+  add_foreign_key "conversation_assistant_messages", "messages", column: "sent_message_id"
+  add_foreign_key "conversation_assistant_messages", "users"
   add_foreign_key "inboxes", "portals"
   add_foreign_key "kanban_board_inboxes", "accounts"
   add_foreign_key "kanban_board_inboxes", "inboxes"
