@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { OnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
@@ -9,7 +9,6 @@ import Draggable from 'vuedraggable';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
-import Button from 'dashboard/components-next/button/Button.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import {
@@ -19,11 +18,9 @@ import {
 } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
-import KanbanCreateBoardDialog from './KanbanCreateBoardDialog.vue';
 import KanbanConversationCard from './KanbanConversationCard.vue';
 import KanbanOpportunityDetailsModal from './KanbanOpportunityDetailsModal.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
-import { useKanbanBoardCreation } from './useKanbanBoardCreation';
 
 const route = useRoute();
 const router = useRouter();
@@ -43,14 +40,13 @@ const selectedOpportunityCardId = ref(null);
 const activeActionKey = ref('');
 const hasError = ref(false);
 const actionError = ref('');
-const newStageName = ref('');
 const selectedInboxIds = ref([]);
 const selectedAssigneeIds = ref([]);
-const showCreateStageForm = ref(false);
 const isBoardDropdownOpen = ref(false);
 const editingStageId = ref(null);
 const stageNames = ref({});
 const stageColors = ref({});
+const stageNameInputs = new Map();
 const activeAddItemStageId = ref(null);
 const stageCardsLoading = ref({});
 const stageCardsErrors = ref({});
@@ -127,14 +123,6 @@ const stageListModel = computed({
 const isCardDragDisabled = computed(
   () => isPersistingCardDrag.value || !!activeActionKey.value
 );
-const {
-  showCreateBoardDialog,
-  createBoardError,
-  isCreatingBoard,
-  openCreateBoardDialog,
-  closeCreateBoardDialog,
-  createBoard,
-} = useKanbanBoardCreation({ boards, t });
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
 const normalizeKanbanPayload = data => {
@@ -436,31 +424,21 @@ const openBoardSettings = () => {
   });
 };
 
-const createStage = async () => {
-  const name = newStageName.value.trim();
-  if (!selectedBoard.value?.id || !name || isCreatingStage.value) return;
-
-  isCreatingStage.value = true;
-  actionError.value = '';
-
-  try {
-    await KanbanBoardsAPI.createStage(selectedBoard.value.id, {
-      stage: {
-        name,
-        color: newStageColor.value,
-        position: stages.value.length,
-      },
-    });
-    newStageName.value = '';
-    newStageColor.value = defaultStageColor;
-    showCreateStageForm.value = false;
-    await refreshSelectedBoard();
-    useAlert(t('KANBAN.ACTIONS.CREATE_STAGE_SUCCESS'));
-  } catch (error) {
-    showActionError(error, t('KANBAN.ACTIONS.CREATE_STAGE_ERROR'));
-  } finally {
-    isCreatingStage.value = false;
+const setStageNameInput = (stageId, element) => {
+  if (element) {
+    stageNameInputs.set(stageId, element);
+    return;
   }
+
+  stageNameInputs.delete(stageId);
+};
+
+const findCreatedStage = (createdStage, temporaryName) => {
+  if (createdStage?.id) {
+    return stages.value.find(stage => stage.id === createdStage.id);
+  }
+
+  return stages.value.find(stage => stage.name === temporaryName);
 };
 
 const startEditingStage = stage => {
@@ -473,6 +451,36 @@ const startEditingStage = stage => {
     ...stageColors.value,
     [stage.id]: getStageColorOption(stage.color).value,
   };
+  nextTick(() => stageNameInputs.get(stage.id)?.focus());
+};
+
+const createStage = async () => {
+  if (!selectedBoard.value?.id || isCreatingStage.value) return;
+
+  const name = t('KANBAN.ACTIONS.NEW_STAGE_NAME');
+
+  isCreatingStage.value = true;
+  actionError.value = '';
+
+  try {
+    const response = await KanbanBoardsAPI.createStage(selectedBoard.value.id, {
+      stage: {
+        name,
+        color: newStageColor.value,
+        position: stages.value.length,
+      },
+    });
+    newStageColor.value = defaultStageColor;
+    const createdStage = normalizePayload(response.data);
+    await refreshSelectedBoard();
+    const stageToEdit = findCreatedStage(createdStage, name);
+    if (stageToEdit) startEditingStage(stageToEdit);
+    useAlert(t('KANBAN.ACTIONS.CREATE_STAGE_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.CREATE_STAGE_ERROR'));
+  } finally {
+    isCreatingStage.value = false;
+  }
 };
 
 const cancelEditingStage = () => {
@@ -694,7 +702,6 @@ const selectBoard = boardId => {
   if (boardId === activeBoardId.value) return;
 
   isBoardDropdownOpen.value = false;
-  showCreateStageForm.value = false;
   router.push({
     name: 'kanban_board_show',
     params: {
@@ -702,12 +709,6 @@ const selectBoard = boardId => {
       boardId,
     },
   });
-};
-
-const openBoardCreateDialog = () => {
-  isBoardDropdownOpen.value = false;
-  showCreateStageForm.value = false;
-  openCreateBoardDialog();
 };
 
 const fetchBoards = async () => {
@@ -870,8 +871,6 @@ watch(activeBoardId, (boardId, previousBoardId) => {
     selectedAssigneeIds.value = [];
   }
 
-  newStageName.value = '';
-  showCreateStageForm.value = false;
   isBoardDropdownOpen.value = false;
   showBoard(boardId);
 });
@@ -936,21 +935,13 @@ onUnmounted(() => {
           </OnClickOutside>
         </div>
         <div class="flex flex-wrap items-center justify-end gap-2">
-          <Button
-            icon="i-lucide-plus"
-            data-testid="kanban-create-board-button"
-            :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
-            color="blue"
-            size="sm"
-            @click="openBoardCreateDialog"
-          />
           <template v-if="selectedBoard">
             <button
               type="button"
               data-testid="kanban-create-stage-toggle"
               class="flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="isCreatingStage"
-              @click="showCreateStageForm = !showCreateStageForm"
+              @click="createStage"
             >
               <i class="i-lucide-plus size-4" />
               {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
@@ -990,36 +981,6 @@ onUnmounted(() => {
           </template>
         </div>
       </header>
-
-      <div
-        v-if="selectedBoard && showCreateStageForm"
-        class="border-b border-n-weak px-6 py-3"
-      >
-        <form class="flex max-w-xl gap-2" @submit.prevent="createStage">
-          <input
-            v-model="newStageName"
-            type="text"
-            class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-            :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-          />
-          <button
-            type="submit"
-            class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!newStageName.trim() || isCreatingStage"
-          >
-            <i class="i-lucide-check size-4" />
-            {{ t('KANBAN.ACTIONS.CREATE_STAGE_CONFIRM') }}
-          </button>
-          <button
-            type="button"
-            class="flex flex-shrink-0 items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
-            @click="showCreateStageForm = false"
-          >
-            <i class="i-lucide-x size-4" />
-            {{ t('KANBAN.ACTIONS.CANCEL') }}
-          </button>
-        </form>
-      </div>
 
       <div
         v-if="actionError"
@@ -1097,10 +1058,12 @@ onUnmounted(() => {
                 >
                   <div class="flex min-w-0 gap-2">
                     <input
+                      :ref="element => setStageNameInput(stage.id, element)"
                       v-model="stageNames[stage.id]"
                       type="text"
                       class="min-w-0 flex-1 rounded-md border border-white/30 bg-white/90 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-white"
                       :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+                      @keydown.escape.prevent="cancelEditingStage"
                     />
                     <button
                       type="submit"
@@ -1270,14 +1233,6 @@ onUnmounted(() => {
         </Draggable>
       </div>
     </section>
-
-    <KanbanCreateBoardDialog
-      v-model="showCreateBoardDialog"
-      :is-creating="isCreatingBoard"
-      :error="createBoardError"
-      @create="createBoard"
-      @close="closeCreateBoardDialog"
-    />
 
     <woot-delete-modal
       v-model:show="showRemoveCardConfirmation"

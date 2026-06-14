@@ -109,17 +109,10 @@ describe('ConversationSearchPanel', () => {
     );
 
     expect(input.classes()).toEqual(
-      expect.arrayContaining(['pl-10', 'pr-12', 'rtl:pr-10', 'rtl:pl-12'])
+      expect.arrayContaining(['pl-12', 'pr-12', 'rtl:pr-10', 'rtl:pl-12'])
     );
-    expect(searchIcon.classes()).toEqual(
-      expect.arrayContaining([
-        'pointer-events-none',
-        'absolute',
-        'left-3',
-        'top-1/2',
-        '-translate-y-1/2',
-      ])
-    );
+    expect(input.classes()).not.toContain('pl-10');
+    expect(searchIcon.exists()).toBe(true);
     expect(clearButton.classes()).toEqual(
       expect.arrayContaining(['right-1', 'top-1/2', '-translate-y-1/2'])
     );

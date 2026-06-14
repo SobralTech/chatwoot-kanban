@@ -41,6 +41,7 @@
       "SAVE_BOARD": "Salvar quadro",
       "REMOVE_BOARD": "Remover quadro",
       "CREATE_STAGE": "Adicionar etapa",
+      "NEW_STAGE_NAME": "Nova etapa",
       "CREATE_STAGE_CONFIRM": "Criar etapa",
       "STAGE_NAME_PLACEHOLDER": "Nome da etapa",
       "STAGE_COLOR": "Cor da etapa",

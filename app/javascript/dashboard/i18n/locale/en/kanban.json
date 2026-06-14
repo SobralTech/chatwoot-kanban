@@ -41,6 +41,7 @@
       "SAVE_BOARD": "Save board",
       "REMOVE_BOARD": "Remove board",
       "CREATE_STAGE": "Add stage",
+      "NEW_STAGE_NAME": "New stage",
       "CREATE_STAGE_CONFIRM": "Create stage",
       "STAGE_NAME_PLACEHOLDER": "Stage name",
       "STAGE_COLOR": "Stage color",

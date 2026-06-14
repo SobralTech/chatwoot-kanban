@@ -2,7 +2,6 @@ import { flushPromises, shallowMount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import { createStore } from 'vuex';
 import KanbanView from '../KanbanView.vue';
-import KanbanCreateBoardDialog from '../KanbanCreateBoardDialog.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -363,19 +362,10 @@ const findLoadMoreButtons = wrapper =>
 
 const findAddItemPicker = wrapper =>
   wrapper.findComponent({ name: 'KanbanOpportunityPicker' });
-const findCreateBoardDialog = wrapper =>
-  wrapper.findComponent(KanbanCreateBoardDialog);
 const findInboxFilter = wrapper =>
   wrapper.findAllComponents({ name: 'TagMultiSelectComboBox' })[0];
 const findAgentFilter = wrapper =>
   wrapper.findAllComponents({ name: 'TagMultiSelectComboBox' })[1];
-
-const openStageCreateForm = async wrapper => {
-  await wrapper
-    .find('[data-testid="kanban-create-stage-toggle"]')
-    .trigger('click');
-  await nextTick();
-};
 
 const getStageCardIds = wrapper =>
   findCardDraggables(wrapper).map(draggable =>
@@ -1625,100 +1615,61 @@ describe('KanbanView header navigation', () => {
     ).toBe(false);
   });
 
-  it('shows a dedicated create board button in the header', async () => {
+  it('does not render a create board button in the board header', async () => {
     const wrapper = await mountView();
 
-    const createButton = wrapper.find(
-      '[data-testid="kanban-create-board-button"]'
-    );
-
-    expect(createButton.exists()).toBe(true);
-    expect(createButton.text()).toContain('KANBAN.OVERVIEW.CREATE_BOARD');
-    expect(createButton.classes()).toContain('btn-stub');
+    expect(
+      wrapper.find('[data-testid="kanban-create-board-button"]').exists()
+    ).toBe(false);
   });
 
-  it('opens the reusable create board dialog from the header button', async () => {
+  it('does not mount the reusable create board dialog on the board page', async () => {
     const wrapper = await mountView();
 
-    await wrapper
-      .find('[data-testid="kanban-create-board-button"]')
-      .trigger('click');
-    await nextTick();
-
-    expect(findCreateBoardDialog(wrapper).props('modelValue')).toBe(true);
+    expect(
+      wrapper.findComponent({ name: 'KanbanCreateBoardDialog' }).exists()
+    ).toBe(false);
   });
 
-  it('creates a board from the board page and navigates to it', async () => {
-    KanbanBoardsAPI.create.mockResolvedValue({
-      data: { id: 99, name: 'New Board' },
-    });
-    const wrapper = await mountView();
-
-    await wrapper
-      .find('[data-testid="kanban-create-board-button"]')
-      .trigger('click');
-    findCreateBoardDialog(wrapper).vm.$emit('create', 'New Board');
-    await flushPromises();
-    await nextTick();
-
-    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
-      kanban_board: {
-        name: 'New Board',
-        position: 2,
-      },
-    });
-    expect(wrapper.dispatchSpy).toHaveBeenCalledWith(
-      'kanbanBoards/refreshBoards'
-    );
-    expect(mockPush).toHaveBeenCalledWith({
-      name: 'kanban_board_show',
-      params: { accountId: '1', boardId: 99 },
-    });
-  });
-
-  it('opens the reusable create board dialog from the empty board state', async () => {
+  it('does not offer board creation from the empty board state', async () => {
     mockRoute.params.boardId = undefined;
     const wrapper = await mountView({ boardResponse: null, boards: [] });
 
     expect(
       wrapper.find('[data-testid="kanban-empty-create-board-button"]').exists()
     ).toBe(false);
-
-    await wrapper
-      .find('[data-testid="kanban-create-board-button"]')
-      .trigger('click');
-    await nextTick();
-
-    expect(findCreateBoardDialog(wrapper).props('modelValue')).toBe(true);
+    expect(
+      wrapper.find('[data-testid="kanban-create-board-button"]').exists()
+    ).toBe(false);
+    expect(
+      wrapper.findComponent({ name: 'KanbanCreateBoardDialog' }).exists()
+    ).toBe(false);
   });
 
-  it('creates the first board from the empty board state', async () => {
-    mockRoute.params.boardId = undefined;
-    KanbanBoardsAPI.create.mockResolvedValue({
-      data: { id: 100, name: 'First Board' },
-    });
-    const wrapper = await mountView({ boardResponse: null, boards: [] });
+  it('shows a dedicated create stage button in the header', async () => {
+    const wrapper = await mountView();
 
-    await wrapper
-      .find('[data-testid="kanban-create-board-button"]')
-      .trigger('click');
-    findCreateBoardDialog(wrapper).vm.$emit('create', 'First Board');
-    await flushPromises();
-    await nextTick();
-
-    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
-      kanban_board: {
-        name: 'First Board',
-        position: 0,
-      },
-    });
-    expect(wrapper.dispatchSpy).toHaveBeenCalledWith(
-      'kanbanBoards/refreshBoards'
+    const createStageButton = wrapper.find(
+      '[data-testid="kanban-create-stage-toggle"]'
     );
-    expect(mockPush).toHaveBeenCalledWith({
-      name: 'kanban_board_show',
-      params: { accountId: '1', boardId: 100 },
-    });
+
+    expect(createStageButton.exists()).toBe(true);
+    expect(createStageButton.text()).toContain('KANBAN.ACTIONS.CREATE_STAGE');
+  });
+
+  it('does not render the old separate create stage form', async () => {
+    const wrapper = await mountView();
+
+    expect(wrapper.text()).not.toContain('KANBAN.ACTIONS.CREATE_STAGE_CONFIRM');
+    expect(
+      wrapper
+        .findAll('input')
+        .some(
+          input =>
+            input.attributes('placeholder') ===
+            'KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER'
+        )
+    ).toBe(false);
   });
 
   it('navigates when switching boards from the dropdown', async () => {
@@ -1741,23 +1692,52 @@ describe('KanbanView header navigation', () => {
     });
   });
 
-  it('keeps stage creation working from the new header', async () => {
+  it('creates a stage immediately with a temporary name and starts inline editing', async () => {
     const wrapper = await mountView();
-
-    await openStageCreateForm(wrapper);
-    await wrapper.findAll('input[type="text"]')[0].setValue('Qualified');
+    const newStage = {
+      id: 300,
+      name: 'KANBAN.ACTIONS.NEW_STAGE_NAME',
+      active: true,
+      position: 1,
+      cards: [],
+      cards_count: 0,
+      pagination: buildPagination(),
+    };
+    KanbanBoardsAPI.createStage.mockResolvedValue({
+      data: newStage,
+    });
+    KanbanBoardsAPI.show.mockResolvedValueOnce({
+      data: buildBoardResponse([], {
+        stages: [newStage, ...buildBoardResponse().stages],
+      }),
+    });
     KanbanBoardsAPI.show.mockClear();
-    await wrapper.findAll('form')[0].trigger('submit.prevent');
+
+    await wrapper
+      .find('[data-testid="kanban-create-stage-toggle"]')
+      .trigger('click');
     await flushPromises();
+    await nextTick();
 
     expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
       stage: {
-        name: 'Qualified',
+        name: 'KANBAN.ACTIONS.NEW_STAGE_NAME',
         color: 'slate',
         position: 2,
       },
     });
     expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
+    const stageNameInput = wrapper
+      .findAll('input')
+      .find(
+        input =>
+          input.attributes('placeholder') ===
+          'KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER'
+      );
+    expect(stageNameInput).toBeDefined();
+    expect(stageNameInput.exists()).toBe(true);
+    expect(stageNameInput.element.value).toBe('KANBAN.ACTIONS.NEW_STAGE_NAME');
+    expect(wrapper.text()).not.toContain('KANBAN.ACTIONS.CREATE_STAGE_CONFIRM');
   });
 
   it('exposes the expanded stage color palette', () => {
@@ -1825,7 +1805,7 @@ describe('KanbanView header navigation', () => {
     ).toBe(false);
     expect(
       wrapper.find('[data-testid="kanban-create-board-button"]').exists()
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('does not render an internal sidebar', async () => {
