@@ -57,6 +57,7 @@ const editLabelTitles = ref([]);
 const editError = ref('');
 const isLoadingEditStages = ref(false);
 const isSavingEdit = ref(false);
+const hasPendingEditSave = ref(false);
 const editStagesAbortController = ref(null);
 const hasPendingRealtimeRefresh = ref(false);
 
@@ -196,6 +197,7 @@ const resetEditState = () => {
   editError.value = '';
   isLoadingEditStages.value = false;
   isSavingEdit.value = false;
+  hasPendingEditSave.value = false;
 };
 
 const conversationIdFromRealtimeData = data =>
@@ -447,19 +449,6 @@ const onRemoveLabel = title => {
   );
 };
 
-const onAddEditLabel = label => {
-  const title = label?.title || label;
-  if (!title || editLabelTitles.value.includes(title)) return;
-
-  editLabelTitles.value = [...editLabelTitles.value, title];
-};
-
-const onRemoveEditLabel = title => {
-  editLabelTitles.value = editLabelTitles.value.filter(
-    labelTitle => labelTitle !== title
-  );
-};
-
 const dueAtPayload = () => {
   if (!dueAt.value) return null;
 
@@ -483,11 +472,6 @@ const startEdit = async card => {
   editError.value = '';
   store.dispatch('labels/get');
   await loadEditStages(cardBoardId(card));
-};
-
-const cancelEdit = () => {
-  resetEditState();
-  flushPendingRealtimeRefresh();
 };
 
 const submitForm = async () => {
@@ -536,23 +520,36 @@ const submitForm = async () => {
 };
 
 const submitEdit = async card => {
+  if (isSavingEdit.value) {
+    hasPendingEditSave.value = true;
+    return;
+  }
+
   if (!canSaveEdit.value) return;
 
   isSavingEdit.value = true;
   editError.value = '';
 
   try {
-    await KanbanBoardsAPI.updateCardDetailsById(cardBoardId(card), card.id, {
-      kanban_stage_id: editStageId.value,
-      subject: editSubject.value.trim(),
-      due_at: editDueAtPayload(),
-      labels: editLabelTitles.value,
-    });
+    const response = await KanbanBoardsAPI.updateCardDetailsById(
+      cardBoardId(card),
+      card.id,
+      {
+        kanban_stage_id: editStageId.value,
+        subject: editSubject.value.trim(),
+        due_at: editDueAtPayload(),
+        labels: editLabelTitles.value,
+      }
+    );
 
-    useAlert(t('CONVERSATION_SIDEBAR.KANBAN.UPDATED'));
-    resetEditState();
+    const updatedCard = response.data?.payload || response.data;
+    if (updatedCard?.id) {
+      cards.value = cards.value.map(existingCard =>
+        existingCard.id === updatedCard.id ? updatedCard : existingCard
+      );
+    }
+
     hasPendingRealtimeRefresh.value = false;
-    await loadCards();
   } catch (error) {
     editError.value = getErrorMessage(
       error,
@@ -560,7 +557,27 @@ const submitEdit = async card => {
     );
   } finally {
     isSavingEdit.value = false;
+
+    if (hasPendingEditSave.value) {
+      hasPendingEditSave.value = false;
+      submitEdit(card);
+    }
   }
+};
+
+const onAddEditLabel = (card, label) => {
+  const title = label?.title || label;
+  if (!title || editLabelTitles.value.includes(title)) return;
+
+  editLabelTitles.value = [...editLabelTitles.value, title];
+  submitEdit(card);
+};
+
+const onRemoveEditLabel = (card, title) => {
+  editLabelTitles.value = editLabelTitles.value.filter(
+    labelTitle => labelTitle !== title
+  );
+  submitEdit(card);
 };
 
 const handleRealtimeKanbanEvent = eventPayload => {
@@ -582,6 +599,18 @@ watch(
     resetEditState();
     loadCards();
   }
+);
+
+watch(
+  cards,
+  nextCards => {
+    if (!nextCards.length || editingCardId.value !== null || isFormOpen.value) {
+      return;
+    }
+
+    startEdit(nextCards[0]);
+  },
+  { flush: 'sync' }
 );
 
 onBeforeUnmount(() => {
@@ -797,6 +826,7 @@ onBeforeUnmount(() => {
               v-model="editSubject"
               type="text"
               class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
+              @change="submitEdit(card)"
             />
           </label>
 
@@ -808,6 +838,7 @@ onBeforeUnmount(() => {
               v-model="editStageId"
               class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
               :disabled="isLoadingEditStages || activeEditStages.length === 0"
+              @change="submitEdit(card)"
             >
               <option value="">
                 {{ t('CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE') }}
@@ -840,6 +871,7 @@ onBeforeUnmount(() => {
               v-model="editDueAt"
               type="datetime-local"
               class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
+              @change="submitEdit(card)"
             />
           </label>
 
@@ -858,7 +890,7 @@ onBeforeUnmount(() => {
                   type="button"
                   class="text-n-slate-11 hover:text-n-slate-12"
                   :aria-label="title"
-                  @click="onRemoveEditLabel(title)"
+                  @click="onRemoveEditLabel(card, title)"
                 >
                   <span aria-hidden="true" class="i-lucide-x size-3" />
                 </button>
@@ -869,8 +901,8 @@ onBeforeUnmount(() => {
                 :account-labels="accountLabels"
                 :selected-labels="editLabelTitles"
                 :allow-creation="false"
-                @add="onAddEditLabel"
-                @remove="onRemoveEditLabel"
+                @add="label => onAddEditLabel(card, label)"
+                @remove="title => onRemoveEditLabel(card, title)"
               />
             </div>
           </label>
@@ -879,27 +911,9 @@ onBeforeUnmount(() => {
             {{ editError }}
           </p>
 
-          <div class="flex justify-end gap-2">
-            <button
-              type="button"
-              class="h-8 rounded-md px-3 text-sm text-n-slate-11 hover:bg-n-alpha-2"
-              @click.stop="cancelEdit"
-            >
-              {{ t('CONVERSATION_SIDEBAR.KANBAN.CANCEL') }}
-            </button>
-            <button
-              type="submit"
-              class="h-8 rounded-md bg-n-brand px-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="!canSaveEdit"
-              @click.stop
-            >
-              {{
-                isSavingEdit
-                  ? t('CONVERSATION_SIDEBAR.KANBAN.SAVING')
-                  : t('CONVERSATION_SIDEBAR.KANBAN.SAVE')
-              }}
-            </button>
-          </div>
+          <p v-if="isSavingEdit" class="m-0 text-right text-xs text-n-slate-11">
+            {{ t('CONVERSATION_SIDEBAR.KANBAN.SAVING') }}
+          </p>
         </form>
 
         <div

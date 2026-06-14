@@ -171,8 +171,7 @@ const openForm = async wrapper => {
   await flushPromises();
 };
 
-const openEditForm = async wrapper => {
-  await wrapper.find('[data-testid="kanban-linked-card"]').trigger('click');
+const openEditForm = async () => {
   await flushPromises();
 };
 
@@ -276,7 +275,7 @@ describe('KanbanConversationCards', () => {
     resolvers[0]({ data: { payload: [buildCard({ subject: 'Stale card' })] } });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Fresh card');
+    expect(wrapper.find('input[type="text"]').element.value).toBe('Fresh card');
     expect(wrapper.text()).not.toContain('Stale card');
   });
 
@@ -425,18 +424,15 @@ describe('KanbanConversationCards', () => {
 
     expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
 
-    resolvers[0]({ data: { payload: [buildCard()] } });
+    resolvers[0]({ data: { payload: [buildCard({ subject: 'Fresh card' })] } });
     await flushPromises();
 
-    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(3);
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
 
-    resolvers[1]({ data: { payload: [buildCard({ subject: 'Fresh card' })] } });
-    await flushPromises();
-
-    expect(wrapper.text()).toContain('Fresh card');
+    expect(wrapper.find('input[type="text"]').element.value).toBe('Fresh card');
   });
 
-  it('renders read-only card fields in the requested order', async () => {
+  it('renders editable card fields in the requested order', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
     });
@@ -444,7 +440,11 @@ describe('KanbanConversationCards', () => {
     const wrapper = mountComponent();
     await flushPromises();
 
-    expect(wrapper.findAll('li p.text-xs').map(node => node.text())).toEqual([
+    const editLabels = wrapper
+      .findAll('li form > div p.text-xs, li form > label > span.text-xs')
+      .map(node => node.text());
+
+    expect(editLabels).toEqual([
       'Board',
       'Subject',
       'Opportunity stage',
@@ -453,7 +453,7 @@ describe('KanbanConversationCards', () => {
     ]);
   });
 
-  it('renders linked card metadata', async () => {
+  it('renders linked card metadata in editable fields', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
     });
@@ -462,16 +462,19 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Sales');
-    expect(wrapper.text()).toContain('Maria Silva - Sales Inbox');
+    expect(wrapper.find('input[type="text"]').element.value).toBe(
+      'Maria Silva - Sales Inbox'
+    );
     expect(wrapper.text()).toContain('New');
-    expect(wrapper.find('.bg-n-blue-9').exists()).toBe(true);
-    expect(wrapper.text()).toContain('Jun 7, 2026 6:00 PM');
+    expect(wrapper.find('select').element.value).toBe('20');
+    expect(wrapper.find('input[type="datetime-local"]').element.value).toBe(
+      '2026-06-07T21:00'
+    );
     expect(wrapper.text()).toContain('urgente');
     expect(wrapper.text()).toContain('vendas');
-    expect(wrapper.html()).toContain('background-color: rgb(255, 0, 0)');
   });
 
-  it('falls back to slate for unexpected stage colors', async () => {
+  it('opens linked cards in edit mode for unexpected stage colors', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: {
         payload: [
@@ -483,10 +486,12 @@ describe('KanbanConversationCards', () => {
     const wrapper = mountComponent();
     await flushPromises();
 
-    expect(wrapper.find('.bg-n-slate-9').exists()).toBe(true);
+    expect(wrapper.find('input[type="text"]').element.value).toBe(
+      'Maria Silva - Sales Inbox'
+    );
   });
 
-  it('renders read-only empty states for due date and labels', async () => {
+  it('renders empty due date and labels in editable fields', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard({ due_at: null, labels: [] })] },
     });
@@ -494,8 +499,8 @@ describe('KanbanConversationCards', () => {
     const wrapper = mountComponent();
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Not set');
-    expect(wrapper.text()).toContain('No labels');
+    expect(wrapper.find('input[type="datetime-local"]').element.value).toBe('');
+    expect(wrapper.findAll('.rounded-md.bg-n-slate-3')).toHaveLength(0);
   });
 
   it('opens the creation form from the Add to Kanban button', async () => {
@@ -752,14 +757,12 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.text()).not.toContain('Create opportunity');
   });
 
-  it('opens an inline edit form when clicking an existing card', async () => {
+  it('opens an inline edit form automatically for an existing card', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
     });
     const wrapper = mountComponent();
     await flushPromises();
-
-    await openEditForm(wrapper);
 
     expect(store.dispatch).toHaveBeenCalledWith('labels/get');
     expect(KanbanBoardsAPI.showBoard).toHaveBeenCalledWith(10, {
@@ -774,26 +777,6 @@ describe('KanbanConversationCards', () => {
     );
   });
 
-  it.each(['Enter', ' '])(
-    'opens an inline edit form from the keyboard with %s',
-    async key => {
-      KanbanBoardsAPI.getConversationCards.mockResolvedValue({
-        data: { payload: [buildCard()] },
-      });
-      const wrapper = mountComponent();
-      await flushPromises();
-
-      await wrapper
-        .find('[data-testid="kanban-linked-card"]')
-        .trigger('keydown', { key });
-      await flushPromises();
-
-      expect(wrapper.find('input[type="text"]').element.value).toBe(
-        'Maria Silva - Sales Inbox'
-      );
-    }
-  );
-
   it('does not render an explicit edit button or pencil icon', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
@@ -807,7 +790,7 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.find('.i-lucide-pencil').exists()).toBe(false);
   });
 
-  it('saves inline card details and labels with one PATCH request', async () => {
+  it('automatically saves inline card details and labels with PATCH requests', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
     });
@@ -815,15 +798,18 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
 
     await openEditForm(wrapper);
+    KanbanBoardsAPI.updateCardDetailsById.mockClear();
     await wrapper.find('input[type="text"]').setValue('  Updated renewal  ');
+    await flushPromises();
     await wrapper.find('select').setValue('20');
+    await flushPromises();
     await wrapper
       .find('input[type="datetime-local"]')
       .setValue('2026-06-08T10:30');
+    await flushPromises();
     await wrapper
       .findComponent({ name: 'LabelDropdown' })
       .vm.$emit('remove', 'urgente');
-    await wrapper.find('form').trigger('submit.prevent');
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
@@ -837,8 +823,6 @@ describe('KanbanConversationCards', () => {
       }
     );
     expect(KanbanBoardsAPI.updateCardLabels).not.toHaveBeenCalled();
-    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
-    expect(useAlert).toHaveBeenCalledWith('Opportunity updated');
   });
 
   it('keeps inline edit values when saving fails', async () => {
@@ -853,7 +837,6 @@ describe('KanbanConversationCards', () => {
 
     await openEditForm(wrapper);
     await wrapper.find('input[type="text"]').setValue('Custom edit');
-    await wrapper.find('form').trigger('submit.prevent');
     await flushPromises();
 
     expect(wrapper.text()).toContain('Invalid stage');
@@ -862,7 +845,7 @@ describe('KanbanConversationCards', () => {
     );
   });
 
-  it('preserves the edit form during realtime refresh and refreshes after cancel', async () => {
+  it('preserves the edit form during realtime refresh', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
     });
@@ -879,14 +862,9 @@ describe('KanbanConversationCards', () => {
 
     expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(1);
     expect(wrapper.find('input[type="text"]').element.value).toBe('Draft edit');
-
-    await findButtonByText(wrapper, 'Cancel').trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
   });
 
-  it('cancels inline editing without saving', async () => {
+  it('does not save just by opening the inline edit form', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
     });
@@ -894,9 +872,8 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
 
     await openEditForm(wrapper);
-    await findButtonByText(wrapper, 'Cancel').trigger('click');
 
     expect(KanbanBoardsAPI.updateCardDetailsById).not.toHaveBeenCalled();
-    expect(wrapper.find('input[type="text"]').exists()).toBe(false);
+    expect(wrapper.find('input[type="text"]').exists()).toBe(true);
   });
 });
