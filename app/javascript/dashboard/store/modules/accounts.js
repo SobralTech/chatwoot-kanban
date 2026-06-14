@@ -157,6 +157,26 @@ export const actions = {
   getCacheKeys: async () => {
     return AccountAPI.getCacheKeys();
   },
+
+  updateBranding: async ({ commit }, payload) => {
+    commit(types.default.SET_ACCOUNT_UI_FLAG, { isUpdating: true });
+    try {
+      const response = await AccountAPI.updateBranding(payload);
+      commit(types.default.EDIT_ACCOUNT, response.data);
+    } finally {
+      commit(types.default.SET_ACCOUNT_UI_FLAG, { isUpdating: false });
+    }
+  },
+
+  deleteBranding: async ({ commit }, assetName) => {
+    commit(types.default.SET_ACCOUNT_UI_FLAG, { isUpdating: true });
+    try {
+      const response = await AccountAPI.deleteBranding(assetName);
+      commit(types.default.EDIT_ACCOUNT, response.data);
+    } finally {
+      commit(types.default.SET_ACCOUNT_UI_FLAG, { isUpdating: false });
+    }
+  },
 };
 
 export const mutations = {

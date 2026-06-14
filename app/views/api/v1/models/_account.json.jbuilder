@@ -28,3 +28,8 @@ json.name @account.name
 json.support_email @account.support_email
 json.status @account.status
 json.cache_keys @account.cache_keys
+json.branding do
+  json.logo_url resource.branding_asset_url(:logo)
+  json.logo_dark_url resource.branding_asset_url(:logo_dark)
+  json.favicon_url resource.branding_asset_url(:favicon)
+end

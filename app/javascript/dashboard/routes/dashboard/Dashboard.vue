@@ -9,6 +9,7 @@ import UpgradePage from 'dashboard/routes/dashboard/upgrade/UpgradePage.vue';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useWindowSize } from '@vueuse/core';
+import { useStore } from 'vuex';
 
 import wootConstants from 'dashboard/constants/globals';
 
@@ -44,11 +45,16 @@ export default {
     const { accountId } = useAccount();
     const { width: windowWidth } = useWindowSize();
     const callsStore = useCallsStore();
+    const store = useStore();
+    const currentAccount = computed(
+      () => store.getters['accounts/getAccount'](accountId.value) || {}
+    );
 
     return {
       uiSettings,
       updateUISettings,
       accountId,
+      currentAccount,
       upgradePageRef,
       windowWidth,
       hasActiveCall: computed(() => callsStore.hasActiveCall),
@@ -75,6 +81,7 @@ export default {
         'billing_settings_index',
         'settings_inbox_list',
         'general_settings_index',
+        'branding_settings_index',
         'agent_list',
       ].includes(this.$route.name);
     },
@@ -84,8 +91,24 @@ export default {
       } = this.uiSettings;
       return conversationDisplayType;
     },
+    accountFavicon() {
+      return this.currentAccount?.branding?.favicon_url;
+    },
   },
   watch: {
+    accountFavicon: {
+      handler(faviconUrl) {
+        document.querySelectorAll('link[rel="icon"]').forEach(favicon => {
+          if (!favicon.dataset.defaultHref) {
+            favicon.dataset.defaultHref = favicon.href;
+          }
+
+          favicon.dataset.accountHref = faviconUrl || '';
+          favicon.href = faviconUrl || favicon.dataset.defaultHref;
+        });
+      },
+      immediate: true,
+    },
     isSmallScreen: {
       handler() {
         const { LAYOUT_TYPES } = wootConstants;

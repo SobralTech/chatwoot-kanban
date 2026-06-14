@@ -1,16 +1,42 @@
 <script setup>
-import { useAttrs } from 'vue';
+import { computed, useAttrs } from 'vue';
 import { useMapGetter } from 'dashboard/composables/store';
+import { useStore } from 'vuex';
 
 const attrs = useAttrs();
+const store = useStore();
 const globalConfig = useMapGetter('globalConfig/get');
+const accountId = useMapGetter('getCurrentAccountId');
+const currentAccount = computed(
+  () => store.getters['accounts/getAccount'](accountId.value) || {}
+);
+const logo = computed(
+  () => currentAccount.value.branding?.logo_url || globalConfig.value.logo
+);
+const logoDark = computed(
+  () =>
+    currentAccount.value.branding?.logo_dark_url ||
+    currentAccount.value.branding?.logo_url ||
+    globalConfig.value.logoDark ||
+    globalConfig.value.logo
+);
+const fallbackLogo = computed(() => globalConfig.value.logoThumbnail);
 </script>
 
 <template>
+  <template v-if="logo">
+    <img v-bind="attrs" :src="logo" class="object-contain dark:hidden" />
+    <img
+      v-bind="attrs"
+      :src="logoDark"
+      class="hidden object-contain dark:block"
+    />
+  </template>
   <img
-    v-if="globalConfig.logoThumbnail"
+    v-else-if="fallbackLogo"
     v-bind="attrs"
-    :src="globalConfig.logoThumbnail"
+    :src="fallbackLogo"
+    class="object-contain"
   />
   <svg
     v-else

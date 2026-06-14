@@ -13,8 +13,8 @@ export const initFaviconSwitcher = () => {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       favicons.forEach(favicon => {
-        const oldFileName = `/favicon-${favicon.sizes[[0]]}.png`;
-        favicon.href = oldFileName;
+        favicon.href =
+          favicon.dataset.accountHref || `/favicon-${favicon.sizes[[0]]}.png`;
       });
     }
   });

@@ -14,6 +14,41 @@
       "ERROR": "Could not update settings, try again!",
       "SUCCESS": "Successfully updated account settings"
     },
+    "BRANDING": {
+      "TITLE": "Branding",
+      "SECTION": {
+        "TITLE": "Logo and favicon",
+        "NOTE": "Upload the images used to customize this account's visual identity."
+      },
+      "EMPTY_PREVIEW": "No image",
+      "UPLOAD": "Upload",
+      "REMOVE": "Remove",
+      "UPDATE": {
+        "SUCCESS": "Branding image updated successfully",
+        "ERROR": "Could not update branding image. Use PNG, JPG, WEBP, GIF, SVG, or ICO under 512 KB."
+      },
+      "DELETE": {
+        "SUCCESS": "Branding image removed successfully",
+        "ERROR": "Could not remove branding image, try again."
+      },
+      "ASSETS": {
+        "LOGO": {
+          "TITLE": "Logo",
+          "DESCRIPTION": "Used for light backgrounds and standard dashboard placements.",
+          "RECOMMENDATION": "Recommended: SVG or PNG, 240 x 60 px, up to 512 KB."
+        },
+        "LOGO_DARK": {
+          "TITLE": "Dark mode logo",
+          "DESCRIPTION": "Used on dark backgrounds so the brand remains readable.",
+          "RECOMMENDATION": "Recommended: SVG or PNG, 240 x 60 px, up to 512 KB."
+        },
+        "FAVICON": {
+          "TITLE": "Favicon",
+          "DESCRIPTION": "Used as the browser tab icon and compact brand mark.",
+          "RECOMMENDATION": "Recommended: PNG or ICO, 512 x 512 px, up to 512 KB."
+        }
+      }
+    },
     "ACCOUNT_DELETE_SECTION": {
       "TITLE": "Delete your Account",
       "NOTE": "Once you delete your account, all your data will be deleted.",

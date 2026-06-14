@@ -434,6 +434,10 @@ Rails.application.routes.draw do
             end
           end
 
+          resource :branding, controller: 'branding', only: [:show, :update] do
+            delete ':asset_name', action: :destroy, on: :member
+          end
+
           resources :upload, only: [:create]
         end
       end
