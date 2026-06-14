@@ -29,7 +29,7 @@
     },
     "FILTERS": {
       "INBOXES": "Caixas de entrada",
-      "AGENTS_SOON": "Agentes"
+      "AGENTS": "Agentes"
     },
     "ACTIONS": {
       "CREATE_BOARD": "Adicionar",

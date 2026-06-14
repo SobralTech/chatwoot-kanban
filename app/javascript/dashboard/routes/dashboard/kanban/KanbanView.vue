@@ -962,7 +962,21 @@ onUnmounted(() => {
               <i class="i-lucide-plus size-4" />
               {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
             </button>
-            <div class="w-72 max-w-full" data-testid="kanban-inbox-filter">
+            <button
+              v-if="isAdmin"
+              type="button"
+              data-testid="kanban-board-settings-button"
+              class="flex size-8 items-center justify-center rounded-md border border-n-weak text-n-slate-12 hover:bg-n-alpha-1"
+              :aria-label="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
+              :title="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
+              @click="openBoardSettings"
+            >
+              <i class="i-lucide-settings size-4" />
+            </button>
+            <div
+              class="w-56 max-w-full [&_.tag-multi-select-trigger]:!min-h-8 [&_.tag-multi-select-trigger]:!gap-1.5 [&_.tag-multi-select-trigger]:!px-2.5 [&_.tag-multi-select-trigger]:!py-1.5 [&_.tag-multi-select-trigger_span]:!text-xs"
+              data-testid="kanban-inbox-filter"
+            >
               <TagMultiSelectComboBox
                 :model-value="selectedInboxIds"
                 :options="inboxFilterOptions"
@@ -973,7 +987,10 @@ onUnmounted(() => {
                 @update:model-value="updateInboxFilter"
               />
             </div>
-            <div class="w-72 max-w-full" data-testid="kanban-agent-filter">
+            <div
+              class="w-56 max-w-full [&_.tag-multi-select-trigger]:!min-h-8 [&_.tag-multi-select-trigger]:!gap-1.5 [&_.tag-multi-select-trigger]:!px-2.5 [&_.tag-multi-select-trigger]:!py-1.5 [&_.tag-multi-select-trigger_span]:!text-xs"
+              data-testid="kanban-agent-filter"
+            >
               <TagMultiSelectComboBox
                 :model-value="selectedAssigneeIds"
                 :options="agentFilterOptions"
@@ -984,16 +1001,6 @@ onUnmounted(() => {
                 @update:model-value="updateAssigneeFilter"
               />
             </div>
-            <button
-              v-if="isAdmin"
-              type="button"
-              data-testid="kanban-board-settings-button"
-              class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
-              @click="openBoardSettings"
-            >
-              <i class="i-lucide-settings size-4" />
-              {{ t('KANBAN.ACTIONS.BOARD_SETTINGS') }}
-            </button>
           </template>
         </div>
       </header>

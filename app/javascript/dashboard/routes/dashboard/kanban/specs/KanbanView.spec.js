@@ -11,6 +11,8 @@ import {
   KANBAN_STAGE_COLOR_OPTIONS,
   getKanbanStageColorClass,
 } from 'dashboard/helper/kanbanStageColors';
+import enKanbanMessages from 'dashboard/i18n/locale/en/kanban.json';
+import ptBRKanbanMessages from 'dashboard/i18n/locale/pt_BR/kanban.json';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -247,7 +249,14 @@ const mountView = async (
         },
         TagMultiSelectComboBox: {
           name: 'TagMultiSelectComboBox',
-          props: ['modelValue', 'options', 'disabled'],
+          props: [
+            'modelValue',
+            'options',
+            'disabled',
+            'placeholder',
+            'searchPlaceholder',
+            'emptyState',
+          ],
           template: '<div class="tag-multi-select-stub" />',
         },
         KanbanConversationCard: {
@@ -368,6 +377,10 @@ const findInboxFilter = wrapper =>
   wrapper.findAllComponents({ name: 'TagMultiSelectComboBox' })[0];
 const findAgentFilter = wrapper =>
   wrapper.findAllComponents({ name: 'TagMultiSelectComboBox' })[1];
+const findInboxFilterWrapper = wrapper =>
+  wrapper.find('[data-testid="kanban-inbox-filter"]');
+const findAgentFilterWrapper = wrapper =>
+  wrapper.find('[data-testid="kanban-agent-filter"]');
 
 const getStageCardIds = wrapper =>
   findCardDraggables(wrapper).map(draggable =>
@@ -1937,6 +1950,16 @@ describe('KanbanView header navigation', () => {
     ).toBe(true);
   });
 
+  it('renders board settings before the inbox filter', async () => {
+    const wrapper = await mountView(buildBoardResponse(), 'administrator');
+    const settingsButton = wrapper.find(
+      '[data-testid="kanban-board-settings-button"]'
+    );
+    const inboxFilter = findInboxFilterWrapper(wrapper);
+
+    expect(settingsButton.element.nextElementSibling).toBe(inboxFilter.element);
+  });
+
   it('does not show board settings button for agents', async () => {
     const wrapper = await mountView(buildBoardResponse(), 'agent');
 
@@ -1955,6 +1978,22 @@ describe('KanbanView header navigation', () => {
     expect(mockPush).toHaveBeenCalledWith({
       name: 'kanban_board_settings',
       params: { accountId: '1', boardId: 10 },
+    });
+  });
+
+  it('keeps board header filters compact', async () => {
+    const wrapper = await mountView();
+    const compactClasses = [
+      'w-56',
+      '[&_.tag-multi-select-trigger]:!min-h-8',
+      '[&_.tag-multi-select-trigger]:!px-2.5',
+      '[&_.tag-multi-select-trigger]:!py-1.5',
+      '[&_.tag-multi-select-trigger_span]:!text-xs',
+    ];
+
+    compactClasses.forEach(className => {
+      expect(findInboxFilterWrapper(wrapper).classes()).toContain(className);
+      expect(findAgentFilterWrapper(wrapper).classes()).toContain(className);
     });
   });
 
@@ -2050,6 +2089,7 @@ describe('KanbanView header navigation', () => {
 describe('KanbanView inbox filter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockT.mockImplementation(key => key);
     vi.useRealTimers();
     mockRoute.params.boardId = '10';
   });
@@ -2166,6 +2206,7 @@ describe('KanbanView inbox filter', () => {
 describe('KanbanView assignee filter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockT.mockImplementation(key => key);
     vi.useRealTimers();
     mockRoute.params.boardId = '10';
   });
@@ -2177,6 +2218,24 @@ describe('KanbanView assignee filter', () => {
       { value: 7, label: 'Ada Lovelace' },
       { value: 8, label: 'Grace Hopper' },
     ]);
+  });
+
+  it('uses the translated agents filter placeholder', async () => {
+    mockT.mockImplementation(key => {
+      const translations = {
+        'KANBAN.FILTERS.AGENTS': 'Agentes',
+      };
+      return translations[key] || key;
+    });
+    const wrapper = await mountView();
+
+    expect(findAgentFilter(wrapper).props('placeholder')).toBe('Agentes');
+    expect(mockT).toHaveBeenCalledWith('KANBAN.FILTERS.AGENTS');
+  });
+
+  it('defines agents filter labels for supported locales', () => {
+    expect(enKanbanMessages.KANBAN.FILTERS.AGENTS).toBe('Agents');
+    expect(ptBRKanbanMessages.KANBAN.FILTERS.AGENTS).toBe('Agentes');
   });
 
   it('refetches the board with assignee_ids when the filter changes', async () => {
