@@ -4,6 +4,7 @@ import { createStore } from 'vuex';
 import KanbanBoardSettings from '../KanbanBoardSettings.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
+import ptBRKanbanMessages from 'dashboard/i18n/locale/pt_BR/kanban.json';
 
 const mockReplace = vi.fn();
 const mockPush = vi.fn();
@@ -34,8 +35,12 @@ vi.mock('dashboard/composables', () => ({
 vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     getSettings: vi.fn(),
+    showBoard: vi.fn(),
     updateSettings: vi.fn(),
     delete: vi.fn(),
+    createStage: vi.fn(),
+    reorderStage: vi.fn(),
+    importExistingConversations: vi.fn(),
   },
 }));
 
@@ -48,6 +53,14 @@ const settingsPayload = {
   inbox_scope_mode: 'selected_inboxes',
   allowed_inbox_ids: [5, 6],
   auto_create_cards_from_conversations: true,
+};
+
+const boardPayload = {
+  id: 10,
+  stages: [
+    { id: 100, name: 'Lead', color: 'blue', position: 1 },
+    { id: 200, name: 'Won', color: 'green', position: 2 },
+  ],
 };
 
 const createTestStore = (role = 'administrator') => {
@@ -64,6 +77,9 @@ const createTestStore = (role = 'administrator') => {
   });
 
   const store = createStore({
+    getters: {
+      getCurrentRole: () => role,
+    },
     modules: {
       auth: {
         namespaced: true,
@@ -118,6 +134,7 @@ const mountSettings = async ({
   } else {
     KanbanBoardsAPI.getSettings.mockResolvedValue(getSettingsResponse);
   }
+  KanbanBoardsAPI.showBoard.mockResolvedValue({ data: boardPayload });
 
   const { store, dispatch } = createTestStore(role);
   const wrapper = shallowMount(KanbanBoardSettings, {
@@ -135,10 +152,21 @@ const mountSettings = async ({
           template:
             '<div v-bind="$attrs" class="tag-select-stub"><button type="button" data-testid="tag-select-update" @click="$emit(\'update:modelValue\', options.map(option => option.value))" /></div>',
         },
+        Draggable: {
+          name: 'Draggable',
+          props: ['modelValue', 'list'],
+          emits: ['update:modelValue', 'end'],
+          template:
+            '<div><slot v-for="item in modelValue || list" name="item" :element="item" /></div>',
+        },
         WootDeleteModal: {
           props: ['show', 'onConfirm'],
           template:
             '<button v-if="show" data-testid="confirm-delete" type="button" @click="onConfirm" />',
+        },
+        WootModal: {
+          props: ['show'],
+          template: '<div v-if="show"><slot /></div>',
         },
       },
     },
@@ -154,17 +182,75 @@ describe('KanbanBoardSettings', () => {
     vi.clearAllMocks();
     KanbanBoardsAPI.updateSettings.mockResolvedValue({ data: settingsPayload });
     KanbanBoardsAPI.delete.mockResolvedValue({ data: {} });
+    KanbanBoardsAPI.createStage.mockResolvedValue({
+      data: { id: 300, name: 'Follow up', color: 'slate', position: 3 },
+    });
+    KanbanBoardsAPI.reorderStage.mockResolvedValue({ data: {} });
+    KanbanBoardsAPI.importExistingConversations.mockResolvedValue({
+      data: { status: 'accepted', enqueued: true, estimated_count: 3 },
+    });
   });
 
   it('loads the page settings', async () => {
     const { wrapper, dispatch } = await mountSettings();
 
     expect(KanbanBoardsAPI.getSettings).toHaveBeenCalledWith(10);
+    expect(KanbanBoardsAPI.showBoard).toHaveBeenCalledWith(10);
     expect(dispatch).toHaveBeenCalledWith('agents/get');
     expect(dispatch).toHaveBeenCalledWith('inboxes/get');
     expect(wrapper.find('[data-testid="kanban-settings-form"]').exists()).toBe(
       true
     );
+  });
+
+  it('renders stages in the settings page', async () => {
+    const { wrapper } = await mountSettings();
+
+    const stages = wrapper.findAll('[data-testid="kanban-settings-stage-row"]');
+    expect(stages).toHaveLength(2);
+    expect(stages[0].text()).toContain('Lead');
+    expect(stages[1].text()).toContain('Won');
+  });
+
+  it('creates a new stage from settings', async () => {
+    const { wrapper, dispatch } = await mountSettings();
+
+    await wrapper
+      .find('[data-testid="kanban-settings-create-stage-toggle"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-settings-new-stage-name"]')
+      .setValue('Follow up');
+    await wrapper
+      .find('[data-testid="kanban-settings-create-stage"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
+      stage: {
+        name: 'Follow up',
+        color: 'slate',
+        position: 3,
+      },
+    });
+    expect(dispatch).toHaveBeenCalledWith('kanbanBoards/refreshBoards');
+  });
+
+  it('persists stage reorder from settings', async () => {
+    const { wrapper, dispatch } = await mountSettings();
+    const draggable = wrapper.findComponent({ name: 'Draggable' });
+
+    await draggable.vm.$emit('end', {
+      item: { dataset: { stageId: '200' } },
+      oldIndex: 1,
+      newIndex: 0,
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderStage).toHaveBeenCalledWith(10, 200, {
+      position: 1,
+    });
+    expect(dispatch).toHaveBeenCalledWith('kanbanBoards/refreshBoards');
   });
 
   it('fills the form with the current payload', async () => {
@@ -220,6 +306,154 @@ describe('KanbanBoardSettings', () => {
     expect(
       wrapper.find('[data-testid="kanban-settings-inbox-select"]').exists()
     ).toBe(true);
+  });
+
+  it('shows the automation toggle in the automations section', async () => {
+    const { wrapper } = await mountSettings();
+
+    expect(wrapper.text()).toContain('KANBAN.SETTINGS.AUTOMATIONS.TITLE');
+    expect(wrapper.text()).toContain('KANBAN.SETTINGS.AUTOMATIONS.AUTO_CREATE');
+    expect(
+      wrapper.find('[data-testid="kanban-settings-auto-create"]').exists()
+    ).toBe(true);
+  });
+
+  it('opens import modal when enabling auto-create', async () => {
+    const { wrapper } = await mountSettings({
+      getSettingsResponse: {
+        data: {
+          ...settingsPayload,
+          auto_create_cards_from_conversations: false,
+        },
+      },
+    });
+
+    await wrapper
+      .find('[data-testid="kanban-settings-auto-create"]')
+      .setValue(true);
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateSettings).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({
+        kanban_board: expect.objectContaining({
+          auto_create_cards_from_conversations: true,
+        }),
+      })
+    );
+    expect(
+      wrapper
+        .find('[data-testid="kanban-import-existing-conversations-modal"]')
+        .exists()
+    ).toBe(true);
+    expect(wrapper.text()).toContain(
+      'KANBAN.SETTINGS.AUTOMATIONS.IMPORT_EXISTING'
+    );
+    expect(wrapper.text()).toContain(
+      'KANBAN.SETTINGS.AUTOMATIONS.IGNORE_GROUPS'
+    );
+  });
+
+  it('closes import modal without calling import when skipping', async () => {
+    const { wrapper } = await mountSettings({
+      getSettingsResponse: {
+        data: {
+          ...settingsPayload,
+          auto_create_cards_from_conversations: false,
+        },
+      },
+    });
+
+    await wrapper
+      .find('[data-testid="kanban-settings-auto-create"]')
+      .setValue(true);
+    await flushPromises();
+    await wrapper.find('[data-testid="kanban-import-skip"]').trigger('click');
+
+    expect(KanbanBoardsAPI.importExistingConversations).not.toHaveBeenCalled();
+    expect(
+      wrapper
+        .find('[data-testid="kanban-import-existing-conversations-modal"]')
+        .exists()
+    ).toBe(false);
+  });
+
+  it('imports existing conversations with ignore_groups', async () => {
+    const { wrapper } = await mountSettings({
+      getSettingsResponse: {
+        data: {
+          ...settingsPayload,
+          auto_create_cards_from_conversations: false,
+        },
+      },
+    });
+
+    await wrapper
+      .find('[data-testid="kanban-settings-auto-create"]')
+      .setValue(true);
+    await flushPromises();
+    await wrapper
+      .find('[data-testid="kanban-import-ignore-groups"]')
+      .setValue();
+    await wrapper
+      .find('[data-testid="kanban-import-existing-conversations"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.importExistingConversations).toHaveBeenCalledWith(
+      10,
+      { ignore_groups: true }
+    );
+    expect(useAlert).toHaveBeenCalledWith(
+      'KANBAN.SETTINGS.AUTOMATIONS.IMPORT_SUCCESS'
+    );
+    expect(
+      wrapper
+        .find('[data-testid="kanban-import-existing-conversations-modal"]')
+        .exists()
+    ).toBe(false);
+  });
+
+  it('keeps import modal open on import error', async () => {
+    KanbanBoardsAPI.importExistingConversations.mockRejectedValueOnce(
+      new Error('Failed')
+    );
+    const { wrapper } = await mountSettings({
+      getSettingsResponse: {
+        data: {
+          ...settingsPayload,
+          auto_create_cards_from_conversations: false,
+        },
+      },
+    });
+
+    await wrapper
+      .find('[data-testid="kanban-settings-auto-create"]')
+      .setValue(true);
+    await flushPromises();
+    await wrapper
+      .find('[data-testid="kanban-import-existing-conversations"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="kanban-import-error"]').exists()).toBe(
+      true
+    );
+    expect(
+      wrapper
+        .find('[data-testid="kanban-import-existing-conversations-modal"]')
+        .exists()
+    ).toBe(true);
+  });
+
+  it('has pt_BR automation import translations', () => {
+    expect(ptBRKanbanMessages.KANBAN.SETTINGS.AUTOMATIONS).toMatchObject({
+      TITLE: 'Automações',
+      AUTO_CREATE: 'Criar cartões automaticamente para novas conversas',
+      IMPORT_EXISTING: 'Importar conversas existentes',
+      IGNORE_GROUPS: 'Ignorar grupos',
+      SKIP_IMPORT: 'Não importar agora',
+    });
   });
 
   it('saves the expected payload', async () => {

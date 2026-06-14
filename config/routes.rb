@@ -131,6 +131,7 @@ Rails.application.routes.draw do
 
             scope module: :kanban_boards do
               resource :settings, only: [:show, :update]
+              post 'settings/import_existing_conversations', to: 'settings#import_existing_conversations'
               resources :stages, only: [:create, :destroy] do
                 patch '', on: :member, action: :update
                 patch :reorder, on: :member

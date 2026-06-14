@@ -45,6 +45,13 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.patch(`${this.url}/${boardId}/settings`, payload);
   }
 
+  importExistingConversations(boardId, payload) {
+    return axios.post(
+      `${this.url}/${boardId}/settings/import_existing_conversations`,
+      payload
+    );
+  }
+
   getConversationCards(conversationId, config = {}) {
     return axios.get(
       `${this.baseUrl()}/conversations/${conversationId}/kanban_cards`,

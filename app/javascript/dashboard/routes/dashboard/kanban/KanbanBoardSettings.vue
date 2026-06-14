@@ -3,29 +3,47 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
+import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
+import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
+import {
+  DEFAULT_KANBAN_STAGE_COLOR,
+  KANBAN_STAGE_COLOR_OPTIONS,
+  getKanbanStageColorOption,
+} from 'dashboard/helper/kanbanStageColors';
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const store = useStore();
 
-const currentRole = useMapGetter('auth/getCurrentRole');
 const agents = useMapGetter('agents/getAgents');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
-const isAdmin = computed(() => currentRole.value === 'administrator');
+const { isAdmin } = useAdmin();
 
 const isLoading = ref(false);
 const isSaving = ref(false);
+const isSavingAutomation = ref(false);
 const isDeleting = ref(false);
+const isCreatingStage = ref(false);
+const isImportingConversations = ref(false);
 const loadError = ref('');
 const saveError = ref('');
+const stageError = ref('');
+const importError = ref('');
 const showDeleteConfirmation = ref(false);
+const showCreateStageForm = ref(false);
+const showImportExistingConversationsModal = ref(false);
+const stages = ref([]);
+const newStageName = ref('');
+const newStageColor = ref(DEFAULT_KANBAN_STAGE_COLOR);
+const activeStageActionKey = ref('');
+const ignoreGroupsForImport = ref(false);
 
 const form = reactive({
   name: '',
@@ -38,6 +56,12 @@ const form = reactive({
 });
 
 const boardId = computed(() => Number(route.params.boardId));
+const stageListModel = computed({
+  get: () => stages.value,
+  set: nextStages => {
+    stages.value = nextStages;
+  },
+});
 
 const agentOptions = computed(() =>
   agents.value.map(agent => ({
@@ -72,22 +96,34 @@ const applySettings = payload => {
   form.allowedInboxIds = settings.allowedInboxIds || [];
 };
 
+const applyBoard = payload => {
+  const board = camelcaseKeys(payload || {}, { deep: true });
+  stages.value = board.stages || [];
+};
+
 const fetchSettings = async () => {
   isLoading.value = true;
   loadError.value = '';
 
   try {
-    const [response] = await Promise.all([
+    const [response, boardResponse] = await Promise.all([
       KanbanBoardsAPI.getSettings(boardId.value),
+      KanbanBoardsAPI.showBoard(boardId.value),
       store.dispatch('agents/get'),
       store.dispatch('inboxes/get'),
     ]);
     applySettings(response.data);
+    applyBoard(boardResponse.data);
   } catch (error) {
     loadError.value = getErrorMessage(error, t('KANBAN.SETTINGS.LOAD_ERROR'));
   } finally {
     isLoading.value = false;
   }
+};
+
+const refreshBoard = async () => {
+  const response = await KanbanBoardsAPI.showBoard(boardId.value);
+  applyBoard(response.data);
 };
 
 const buildPayload = () => ({
@@ -124,6 +160,142 @@ const saveSettings = async () => {
   } finally {
     isSaving.value = false;
   }
+};
+
+const saveAutomationSetting = async event => {
+  const enabled = event.target.checked;
+  if (isSavingAutomation.value || !isAdmin.value) return;
+
+  isSavingAutomation.value = true;
+  saveError.value = '';
+
+  try {
+    const response = await KanbanBoardsAPI.updateSettings(
+      boardId.value,
+      buildPayload()
+    );
+    applySettings(response.data);
+    await store.dispatch('kanbanBoards/refreshBoards');
+
+    if (enabled) {
+      importError.value = '';
+      ignoreGroupsForImport.value = false;
+      showImportExistingConversationsModal.value = true;
+    }
+  } catch (error) {
+    form.autoCreateCardsFromConversations = !enabled;
+    saveError.value = getErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR'));
+    useAlert(saveError.value);
+  } finally {
+    isSavingAutomation.value = false;
+  }
+};
+
+const closeImportExistingConversationsModal = () => {
+  if (isImportingConversations.value) return;
+
+  showImportExistingConversationsModal.value = false;
+  importError.value = '';
+};
+
+const importExistingConversations = async () => {
+  if (isImportingConversations.value) return;
+
+  isImportingConversations.value = true;
+  importError.value = '';
+
+  try {
+    await KanbanBoardsAPI.importExistingConversations(boardId.value, {
+      ignore_groups: ignoreGroupsForImport.value,
+    });
+    showImportExistingConversationsModal.value = false;
+    useAlert(t('KANBAN.SETTINGS.AUTOMATIONS.IMPORT_SUCCESS'));
+  } catch (error) {
+    importError.value = getErrorMessage(
+      error,
+      t('KANBAN.SETTINGS.AUTOMATIONS.IMPORT_ERROR')
+    );
+    useAlert(importError.value);
+  } finally {
+    isImportingConversations.value = false;
+  }
+};
+
+const getStageColorClass = stage =>
+  getKanbanStageColorOption(stage.color).swatchClass;
+
+const openCreateStageForm = () => {
+  showCreateStageForm.value = true;
+};
+
+const closeCreateStageForm = () => {
+  showCreateStageForm.value = false;
+  newStageName.value = '';
+  newStageColor.value = DEFAULT_KANBAN_STAGE_COLOR;
+};
+
+const createStage = async () => {
+  const name = newStageName.value.trim();
+  if (!name || isCreatingStage.value || !isAdmin.value) return;
+
+  isCreatingStage.value = true;
+  stageError.value = '';
+
+  try {
+    await KanbanBoardsAPI.createStage(boardId.value, {
+      stage: {
+        name,
+        color: newStageColor.value,
+        position: stages.value.length + 1,
+      },
+    });
+    closeCreateStageForm();
+    await refreshBoard();
+    await store.dispatch('kanbanBoards/refreshBoards');
+    useAlert(t('KANBAN.ACTIONS.CREATE_STAGE_SUCCESS'));
+  } catch (error) {
+    stageError.value = getErrorMessage(
+      error,
+      t('KANBAN.ACTIONS.CREATE_STAGE_ERROR')
+    );
+    useAlert(stageError.value);
+  } finally {
+    isCreatingStage.value = false;
+  }
+};
+
+const reorderStageByPosition = async (stage, position) => {
+  if (!stage?.id || activeStageActionKey.value || !isAdmin.value) return;
+
+  activeStageActionKey.value = `reorder-stage-${stage.id}`;
+  stageError.value = '';
+
+  try {
+    await KanbanBoardsAPI.reorderStage(boardId.value, stage.id, { position });
+    await refreshBoard();
+    await store.dispatch('kanbanBoards/refreshBoards');
+  } catch (error) {
+    stageError.value = getErrorMessage(
+      error,
+      t('KANBAN.ACTIONS.REORDER_STAGE_ERROR')
+    );
+    useAlert(stageError.value);
+    await refreshBoard();
+  } finally {
+    activeStageActionKey.value = '';
+  }
+};
+
+const onStageDragEnd = async event => {
+  const stageId = Number(event?.item?.dataset?.stageId);
+  const newIndex = event?.newIndex;
+  const oldIndex = event?.oldIndex;
+  if (!stageId || oldIndex === newIndex || newIndex === undefined) return;
+
+  const stage = stages.value.find(item => item.id === stageId);
+  if (!stage) return;
+
+  await reorderStageByPosition(stage, newIndex + 1);
 };
 
 const openDeleteConfirmation = () => {
@@ -165,9 +337,7 @@ onMounted(fetchSettings);
 
 <template>
   <main class="flex h-full min-h-0 w-full bg-n-surface-1 text-n-slate-12">
-    <div
-      class="mx-auto flex w-full max-w-4xl flex-col gap-6 overflow-y-auto p-8"
-    >
+    <div class="flex w-full flex-col gap-6 overflow-y-auto p-8">
       <header class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <h1 class="text-2xl font-medium text-n-slate-12">
@@ -235,19 +405,121 @@ onMounted(fetchSettings);
               class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
             />
           </label>
-          <label
-            class="flex items-start gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2 text-sm text-n-slate-12"
-          >
-            <input
-              v-model="form.autoCreateCardsFromConversations"
-              data-testid="kanban-settings-auto-create"
-              type="checkbox"
-              class="mt-1 size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
-            />
-            <span class="font-medium">
-              {{ t('KANBAN.SETTINGS.GENERAL.AUTO_CREATE') }}
-            </span>
-          </label>
+
+          <div class="grid gap-3">
+            <div class="flex items-center justify-end">
+              <Button
+                v-if="!showCreateStageForm"
+                data-testid="kanban-settings-create-stage-toggle"
+                icon="i-lucide-plus"
+                :label="t('KANBAN.ACTIONS.CREATE_STAGE')"
+                color="slate"
+                size="sm"
+                @click="openCreateStageForm"
+              />
+            </div>
+
+            <div
+              v-if="showCreateStageForm"
+              data-testid="kanban-settings-create-stage-panel"
+              class="grid gap-3 rounded-md border border-n-weak bg-n-surface-2 p-3"
+            >
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  v-for="colorOption in KANBAN_STAGE_COLOR_OPTIONS"
+                  :key="colorOption.value"
+                  type="button"
+                  class="size-5 rounded-full border border-n-strong ring-offset-2"
+                  :class="[
+                    colorOption.swatchClass,
+                    newStageColor === colorOption.value
+                      ? 'ring-2 ring-n-brand'
+                      : 'hover:ring-2 hover:ring-n-weak',
+                  ]"
+                  :aria-label="
+                    t('KANBAN.ACTIONS.SELECT_STAGE_COLOR', {
+                      color: colorOption.value,
+                    })
+                  "
+                  @click="newStageColor = colorOption.value"
+                />
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <input
+                  v-model="newStageName"
+                  data-testid="kanban-settings-new-stage-name"
+                  type="text"
+                  class="min-w-64 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                  :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+                />
+                <Button
+                  type="button"
+                  data-testid="kanban-settings-create-stage"
+                  icon="i-lucide-check"
+                  :label="t('KANBAN.ACTIONS.CREATE_STAGE_CONFIRM')"
+                  color="blue"
+                  size="sm"
+                  :disabled="!newStageName.trim()"
+                  :is-loading="isCreatingStage"
+                  @click="createStage"
+                />
+                <Button
+                  type="button"
+                  icon="i-lucide-x"
+                  :label="t('KANBAN.ACTIONS.CANCEL')"
+                  color="slate"
+                  size="sm"
+                  @click="closeCreateStageForm"
+                />
+              </div>
+            </div>
+
+            <p
+              v-if="stageError"
+              data-testid="kanban-settings-stage-error"
+              class="text-sm text-n-ruby-11"
+            >
+              {{ stageError }}
+            </p>
+
+            <p
+              v-if="stages.length === 0"
+              data-testid="kanban-settings-empty-stages"
+              class="rounded-md border border-dashed border-n-weak px-3 py-4 text-sm text-n-slate-11"
+            >
+              {{ t('KANBAN.EMPTY_STAGES') }}
+            </p>
+
+            <Draggable
+              v-else
+              v-model="stageListModel"
+              item-key="id"
+              data-testid="kanban-settings-stage-list"
+              class="grid gap-2"
+              handle=".stage-drag-handle"
+              ghost-class="opacity-60"
+              chosen-class="opacity-90"
+              :animation="180"
+              @end="onStageDragEnd"
+            >
+              <template #item="{ element: stage }">
+                <div
+                  :data-stage-id="stage.id"
+                  data-testid="kanban-settings-stage-row"
+                  class="stage-drag-handle flex cursor-grab items-center gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2"
+                >
+                  <span class="i-lucide-grip-vertical size-4 text-n-slate-10" />
+                  <span
+                    class="size-4 flex-none rounded-full"
+                    :class="getStageColorClass(stage)"
+                  />
+                  <span class="min-w-0 truncate text-sm text-n-slate-12">
+                    {{ stage.name }}
+                  </span>
+                </div>
+              </template>
+            </Draggable>
+          </div>
         </section>
 
         <section class="grid gap-4 border-b border-n-weak pb-6">
@@ -320,13 +592,25 @@ onMounted(fetchSettings);
           />
         </section>
 
-        <section class="grid gap-2 border-b border-n-weak pb-6">
+        <section class="grid gap-4 border-b border-n-weak pb-6">
           <h2 class="text-base font-medium text-n-slate-12">
             {{ t('KANBAN.SETTINGS.AUTOMATIONS.TITLE') }}
           </h2>
-          <p class="text-sm text-n-slate-11">
-            {{ t('KANBAN.SETTINGS.AUTOMATIONS.COMING_SOON') }}
-          </p>
+          <label
+            class="flex items-start gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2 text-sm text-n-slate-12"
+          >
+            <input
+              v-model="form.autoCreateCardsFromConversations"
+              data-testid="kanban-settings-auto-create"
+              type="checkbox"
+              class="mt-1 size-4 rounded border-n-weak text-n-brand focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="isSavingAutomation"
+              @change="saveAutomationSetting"
+            />
+            <span class="font-medium">
+              {{ t('KANBAN.SETTINGS.AUTOMATIONS.AUTO_CREATE') }}
+            </span>
+          </label>
         </section>
 
         <section class="grid gap-3 border-b border-n-weak pb-6">
@@ -379,6 +663,65 @@ onMounted(fetchSettings);
         :confirm-text="t('KANBAN.REMOVE_BOARD.CONFIRM')"
         :reject-text="t('KANBAN.REMOVE_BOARD.CANCEL')"
       />
+
+      <woot-modal
+        v-model:show="showImportExistingConversationsModal"
+        :on-close="closeImportExistingConversationsModal"
+      >
+        <div
+          class="flex w-full max-w-lg flex-col gap-4 rounded-lg bg-n-surface-1 p-6 text-n-slate-12"
+          data-testid="kanban-import-existing-conversations-modal"
+        >
+          <div class="grid gap-1">
+            <h3 class="text-lg font-medium">
+              {{ t('KANBAN.SETTINGS.AUTOMATIONS.IMPORT_TITLE') }}
+            </h3>
+            <p class="text-sm text-n-slate-11">
+              {{ t('KANBAN.SETTINGS.AUTOMATIONS.IMPORT_DESCRIPTION') }}
+            </p>
+          </div>
+
+          <label class="flex items-center gap-2 text-sm text-n-slate-12">
+            <input
+              v-model="ignoreGroupsForImport"
+              data-testid="kanban-import-ignore-groups"
+              type="checkbox"
+              class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
+            />
+            {{ t('KANBAN.SETTINGS.AUTOMATIONS.IGNORE_GROUPS') }}
+          </label>
+
+          <p
+            v-if="importError"
+            data-testid="kanban-import-error"
+            class="text-sm text-n-ruby-11"
+          >
+            {{ importError }}
+          </p>
+
+          <div class="flex justify-end gap-2">
+            <Button
+              type="button"
+              data-testid="kanban-import-skip"
+              :label="t('KANBAN.SETTINGS.AUTOMATIONS.SKIP_IMPORT')"
+              color="slate"
+              size="sm"
+              :disabled="isImportingConversations"
+              @click="closeImportExistingConversationsModal"
+            />
+            <Button
+              type="button"
+              data-testid="kanban-import-existing-conversations"
+              icon="i-lucide-upload"
+              :label="t('KANBAN.SETTINGS.AUTOMATIONS.IMPORT_EXISTING')"
+              color="blue"
+              size="sm"
+              :is-loading="isImportingConversations"
+              @click="importExistingConversations"
+            />
+          </div>
+        </div>
+      </woot-modal>
     </div>
   </main>
 </template>

@@ -108,8 +108,7 @@
       "GENERAL": {
         "TITLE": "General",
         "NAME": "Name",
-        "DESCRIPTION": "Description",
-        "AUTO_CREATE": "Create cards automatically for new conversations"
+        "DESCRIPTION": "Description"
       },
       "AGENTS": {
         "TITLE": "Agents",
@@ -129,7 +128,14 @@
       },
       "AUTOMATIONS": {
         "TITLE": "Automations",
-        "COMING_SOON": "Coming soon"
+        "AUTO_CREATE": "Create cards automatically for new conversations",
+        "IMPORT_TITLE": "Import existing conversations",
+        "IMPORT_DESCRIPTION": "Automatic card creation is enabled for new conversations. You can also import eligible existing conversations into this funnel now.",
+        "IMPORT_EXISTING": "Import existing conversations",
+        "IGNORE_GROUPS": "Ignore groups",
+        "SKIP_IMPORT": "Do not import now",
+        "IMPORT_SUCCESS": "Existing conversation import started.",
+        "IMPORT_ERROR": "Could not start existing conversation import."
       },
       "DELETE": {
         "TITLE": "Delete funnel",

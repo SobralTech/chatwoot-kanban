@@ -17,6 +17,7 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('showBoard');
     expect(kanbanBoards).toHaveProperty('getSettings');
     expect(kanbanBoards).toHaveProperty('updateSettings');
+    expect(kanbanBoards).toHaveProperty('importExistingConversations');
     expect(kanbanBoards).toHaveProperty('getConversationCards');
     expect(kanbanBoards).toHaveProperty('createConversationCard');
     expect(kanbanBoards).toHaveProperty('getStageCards');
@@ -162,6 +163,16 @@ describe('#KanbanBoardsAPI', () => {
 
       expect(axiosMock.patch).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/settings',
+        payload
+      );
+    });
+
+    it('#importExistingConversations', () => {
+      const payload = { ignore_groups: true };
+      kanbanBoards.importExistingConversations(2, payload);
+
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/settings/import_existing_conversations',
         payload
       );
     });

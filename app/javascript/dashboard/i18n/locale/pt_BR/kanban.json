@@ -104,8 +104,7 @@
       "GENERAL": {
         "TITLE": "Geral",
         "NAME": "Nome",
-        "DESCRIPTION": "Descrição",
-        "AUTO_CREATE": "Criar cartões automaticamente para novas conversas"
+        "DESCRIPTION": "Descrição"
       },
       "AGENTS": {
         "TITLE": "Agentes",
@@ -125,7 +124,14 @@
       },
       "AUTOMATIONS": {
         "TITLE": "Automações",
-        "COMING_SOON": "Em breve"
+        "AUTO_CREATE": "Criar cartões automaticamente para novas conversas",
+        "IMPORT_TITLE": "Importar conversas existentes",
+        "IMPORT_DESCRIPTION": "A criação automática de cartões está ativa para novas conversas. Você também pode importar conversas existentes elegíveis para este funil agora.",
+        "IMPORT_EXISTING": "Importar conversas existentes",
+        "IGNORE_GROUPS": "Ignorar grupos",
+        "SKIP_IMPORT": "Não importar agora",
+        "IMPORT_SUCCESS": "Importação de conversas existentes iniciada.",
+        "IMPORT_ERROR": "Não foi possível iniciar a importação de conversas existentes."
       },
       "DELETE": {
         "TITLE": "Excluir funil",

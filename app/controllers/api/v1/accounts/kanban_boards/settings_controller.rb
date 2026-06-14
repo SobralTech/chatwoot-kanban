@@ -15,6 +15,23 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
     render :show
   end
 
+  def import_existing_conversations
+    ignore_groups = ActiveModel::Type::Boolean.new.cast(params[:ignore_groups])
+    service = KanbanCards::ImportExistingConversationsService.new(
+      account: Current.account,
+      kanban_board: @kanban_board,
+      ignore_groups: ignore_groups
+    )
+
+    KanbanCards::ImportExistingConversationsJob.perform_later(Current.account.id, @kanban_board.id, ignore_groups: ignore_groups)
+
+    render json: {
+      status: 'accepted',
+      enqueued: true,
+      estimated_count: service.estimated_count
+    }, status: :accepted
+  end
+
   private
 
   def fetch_kanban_board
