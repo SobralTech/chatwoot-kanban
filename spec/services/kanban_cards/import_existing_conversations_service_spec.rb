@@ -51,6 +51,28 @@ RSpec.describe KanbanCards::ImportExistingConversationsService do
         .not_to change(KanbanCard.conversation, :count)
     end
 
+    it 'reactivates an inactive conversation card instead of duplicating it' do
+      conversation = create(:conversation, account: account, inbox: inbox)
+      card = create(
+        :kanban_card,
+        :conversation_origin,
+        account: account,
+        kanban_board: board,
+        kanban_stage: stage,
+        conversation: conversation,
+        active: false,
+        position: 1
+      )
+
+      expect { described_class.new(account: account, kanban_board: board).perform! }
+        .not_to change(KanbanCard.conversation, :count)
+
+      expect(card.reload).to have_attributes(
+        active: true,
+        kanban_stage_id: stage.id
+      )
+    end
+
     it 'is idempotent across repeated runs' do
       create(:conversation, account: account, inbox: inbox)
 
