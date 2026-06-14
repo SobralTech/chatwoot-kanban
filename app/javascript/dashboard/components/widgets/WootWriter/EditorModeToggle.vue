@@ -101,7 +101,7 @@ const setMode = mode => {
       {{ $t('CONVERSATION.REPLYBOX.ASSISTANT') }}
     </button>
     <div
-      class="absolute shadow-sm rounded-full h-6 w-[var(--chip-width)] ease-in-out translate-x-[var(--translate-x)] rtl:translate-x-[var(--rtl-translate-x)] bg-n-solid-1"
+      class="absolute pointer-events-none shadow-sm rounded-full h-6 w-[var(--chip-width)] ease-in-out translate-x-[var(--translate-x)] rtl:translate-x-[var(--rtl-translate-x)] bg-n-solid-1"
       :class="{
         'transition-all duration-300': !disabled,
       }"

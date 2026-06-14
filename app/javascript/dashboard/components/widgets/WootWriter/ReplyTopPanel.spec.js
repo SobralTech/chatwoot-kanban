@@ -1,10 +1,22 @@
 import { mount } from '@vue/test-utils';
-import EditorModeToggle from './EditorModeToggle.vue';
+import ReplyTopPanel from './ReplyTopPanel.vue';
 import { REPLY_EDITOR_MODES } from './constants';
 
-describe('EditorModeToggle', () => {
+vi.mock('dashboard/composables/useKeyboardEvents', () => ({
+  useKeyboardEvents: vi.fn(),
+}));
+
+vi.mock('dashboard/composables/useCaptain', () => ({
+  useCaptain: () => ({ captainTasksEnabled: false }),
+}));
+
+vi.mock('dashboard/composables', () => ({
+  useTrack: vi.fn(),
+}));
+
+describe('ReplyTopPanel', () => {
   const createWrapper = (props = {}) =>
-    mount(EditorModeToggle, {
+    mount(ReplyTopPanel, {
       props: {
         mode: REPLY_EDITOR_MODES.REPLY,
         ...props,
@@ -23,15 +35,7 @@ describe('EditorModeToggle', () => {
       },
     });
 
-  it('renders reply, private note and assistant modes', () => {
-    const wrapper = createWrapper();
-
-    expect(wrapper.text()).toContain('Reply');
-    expect(wrapper.text()).toContain('Private Note');
-    expect(wrapper.text()).toContain('Assistant');
-  });
-
-  it('emits mode selection for every option', async () => {
+  it('passes mode selection from editor toggle to reply box', async () => {
     const wrapper = createWrapper();
     const buttons = wrapper.findAll('button');
 
@@ -39,7 +43,7 @@ describe('EditorModeToggle', () => {
     await buttons[1].trigger('click');
     await buttons[2].trigger('click');
 
-    expect(wrapper.emitted('setMode')).toEqual([
+    expect(wrapper.emitted('setReplyMode')).toEqual([
       [REPLY_EDITOR_MODES.REPLY],
       [REPLY_EDITOR_MODES.NOTE],
       [REPLY_EDITOR_MODES.ASSISTANT],

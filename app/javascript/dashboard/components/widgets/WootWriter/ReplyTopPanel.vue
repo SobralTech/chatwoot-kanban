@@ -107,6 +107,7 @@ export default {
     useKeyboardEvents(keyboardEvents);
 
     return {
+      setReplyMode,
       handleReplyClick,
       handleNoteClick,
       REPLY_EDITOR_MODES,
