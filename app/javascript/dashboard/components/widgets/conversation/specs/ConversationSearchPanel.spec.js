@@ -109,18 +109,19 @@ describe('ConversationSearchPanel', () => {
     );
 
     expect(input.classes()).toEqual(
-      expect.arrayContaining([
-        'ltr:pl-10',
-        'ltr:pr-12',
-        'rtl:pr-10',
-        'rtl:pl-12',
-      ])
+      expect.arrayContaining(['pl-10', 'pr-12', 'rtl:pr-10', 'rtl:pl-12'])
     );
     expect(searchIcon.classes()).toEqual(
-      expect.arrayContaining(['pointer-events-none', 'ltr:left-3'])
+      expect.arrayContaining([
+        'pointer-events-none',
+        'absolute',
+        'left-3',
+        'top-1/2',
+        '-translate-y-1/2',
+      ])
     );
     expect(clearButton.classes()).toEqual(
-      expect.arrayContaining(['ltr:right-1', 'rtl:left-1'])
+      expect.arrayContaining(['right-1', 'top-1/2', '-translate-y-1/2'])
     );
     expect(input.attributes('placeholder')).toBe('Search in conversation');
     expect(input.attributes('aria-label')).toBe('Search in conversation');

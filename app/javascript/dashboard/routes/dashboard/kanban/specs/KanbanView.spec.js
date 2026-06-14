@@ -238,6 +238,12 @@ const mountView = async (
         OnClickOutside: {
           template: '<div><slot /></div>',
         },
+        Button: {
+          name: 'Button',
+          props: ['icon', 'label', 'color', 'size'],
+          template:
+            '<button v-bind="$attrs" class="btn-stub" @click="$emit(\'click\')">{{ label }}<slot /></button>',
+        },
         TagMultiSelectComboBox: {
           name: 'TagMultiSelectComboBox',
           props: ['modelValue', 'options', 'disabled'],
@@ -1613,23 +1619,33 @@ describe('KanbanView header navigation', () => {
     expect(dropdown.exists()).toBe(true);
     expect(dropdown.text()).toContain('Sales Board');
     expect(dropdown.text()).toContain('Renewals Board');
+    expect(dropdown.text()).not.toContain('KANBAN.OVERVIEW.CREATE_BOARD');
+    expect(
+      wrapper.find('[data-testid="kanban-board-dropdown-create"]').exists()
+    ).toBe(false);
   });
 
-  it('opens the reusable create board dialog from the board dropdown', async () => {
+  it('shows a dedicated create board button in the header', async () => {
+    const wrapper = await mountView();
+
+    const createButton = wrapper.find(
+      '[data-testid="kanban-create-board-button"]'
+    );
+
+    expect(createButton.exists()).toBe(true);
+    expect(createButton.text()).toContain('KANBAN.OVERVIEW.CREATE_BOARD');
+    expect(createButton.classes()).toContain('btn-stub');
+  });
+
+  it('opens the reusable create board dialog from the header button', async () => {
     const wrapper = await mountView();
 
     await wrapper
-      .find('[data-testid="kanban-board-switcher"]')
-      .trigger('click');
-    await wrapper
-      .find('[data-testid="kanban-board-dropdown-create"]')
+      .find('[data-testid="kanban-create-board-button"]')
       .trigger('click');
     await nextTick();
 
     expect(findCreateBoardDialog(wrapper).props('modelValue')).toBe(true);
-    expect(
-      wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
-    ).toBe(false);
   });
 
   it('creates a board from the board page and navigates to it', async () => {
@@ -1639,10 +1655,7 @@ describe('KanbanView header navigation', () => {
     const wrapper = await mountView();
 
     await wrapper
-      .find('[data-testid="kanban-board-switcher"]')
-      .trigger('click');
-    await wrapper
-      .find('[data-testid="kanban-board-dropdown-create"]')
+      .find('[data-testid="kanban-create-board-button"]')
       .trigger('click');
     findCreateBoardDialog(wrapper).vm.$emit('create', 'New Board');
     await flushPromises();
@@ -1667,8 +1680,12 @@ describe('KanbanView header navigation', () => {
     mockRoute.params.boardId = undefined;
     const wrapper = await mountView({ boardResponse: null, boards: [] });
 
+    expect(
+      wrapper.find('[data-testid="kanban-empty-create-board-button"]').exists()
+    ).toBe(false);
+
     await wrapper
-      .find('[data-testid="kanban-empty-create-board-button"]')
+      .find('[data-testid="kanban-create-board-button"]')
       .trigger('click');
     await nextTick();
 
@@ -1683,7 +1700,7 @@ describe('KanbanView header navigation', () => {
     const wrapper = await mountView({ boardResponse: null, boards: [] });
 
     await wrapper
-      .find('[data-testid="kanban-empty-create-board-button"]')
+      .find('[data-testid="kanban-create-board-button"]')
       .trigger('click');
     findCreateBoardDialog(wrapper).vm.$emit('create', 'First Board');
     await flushPromises();
@@ -1792,7 +1809,7 @@ describe('KanbanView header navigation', () => {
     });
   });
 
-  it('keeps the create action available when only one board is visible', async () => {
+  it('does not open the board switcher when only one board is visible', async () => {
     const wrapper = await mountView({
       boards: [{ id: 10, name: 'Sales Board' }],
     });
@@ -1805,9 +1822,9 @@ describe('KanbanView header navigation', () => {
       .trigger('click');
     expect(
       wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
-    ).toBe(true);
+    ).toBe(false);
     expect(
-      wrapper.find('[data-testid="kanban-board-dropdown-create"]').exists()
+      wrapper.find('[data-testid="kanban-create-board-button"]').exists()
     ).toBe(true);
   });
 

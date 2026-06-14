@@ -9,6 +9,7 @@ import Draggable from 'vuedraggable';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import Button from 'dashboard/components-next/button/Button.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import {
@@ -80,6 +81,7 @@ const stageColorOptions = KANBAN_STAGE_COLOR_OPTIONS;
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
 const hasBoards = computed(() => boards.value.length > 0);
+const hasMultipleBoards = computed(() => boards.value.length > 1);
 const isInitialLoading = computed(
   () => isFetchingBoards.value && !selectedBoard.value
 );
@@ -898,7 +900,10 @@ onUnmounted(() => {
                 data-testid="kanban-board-switcher"
                 class="inline-flex max-w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xl font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="!hasBoards"
-                @click="isBoardDropdownOpen = hasBoards && !isBoardDropdownOpen"
+                @click="
+                  isBoardDropdownOpen =
+                    hasMultipleBoards && !isBoardDropdownOpen
+                "
               >
                 <span class="truncate">{{ currentBoardName }}</span>
                 <i class="i-lucide-chevron-down size-5 text-n-slate-11" />
@@ -926,65 +931,63 @@ onUnmounted(() => {
                     class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
                   />
                 </button>
-                <button
-                  type="button"
-                  class="flex w-full items-center gap-2 border-t border-n-weak px-4 py-3 text-left text-sm font-medium text-n-brand hover:bg-n-alpha-1"
-                  data-testid="kanban-board-dropdown-create"
-                  @click="openBoardCreateDialog"
-                >
-                  <i class="i-lucide-plus size-4 flex-shrink-0" />
-                  {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
-                </button>
               </div>
             </div>
           </OnClickOutside>
         </div>
-        <div
-          v-if="selectedBoard"
-          class="flex flex-wrap items-center justify-end gap-2"
-        >
-          <button
-            type="button"
-            data-testid="kanban-create-stage-toggle"
-            class="flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="isCreatingStage"
-            @click="showCreateStageForm = !showCreateStageForm"
-          >
-            <i class="i-lucide-plus size-4" />
-            {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
-          </button>
-          <div class="w-72 max-w-full" data-testid="kanban-inbox-filter">
-            <TagMultiSelectComboBox
-              :model-value="selectedInboxIds"
-              :options="inboxFilterOptions"
-              :placeholder="t('KANBAN.SETTINGS.INBOXES.PLACEHOLDER')"
-              :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
-              :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
-              :disabled="!hasInboxFilterOptions"
-              @update:model-value="updateInboxFilter"
-            />
-          </div>
-          <div class="w-72 max-w-full" data-testid="kanban-agent-filter">
-            <TagMultiSelectComboBox
-              :model-value="selectedAssigneeIds"
-              :options="agentFilterOptions"
-              :placeholder="t('KANBAN.FILTERS.AGENTS')"
-              :search-placeholder="t('KANBAN.SETTINGS.AGENTS.SEARCH')"
-              :empty-state="t('KANBAN.SETTINGS.AGENTS.EMPTY')"
-              :disabled="!hasAgentFilterOptions"
-              @update:model-value="updateAssigneeFilter"
-            />
-          </div>
-          <button
-            v-if="isAdmin"
-            type="button"
-            data-testid="kanban-board-settings-button"
-            class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
-            @click="openBoardSettings"
-          >
-            <i class="i-lucide-settings size-4" />
-            {{ t('KANBAN.ACTIONS.BOARD_SETTINGS') }}
-          </button>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            icon="i-lucide-plus"
+            data-testid="kanban-create-board-button"
+            :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
+            color="blue"
+            size="sm"
+            @click="openBoardCreateDialog"
+          />
+          <template v-if="selectedBoard">
+            <button
+              type="button"
+              data-testid="kanban-create-stage-toggle"
+              class="flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="isCreatingStage"
+              @click="showCreateStageForm = !showCreateStageForm"
+            >
+              <i class="i-lucide-plus size-4" />
+              {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
+            </button>
+            <div class="w-72 max-w-full" data-testid="kanban-inbox-filter">
+              <TagMultiSelectComboBox
+                :model-value="selectedInboxIds"
+                :options="inboxFilterOptions"
+                :placeholder="t('KANBAN.SETTINGS.INBOXES.PLACEHOLDER')"
+                :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
+                :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
+                :disabled="!hasInboxFilterOptions"
+                @update:model-value="updateInboxFilter"
+              />
+            </div>
+            <div class="w-72 max-w-full" data-testid="kanban-agent-filter">
+              <TagMultiSelectComboBox
+                :model-value="selectedAssigneeIds"
+                :options="agentFilterOptions"
+                :placeholder="t('KANBAN.FILTERS.AGENTS')"
+                :search-placeholder="t('KANBAN.SETTINGS.AGENTS.SEARCH')"
+                :empty-state="t('KANBAN.SETTINGS.AGENTS.EMPTY')"
+                :disabled="!hasAgentFilterOptions"
+                @update:model-value="updateAssigneeFilter"
+              />
+            </div>
+            <button
+              v-if="isAdmin"
+              type="button"
+              data-testid="kanban-board-settings-button"
+              class="flex items-center gap-1 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12"
+              @click="openBoardSettings"
+            >
+              <i class="i-lucide-settings size-4" />
+              {{ t('KANBAN.ACTIONS.BOARD_SETTINGS') }}
+            </button>
+          </template>
         </div>
       </header>
 
@@ -1043,22 +1046,13 @@ onUnmounted(() => {
         v-else-if="!hasBoards"
         class="flex flex-1 items-center justify-center p-6 text-center"
       >
-        <div class="flex max-w-md flex-col items-center">
+        <div class="max-w-md">
           <h3 class="text-base font-medium text-n-slate-12">
             {{ t('KANBAN.EMPTY_BOARDS') }}
           </h3>
           <p class="mt-2 text-sm text-n-slate-11">
             {{ t('KANBAN.EMPTY_BOARDS_DESCRIPTION') }}
           </p>
-          <button
-            type="button"
-            class="mt-4 flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white"
-            data-testid="kanban-empty-create-board-button"
-            @click="openBoardCreateDialog"
-          >
-            <i class="i-lucide-plus size-4" />
-            {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
-          </button>
         </div>
       </div>
 

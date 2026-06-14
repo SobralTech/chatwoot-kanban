@@ -419,13 +419,13 @@ export default {
         <fluent-icon
           icon="search"
           size="16"
-          class="pointer-events-none absolute top-1/2 -translate-y-1/2 text-n-slate-10 ltr:left-3 rtl:right-3"
+          class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-n-slate-10 rtl:left-auto rtl:right-3"
         />
         <input
           ref="conversationSearchInput"
           :value="conversationSearchQuery"
           type="search"
-          class="block w-full h-9 py-1 text-sm rounded-lg border border-n-weak bg-n-surface-1 text-n-slate-12 placeholder:text-n-slate-10 focus:border-n-brand focus:ring-1 focus:ring-n-brand ltr:pl-10 ltr:pr-12 rtl:pr-10 rtl:pl-12"
+          class="block w-full h-9 rounded-lg border border-n-weak bg-n-surface-1 py-1 pl-10 pr-12 text-sm text-n-slate-12 placeholder:text-n-slate-10 focus:border-n-brand focus:ring-1 focus:ring-n-brand rtl:pl-12 rtl:pr-10"
           :placeholder="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
           :aria-label="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
           data-testid="conversation-search-input"
@@ -435,7 +435,7 @@ export default {
         <button
           v-if="conversationSearchQuery"
           type="button"
-          class="absolute top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand ltr:right-1 rtl:left-1"
+          class="absolute right-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand rtl:left-1 rtl:right-auto"
           :aria-label="$t('CONVERSATION.SEARCH.CLEAR_SEARCH')"
           :title="$t('CONVERSATION.SEARCH.CLEAR_SEARCH')"
           data-testid="conversation-search-clear"
