@@ -1,5 +1,5 @@
 class KanbanCards::CreateFromConversationService
-  DUPLICATE_CONVERSATION_ERROR = 'Conversation already has an opportunity on this board'.freeze
+  DUPLICATE_CONVERSATION_ERROR = 'Conversation already has an opportunity with this subject on this board'.freeze
 
   # rubocop:disable Metrics/ParameterLists
   def initialize(account:, user:, conversation:, kanban_board:, kanban_stage:, subject:, due_at: nil, labels: [])
@@ -66,7 +66,12 @@ class KanbanCards::CreateFromConversationService
   end
 
   def validate_duplicate!
-    return unless KanbanCard.conversation.exists?(kanban_board: kanban_board, conversation_id: conversation.id)
+    return unless KanbanCard.conversation.exists?(
+      kanban_board: kanban_board,
+      conversation_id: conversation.id,
+      inbox_id: conversation.inbox_id,
+      normalized_subject: normalized_card_subject.downcase
+    )
 
     raise_validation_error(DUPLICATE_CONVERSATION_ERROR, :conversation)
   end
@@ -94,8 +99,7 @@ class KanbanCards::CreateFromConversationService
       contact: conversation.contact,
       inbox: conversation.inbox,
       conversation: conversation,
-      subject: normalized_subject.presence || default_subject,
-      normalized_subject: nil,
+      subject: normalized_card_subject,
       origin: 'conversation',
       position: 1,
       due_at: due_at,
@@ -130,7 +134,15 @@ class KanbanCards::CreateFromConversationService
   end
 
   def normalized_subject
-    @normalized_subject ||= subject.to_s.strip.gsub(/\s+/, ' ')
+    @normalized_subject ||= normalize_subject(subject)
+  end
+
+  def normalized_card_subject
+    @normalized_card_subject ||= normalized_subject.presence || normalize_subject(default_subject)
+  end
+
+  def normalize_subject(value)
+    value.to_s.strip.gsub(/\s+/, ' ')
   end
 
   def label_titles

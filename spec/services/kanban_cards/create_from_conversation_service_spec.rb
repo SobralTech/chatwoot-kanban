@@ -140,23 +140,44 @@ RSpec.describe KanbanCards::CreateFromConversationService do
       )
     end
 
-    it 'rejects an active duplicate card for the same board and conversation' do
-      create(:kanban_card, :conversation_origin, kanban_board: kanban_board, kanban_stage: kanban_stage, conversation: conversation)
-
-      expect { service.perform! }.to raise_validation_error('Conversation already has an opportunity on this board')
-    end
-
-    it 'rejects an inactive historical duplicate card for the same board and conversation' do
+    it 'rejects an active duplicate card for the same board conversation and subject' do
       create(
         :kanban_card,
         :conversation_origin,
         kanban_board: kanban_board,
         kanban_stage: kanban_stage,
         conversation: conversation,
+        subject: 'Maria Silva - Sales Inbox'
+      )
+
+      expect { service.perform! }.to raise_validation_error('Conversation already has an opportunity with this subject on this board')
+    end
+
+    it 'allows another card for the same board and conversation with a different subject' do
+      create(
+        :kanban_card,
+        :conversation_origin,
+        kanban_board: kanban_board,
+        kanban_stage: kanban_stage,
+        conversation: conversation,
+        subject: 'Enterprise renewal'
+      )
+
+      expect { build_service(subject: 'Expansion project').perform! }.to change(KanbanCard.conversation, :count).by(1)
+    end
+
+    it 'rejects an inactive historical duplicate card for the same board conversation and subject' do
+      create(
+        :kanban_card,
+        :conversation_origin,
+        kanban_board: kanban_board,
+        kanban_stage: kanban_stage,
+        conversation: conversation,
+        subject: 'Maria Silva - Sales Inbox',
         active: false
       )
 
-      expect { service.perform! }.to raise_validation_error('Conversation already has an opportunity on this board')
+      expect { service.perform! }.to raise_validation_error('Conversation already has an opportunity with this subject on this board')
     end
 
     it 'rejects an inactive board' do
@@ -267,10 +288,17 @@ RSpec.describe KanbanCards::CreateFromConversationService do
     end
 
     it 'does not emit kanban.card.created when creation fails' do
-      create(:kanban_card, :conversation_origin, kanban_board: kanban_board, kanban_stage: kanban_stage, conversation: conversation)
+      create(
+        :kanban_card,
+        :conversation_origin,
+        kanban_board: kanban_board,
+        kanban_stage: kanban_stage,
+        conversation: conversation,
+        subject: 'Maria Silva - Sales Inbox'
+      )
       allow(Rails.configuration.dispatcher).to receive(:dispatch)
 
-      expect { service.perform! }.to raise_validation_error('Conversation already has an opportunity on this board')
+      expect { service.perform! }.to raise_validation_error('Conversation already has an opportunity with this subject on this board')
       expect(Rails.configuration.dispatcher).not_to have_received(:dispatch).with(
         Events::Types::KANBAN_CARD_CREATED,
         anything,

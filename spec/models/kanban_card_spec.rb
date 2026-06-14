@@ -149,30 +149,47 @@ RSpec.describe KanbanCard do
       expect(card).to be_valid
     end
 
-    it 'rejects duplicate active conversation cards' do
-      existing_card = create(:kanban_card, :conversation_origin)
+    it 'rejects duplicate active conversation cards with the same subject' do
+      existing_card = create(:kanban_card, :conversation_origin, subject: 'Enterprise renewal')
       card = build(
         :kanban_card,
         :conversation_origin,
         account: existing_card.account,
         kanban_board: existing_card.kanban_board,
         kanban_stage: existing_card.kanban_stage,
-        conversation: existing_card.conversation
+        conversation: existing_card.conversation,
+        subject: '  enterprise   renewal  '
       )
 
       expect(card).not_to be_valid
       expect(card.errors[:conversation_id]).to be_present
     end
 
-    it 'rejects conversation card recreation when existing card is inactive' do
-      existing_card = create(:kanban_card, :conversation_origin, active: false)
+    it 'allows conversation cards for the same conversation with different subjects' do
+      existing_card = create(:kanban_card, :conversation_origin, subject: 'Enterprise renewal')
       card = build(
         :kanban_card,
         :conversation_origin,
         account: existing_card.account,
         kanban_board: existing_card.kanban_board,
         kanban_stage: existing_card.kanban_stage,
-        conversation: existing_card.conversation
+        conversation: existing_card.conversation,
+        subject: 'Expansion project'
+      )
+
+      expect(card).to be_valid
+    end
+
+    it 'rejects conversation card recreation with the same subject when existing card is inactive' do
+      existing_card = create(:kanban_card, :conversation_origin, active: false, subject: 'Enterprise renewal')
+      card = build(
+        :kanban_card,
+        :conversation_origin,
+        account: existing_card.account,
+        kanban_board: existing_card.kanban_board,
+        kanban_stage: existing_card.kanban_stage,
+        conversation: existing_card.conversation,
+        subject: 'Enterprise renewal'
       )
 
       expect(card).not_to be_valid
@@ -223,8 +240,8 @@ RSpec.describe KanbanCard do
       expect(card).to be_valid
     end
 
-    it 'blocks duplicate historical conversation cards at the database index' do
-      existing_card = create(:kanban_card, :conversation_origin)
+    it 'blocks duplicate historical conversation cards with the same subject at the database index' do
+      existing_card = create(:kanban_card, :conversation_origin, subject: 'Enterprise renewal')
       duplicate_attributes = existing_card.attributes.slice(
         'account_id',
         'kanban_board_id',
@@ -232,8 +249,10 @@ RSpec.describe KanbanCard do
         'contact_id',
         'inbox_id',
         'conversation_id',
+        'normalized_subject',
         'origin'
       ).merge(
+        'subject' => 'Enterprise renewal',
         'position' => existing_card.position + 1,
         'active' => false,
         'stage_entered_at' => Time.current,

@@ -73,12 +73,12 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect(created_card.subject).to eq("Contact ##{contact.id} - Inbox ##{inbox.id}")
     end
 
-    it 'sets normalized_subject to nil' do
+    it 'normalizes the generated subject' do
       board
 
       service.perform!
 
-      expect(created_card.normalized_subject).to be_nil
+      expect(created_card.normalized_subject).to eq('maria da silva - whatsapp comercial')
     end
 
     it 'inserts the card at the top of the first active stage' do

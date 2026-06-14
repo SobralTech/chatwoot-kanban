@@ -82,8 +82,8 @@ class KanbanCards::ImportExistingConversationsService
       INSERT INTO #{KanbanCard.quoted_table_name}
         (#{insert_columns.join(', ')})
       #{insert_select_sql(batch)}
-      ON CONFLICT (kanban_board_id, conversation_id)
-        WHERE origin = 'conversation' AND conversation_id IS NOT NULL
+      ON CONFLICT (kanban_board_id, conversation_id, inbox_id, normalized_subject)
+        WHERE origin = 'conversation' AND conversation_id IS NOT NULL AND normalized_subject IS NOT NULL
         DO NOTHING
       RETURNING id
     SQL
@@ -132,7 +132,7 @@ class KanbanCards::ImportExistingConversationsService
       'conversations.inbox_id',
       'conversations.id',
       default_subject_sql,
-      'NULL',
+      "LOWER(REGEXP_REPLACE(TRIM(#{default_subject_sql}), '\\s+', ' ', 'g'))",
       "'conversation'",
       "(#{max_position_sql}) + ROW_NUMBER() OVER (ORDER BY conversations.id)",
       'TRUE',

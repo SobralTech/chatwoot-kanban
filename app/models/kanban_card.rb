@@ -25,15 +25,15 @@
 #
 # Indexes
 #
-#  index_active_kanban_cards_on_board_stage_order              (kanban_board_id,kanban_stage_id,position,created_at,id) WHERE (active = true)
-#  index_active_manual_kanban_cards_unique_subject             (kanban_board_id,contact_id,inbox_id,normalized_subject) UNIQUE WHERE ((active = true) AND ((origin)::text = 'manual'::text) AND (normalized_subject IS NOT NULL))
-#  index_kanban_cards_on_account_id_and_active                 (account_id,active)
-#  index_kanban_cards_on_account_id_and_contact_id             (account_id,contact_id)
-#  index_kanban_cards_on_account_id_and_inbox_id               (account_id,inbox_id)
-#  index_kanban_cards_on_board_and_conversation_origin_unique  (kanban_board_id,conversation_id) UNIQUE WHERE (((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL))
-#  index_kanban_cards_on_board_stage_position                  (kanban_board_id,kanban_stage_id,position)
-#  index_kanban_cards_on_conversation_id                       (conversation_id)
-#  index_kanban_cards_on_kanban_board_id_and_active            (kanban_board_id,active)
+#  index_active_kanban_cards_on_board_stage_order     (kanban_board_id,kanban_stage_id,position,created_at,id) WHERE (active = true)
+#  index_active_manual_kanban_cards_unique_subject    (kanban_board_id,contact_id,inbox_id,normalized_subject) UNIQUE WHERE ((active = true) AND ((origin)::text = 'manual'::text) AND (normalized_subject IS NOT NULL))
+#  index_kanban_cards_on_account_id_and_active        (account_id,active)
+#  index_kanban_cards_on_account_id_and_contact_id    (account_id,contact_id)
+#  index_kanban_cards_on_account_id_and_inbox_id      (account_id,inbox_id)
+#  index_kanban_cards_on_board_stage_position         (kanban_board_id,kanban_stage_id,position)
+#  index_kanban_cards_on_conversation_id              (conversation_id)
+#  index_kanban_cards_on_conversation_subject_unique  (kanban_board_id,conversation_id,inbox_id,normalized_subject) UNIQUE WHERE (((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL) AND (normalized_subject IS NOT NULL))
+#  index_kanban_cards_on_kanban_board_id_and_active   (kanban_board_id,active)
 #
 # rubocop:enable Layout/LineLength
 class KanbanCard < ApplicationRecord
@@ -51,7 +51,7 @@ class KanbanCard < ApplicationRecord
     manual: 'manual'
   }
 
-  before_validation :normalize_manual_subject
+  before_validation :normalize_subject
   before_validation :normalize_blank_description
   before_validation :set_stage_entered_at, if: :stage_entry_timestamp_required?
 
@@ -69,8 +69,8 @@ class KanbanCard < ApplicationRecord
             if: :validate_manual_uniqueness?
   validates :conversation_id,
             uniqueness: {
-              scope: :kanban_board_id,
-              conditions: -> { where(origin: 'conversation') }
+              scope: [:kanban_board_id, :inbox_id, :normalized_subject],
+              conditions: -> { where(origin: 'conversation').where.not(normalized_subject: nil) }
             },
             if: :validate_conversation_uniqueness?
   validate :due_at_after_starts_at
@@ -226,12 +226,11 @@ class KanbanCard < ApplicationRecord
     "stage_entered_at = CASE id #{stage_entered_at_cases} ELSE stage_entered_at END,"
   end
 
-  def normalize_manual_subject
+  def normalize_subject
     self.normalized_subject = nil
-    return unless manual?
 
     normalized_display_subject = subject.to_s.strip.gsub(/\s+/, ' ')
-    self.subject = normalized_display_subject
+    self.subject = normalized_display_subject.presence
     self.normalized_subject = normalized_display_subject.presence&.downcase
   end
 
@@ -252,7 +251,7 @@ class KanbanCard < ApplicationRecord
   end
 
   def validate_conversation_uniqueness?
-    conversation? && conversation_id.present?
+    conversation? && conversation_id.present? && normalized_subject.present?
   end
 
   def due_at_after_starts_at

@@ -673,7 +673,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(card.reload).to have_attributes(subject: 'Cotação de notebooks', normalized_subject: 'cotação de notebooks')
     end
 
-    it 'keeps normalized subject nil for conversation-origin stable cards' do
+    it 'updates normalized subject for conversation-origin stable cards' do
       card = create_conversation_card(position: 1)
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
@@ -682,7 +682,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
             as: :json
 
       expect(response).to have_http_status(:success)
-      expect(card.reload.normalized_subject).to be_nil
+      expect(card.reload).to have_attributes(subject: 'Cotação de notebooks', normalized_subject: 'cotação de notebooks')
     end
 
     it 'reorders a card by stable ID within the same stage' do

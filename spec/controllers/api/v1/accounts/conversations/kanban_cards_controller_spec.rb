@@ -260,12 +260,12 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
     end
 
     it 'rejects duplicate historical cards including inactive duplicates' do
-      create_conversation_card(active: false)
+      create_conversation_card(active: false, subject: 'Maria Silva - Sales Inbox')
 
       post_conversation_kanban_card
 
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body['message']).to include('Conversation already has an opportunity on this board')
+      expect(response.parsed_body['message']).to include('Conversation already has an opportunity with this subject on this board')
     end
 
     it 'rejects an invalid board' do
@@ -351,7 +351,7 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
     end
 
     it 'does not emit kanban.card.created on failure' do
-      create_conversation_card
+      create_conversation_card(subject: 'Maria Silva - Sales Inbox')
       allow(Rails.configuration.dispatcher).to receive(:dispatch)
 
       post_conversation_kanban_card

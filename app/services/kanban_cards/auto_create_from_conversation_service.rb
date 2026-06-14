@@ -66,7 +66,6 @@ class KanbanCards::AutoCreateFromConversationService
       inbox: inbox,
       conversation: conversation,
       subject: default_subject,
-      normalized_subject: nil,
       origin: 'conversation',
       position: 1,
       active: true
