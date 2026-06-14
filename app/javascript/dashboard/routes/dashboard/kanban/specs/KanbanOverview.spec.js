@@ -2,6 +2,7 @@ import { shallowMount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { createStore } from 'vuex';
 import KanbanOverview from '../KanbanOverview.vue';
+import KanbanCreateBoardDialog from '../KanbanCreateBoardDialog.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
 import { COLOR_OPTIONS } from 'dashboard/components-next/button/constants';
@@ -97,6 +98,9 @@ const mountOverview = async (role = 'agent') => {
   wrapper.dispatchSpy = dispatchSpy;
   return wrapper;
 };
+
+const findCreateBoardDialog = wrapper =>
+  wrapper.findComponent(KanbanCreateBoardDialog);
 
 describe('KanbanOverview', () => {
   beforeEach(() => {
@@ -280,12 +284,10 @@ describe('KanbanOverview', () => {
       .trigger('click');
     await nextTick();
 
-    expect(
-      wrapper.find('[data-testid="overview-create-board-modal"]').exists()
-    ).toBe(true);
+    expect(findCreateBoardDialog(wrapper).props('modelValue')).toBe(true);
   });
 
-  it('cancel closes the create modal and clears the board name', async () => {
+  it('closes the create modal from the reusable dialog', async () => {
     const wrapper = await mountOverview();
     await flushPromises();
     await nextTick();
@@ -294,42 +296,11 @@ describe('KanbanOverview', () => {
       .find('[data-testid="overview-create-board-button"]')
       .trigger('click');
     await nextTick();
-    await wrapper.find('input[type="text"]').setValue('New Board');
 
-    await wrapper
-      .find('[aria-label="Cancelar criação do funil"]')
-      .trigger('click');
+    findCreateBoardDialog(wrapper).vm.$emit('close');
     await nextTick();
 
-    expect(
-      wrapper.find('[data-testid="overview-create-board-modal"]').exists()
-    ).toBe(false);
-
-    await wrapper
-      .find('[data-testid="overview-create-board-button"]')
-      .trigger('click');
-    await nextTick();
-
-    expect(wrapper.find('input[type="text"]').element.value).toBe('');
-  });
-
-  it('escape closes the create modal', async () => {
-    const wrapper = await mountOverview();
-    await flushPromises();
-    await nextTick();
-
-    await wrapper
-      .find('[data-testid="overview-create-board-button"]')
-      .trigger('click');
-    await nextTick();
-    await wrapper
-      .find('[data-testid="overview-create-board-modal"]')
-      .trigger('keydown', { key: 'Escape' });
-    await nextTick();
-
-    expect(
-      wrapper.find('[data-testid="overview-create-board-modal"]').exists()
-    ).toBe(false);
+    expect(findCreateBoardDialog(wrapper).props('modelValue')).toBe(false);
   });
 
   it('empty state does not render a second create button', async () => {
@@ -447,12 +418,7 @@ describe('KanbanOverview', () => {
     await createBtn.trigger('click');
     await nextTick();
 
-    // Fill form
-    const input = wrapper.find('input[type="text"]');
-    await input.setValue('New Board');
-
-    // Submit form
-    await wrapper.find('form').trigger('submit');
+    findCreateBoardDialog(wrapper).vm.$emit('create', 'New Board');
     await flushPromises();
     await nextTick();
 
@@ -465,7 +431,7 @@ describe('KanbanOverview', () => {
     });
   });
 
-  it('enter creates board and navigates to it', async () => {
+  it('creates board from reusable dialog event and navigates to it', async () => {
     KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
     KanbanBoardsAPI.create.mockResolvedValue({
       data: { id: 100, name: 'Enter Board' },
@@ -479,9 +445,7 @@ describe('KanbanOverview', () => {
       .find('[data-testid="overview-create-board-button"]')
       .trigger('click');
     await nextTick();
-    const input = wrapper.find('input[type="text"]');
-    await input.setValue('Enter Board');
-    await input.trigger('keydown', { key: 'Enter' });
+    findCreateBoardDialog(wrapper).vm.$emit('create', 'Enter Board');
     await flushPromises();
     await nextTick();
 
@@ -500,7 +464,7 @@ describe('KanbanOverview', () => {
     });
   });
 
-  it('preserves typed text and shows an error when create fails', async () => {
+  it('passes create errors to the reusable dialog', async () => {
     KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
     KanbanBoardsAPI.create.mockRejectedValue({
       response: { data: { error: 'Name is already taken' } },
@@ -514,17 +478,12 @@ describe('KanbanOverview', () => {
       .find('[data-testid="overview-create-board-button"]')
       .trigger('click');
     await nextTick();
-    const input = wrapper.find('input[type="text"]');
-    await input.setValue('Existing Board');
-    await wrapper.find('form').trigger('submit');
+    findCreateBoardDialog(wrapper).vm.$emit('create', 'Existing Board');
     await flushPromises();
     await nextTick();
 
-    expect(wrapper.find('input[type="text"]').element.value).toBe(
-      'Existing Board'
+    expect(findCreateBoardDialog(wrapper).props('error')).toBe(
+      'Name is already taken'
     );
-    expect(
-      wrapper.find('[data-testid="overview-create-board-error"]').text()
-    ).toBe('Name is already taken');
   });
 });

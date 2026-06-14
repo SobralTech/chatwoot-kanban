@@ -4,6 +4,8 @@ import { nextTick } from 'vue';
 
 import ConversationSearchPanel from '../ConversationSearchPanel.vue';
 import MessageApi from 'dashboard/api/inbox/message';
+import enConversationMessages from '../../../../i18n/locale/en/conversation.json';
+import ptBRConversationMessages from '../../../../i18n/locale/pt_BR/conversation.json';
 
 vi.mock('dashboard/api/inbox/message', () => ({
   default: {
@@ -26,6 +28,9 @@ describe('ConversationSearchPanel', () => {
     'CONVERSATION.SEARCH.CONTACT': 'Contact',
     'CONVERSATION.SEARCH.AGENT': 'Agent',
     'CONVERSATION.SEARCH.LOAD_MORE': 'Load more results',
+    'CONVERSATION.SEARCH.PANEL_TITLE': 'Search messages',
+    'CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION': 'Search in conversation',
+    'CONVERSATION.SEARCH.CLEAR_SEARCH': 'Clear search',
   };
 
   const createWrapper = () => {
@@ -90,6 +95,71 @@ describe('ConversationSearchPanel', () => {
     expect(document.activeElement).toBe(
       wrapper.find('[data-testid="conversation-search-input"]').element
     );
+  });
+
+  it('renders search input with icon and text spacing', async () => {
+    createWrapper();
+    wrapper.vm.conversationSearchQuery = 'billing';
+    await nextTick();
+
+    const input = wrapper.find('[data-testid="conversation-search-input"]');
+    const searchIcon = wrapper.find('fluent-icon-stub[icon="search"]');
+    const clearButton = wrapper.find(
+      '[data-testid="conversation-search-clear"]'
+    );
+
+    expect(input.classes()).toEqual(
+      expect.arrayContaining([
+        'ltr:pl-10',
+        'ltr:pr-12',
+        'rtl:pr-10',
+        'rtl:pl-12',
+      ])
+    );
+    expect(searchIcon.classes()).toEqual(
+      expect.arrayContaining(['pointer-events-none', 'ltr:left-3'])
+    );
+    expect(clearButton.classes()).toEqual(
+      expect.arrayContaining(['ltr:right-1', 'rtl:left-1'])
+    );
+    expect(input.attributes('placeholder')).toBe('Search in conversation');
+    expect(input.attributes('aria-label')).toBe('Search in conversation');
+  });
+
+  it('does not render the start searching copy or result counter', async () => {
+    createWrapper();
+    wrapper.vm.conversationSearchMeta = { total_count: 2 };
+    wrapper.vm.activeConversationSearchResultIndex = 0;
+    await nextTick();
+
+    expect(wrapper.text()).not.toContain(
+      ['Search', 'this', 'conversation'].join(' ')
+    );
+    expect(
+      wrapper.find('[data-testid="conversation-search-counter"]').exists()
+    ).toBe(false);
+  });
+
+  it('defines conversation search i18n keys in en and pt_BR', () => {
+    const requiredKeys = [
+      'PANEL_TITLE',
+      'SEARCH_IN_CONVERSATION',
+      'CLOSE_SEARCH',
+      'CLEAR_SEARCH',
+      'NO_RESULTS',
+      'FAILED_TO_SEARCH_MESSAGES',
+      'MESSAGE_UNAVAILABLE',
+      'FAILED_TO_LOAD_MESSAGE',
+      'LOAD_MORE',
+      'HAS_ATTACHMENT',
+      'AGENT',
+      'CONTACT',
+    ];
+
+    requiredKeys.forEach(key => {
+      expect(enConversationMessages.CONVERSATION.SEARCH[key]).toBeTruthy();
+      expect(ptBRConversationMessages.CONVERSATION.SEARCH[key]).toBeTruthy();
+    });
   });
 
   it('resets results without API call for a blank query', async () => {

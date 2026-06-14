@@ -2,6 +2,7 @@ import { flushPromises, shallowMount } from '@vue/test-utils';
 import { nextTick, reactive } from 'vue';
 import { createStore } from 'vuex';
 import KanbanView from '../KanbanView.vue';
+import KanbanCreateBoardDialog from '../KanbanCreateBoardDialog.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -229,6 +230,7 @@ const mountView = async (
   });
 
   const store = createTestStore(role, inboxes, agents);
+  const dispatchSpy = vi.spyOn(store, 'dispatch');
   const wrapper = shallowMount(KanbanView, {
     global: {
       plugins: [store],
@@ -338,6 +340,7 @@ const mountView = async (
 
   await flushPromises();
   await nextTick();
+  wrapper.dispatchSpy = dispatchSpy;
   return wrapper;
 };
 
@@ -354,6 +357,8 @@ const findLoadMoreButtons = wrapper =>
 
 const findAddItemPicker = wrapper =>
   wrapper.findComponent({ name: 'KanbanOpportunityPicker' });
+const findCreateBoardDialog = wrapper =>
+  wrapper.findComponent(KanbanCreateBoardDialog);
 const findInboxFilter = wrapper =>
   wrapper.findAllComponents({ name: 'TagMultiSelectComboBox' })[0];
 const findAgentFilter = wrapper =>
@@ -1610,6 +1615,95 @@ describe('KanbanView header navigation', () => {
     expect(dropdown.text()).toContain('Renewals Board');
   });
 
+  it('opens the reusable create board dialog from the board dropdown', async () => {
+    const wrapper = await mountView();
+
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-board-dropdown-create"]')
+      .trigger('click');
+    await nextTick();
+
+    expect(findCreateBoardDialog(wrapper).props('modelValue')).toBe(true);
+    expect(
+      wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
+    ).toBe(false);
+  });
+
+  it('creates a board from the board page and navigates to it', async () => {
+    KanbanBoardsAPI.create.mockResolvedValue({
+      data: { id: 99, name: 'New Board' },
+    });
+    const wrapper = await mountView();
+
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-board-dropdown-create"]')
+      .trigger('click');
+    findCreateBoardDialog(wrapper).vm.$emit('create', 'New Board');
+    await flushPromises();
+    await nextTick();
+
+    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
+      kanban_board: {
+        name: 'New Board',
+        position: 2,
+      },
+    });
+    expect(wrapper.dispatchSpy).toHaveBeenCalledWith(
+      'kanbanBoards/refreshBoards'
+    );
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_board_show',
+      params: { accountId: '1', boardId: 99 },
+    });
+  });
+
+  it('opens the reusable create board dialog from the empty board state', async () => {
+    mockRoute.params.boardId = undefined;
+    const wrapper = await mountView({ boardResponse: null, boards: [] });
+
+    await wrapper
+      .find('[data-testid="kanban-empty-create-board-button"]')
+      .trigger('click');
+    await nextTick();
+
+    expect(findCreateBoardDialog(wrapper).props('modelValue')).toBe(true);
+  });
+
+  it('creates the first board from the empty board state', async () => {
+    mockRoute.params.boardId = undefined;
+    KanbanBoardsAPI.create.mockResolvedValue({
+      data: { id: 100, name: 'First Board' },
+    });
+    const wrapper = await mountView({ boardResponse: null, boards: [] });
+
+    await wrapper
+      .find('[data-testid="kanban-empty-create-board-button"]')
+      .trigger('click');
+    findCreateBoardDialog(wrapper).vm.$emit('create', 'First Board');
+    await flushPromises();
+    await nextTick();
+
+    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
+      kanban_board: {
+        name: 'First Board',
+        position: 0,
+      },
+    });
+    expect(wrapper.dispatchSpy).toHaveBeenCalledWith(
+      'kanbanBoards/refreshBoards'
+    );
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_board_show',
+      params: { accountId: '1', boardId: 100 },
+    });
+  });
+
   it('navigates when switching boards from the dropdown', async () => {
     const wrapper = await mountView();
 
@@ -1698,7 +1792,7 @@ describe('KanbanView header navigation', () => {
     });
   });
 
-  it('does not break the switcher when only one board is visible', async () => {
+  it('keeps the create action available when only one board is visible', async () => {
     const wrapper = await mountView({
       boards: [{ id: 10, name: 'Sales Board' }],
     });
@@ -1711,7 +1805,10 @@ describe('KanbanView header navigation', () => {
       .trigger('click');
     expect(
       wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
-    ).toBe(false);
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="kanban-board-dropdown-create"]').exists()
+    ).toBe(true);
   });
 
   it('does not render an internal sidebar', async () => {

@@ -18,9 +18,11 @@ import {
 } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
+import KanbanCreateBoardDialog from './KanbanCreateBoardDialog.vue';
 import KanbanConversationCard from './KanbanConversationCard.vue';
 import KanbanOpportunityDetailsModal from './KanbanOpportunityDetailsModal.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
+import { useKanbanBoardCreation } from './useKanbanBoardCreation';
 
 const route = useRoute();
 const router = useRouter();
@@ -78,7 +80,6 @@ const stageColorOptions = KANBAN_STAGE_COLOR_OPTIONS;
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
 const hasBoards = computed(() => boards.value.length > 0);
-const hasMultipleBoards = computed(() => boards.value.length > 1);
 const isInitialLoading = computed(
   () => isFetchingBoards.value && !selectedBoard.value
 );
@@ -124,6 +125,14 @@ const stageListModel = computed({
 const isCardDragDisabled = computed(
   () => isPersistingCardDrag.value || !!activeActionKey.value
 );
+const {
+  showCreateBoardDialog,
+  createBoardError,
+  isCreatingBoard,
+  openCreateBoardDialog,
+  closeCreateBoardDialog,
+  createBoard,
+} = useKanbanBoardCreation({ boards, t });
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
 const normalizeKanbanPayload = data => {
@@ -693,6 +702,12 @@ const selectBoard = boardId => {
   });
 };
 
+const openBoardCreateDialog = () => {
+  isBoardDropdownOpen.value = false;
+  showCreateStageForm.value = false;
+  openCreateBoardDialog();
+};
+
 const fetchBoards = async () => {
   hasError.value = false;
 
@@ -883,10 +898,7 @@ onUnmounted(() => {
                 data-testid="kanban-board-switcher"
                 class="inline-flex max-w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xl font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="!hasBoards"
-                @click="
-                  isBoardDropdownOpen =
-                    hasMultipleBoards && !isBoardDropdownOpen
-                "
+                @click="isBoardDropdownOpen = hasBoards && !isBoardDropdownOpen"
               >
                 <span class="truncate">{{ currentBoardName }}</span>
                 <i class="i-lucide-chevron-down size-5 text-n-slate-11" />
@@ -913,6 +925,15 @@ onUnmounted(() => {
                     v-if="board.id === activeBoardId"
                     class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
                   />
+                </button>
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 border-t border-n-weak px-4 py-3 text-left text-sm font-medium text-n-brand hover:bg-n-alpha-1"
+                  data-testid="kanban-board-dropdown-create"
+                  @click="openBoardCreateDialog"
+                >
+                  <i class="i-lucide-plus size-4 flex-shrink-0" />
+                  {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
                 </button>
               </div>
             </div>
@@ -1022,13 +1043,22 @@ onUnmounted(() => {
         v-else-if="!hasBoards"
         class="flex flex-1 items-center justify-center p-6 text-center"
       >
-        <div class="max-w-md">
+        <div class="flex max-w-md flex-col items-center">
           <h3 class="text-base font-medium text-n-slate-12">
             {{ t('KANBAN.EMPTY_BOARDS') }}
           </h3>
           <p class="mt-2 text-sm text-n-slate-11">
             {{ t('KANBAN.EMPTY_BOARDS_DESCRIPTION') }}
           </p>
+          <button
+            type="button"
+            class="mt-4 flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white"
+            data-testid="kanban-empty-create-board-button"
+            @click="openBoardCreateDialog"
+          >
+            <i class="i-lucide-plus size-4" />
+            {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
+          </button>
         </div>
       </div>
 
@@ -1246,6 +1276,14 @@ onUnmounted(() => {
         </Draggable>
       </div>
     </section>
+
+    <KanbanCreateBoardDialog
+      v-model="showCreateBoardDialog"
+      :is-creating="isCreatingBoard"
+      :error="createBoardError"
+      @create="createBoard"
+      @close="closeCreateBoardDialog"
+    />
 
     <woot-delete-modal
       v-model:show="showRemoveCardConfirmation"

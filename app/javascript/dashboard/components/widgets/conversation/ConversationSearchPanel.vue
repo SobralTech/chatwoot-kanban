@@ -33,22 +33,6 @@ export default {
     ...mapGetters({
       currentChat: 'getSelectedChat',
     }),
-    conversationSearchTotalCount() {
-      return this.conversationSearchMeta.total_count || 0;
-    },
-    conversationSearchCurrentPosition() {
-      if (
-        !this.conversationSearchTotalCount ||
-        this.activeConversationSearchResultIndex < 0
-      ) {
-        return 0;
-      }
-
-      return this.activeConversationSearchResultIndex + 1;
-    },
-    conversationSearchCounter() {
-      return `${this.conversationSearchCurrentPosition}/${this.conversationSearchTotalCount}`;
-    },
     activeConversationSearchResultId() {
       return this.conversationSearchResults[
         this.activeConversationSearchResultIndex
@@ -166,6 +150,10 @@ export default {
       this.conversationSearchDebounceTimer = setTimeout(() => {
         this.searchConversationMessages(value);
       }, 300);
+    },
+    clearConversationSearchInput() {
+      this.resetConversationSearch();
+      this.focusInput();
     },
     onConversationSearchInputKeydown(event) {
       if (event.key === 'Enter' && event.shiftKey) {
@@ -431,35 +419,38 @@ export default {
         <fluent-icon
           icon="search"
           size="16"
-          class="absolute top-1/2 -translate-y-1/2 text-n-slate-10 ltr:left-3 rtl:right-3"
+          class="pointer-events-none absolute top-1/2 -translate-y-1/2 text-n-slate-10 ltr:left-3 rtl:right-3"
         />
         <input
           ref="conversationSearchInput"
           :value="conversationSearchQuery"
           type="search"
-          class="block w-full h-9 py-1 text-sm rounded-lg border border-n-weak bg-n-surface-1 text-n-slate-12 placeholder:text-n-slate-10 focus:border-n-brand focus:ring-1 focus:ring-n-brand ltr:pl-9 ltr:pr-3 rtl:pr-9 rtl:pl-3"
+          class="block w-full h-9 py-1 text-sm rounded-lg border border-n-weak bg-n-surface-1 text-n-slate-12 placeholder:text-n-slate-10 focus:border-n-brand focus:ring-1 focus:ring-n-brand ltr:pl-10 ltr:pr-12 rtl:pr-10 rtl:pl-12"
           :placeholder="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
           :aria-label="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
           data-testid="conversation-search-input"
           @input="onConversationSearchInput"
           @keydown="onConversationSearchInputKeydown"
         />
-      </div>
-      <div class="flex items-center justify-between gap-2 mt-2 min-h-5">
-        <span
-          class="text-xs tabular-nums text-n-slate-11"
-          data-testid="conversation-search-counter"
+        <button
+          v-if="conversationSearchQuery"
+          type="button"
+          class="absolute top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand ltr:right-1 rtl:left-1"
+          :aria-label="$t('CONVERSATION.SEARCH.CLEAR_SEARCH')"
+          :title="$t('CONVERSATION.SEARCH.CLEAR_SEARCH')"
+          data-testid="conversation-search-clear"
+          @click="clearConversationSearchInput"
         >
-          {{ conversationSearchCounter }}
-        </span>
-        <span
-          v-if="conversationSearchNavigationError"
-          class="text-xs text-n-ruby-11"
-          data-testid="conversation-search-error"
-        >
-          {{ conversationSearchNavigationError }}
-        </span>
+          <i class="i-lucide-x size-4" />
+        </button>
       </div>
+      <p
+        v-if="conversationSearchNavigationError"
+        class="mt-2 text-xs text-n-ruby-11"
+        data-testid="conversation-search-error"
+      >
+        {{ conversationSearchNavigationError }}
+      </p>
     </div>
 
     <div class="flex-1 min-h-0 overflow-y-auto">
@@ -486,14 +477,6 @@ export default {
       >
         {{ $t('CONVERSATION.SEARCH.NO_RESULTS') }}
       </div>
-      <div
-        v-else-if="!conversationSearchQuery"
-        class="px-4 py-6 text-sm text-center text-n-slate-11"
-        data-testid="conversation-search-empty-query"
-      >
-        {{ $t('CONVERSATION.SEARCH.START_SEARCHING') }}
-      </div>
-
       <ul
         v-if="conversationSearchResults.length"
         class="divide-y divide-n-weak"
