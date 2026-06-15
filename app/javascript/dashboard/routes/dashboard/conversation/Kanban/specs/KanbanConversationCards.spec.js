@@ -46,6 +46,15 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION_SIDEBAR.KANBAN.NO_RESULTS':
           'No results found matching your search',
         'CONVERSATION_SIDEBAR.KANBAN.SEARCH': 'Search',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE': 'Delete opportunity',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_TITLE':
+          'Delete opportunity',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_DESCRIPTION':
+          'Are you sure you want to delete this opportunity? This action cannot be undone.',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_BUTTON': 'Yes, delete',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETED': 'Opportunity deleted',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE_ERROR':
+          'Failed to delete opportunity',
       };
 
       return translations[key] || key;
@@ -61,6 +70,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     createConversationCard: vi.fn(),
     updateCardDetailsById: vi.fn(),
     updateCardLabels: vi.fn(),
+    deleteCardById: vi.fn(),
   },
 }));
 
@@ -257,6 +267,7 @@ describe('KanbanConversationCards', () => {
     KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
       data: { payload: [accountLabels[1]] },
     });
+    KanbanBoardsAPI.deleteCardById.mockResolvedValue({});
   });
 
   afterEach(() => {

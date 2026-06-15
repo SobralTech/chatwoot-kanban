@@ -7,6 +7,7 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { getKanbanStageColorClass } from 'dashboard/helper/kanbanStageColors';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import MultiselectDropdown from 'shared/components/ui/MultiselectDropdown.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { messageStamp } from 'shared/helpers/timeHelper';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -61,6 +62,9 @@ const isSavingEdit = ref(false);
 const hasPendingEditSave = ref(false);
 const editStagesAbortController = ref(null);
 const hasPendingRealtimeRefresh = ref(false);
+const deleteDialogRef = ref(null);
+const cardToDelete = ref(null);
+const isDeletingCard = ref(false);
 
 const kanbanCardRealtimeEvents = new Set([
   'kanban.card.created',
@@ -564,8 +568,23 @@ const submitEdit = async card => {
 
     const updatedCard = response.data?.payload || response.data;
     if (updatedCard?.id) {
+      const updatedStage = activeEditStages.value.find(
+        stage => Number(stage.id) === Number(updatedCard.kanban_stage_id)
+      );
+      const updatedLabels = accountLabels.value.filter(label =>
+        editLabelTitles.value.includes(label.title)
+      );
+
       cards.value = cards.value.map(existingCard =>
-        existingCard.id === updatedCard.id ? updatedCard : existingCard
+        existingCard.id === updatedCard.id
+          ? {
+              ...existingCard,
+              ...updatedCard,
+              kanban_board: existingCard.kanban_board,
+              kanban_stage: updatedStage || existingCard.kanban_stage,
+              labels: updatedLabels,
+            }
+          : existingCard
       );
     }
 
@@ -603,6 +622,39 @@ const onRemoveEditLabel = (card, title) => {
     labelTitle => labelTitle !== title
   );
   submitEdit(card);
+};
+
+const openDeleteConfirm = card => {
+  cardToDelete.value = card;
+  deleteDialogRef.value?.open();
+};
+
+const confirmDeleteCard = async () => {
+  const card = cardToDelete.value;
+  if (!card || isDeletingCard.value) return;
+
+  isDeletingCard.value = true;
+
+  try {
+    await KanbanBoardsAPI.deleteCardById(cardBoardId(card), card.id);
+
+    if (editingCardId.value === card.id) {
+      resetEditState();
+    }
+    cards.value = cards.value.filter(
+      existingCard => existingCard.id !== card.id
+    );
+
+    useAlert(t('CONVERSATION_SIDEBAR.KANBAN.DELETED'));
+    deleteDialogRef.value?.close();
+  } catch (error) {
+    useAlert(
+      getErrorMessage(error, t('CONVERSATION_SIDEBAR.KANBAN.DELETE_ERROR'))
+    );
+  } finally {
+    isDeletingCard.value = false;
+    cardToDelete.value = null;
+  }
 };
 
 const handleRealtimeKanbanEvent = eventPayload => {
@@ -817,8 +869,17 @@ onBeforeUnmount(() => {
       <li
         v-for="card in cards"
         :key="card.id"
-        class="flex flex-col gap-3 rounded-lg border border-n-weak bg-n-surface-1 p-3"
+        class="group relative flex flex-col gap-3 rounded-lg border border-n-weak bg-n-surface-1 p-3"
       >
+        <button
+          type="button"
+          class="absolute right-2 top-2 z-10 hidden size-7 items-center justify-center rounded-md text-n-slate-11 opacity-0 transition-opacity hover:bg-n-alpha-2 hover:text-n-ruby-11 group-hover:flex group-hover:opacity-100"
+          :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.DELETE')"
+          @click.stop="openDeleteConfirm(card)"
+        >
+          <span aria-hidden="true" class="i-lucide-trash-2 size-4" />
+        </button>
+
         <form
           v-if="editingCardId === card.id"
           class="flex flex-col gap-3"
@@ -1008,5 +1069,17 @@ onBeforeUnmount(() => {
         </div>
       </li>
     </ul>
+
+    <Dialog
+      ref="deleteDialogRef"
+      type="alert"
+      :title="t('CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_TITLE')"
+      :description="t('CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_DESCRIPTION')"
+      :confirm-button-label="
+        t('CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_BUTTON')
+      "
+      :is-loading="isDeletingCard"
+      @confirm="confirmDeleteCard"
+    />
   </div>
 </template>

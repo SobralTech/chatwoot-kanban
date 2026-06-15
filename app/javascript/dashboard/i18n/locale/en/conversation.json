@@ -445,7 +445,13 @@
       "SAVING": "Saving...",
       "UPDATE_ERROR": "Failed to update opportunity",
       "NO_RESULTS": "No results found matching your search",
-      "SEARCH": "Search"
+      "SEARCH": "Search",
+      "DELETE": "Delete opportunity",
+      "DELETE_CONFIRM_TITLE": "Delete opportunity",
+      "DELETE_CONFIRM_DESCRIPTION": "Are you sure you want to delete this opportunity? This action cannot be undone.",
+      "DELETE_CONFIRM_BUTTON": "Yes, delete",
+      "DELETED": "Opportunity deleted",
+      "DELETE_ERROR": "Failed to delete opportunity"
     },
     "SHARED_FILES": {
       "EMPTY": "No attachments yet",
