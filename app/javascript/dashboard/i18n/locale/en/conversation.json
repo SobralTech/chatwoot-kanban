@@ -280,6 +280,8 @@
     "ASSISTANT": {
       "LOADING": "Loading assistant history...",
       "LOAD_ERROR": "Unable to load assistant history.",
+      "LOAD_MORE": "Load older messages",
+      "THINKING": "Thinking...",
       "ASK_ERROR": "Unable to ask the assistant. Please try again.",
       "SEND_TO_CUSTOMER_ERROR": "Unable to send the assistant reply to the customer.",
       "PLACEHOLDER": "Ask an internal question for the assistant...",

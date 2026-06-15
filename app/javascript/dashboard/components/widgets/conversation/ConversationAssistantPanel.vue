@@ -26,8 +26,13 @@ const messages = ref([]);
 const question = ref('');
 const isLoading = ref(false);
 const isFetching = ref(false);
+const isLoadingMore = ref(false);
+const currentPage = ref(1);
+const totalPages = ref(1);
 const error = ref('');
 const messagesContainer = ref(null);
+
+const hasMoreMessages = computed(() => currentPage.value < totalPages.value);
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -52,7 +57,9 @@ const fetchMessages = async () => {
   isFetching.value = true;
   try {
     const { data } = await AssistantMessagesAPI.get(props.conversationId);
-    messages.value = data;
+    messages.value = data.payload;
+    currentPage.value = data.meta.current_page;
+    totalPages.value = data.meta.total_pages;
     scrollToBottom();
   } catch (e) {
     error.value = t('CONVERSATION.ASSISTANT.LOAD_ERROR');
@@ -61,11 +68,40 @@ const fetchMessages = async () => {
   }
 };
 
+const loadMoreMessages = async () => {
+  if (isLoadingMore.value || !hasMoreMessages.value) return;
+
+  isLoadingMore.value = true;
+  const container = messagesContainer.value;
+  const previousScrollHeight = container?.scrollHeight || 0;
+
+  try {
+    const { data } = await AssistantMessagesAPI.get(
+      props.conversationId,
+      currentPage.value + 1
+    );
+    messages.value = [...data.payload, ...messages.value];
+    currentPage.value = data.meta.current_page;
+    totalPages.value = data.meta.total_pages;
+
+    nextTick(() => {
+      if (container) {
+        container.scrollTop = container.scrollHeight - previousScrollHeight;
+      }
+    });
+  } catch (e) {
+    error.value = t('CONVERSATION.ASSISTANT.LOAD_ERROR');
+  } finally {
+    isLoadingMore.value = false;
+  }
+};
+
 const askAssistant = async () => {
   if (isAskDisabled.value) return;
 
   isLoading.value = true;
   error.value = '';
+  scrollToBottom();
   try {
     const { data } = await AssistantMessagesAPI.create({
       conversationId: props.conversationId,
@@ -131,10 +167,21 @@ onMounted(fetchMessages);
     </div>
 
     <div
-      v-if="messages.length"
+      v-if="messages.length || isLoading"
       ref="messagesContainer"
       class="space-y-3 max-h-72 overflow-y-auto"
     >
+      <div v-if="hasMoreMessages" class="flex justify-center">
+        <NextButton
+          slate
+          faded
+          sm
+          :is-loading="isLoadingMore"
+          :label="t('CONVERSATION.ASSISTANT.LOAD_MORE')"
+          @click="loadMoreMessages"
+        />
+      </div>
+
       <div
         v-for="message in messages"
         :key="message.id"
@@ -221,6 +268,24 @@ onMounted(fetchMessages);
         <p v-else class="text-sm text-n-ruby-9">
           {{ message.internal_note || t('CONVERSATION.ASSISTANT.ASK_ERROR') }}
         </p>
+      </div>
+
+      <div
+        v-if="isLoading"
+        class="flex items-center gap-2 rounded-lg border border-n-weak p-3"
+      >
+        <span class="text-sm text-n-slate-11">
+          {{ t('CONVERSATION.ASSISTANT.THINKING') }}
+        </span>
+        <span class="flex items-center gap-1">
+          <span
+            class="h-1.5 w-1.5 rounded-full bg-n-slate-9 animate-bounce [animation-delay:-0.3s]"
+          />
+          <span
+            class="h-1.5 w-1.5 rounded-full bg-n-slate-9 animate-bounce [animation-delay:-0.15s]"
+          />
+          <span class="h-1.5 w-1.5 rounded-full bg-n-slate-9 animate-bounce" />
+        </span>
       </div>
     </div>
 

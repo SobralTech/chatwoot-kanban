@@ -61,7 +61,12 @@ describe('ConversationAssistantPanel', () => {
     });
 
   beforeEach(() => {
-    AssistantMessagesAPI.get.mockResolvedValue({ data: [assistantMessage] });
+    AssistantMessagesAPI.get.mockResolvedValue({
+      data: {
+        payload: [assistantMessage],
+        meta: { current_page: 1, total_pages: 1 },
+      },
+    });
     AssistantMessagesAPI.create.mockResolvedValue({
       data: { ...assistantMessage, id: 2, question: 'Nova pergunta' },
     });
@@ -181,7 +186,10 @@ describe('ConversationAssistantPanel', () => {
 
   it('does not render sources section when sources are empty', async () => {
     AssistantMessagesAPI.get.mockResolvedValue({
-      data: [{ ...assistantMessage, sources: [] }],
+      data: {
+        payload: [{ ...assistantMessage, sources: [] }],
+        meta: { current_page: 1, total_pages: 1 },
+      },
     });
     const wrapper = createWrapper();
     await flushPromises();

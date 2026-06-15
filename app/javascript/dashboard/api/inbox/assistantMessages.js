@@ -6,8 +6,10 @@ class AssistantMessagesAPI extends ApiClient {
     super('conversations', { accountScoped: true });
   }
 
-  get(conversationId) {
-    return axios.get(`${this.url}/${conversationId}/assistant_messages`);
+  get(conversationId, page = 1) {
+    return axios.get(`${this.url}/${conversationId}/assistant_messages`, {
+      params: { page },
+    });
   }
 
   create({ conversationId, question }) {

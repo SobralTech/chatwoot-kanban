@@ -1,6 +1,11 @@
 class Api::V1::Accounts::Conversations::AssistantMessagesController < Api::V1::Accounts::Conversations::BaseController
+  PER_PAGE = 10
+
   def index
-    render json: serialized_assistant_messages
+    render json: {
+      payload: serialized_assistant_messages,
+      meta: { current_page: current_page, total_pages: paginated_assistant_messages.total_pages }
+    }
   end
 
   def create
@@ -38,8 +43,16 @@ class Api::V1::Accounts::Conversations::AssistantMessagesController < Api::V1::A
     @conversation.conversation_assistant_messages.where(account: Current.account, user: Current.user)
   end
 
+  def current_page
+    (params[:page] || 1).to_i
+  end
+
+  def paginated_assistant_messages
+    @paginated_assistant_messages ||= assistant_messages.order(created_at: :desc).page(current_page).per(PER_PAGE)
+  end
+
   def serialized_assistant_messages
-    assistant_messages.order(created_at: :asc).last(ConversationAssistant::AskService::MEMORY_LIMIT).map do |assistant_message|
+    paginated_assistant_messages.reverse.map do |assistant_message|
       serialized_assistant_message(assistant_message)
     end
   end
