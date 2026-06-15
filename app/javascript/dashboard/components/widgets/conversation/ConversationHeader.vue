@@ -92,10 +92,6 @@ const inbox = computed(() => {
   return store.getters['inboxes/getInbox'](inboxId);
 });
 
-const hasMultipleInboxes = computed(
-  () => store.getters['inboxes/getInboxes'].length > 1
-);
-
 const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
 
 const toggleContactDetails = () => {
@@ -145,42 +141,31 @@ const toggleContactDetails = () => {
           rounded-full
         />
         <div
-          class="flex flex-col items-start min-w-0 ml-2 overflow-hidden rtl:ml-0 rtl:mr-2"
+          class="flex flex-row items-end min-w-0 max-w-full gap-2 ml-2 overflow-hidden rtl:ml-0 rtl:mr-2"
+          data-testid="conversation-header-contact-name"
         >
-          <div
-            class="flex flex-row items-center max-w-full min-w-0 gap-1 p-0 m-0"
-            data-testid="conversation-header-contact-name"
+          <span
+            class="min-w-0 flex-1 text-base font-medium leading-tight truncate text-n-slate-12 group-hover:text-n-slate-12"
           >
-            <span
-              class="min-w-0 text-sm font-medium leading-tight truncate text-n-slate-12 group-hover:text-n-slate-12"
-            >
-              {{ currentContact.name }}
-            </span>
-            <fluent-icon
-              v-if="!isHMACVerified"
-              v-tooltip="$t('CONVERSATION.UNVERIFIED_SESSION')"
-              size="14"
-              class="text-n-amber-10 my-0 mx-0 min-w-[14px] flex-shrink-0"
-              icon="warning"
-            />
-          </div>
-
-          <div
-            class="flex items-center gap-1 overflow-hidden text-xs conversation--header--actions text-n-slate-11 text-ellipsis whitespace-nowrap"
+            {{ currentContact.name }}
+          </span>
+          <fluent-icon
+            v-if="!isHMACVerified"
+            v-tooltip="$t('CONVERSATION.UNVERIFIED_SESSION')"
+            size="14"
+            class="text-n-amber-10 my-0 mx-0 min-w-[14px] flex-shrink-0"
+            icon="warning"
+          />
+          <span v-if="isSnoozed" class="flex-shrink-0 text-xs text-n-slate-11">
+            {{ headerSeparator }}
+          </span>
+          <span
+            v-if="isSnoozed"
+            class="flex-shrink-0 text-xs font-medium text-n-amber-10"
           >
-            <span
-              class="truncate text-label-small text-n-slate-11 group-hover:text-n-slate-12"
-              data-testid="conversation-header-conversation-id"
-            >
-              {{ `#${chat.id}` }}
-            </span>
-            <span v-if="hasMultipleInboxes">{{ headerSeparator }}</span>
-            <InboxName v-if="hasMultipleInboxes" :inbox="inbox" class="!mx-0" />
-            <span v-if="isSnoozed">{{ headerSeparator }}</span>
-            <span v-if="isSnoozed" class="font-medium text-n-amber-10">
-              {{ snoozedDisplayText }}
-            </span>
-          </div>
+            {{ snoozedDisplayText }}
+          </span>
+          <InboxName :inbox="inbox" class="!mx-0 flex-shrink-0 pb-px" />
         </div>
       </div>
     </div>
