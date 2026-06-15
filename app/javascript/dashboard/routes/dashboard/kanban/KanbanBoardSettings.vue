@@ -680,9 +680,10 @@ onMounted(fetchSettings);
       <woot-modal
         v-model:show="showImportExistingConversationsModal"
         :on-close="closeImportExistingConversationsModal"
+        :show-close-button="false"
       >
         <div
-          class="flex w-full max-w-lg flex-col gap-4 rounded-lg bg-n-surface-1 p-6 text-n-slate-12"
+          class="flex w-full flex-col gap-4 rounded-lg bg-n-surface-1 p-6 text-n-slate-12"
           data-testid="kanban-import-existing-conversations-modal"
         >
           <div class="grid gap-1">
