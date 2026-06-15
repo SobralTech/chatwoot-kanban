@@ -244,6 +244,7 @@ const applyStageCardsPage = (stageId, page, shouldAppend = true) => {
       ? mergeCardsById(stage.cards, page.cards)
       : page.cards || [],
     pagination: page.pagination || stage.pagination,
+    cardsCount: page.pagination?.totalCount ?? stage.cardsCount,
   }));
 };
 
@@ -1172,7 +1173,7 @@ onUnmounted(() => {
                     <span
                       class="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
                     >
-                      {{ stage.cards.length }}
+                      {{ stage.cardsCount }}
                     </span>
                   </div>
                   <div class="flex flex-shrink-0 gap-1">
