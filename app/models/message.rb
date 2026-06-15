@@ -83,6 +83,8 @@ class Message < ApplicationRecord
   attr_accessor :echo_id
   # Transient flag used to skip waiting_since clearing for specific bot/system messages.
   attr_accessor :preserve_waiting_since
+  # Transient delay (in seconds) before SendReplyJob runs, used to stagger delivery order
+  attr_accessor :send_reply_delay
 
   enum message_type: { incoming: 0, outgoing: 1, activity: 2, template: 3 }
   enum content_type: {
@@ -397,7 +399,9 @@ class Message < ApplicationRecord
   def send_reply
     # FIXME: Giving it few seconds for the attachment to be uploaded to the service
     # active storage attaches the file only after commit
-    attachments.blank? ? ::SendReplyJob.perform_later(id) : ::SendReplyJob.set(wait: 2.seconds).perform_later(id)
+    default_delay = attachments.blank? ? 0 : 2
+    delay = send_reply_delay || default_delay
+    delay.positive? ? ::SendReplyJob.set(wait: delay.seconds).perform_later(id) : ::SendReplyJob.perform_later(id)
   end
 
   def reopen_conversation
