@@ -1,8 +1,17 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
+import { debounce } from '@chatwoot/utils';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useStore } from 'dashboard/composables/store';
 import AssistantMessagesAPI from 'dashboard/api/inbox/assistantMessages';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -17,13 +26,18 @@ const props = defineProps({
 const emit = defineEmits(['insertReply', 'sentToCustomer']);
 const { t } = useI18n();
 const { currentAccount } = useAccount();
+const store = useStore();
 
 const QUESTION_MAX_LENGTH = computed(
   () => currentAccount.value?.conversation_assistant_question_max_length || 2000
 );
 
+const questionDraftKey = `draft-assistant-question-${props.conversationId}`;
+
 const messages = ref([]);
-const question = ref('');
+const question = ref(
+  store.getters['draftMessages/get'](questionDraftKey) || ''
+);
 const isLoading = ref(false);
 const isFetching = ref(false);
 const isLoadingMore = ref(false);
@@ -51,6 +65,23 @@ const isAskDisabled = computed(() => {
     !question.value.trim() ||
     question.value.length > QUESTION_MAX_LENGTH.value
   );
+});
+
+const saveQuestionDraft = () => {
+  store.dispatch('draftMessages/set', {
+    key: questionDraftKey,
+    message: question.value,
+  });
+};
+
+const debouncedSaveQuestionDraft = debounce(saveQuestionDraft, 500, true);
+
+watch(question, () => {
+  debouncedSaveQuestionDraft();
+});
+
+onBeforeUnmount(() => {
+  saveQuestionDraft();
 });
 
 const fetchMessages = async () => {
@@ -109,6 +140,7 @@ const askAssistant = async () => {
     });
     messages.value = [...messages.value, data];
     question.value = '';
+    saveQuestionDraft();
     scrollToBottom();
   } catch (e) {
     error.value =

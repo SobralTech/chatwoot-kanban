@@ -1,4 +1,5 @@
 import { mount, flushPromises } from '@vue/test-utils';
+import { createStore } from 'vuex';
 import ConversationAssistantPanel from '../ConversationAssistantPanel.vue';
 import AssistantMessagesAPI from 'dashboard/api/inbox/assistantMessages';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -43,10 +44,20 @@ describe('ConversationAssistantPanel', () => {
     status: 'completed',
   };
 
-  const createWrapper = () =>
-    mount(ConversationAssistantPanel, {
+  const createWrapper = () => {
+    const store = createStore({
+      getters: {
+        'draftMessages/get': () => () => '',
+      },
+      actions: {
+        'draftMessages/set': vi.fn(),
+      },
+    });
+
+    return mount(ConversationAssistantPanel, {
       props: { conversationId: 12 },
       global: {
+        plugins: [store],
         stubs: {
           NextButton: {
             props: ['label', 'disabled', 'isLoading'],
@@ -59,6 +70,7 @@ describe('ConversationAssistantPanel', () => {
         },
       },
     });
+  };
 
   beforeEach(() => {
     AssistantMessagesAPI.get.mockResolvedValue({
