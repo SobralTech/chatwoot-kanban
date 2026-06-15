@@ -29,6 +29,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    showAssistant: {
+      type: Boolean,
+      default: true,
+    },
     disabled: {
       type: Boolean,
       default: false,
@@ -150,6 +154,7 @@ export default {
       :mode="mode"
       :disabled="disabled"
       :is-reply-restricted="isReplyRestricted"
+      :show-assistant="showAssistant"
       @set-mode="setReplyMode"
     />
     <div class="flex items-center mx-4 my-0">

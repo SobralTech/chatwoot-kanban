@@ -8,6 +8,11 @@ class ConversationAssistant::AskService
 
   pattr_initialize [:account!, :conversation!, :user!, :question!]
 
+  def self.available?(account)
+    account.hooks.find_by(app_id: 'openai', status: 'enabled')&.settings&.dig('api_key').present? ||
+      InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY')&.value.present?
+  end
+
   def perform
     assistant_message = build_log
     response = call_llm
@@ -28,9 +33,7 @@ class ConversationAssistant::AskService
       status: :failed,
       model: MODEL,
       internal_note: response[:error],
-      usage: response[:usage] || {},
-      web_search_used: false,
-      sources: []
+      usage: response[:usage] || {}
     )
   end
 
@@ -135,7 +138,6 @@ class ConversationAssistant::AskService
   def memory_scope
     ConversationAssistantMessage.completed
                                 .where(conversation_id: conversation.id, user_id: user.id)
-                                .where.not(id: nil)
                                 .order(created_at: :desc)
                                 .limit(MEMORY_LIMIT)
                                 .reverse

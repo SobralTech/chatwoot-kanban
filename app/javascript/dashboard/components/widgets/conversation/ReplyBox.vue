@@ -3,6 +3,7 @@ import { defineAsyncComponent, useTemplateRef } from 'vue';
 import { mapGetters } from 'vuex';
 import { useAlert } from 'dashboard/composables';
 import { useUISettings } from 'dashboard/composables/useUISettings';
+import { useAccount } from 'dashboard/composables/useAccount';
 import { useTrack } from 'dashboard/composables';
 import keyboardEventListenerMixins from 'shared/mixins/keyboardEventListenerMixins';
 
@@ -96,6 +97,7 @@ export default {
     const messageEditor = useTemplateRef('messageEditor');
     const copilot = useCopilotReply();
     const shortcutKey = useKbd(['$mod', '+', 'enter']);
+    const { currentAccount } = useAccount();
 
     return {
       uiSettings,
@@ -107,6 +109,7 @@ export default {
       messageEditor,
       copilot,
       shortcutKey,
+      currentAccount,
     };
   },
   data() {
@@ -335,6 +338,9 @@ export default {
     },
     isOnAssistant() {
       return this.replyType === REPLY_EDITOR_MODES.ASSISTANT;
+    },
+    isAssistantAvailable() {
+      return !!this.currentAccount?.conversation_assistant_available;
     },
     isOnExpandedLayout() {
       const {
@@ -1281,6 +1287,7 @@ export default {
       :mode="replyType"
       :conversation-id="conversationId"
       :is-reply-restricted="isReplyRestricted"
+      :show-assistant="isAssistantAvailable"
       :disabled="
         (copilot.isActive.value && copilot.isButtonDisabled.value) ||
         showAudioRecorderEditor
@@ -1311,7 +1318,11 @@ export default {
       leave-to-class="opacity-0 translate-y-2 scale-[0.98]"
     >
       <div
-        :key="isOnAssistant ? 'assistant' : copilot.editorTransitionKey.value"
+        :key="
+          isOnAssistant
+            ? `assistant-${conversationId}`
+            : copilot.editorTransitionKey.value
+        "
         class="reply-box__top"
       >
         <ConversationAssistantPanel
