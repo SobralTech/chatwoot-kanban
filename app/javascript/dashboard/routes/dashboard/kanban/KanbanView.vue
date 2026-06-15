@@ -15,6 +15,7 @@ import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import {
   DEFAULT_KANBAN_STAGE_COLOR,
   KANBAN_STAGE_COLOR_OPTIONS,
+  getKanbanStageBodyColorClass,
   getKanbanStageColorOption,
 } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
@@ -363,6 +364,8 @@ const getStageColorOption = getKanbanStageColorOption;
 
 const getStageHeaderClass = stage =>
   getStageColorOption(stage.color).headerClass;
+
+const getStageBodyClass = stage => getKanbanStageBodyColorClass(stage.color);
 
 const getStageColorLabel = colorOption => {
   const labels = {
@@ -917,8 +920,7 @@ const onOpportunityUpdated = updatedCard => {
 };
 
 const onOpportunityOpenConversation = card => {
-  openConversation(card, {});
-  closeOpportunityDetails();
+  openConversation(card, { ctrlKey: true });
 };
 
 watch(activeBoardId, (boardId, previousBoardId) => {
@@ -1200,7 +1202,8 @@ onUnmounted(() => {
               </header>
 
               <div
-                class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto bg-n-solid-1 p-3"
+                class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
+                :class="getStageBodyClass(stage)"
               >
                 <button
                   type="button"
@@ -1328,7 +1331,6 @@ onUnmounted(() => {
     >
       <KanbanOpportunityDetailsModal
         :board-id="selectedBoard.id"
-        :board-name="selectedBoard.name"
         :card-id="selectedOpportunityCardId"
         @close="closeOpportunityDetails"
         @updated="onOpportunityUpdated"

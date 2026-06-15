@@ -9,6 +9,7 @@ import { useAlert } from 'dashboard/composables';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
 import {
   KANBAN_STAGE_COLOR_OPTIONS,
+  getKanbanStageBodyColorClass,
   getKanbanStageColorClass,
 } from 'dashboard/helper/kanbanStageColors';
 import enKanbanMessages from 'dashboard/i18n/locale/en/kanban.json';
@@ -1038,9 +1039,13 @@ describe('KanbanView drag and drop', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    window.chatwootConfig = { hostURL: 'http://localhost:3000' };
+    vi.spyOn(window, 'open').mockImplementation(() => null);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
+    delete window.chatwootConfig;
     vi.useRealTimers();
   });
 
@@ -1577,7 +1582,7 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
   });
 
-  it('navigates to conversation on modal openConversation event', async () => {
+  it('opens conversation in a new tab on modal openConversation event', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1592,12 +1597,17 @@ describe('KanbanView drag and drop', () => {
     modal.vm.$emit('openConversation', { conversationId: 123 });
     await flushPromises();
 
-    expect(mockPush).toHaveBeenCalledWith({
+    expect(window.open).toHaveBeenCalledWith(
+      'http://localhost:3000/app/accounts/1/conversations/123',
+      '_blank',
+      'noopener noreferrer nofollow'
+    );
+    expect(mockPush).not.toHaveBeenCalledWith({
       path: '/app/accounts/1/conversations/123',
     });
   });
 
-  it('closes modal after navigating to conversation', async () => {
+  it('keeps modal open after opening conversation in a new tab', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1614,7 +1624,7 @@ describe('KanbanView drag and drop', () => {
 
     expect(
       wrapper.findComponent({ name: 'KanbanOpportunityDetailsModal' }).exists()
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 
@@ -1962,6 +1972,8 @@ describe('KanbanView header navigation', () => {
   it('keeps rendering existing stage colors and falls back to slate', () => {
     expect(getKanbanStageColorClass('blue')).toBe('bg-n-blue-9');
     expect(getKanbanStageColorClass('unexpected')).toBe('bg-n-slate-9');
+    expect(getKanbanStageBodyColorClass('blue')).toBe('bg-n-blue-2');
+    expect(getKanbanStageBodyColorClass('unexpected')).toBe('bg-n-slate-2');
   });
 
   it('shows board settings button for administrators', async () => {
