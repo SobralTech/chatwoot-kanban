@@ -8,6 +8,7 @@ import { getKanbanStageColorClass } from 'dashboard/helper/kanbanStageColors';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import MultiselectDropdown from 'shared/components/ui/MultiselectDropdown.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import NextButton from 'dashboard/components-next/button/Button.vue';
 import { messageStamp } from 'shared/helpers/timeHelper';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -700,14 +701,15 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="p-3 text-sm">
-    <button
+    <NextButton
       v-if="!isFormOpen"
-      type="button"
-      class="mb-3 inline-flex h-8 items-center rounded-md border border-n-strong px-3 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-2"
+      faded
+      xs
+      icon="i-lucide-plus"
+      class="mb-3"
+      :label="t('CONVERSATION_SIDEBAR.KANBAN.ADD')"
       @click="openForm"
-    >
-      {{ t('CONVERSATION_SIDEBAR.KANBAN.ADD') }}
-    </button>
+    />
 
     <form
       v-if="isFormOpen"
@@ -873,11 +875,11 @@ onBeforeUnmount(() => {
       >
         <button
           type="button"
-          class="absolute right-2 top-2 z-10 hidden size-7 items-center justify-center rounded-md text-n-slate-11 opacity-0 transition-opacity hover:bg-n-alpha-2 hover:text-n-ruby-11 group-hover:flex group-hover:opacity-100"
+          class="absolute right-2 top-2 z-10 hidden size-9 items-center justify-center rounded-md text-n-slate-11 opacity-0 transition-opacity hover:bg-n-alpha-2 hover:text-n-ruby-11 group-hover:flex group-hover:opacity-100"
           :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.DELETE')"
           @click.stop="openDeleteConfirm(card)"
         >
-          <span aria-hidden="true" class="i-lucide-trash-2 size-4" />
+          <span aria-hidden="true" class="i-lucide-trash-2 size-5" />
         </button>
 
         <form

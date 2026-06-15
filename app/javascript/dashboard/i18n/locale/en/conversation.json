@@ -425,7 +425,7 @@
       "LOADING": "Loading opportunities",
       "EMPTY": "No opportunities linked to this conversation",
       "ERROR": "Failed to load opportunities",
-      "ADD": "Add to Kanban",
+      "ADD": "Create new card",
       "CREATE_TITLE": "Create opportunity",
       "BOARD": "Board",
       "SUBJECT": "Subject",

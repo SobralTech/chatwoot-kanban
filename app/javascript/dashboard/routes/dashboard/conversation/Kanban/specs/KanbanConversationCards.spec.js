@@ -20,7 +20,7 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION_SIDEBAR.KANBAN.EMPTY':
           'No opportunities linked to this conversation',
         'CONVERSATION_SIDEBAR.KANBAN.ERROR': 'Failed to load opportunities',
-        'CONVERSATION_SIDEBAR.KANBAN.ADD': 'Add to Kanban',
+        'CONVERSATION_SIDEBAR.KANBAN.ADD': 'Create new card',
         'CONVERSATION_SIDEBAR.KANBAN.CREATE_TITLE': 'Create opportunity',
         'CONVERSATION_SIDEBAR.KANBAN.BOARD': 'Board',
         'CONVERSATION_SIDEBAR.KANBAN.SUBJECT': 'Subject',

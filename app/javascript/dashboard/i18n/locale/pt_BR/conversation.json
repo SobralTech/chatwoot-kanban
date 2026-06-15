@@ -409,7 +409,7 @@
       "LOADING": "Carregando oportunidades",
       "EMPTY": "Nenhuma oportunidade vinculada a esta conversa",
       "ERROR": "Falha ao carregar oportunidades",
-      "ADD": "Adicionar ao Kanban",
+      "ADD": "Criar novo card",
       "CREATE_TITLE": "Criar oportunidade",
       "BOARD": "Funil",
       "SUBJECT": "Assunto",
@@ -425,7 +425,17 @@
       "CREATE_ERROR": "Falha ao criar oportunidade",
       "CREATED": "Oportunidade criada",
       "CANCEL": "Cancelar",
-      "CREATE": "Criar"
+      "CREATE": "Criar",
+      "SAVING": "Salvando...",
+      "UPDATE_ERROR": "Falha ao atualizar oportunidade",
+      "NO_RESULTS": "Nenhum resultado encontrado para sua busca",
+      "SEARCH": "Buscar",
+      "DELETE": "Excluir oportunidade",
+      "DELETE_CONFIRM_TITLE": "Excluir oportunidade",
+      "DELETE_CONFIRM_DESCRIPTION": "Tem certeza de que deseja excluir esta oportunidade? Esta ação não pode ser desfeita.",
+      "DELETE_CONFIRM_BUTTON": "Sim, excluir",
+      "DELETED": "Oportunidade excluída",
+      "DELETE_ERROR": "Falha ao excluir oportunidade"
     },
     "SHARED_FILES": {
       "EMPTY": "Nenhum anexo ainda",
