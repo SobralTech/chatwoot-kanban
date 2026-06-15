@@ -1098,7 +1098,7 @@ describe('KanbanView drag and drop', () => {
     expect(
       emptyStageDraggable.find('[data-testid="kanban-add-item-panel"]').exists()
     ).toBe(false);
-    expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(80);
+    expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(5);
     expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
     expect(emptyStageDraggable.props('fallbackOnBody')).toBe(true);
     expect(emptyStageDraggable.props('forceFallback')).toBe(true);

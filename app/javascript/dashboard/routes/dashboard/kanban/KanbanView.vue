@@ -1229,7 +1229,7 @@ onUnmounted(() => {
                   handle=".card-drag-handle"
                   :filter="cardDragFilter"
                   :prevent-on-filter="false"
-                  :empty-insert-threshold="80"
+                  :empty-insert-threshold="5"
                   :swap-threshold="0.65"
                   fallback-on-body
                   force-fallback
