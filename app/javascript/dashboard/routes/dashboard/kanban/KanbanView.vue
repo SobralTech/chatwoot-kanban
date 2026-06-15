@@ -721,7 +721,14 @@ const onCardDragChange = async (stage, event) => {
     return;
   }
 
-  const destinationPosition = targetIndex + 1;
+  // Dropping on the last loaded slot while more cards exist beyond the
+  // page sends a position past the stage's real card count, which the
+  // backend clamps to the true end of the stage.
+  const isLastLoadedSlot = targetIndex === stage.cards.length - 1;
+  const destinationPosition =
+    isLastLoadedSlot && stage.pagination?.hasMore
+      ? Number.MAX_SAFE_INTEGER
+      : targetIndex + 1;
   const stageChanged = card.kanbanStageId !== stage.id;
   const positionChanged = card.position !== destinationPosition;
   if (!stageChanged && !positionChanged) return;
