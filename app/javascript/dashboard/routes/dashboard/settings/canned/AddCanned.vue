@@ -93,9 +93,11 @@ export default {
     },
     onStepFileChange(event, step) {
       const [file] = event.target.files;
+      if (!file) return;
       step.file = file;
-      step.file_name = file?.name || '';
+      step.file_name = file.name || '';
       step.file_blob_id = '';
+      step.step_type = file.type.startsWith('audio/') ? 'audio' : 'image';
     },
     payload() {
       const firstTextStep = this.steps.find(step => step.step_type === 'text');
@@ -228,7 +230,7 @@ export default {
             <input
               v-else
               type="file"
-              :accept="step.step_type === 'image' ? 'image/*' : 'audio/*'"
+              accept="image/*,audio/*"
               @change="onStepFileChange($event, step)"
             />
             <span v-if="step.file_name" class="text-xs text-n-slate-11">
@@ -247,15 +249,8 @@ export default {
               faded
               slate
               type="button"
-              :label="$t('CANNED_MGMT.ADD.FORM.STEPS.ADD_IMAGE')"
+              :label="$t('CANNED_MGMT.ADD.FORM.STEPS.ADD_ATTACHMENT')"
               @click.prevent="addStep('image')"
-            />
-            <NextButton
-              faded
-              slate
-              type="button"
-              :label="$t('CANNED_MGMT.ADD.FORM.STEPS.ADD_AUDIO')"
-              @click.prevent="addStep('audio')"
             />
           </div>
         </div>
