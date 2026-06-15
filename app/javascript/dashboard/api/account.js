@@ -17,10 +17,6 @@ class AccountAPI extends ApiClient {
     return response.data.cache_keys;
   }
 
-  getBranding() {
-    return axios.get(`${this.baseUrl()}/branding`);
-  }
-
   updateBranding({ assetName, file }) {
     const formData = new FormData();
     formData.append('asset_name', assetName);
