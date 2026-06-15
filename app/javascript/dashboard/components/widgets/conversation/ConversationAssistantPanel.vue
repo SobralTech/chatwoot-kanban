@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
@@ -27,6 +27,14 @@ const question = ref('');
 const isLoading = ref(false);
 const isFetching = ref(false);
 const error = ref('');
+const messagesContainer = ref(null);
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    const container = messagesContainer.value;
+    if (container) container.scrollTop = container.scrollHeight;
+  });
+};
 
 const charactersRemaining = computed(
   () => QUESTION_MAX_LENGTH.value - question.value.length
@@ -45,6 +53,7 @@ const fetchMessages = async () => {
   try {
     const { data } = await AssistantMessagesAPI.get(props.conversationId);
     messages.value = data;
+    scrollToBottom();
   } catch (e) {
     error.value = t('CONVERSATION.ASSISTANT.LOAD_ERROR');
   } finally {
@@ -64,6 +73,7 @@ const askAssistant = async () => {
     });
     messages.value = [...messages.value, data];
     question.value = '';
+    scrollToBottom();
   } catch (e) {
     error.value =
       e?.response?.data?.error || t('CONVERSATION.ASSISTANT.ASK_ERROR');
@@ -120,7 +130,11 @@ onMounted(fetchMessages);
       {{ error }}
     </div>
 
-    <div v-if="messages.length" class="space-y-3 max-h-72 overflow-y-auto">
+    <div
+      v-if="messages.length"
+      ref="messagesContainer"
+      class="space-y-3 max-h-72 overflow-y-auto"
+    >
       <div
         v-for="message in messages"
         :key="message.id"
