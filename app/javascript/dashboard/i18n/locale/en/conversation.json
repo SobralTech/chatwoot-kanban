@@ -442,10 +442,10 @@
       "CREATED": "Opportunity created",
       "CANCEL": "Cancel",
       "CREATE": "Create",
-      "SAVE": "Save",
       "SAVING": "Saving...",
       "UPDATE_ERROR": "Failed to update opportunity",
-      "UPDATED": "Opportunity updated"
+      "NO_RESULTS": "No results found matching your search",
+      "SEARCH": "Search"
     },
     "SHARED_FILES": {
       "EMPTY": "No attachments yet",

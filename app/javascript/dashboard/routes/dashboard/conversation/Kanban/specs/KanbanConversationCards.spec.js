@@ -40,11 +40,12 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION_SIDEBAR.KANBAN.CREATED': 'Opportunity created',
         'CONVERSATION_SIDEBAR.KANBAN.CANCEL': 'Cancel',
         'CONVERSATION_SIDEBAR.KANBAN.CREATE': 'Create',
-        'CONVERSATION_SIDEBAR.KANBAN.SAVE': 'Save',
         'CONVERSATION_SIDEBAR.KANBAN.SAVING': 'Saving...',
         'CONVERSATION_SIDEBAR.KANBAN.UPDATE_ERROR':
           'Failed to update opportunity',
-        'CONVERSATION_SIDEBAR.KANBAN.UPDATED': 'Opportunity updated',
+        'CONVERSATION_SIDEBAR.KANBAN.NO_RESULTS':
+          'No results found matching your search',
+        'CONVERSATION_SIDEBAR.KANBAN.SEARCH': 'Search',
       };
 
       return translations[key] || key;
@@ -70,6 +71,35 @@ vi.mock('dashboard/composables', () => ({
 vi.mock('dashboard/composables/store', () => ({
   useStore: vi.fn(),
   useMapGetter: vi.fn(),
+}));
+
+vi.mock('shared/components/ui/MultiselectDropdown.vue', () => ({
+  default: {
+    name: 'MultiselectDropdown',
+    props: {
+      options: { type: Array, default: () => [] },
+      selectedItem: { type: Object, default: () => ({}) },
+      hasThumbnail: { type: Boolean, default: true },
+      multiselectorTitle: { type: String, default: '' },
+      multiselectorPlaceholder: { type: String, default: '' },
+      noSearchResult: { type: String, default: '' },
+      inputPlaceholder: { type: String, default: '' },
+    },
+    emits: ['select'],
+    template: `
+      <div data-testid="multiselect-dropdown" :data-title="multiselectorTitle">
+        <button
+          v-for="option in options"
+          :key="option.id"
+          type="button"
+          :data-testid="'select-option-' + multiselectorTitle + '-' + option.id"
+          @click="$emit('select', option)"
+        >
+          {{ option.name }}
+        </button>
+      </div>
+    `,
+  },
 }));
 
 vi.mock('shared/components/ui/label/LabelDropdown.vue', () => ({
@@ -466,7 +496,12 @@ describe('KanbanConversationCards', () => {
       'Maria Silva - Sales Inbox'
     );
     expect(wrapper.text()).toContain('New');
-    expect(wrapper.find('select').element.value).toBe('20');
+    const stageDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
+    expect(stageDropdown.props('selectedItem')).toEqual(
+      expect.objectContaining({ id: 20 })
+    );
     expect(wrapper.find('input[type="datetime-local"]').element.value).toBe(
       '2026-06-07T21:00'
     );
@@ -560,7 +595,12 @@ describe('KanbanConversationCards', () => {
     expect(KanbanBoardsAPI.getBoards).toHaveBeenCalledWith({
       signal: expect.any(AbortSignal),
     });
-    expect(wrapper.find('select').element.value).toBe('10');
+    const boardDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Board');
+    expect(boardDropdown.props('selectedItem')).toEqual(
+      expect.objectContaining({ id: 10 })
+    );
     expect(wrapper.text()).not.toContain('Inactive');
   });
 
@@ -573,7 +613,12 @@ describe('KanbanConversationCards', () => {
     expect(KanbanBoardsAPI.showBoard).toHaveBeenCalledWith(10, {
       signal: expect.any(AbortSignal),
     });
-    expect(wrapper.findAll('select')[1].element.value).toBe('20');
+    const stageDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
+    expect(stageDropdown.props('selectedItem')).toEqual(
+      expect.objectContaining({ id: 20 })
+    );
   });
 
   it('clears the previous stage when board changes', async () => {
@@ -595,9 +640,17 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
     await openForm(wrapper);
 
-    await wrapper.find('select').setValue('11');
+    const boardDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Board');
+    await boardDropdown
+      .find('[data-testid="select-option-Board-11"]')
+      .trigger('click');
 
-    expect(wrapper.findAll('select')[1].element.value).toBe('');
+    const stageDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
+    expect(stageDropdown.props('selectedItem')).toEqual({});
   });
 
   it('prefills the subject and keeps it editable', async () => {
@@ -771,7 +824,12 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.find('input[type="text"]').element.value).toBe(
       'Maria Silva - Sales Inbox'
     );
-    expect(wrapper.find('select').element.value).toBe('20');
+    const stageDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
+    expect(stageDropdown.props('selectedItem')).toEqual(
+      expect.objectContaining({ id: 20 })
+    );
     expect(wrapper.findComponent({ name: 'LabelDropdown' }).exists()).toBe(
       true
     );
@@ -800,8 +858,6 @@ describe('KanbanConversationCards', () => {
     await openEditForm(wrapper);
     KanbanBoardsAPI.updateCardDetailsById.mockClear();
     await wrapper.find('input[type="text"]').setValue('  Updated renewal  ');
-    await flushPromises();
-    await wrapper.find('select').setValue('20');
     await flushPromises();
     await wrapper
       .find('input[type="datetime-local"]')

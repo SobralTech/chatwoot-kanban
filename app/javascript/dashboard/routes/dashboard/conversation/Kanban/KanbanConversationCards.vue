@@ -6,6 +6,7 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { getKanbanStageColorClass } from 'dashboard/helper/kanbanStageColors';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
+import MultiselectDropdown from 'shared/components/ui/MultiselectDropdown.vue';
 import { messageStamp } from 'shared/helpers/timeHelper';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -81,6 +82,16 @@ const activeEditStages = computed(() =>
 const selectedBoard = computed(() =>
   activeBoards.value.find(
     board => Number(board.id) === Number(selectedBoardId.value)
+  )
+);
+const selectedStage = computed(() =>
+  activeStages.value.find(
+    stage => Number(stage.id) === Number(selectedStageId.value)
+  )
+);
+const selectedEditStage = computed(() =>
+  activeEditStages.value.find(
+    stage => Number(stage.id) === Number(editStageId.value)
   )
 );
 const selectedLabels = computed(() =>
@@ -436,6 +447,15 @@ const onBoardChange = () => {
   loadStages(selectedBoardId.value);
 };
 
+const onSelectBoard = board => {
+  selectedBoardId.value = board.id;
+  onBoardChange();
+};
+
+const onSelectStage = stage => {
+  selectedStageId.value = stage.id;
+};
+
 const onAddLabel = label => {
   const title = label?.title || label;
   if (!title || selectedLabelTitles.value.includes(title)) return;
@@ -565,6 +585,11 @@ const submitEdit = async card => {
   }
 };
 
+const onSelectEditStage = (card, stage) => {
+  editStageId.value = stage.id;
+  submitEdit(card);
+};
+
 const onAddEditLabel = (card, label) => {
   const title = label?.title || label;
   if (!title || editLabelTitles.value.includes(title)) return;
@@ -645,23 +670,18 @@ onBeforeUnmount(() => {
         <span class="text-xs font-medium text-n-slate-11">
           {{ t('CONVERSATION_SIDEBAR.KANBAN.BOARD') }}
         </span>
-        <select
-          v-model="selectedBoardId"
-          class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
-          :disabled="isLoadingBoards || activeBoards.length === 0"
-          @change="onBoardChange"
-        >
-          <option value="">
-            {{ t('CONVERSATION_SIDEBAR.KANBAN.SELECT_BOARD') }}
-          </option>
-          <option
-            v-for="board in activeBoards"
-            :key="board.id"
-            :value="board.id"
-          >
-            {{ board.name }}
-          </option>
-        </select>
+        <MultiselectDropdown
+          :options="activeBoards"
+          :selected-item="selectedBoard"
+          :has-thumbnail="false"
+          :multiselector-title="t('CONVERSATION_SIDEBAR.KANBAN.BOARD')"
+          :multiselector-placeholder="
+            t('CONVERSATION_SIDEBAR.KANBAN.SELECT_BOARD')
+          "
+          :no-search-result="t('CONVERSATION_SIDEBAR.KANBAN.NO_RESULTS')"
+          :input-placeholder="t('CONVERSATION_SIDEBAR.KANBAN.SEARCH')"
+          @select="onSelectBoard"
+        />
       </label>
       <p v-if="isLoadingBoards" class="m-0 text-xs text-n-slate-11">
         {{ t('CONVERSATION_SIDEBAR.KANBAN.LOADING') }}
@@ -691,22 +711,18 @@ onBeforeUnmount(() => {
         <span class="text-xs font-medium text-n-slate-11">
           {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
         </span>
-        <select
-          v-model="selectedStageId"
-          class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
-          :disabled="isLoadingStages || activeStages.length === 0"
-        >
-          <option value="">
-            {{ t('CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE') }}
-          </option>
-          <option
-            v-for="stage in activeStages"
-            :key="stage.id"
-            :value="stage.id"
-          >
-            {{ stage.name }}
-          </option>
-        </select>
+        <MultiselectDropdown
+          :options="activeStages"
+          :selected-item="selectedStage"
+          :has-thumbnail="false"
+          :multiselector-title="t('CONVERSATION_SIDEBAR.KANBAN.STAGE')"
+          :multiselector-placeholder="
+            t('CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE')
+          "
+          :no-search-result="t('CONVERSATION_SIDEBAR.KANBAN.NO_RESULTS')"
+          :input-placeholder="t('CONVERSATION_SIDEBAR.KANBAN.SEARCH')"
+          @select="onSelectStage"
+        />
       </label>
       <p v-if="isLoadingStages" class="m-0 text-xs text-n-slate-11">
         {{ t('CONVERSATION_SIDEBAR.KANBAN.LOADING') }}
@@ -834,23 +850,18 @@ onBeforeUnmount(() => {
             <span class="text-xs font-medium text-n-slate-11">
               {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
             </span>
-            <select
-              v-model="editStageId"
-              class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
-              :disabled="isLoadingEditStages || activeEditStages.length === 0"
-              @change="submitEdit(card)"
-            >
-              <option value="">
-                {{ t('CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE') }}
-              </option>
-              <option
-                v-for="stage in activeEditStages"
-                :key="stage.id"
-                :value="stage.id"
-              >
-                {{ stage.name }}
-              </option>
-            </select>
+            <MultiselectDropdown
+              :options="activeEditStages"
+              :selected-item="selectedEditStage"
+              :has-thumbnail="false"
+              :multiselector-title="t('CONVERSATION_SIDEBAR.KANBAN.STAGE')"
+              :multiselector-placeholder="
+                t('CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE')
+              "
+              :no-search-result="t('CONVERSATION_SIDEBAR.KANBAN.NO_RESULTS')"
+              :input-placeholder="t('CONVERSATION_SIDEBAR.KANBAN.SEARCH')"
+              @select="stage => onSelectEditStage(card, stage)"
+            />
           </label>
 
           <p v-if="isLoadingEditStages" class="m-0 text-xs text-n-slate-11">
