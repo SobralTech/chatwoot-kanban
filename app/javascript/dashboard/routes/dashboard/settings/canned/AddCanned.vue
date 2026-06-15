@@ -101,7 +101,11 @@ export default {
       delete this.stepRecorders[index];
       this.steps.splice(index, 1);
     },
-    onStepTypeChange(step) {
+    stepTypeGroup(step) {
+      return step.step_type === 'text' ? 'text' : 'media';
+    },
+    onStepTypeGroupChange(event, step) {
+      step.step_type = event.target.value === 'text' ? 'text' : 'image';
       step.content = '';
       step.file = null;
       step.file_name = '';
@@ -239,15 +243,15 @@ export default {
                 @click.prevent="removeStep(index)"
               />
             </div>
-            <select v-model="step.step_type" @change="onStepTypeChange(step)">
+            <select
+              :value="stepTypeGroup(step)"
+              @change="onStepTypeGroupChange($event, step)"
+            >
               <option value="text">
                 {{ $t('CANNED_MGMT.ADD.FORM.STEPS.TEXT') }}
               </option>
-              <option value="image">
-                {{ $t('CANNED_MGMT.ADD.FORM.STEPS.IMAGE') }}
-              </option>
-              <option value="audio">
-                {{ $t('CANNED_MGMT.ADD.FORM.STEPS.AUDIO') }}
+              <option value="media">
+                {{ $t('CANNED_MGMT.ADD.FORM.STEPS.ATTACHMENT') }}
               </option>
             </select>
             <textarea
