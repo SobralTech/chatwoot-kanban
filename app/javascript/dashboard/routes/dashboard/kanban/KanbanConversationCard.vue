@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
-import { format } from 'date-fns';
+import { format, differenceInCalendarDays } from 'date-fns';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
@@ -78,11 +78,32 @@ const stageTime = computed(() =>
     : ''
 );
 const dueAt = computed(() => props.card.due_at || props.card.dueAt);
-const dueAtLabel = computed(() => {
-  if (!dueAt.value) return '';
+const dueAtDate = computed(() => {
+  if (!dueAt.value) return null;
 
   const dueDate = new Date(dueAt.value);
-  return Number.isNaN(dueDate.getTime()) ? '' : format(dueDate, 'MMM d');
+  return Number.isNaN(dueDate.getTime()) ? null : dueDate;
+});
+const dueAtLabel = computed(() =>
+  dueAtDate.value ? format(dueAtDate.value, 'MMM d') : ''
+);
+const dueAtStatus = computed(() => {
+  if (!dueAtDate.value) return '';
+
+  const diffInDays = differenceInCalendarDays(dueAtDate.value, new Date());
+  if (diffInDays <= 0) return 'today';
+  if (diffInDays === 1) return 'tomorrow';
+  return 'upcoming';
+});
+const dueAtClasses = computed(() => {
+  switch (dueAtStatus.value) {
+    case 'today':
+      return 'bg-n-ruby-3 text-n-ruby-11';
+    case 'tomorrow':
+      return 'bg-n-amber-3 text-n-amber-11';
+    default:
+      return 'bg-n-teal-3 text-n-teal-11';
+  }
 });
 
 const openDetails = event => {
@@ -187,14 +208,21 @@ const openConversation = event => {
 
         <div class="flex min-w-0 items-center justify-end gap-1.5">
           <span
+            v-if="dueAtLabel"
+            class="inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5"
+            :class="dueAtClasses"
+            :title="dueAt"
+          >
+            <i class="i-lucide-calendar size-3" />
+            {{ dueAtLabel }}
+          </span>
+          <span
             v-if="stageTime"
-            class="truncate"
+            class="inline-flex min-w-0 items-center gap-1 truncate"
             :title="dynamicTime(stageEnteredAt)"
           >
-            {{ stageTime }}
-          </span>
-          <span v-if="dueAtLabel" class="flex-shrink-0" :title="dueAt">
-            {{ dueAtLabel }}
+            <i class="i-lucide-clock size-3 flex-shrink-0" />
+            <span class="truncate">{{ stageTime }}</span>
           </span>
         </div>
       </div>
