@@ -21,6 +21,14 @@ vi.mock('dashboard/composables', () => ({
   useAlert: vi.fn(),
 }));
 
+vi.mock('dashboard/composables/useAccount', () => ({
+  useAccount: () => ({
+    currentAccount: {
+      value: { conversation_assistant_question_max_length: 2000 },
+    },
+  }),
+}));
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: key => key }),
 }));

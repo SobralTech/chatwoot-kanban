@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import { useAccount } from 'dashboard/composables/useAccount';
 import AssistantMessagesAPI from 'dashboard/api/inbox/assistantMessages';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -15,8 +16,11 @@ const props = defineProps({
 
 const emit = defineEmits(['insertReply', 'sentToCustomer']);
 const { t } = useI18n();
+const { currentAccount } = useAccount();
 
-const QUESTION_MAX_LENGTH = 2000;
+const QUESTION_MAX_LENGTH = computed(
+  () => currentAccount.value?.conversation_assistant_question_max_length || 2000
+);
 
 const messages = ref([]);
 const question = ref('');
@@ -25,14 +29,14 @@ const isFetching = ref(false);
 const error = ref('');
 
 const charactersRemaining = computed(
-  () => QUESTION_MAX_LENGTH - question.value.length
+  () => QUESTION_MAX_LENGTH.value - question.value.length
 );
 
 const isAskDisabled = computed(() => {
   return (
     isLoading.value ||
     !question.value.trim() ||
-    question.value.length > QUESTION_MAX_LENGTH
+    question.value.length > QUESTION_MAX_LENGTH.value
   );
 });
 
