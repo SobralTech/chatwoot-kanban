@@ -868,6 +868,24 @@ const removeStageMessageValue = computed(
   () => stagePendingRemoval.value?.name || ''
 );
 
+const getConversationPath = card =>
+  frontendURL(
+    conversationUrl({
+      accountId: route.params.accountId,
+      id: card.conversationId,
+    })
+  );
+
+const openConversationInNewTab = card => {
+  if (!card?.conversationId) return;
+
+  window.open(
+    `${window.chatwootConfig.hostURL}${getConversationPath(card)}`,
+    '_blank',
+    'noopener,noreferrer'
+  );
+};
+
 const openConversation = (card, event = {}) => {
   if (!card?.conversationId) return;
 
@@ -876,19 +894,10 @@ const openConversation = (card, event = {}) => {
     return;
   }
 
-  const path = frontendURL(
-    conversationUrl({
-      accountId: route.params.accountId,
-      id: card.conversationId,
-    })
-  );
+  const path = getConversationPath(card);
 
   if (event.metaKey || event.ctrlKey) {
-    window.open(
-      `${window.chatwootConfig.hostURL}${path}`,
-      '_blank',
-      'noopener noreferrer nofollow'
-    );
+    openConversationInNewTab(card);
     return;
   }
 
@@ -920,7 +929,7 @@ const onOpportunityUpdated = updatedCard => {
 };
 
 const onOpportunityOpenConversation = card => {
-  openConversation(card, { ctrlKey: true });
+  openConversationInNewTab(card);
 };
 
 watch(activeBoardId, (boardId, previousBoardId) => {

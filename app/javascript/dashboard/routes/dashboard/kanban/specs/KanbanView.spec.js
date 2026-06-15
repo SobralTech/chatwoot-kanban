@@ -1600,7 +1600,7 @@ describe('KanbanView drag and drop', () => {
     expect(window.open).toHaveBeenCalledWith(
       'http://localhost:3000/app/accounts/1/conversations/123',
       '_blank',
-      'noopener noreferrer nofollow'
+      'noopener,noreferrer'
     );
     expect(mockPush).not.toHaveBeenCalledWith({
       path: '/app/accounts/1/conversations/123',

@@ -288,7 +288,7 @@ onMounted(() => {
     class="mx-auto flex max-h-[92vh] w-full max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl bg-n-background xl:max-w-[96rem] 2xl:max-w-[118rem]"
   >
     <div
-      class="flex items-center justify-between gap-4 border-b border-n-weak px-5 py-4"
+      class="flex items-center justify-between gap-4 border-b border-n-weak px-2 py-4"
     >
       <div class="min-w-0">
         <h2 class="mb-0 truncate text-base font-semibold text-n-slate-12">
@@ -314,7 +314,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="overflow-auto px-5 py-4">
+    <div class="overflow-auto px-2 py-4">
       <p
         v-if="isLoading"
         data-testid="kanban-opportunity-loading"
