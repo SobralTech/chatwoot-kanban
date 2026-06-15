@@ -5,7 +5,7 @@ RSpec.describe ConversationAssistant::AskService do
   let(:inbox) { create(:inbox, account: account) }
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
   let(:user) { create(:user, account: account, role: :agent) }
-  let(:question) { 'Esse roteador e Wi-Fi 6?' }
+  let(:question) { 'Esse roteador TL-WR841N e Wi-Fi 6?' }
   let(:service) { described_class.new(account: account, conversation: conversation, user: user, question: question) }
   let(:responses_endpoint) { 'https://api.openai.com/v1/responses' }
 
@@ -36,7 +36,7 @@ RSpec.describe ConversationAssistant::AskService do
       expect(assistant_message.suggested_reply).to eq('Esse modelo possui suporte a Wi-Fi 6.')
     end
 
-    it 'allows the model to decide web search automatically' do
+    it 'allows the model to decide web search automatically when the question mentions a model' do
       request = stub_openai_response(
         output_text: {
           suggested_reply: 'Resposta curta.',
@@ -47,6 +47,30 @@ RSpec.describe ConversationAssistant::AskService do
       )
 
       service.perform
+
+      expect(request).to have_been_requested
+    end
+
+    it 'does not enable the web search tool for generic questions without a model reference' do
+      generic_service = described_class.new(account: account, conversation: conversation, user: user,
+                                            question: 'Como faço para emitir nota fiscal para o cliente?')
+      request = stub_request(:post, responses_endpoint)
+                .with { |request_data| JSON.parse(request_data.body).key?('tools') == false }
+                .to_return(
+                  status: 200,
+                  body: responses_body(
+                    output_text: {
+                      suggested_reply: 'Resposta geral.',
+                      internal_note: '',
+                      web_search_used: false,
+                      sources: []
+                    }.to_json,
+                    usage: {}, annotations: [], web_search_used: false
+                  ).to_json,
+                  headers: { 'Content-Type' => 'application/json' }
+                )
+
+      generic_service.perform
 
       expect(request).to have_been_requested
     end

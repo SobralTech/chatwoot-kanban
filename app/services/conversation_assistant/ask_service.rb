@@ -2,7 +2,7 @@ class ConversationAssistant::AskService
   include Integrations::LlmInstrumentation
   include Llm::ExceptionTrackable
 
-  MEMORY_LIMIT = 10
+  MEMORY_LIMIT = 4
   MODEL = 'gpt-4.1-mini'.freeze
   MAX_SOURCES = 5
 
@@ -89,7 +89,8 @@ class ConversationAssistant::AskService
       api_key: credential[:api_key],
       api_base: api_base,
       model: MODEL,
-      messages: messages
+      messages: messages,
+      web_search: ConversationAssistant::WebSearchDetector.required?(question)
     ).perform
   rescue StandardError => e
     capture_llm_exception(e, credential: credential)
