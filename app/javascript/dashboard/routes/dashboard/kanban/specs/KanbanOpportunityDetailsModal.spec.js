@@ -285,7 +285,7 @@ describe('KanbanOpportunityDetailsModal', () => {
         'mx-auto',
         'w-full',
         'max-w-[calc(100vw-1rem)]',
-        '2xl:max-w-[110rem]',
+        '2xl:max-w-[118rem]',
       ])
     );
     expect(
@@ -293,7 +293,7 @@ describe('KanbanOpportunityDetailsModal', () => {
     ).toContain('grid');
     expect(
       wrapper.find('[data-testid="kanban-opportunity-layout"]').classes()
-    ).toContain('xl:grid-cols-[minmax(0,5fr)_minmax(20rem,1.4fr)]');
+    ).toContain('xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]');
   });
 
   it('renders title and description controls at full width', async () => {

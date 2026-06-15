@@ -285,7 +285,7 @@ onMounted(() => {
 
 <template>
   <div
-    class="mx-auto flex max-h-[92vh] w-full max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl bg-n-background xl:max-w-[88rem] 2xl:max-w-[110rem]"
+    class="mx-auto flex max-h-[92vh] w-full max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl bg-n-background xl:max-w-[96rem] 2xl:max-w-[118rem]"
   >
     <div
       class="flex items-center justify-between gap-4 border-b border-n-weak px-5 py-4"
@@ -339,7 +339,7 @@ onMounted(() => {
       >
         <div
           data-testid="kanban-opportunity-layout"
-          class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,5fr)_minmax(20rem,1.4fr)]"
+          class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]"
         >
           <section class="grid min-w-0 content-start gap-4">
             <NextInput
