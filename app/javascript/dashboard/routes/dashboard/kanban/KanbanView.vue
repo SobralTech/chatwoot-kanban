@@ -271,9 +271,10 @@ const fetchStageCardsPage = async (stageId, params) => {
 };
 
 const reloadStageCards = async stageId => {
-  const page = await fetchStageCardsPage(stageId, {
-    limit: stageCardsPageLimit,
-  });
+  const stage = stages.value.find(item => item.id === stageId);
+  const limit = Math.max(stageCardsPageLimit, stage?.cards?.length || 0);
+
+  const page = await fetchStageCardsPage(stageId, { limit });
   applyStageFirstPage(stageId, page);
 };
 
