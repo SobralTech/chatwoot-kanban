@@ -33,8 +33,11 @@ class Api::V1::Accounts::Conversations::AssistantMessagesController < Api::V1::A
     ).perform
 
     render json: serialized_assistant_message(assistant_message.reload).merge(message: message.push_event_data)
-  rescue StandardError => e
+  rescue ConversationAssistant::SendToCustomerService::ValidationError => e
     render_could_not_create_error(e.message)
+  rescue StandardError => e
+    Rails.logger.error("[ConversationAssistant] send_to_customer failed: #{e.message}")
+    render_could_not_create_error(I18n.t('errors.conversation_assistant.send_failed'))
   end
 
   private

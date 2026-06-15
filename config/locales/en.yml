@@ -64,6 +64,11 @@ en:
       email_already_exists: 'You have already signed up for an account with %{email}'
       invalid_params: 'Invalid, please check the signup paramters and try again'
       failed: Signup failed
+    conversation_assistant:
+      not_ready: 'Assistant response is not ready yet'
+      suggested_reply_blank: 'Suggested reply is blank'
+      outside_messaging_window: 'You cannot send this reply because the messaging window with the customer has expired'
+      send_failed: 'Could not send the message to the customer'
     voice:
       call_already_accepted: '%{agent_name} is already handling the call.'
     assignment_policy:
