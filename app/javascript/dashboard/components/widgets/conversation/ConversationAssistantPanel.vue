@@ -227,7 +227,7 @@ onMounted(fetchMessages);
     <form class="space-y-2" @submit.prevent="askAssistant">
       <textarea
         v-model="question"
-        class="w-full min-h-24 rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+        class="assistant-question-input w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
         :placeholder="t('CONVERSATION.ASSISTANT.PLACEHOLDER')"
         @keydown.enter="handleQuestionKeydown"
       />
@@ -251,3 +251,23 @@ onMounted(fetchMessages);
     </form>
   </div>
 </template>
+
+<style lang="scss" scoped>
+.resizable-editor-wrapper {
+  .assistant-question-input {
+    min-height: clamp(
+      var(--editor-min-allowed, 5rem),
+      var(--editor-height, 5rem),
+      var(--editor-max-allowed, 7.5rem)
+    );
+    max-height: clamp(
+      var(--editor-min-allowed, 5rem),
+      var(--editor-height, 5rem),
+      var(--editor-max-allowed, 7.5rem)
+    );
+    transition:
+      min-height var(--editor-height-transition, 180ms ease),
+      max-height var(--editor-height-transition, 180ms ease);
+  }
+}
+</style>
