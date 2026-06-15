@@ -55,6 +55,7 @@ const stagePendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
 const showRemoveStageConfirmation = ref(false);
 const isCardDragging = ref(false);
+const pendingRealtimeKanbanEvents = ref([]);
 const hasCardDragChanged = ref(false);
 const suppressNextCardClick = ref(false);
 const isPersistingCardDrag = ref(false);
@@ -622,6 +623,81 @@ const onStageDragEnd = async event => {
   await reorderStageByPosition(stage, newIndex + 1);
 };
 
+const handleRealtimeCardUpdated = async data => {
+  if (Object.keys(currentFilterParams()).length > 0) {
+    await refreshStageFirstPage(data.stage_id);
+    return;
+  }
+
+  try {
+    const response = await KanbanBoardsAPI.showCardById(
+      selectedBoard.value.id,
+      data.card_id
+    );
+    const card = normalizePayload(response.data);
+
+    if (card.active === false || !patchVisibleCard(card)) {
+      await refreshStageFirstPage(data.stage_id);
+    }
+  } catch {
+    await refreshStageFirstPage(data.stage_id);
+  }
+};
+
+const processRealtimeKanbanEvent = (event, data) => {
+  if (boardRefreshEvents.has(event)) {
+    refreshSelectedBoard();
+    return;
+  }
+
+  if (event === 'kanban.card.created' || event === 'kanban.card.deleted') {
+    refreshStageFirstPage(data.stage_id);
+    return;
+  }
+
+  if (event === 'kanban.card.reordered') {
+    if (data.source_stage_id === data.target_stage_id) {
+      refreshStageFirstPage(data.source_stage_id);
+      return;
+    }
+
+    refreshStageFirstPages([data.source_stage_id, data.target_stage_id]);
+    return;
+  }
+
+  if (event === 'kanban.card.updated') {
+    handleRealtimeCardUpdated(data);
+  }
+};
+
+const flushPendingRealtimeKanbanEvents = () => {
+  if (!pendingRealtimeKanbanEvents.value.length) return;
+
+  const events = pendingRealtimeKanbanEvents.value;
+  pendingRealtimeKanbanEvents.value = [];
+
+  events.forEach(({ event, data }) => {
+    if (!selectedBoard.value?.id || data?.board_id !== selectedBoard.value.id) {
+      return;
+    }
+
+    processRealtimeKanbanEvent(event, data);
+  });
+};
+
+const handleRealtimeKanbanEvent = ({ event, data } = {}) => {
+  if (!selectedBoard.value?.id || data?.board_id !== selectedBoard.value.id) {
+    return;
+  }
+
+  if (isCardDragging.value) {
+    pendingRealtimeKanbanEvents.value.push({ event, data });
+    return;
+  }
+
+  processRealtimeKanbanEvent(event, data);
+};
+
 const onCardDragStart = () => {
   isCardDragging.value = true;
   hasCardDragChanged.value = false;
@@ -684,6 +760,7 @@ const onCardDragEnd = () => {
 
   isCardDragging.value = false;
   hasCardDragChanged.value = false;
+  flushPendingRealtimeKanbanEvents();
 };
 
 const openRemoveCardConfirmation = card => {
@@ -833,57 +910,6 @@ const onOpportunityUpdated = updatedCard => {
 const onOpportunityOpenConversation = card => {
   openConversation(card, {});
   closeOpportunityDetails();
-};
-
-const handleRealtimeCardUpdated = async data => {
-  if (Object.keys(currentFilterParams()).length > 0) {
-    await refreshStageFirstPage(data.stage_id);
-    return;
-  }
-
-  try {
-    const response = await KanbanBoardsAPI.showCardById(
-      selectedBoard.value.id,
-      data.card_id
-    );
-    const card = normalizePayload(response.data);
-
-    if (card.active === false || !patchVisibleCard(card)) {
-      await refreshStageFirstPage(data.stage_id);
-    }
-  } catch {
-    await refreshStageFirstPage(data.stage_id);
-  }
-};
-
-const handleRealtimeKanbanEvent = ({ event, data } = {}) => {
-  if (!selectedBoard.value?.id || data?.board_id !== selectedBoard.value.id) {
-    return;
-  }
-
-  if (boardRefreshEvents.has(event)) {
-    refreshSelectedBoard();
-    return;
-  }
-
-  if (event === 'kanban.card.created' || event === 'kanban.card.deleted') {
-    refreshStageFirstPage(data.stage_id);
-    return;
-  }
-
-  if (event === 'kanban.card.reordered') {
-    if (data.source_stage_id === data.target_stage_id) {
-      refreshStageFirstPage(data.source_stage_id);
-      return;
-    }
-
-    refreshStageFirstPages([data.source_stage_id, data.target_stage_id]);
-    return;
-  }
-
-  if (event === 'kanban.card.updated') {
-    handleRealtimeCardUpdated(data);
-  }
 };
 
 watch(activeBoardId, (boardId, previousBoardId) => {
