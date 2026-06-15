@@ -49,6 +49,8 @@
           "TEXT_PLACEHOLDER": "Write the message to send.",
           "ADD_TEXT": "Add text",
           "ADD_ATTACHMENT": "Attach file",
+          "RECORD_AUDIO": "Record audio",
+          "STOP_RECORDING": "Stop recording",
           "REMOVE": "Remove"
         },
         "SUBMIT": "Submit"
@@ -86,6 +88,8 @@
           "TEXT_PLACEHOLDER": "Write the message to send.",
           "ADD_TEXT": "Add text",
           "ADD_ATTACHMENT": "Attach file",
+          "RECORD_AUDIO": "Record audio",
+          "STOP_RECORDING": "Stop recording",
           "REMOVE": "Remove"
         },
         "SUBMIT": "Submit"
