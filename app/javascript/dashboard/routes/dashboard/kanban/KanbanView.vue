@@ -119,8 +119,15 @@ const stageListModel = computed({
     selectedBoard.value = { ...selectedBoard.value, stages: nextStages };
   },
 });
+const hasActiveFilters = computed(
+  () =>
+    selectedInboxIds.value.length > 0 || selectedAssigneeIds.value.length > 0
+);
 const isCardDragDisabled = computed(
-  () => isPersistingCardDrag.value || !!activeActionKey.value
+  () =>
+    isPersistingCardDrag.value ||
+    !!activeActionKey.value ||
+    hasActiveFilters.value
 );
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
@@ -1187,6 +1194,11 @@ onUnmounted(() => {
                   :list="stage.cards"
                   item-key="id"
                   class="flex min-h-48 flex-1 flex-col gap-2 rounded-md"
+                  :title="
+                    hasActiveFilters
+                      ? t('KANBAN.ACTIONS.REORDER_DISABLED_FILTERED')
+                      : undefined
+                  "
                   :group="{ name: 'kanban-cards' }"
                   handle=".card-drag-handle"
                   :filter="cardDragFilter"

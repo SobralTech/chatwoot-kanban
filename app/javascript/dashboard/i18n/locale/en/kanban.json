@@ -79,6 +79,7 @@
       "REORDER_STAGE_ERROR": "Could not reorder the kanban stage.",
       "REORDER_CARD_SUCCESS": "Card reordered.",
       "REORDER_CARD_ERROR": "Could not reorder the card.",
+      "REORDER_DISABLED_FILTERED": "Clear the inbox/agent filters to reorder cards.",
       "REMOVE_STAGE_SUCCESS": "Kanban stage removed.",
       "REMOVE_STAGE_ERROR": "Could not remove the kanban stage.",
       "REMOVE_STAGE_NOT_EMPTY": "Move or remove all cards before removing this stage."
