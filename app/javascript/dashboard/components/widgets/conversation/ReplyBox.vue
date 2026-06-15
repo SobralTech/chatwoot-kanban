@@ -979,7 +979,7 @@ export default {
     insertAssistantReply(content) {
       this.setReplyMode(REPLY_EDITOR_MODES.REPLY);
       this.$nextTick(() => {
-        this.message = content;
+        this.message = this.message ? `${this.message}\n\n${content}` : content;
         this.onFocus();
       });
     },
