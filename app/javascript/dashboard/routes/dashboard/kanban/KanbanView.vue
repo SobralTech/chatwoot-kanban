@@ -1231,6 +1231,7 @@ onUnmounted(() => {
                   :prevent-on-filter="false"
                   :empty-insert-threshold="5"
                   :swap-threshold="0.65"
+                  :inverted-swap-threshold="1"
                   fallback-on-body
                   force-fallback
                   :disabled="isCardDragDisabled"

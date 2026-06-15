@@ -314,6 +314,10 @@ const mountView = async (
               type: Number,
               default: 1,
             },
+            invertedSwapThreshold: {
+              type: Number,
+              default: 1,
+            },
             fallbackOnBody: {
               type: Boolean,
               default: false,
@@ -1100,6 +1104,7 @@ describe('KanbanView drag and drop', () => {
     ).toBe(false);
     expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(5);
     expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
+    expect(emptyStageDraggable.props('invertedSwapThreshold')).toBe(1);
     expect(emptyStageDraggable.props('fallbackOnBody')).toBe(true);
     expect(emptyStageDraggable.props('forceFallback')).toBe(true);
   });
