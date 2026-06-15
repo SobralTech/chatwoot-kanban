@@ -340,7 +340,9 @@ onMounted(fetchSettings);
 
 <template>
   <main class="flex h-full min-h-0 w-full bg-n-surface-1 text-n-slate-12">
-    <div class="flex w-full flex-col gap-6 overflow-y-auto p-8">
+    <div
+      class="no-scrollbar mx-auto flex h-full w-full flex-col gap-6 overflow-y-auto px-4 py-6 sm:px-6 lg:w-4/5 lg:px-8 xl:w-3/4"
+    >
       <header class="flex items-center justify-between gap-4">
         <div class="min-w-0">
           <h1 class="text-2xl font-medium text-n-slate-12">
@@ -512,19 +514,21 @@ onMounted(fetchSettings);
                   class="stage-drag-handle flex cursor-grab items-center gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2"
                 >
                   <span class="i-lucide-grip-vertical size-4 text-n-slate-10" />
-                  <span
-                    class="size-4 flex-none rounded-full"
-                    :class="getStageColorClass(stage)"
-                  />
-                  <span class="min-w-0 truncate text-sm text-n-slate-12">
-                    {{ stage.name }}
-                  </span>
-                  <span
-                    data-testid="kanban-settings-stage-card-count"
-                    class="ml-auto flex-none rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
-                  >
-                    {{ getStageCardsCount(stage) }}
-                  </span>
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span
+                      class="size-4 flex-none rounded-full"
+                      :class="getStageColorClass(stage)"
+                    />
+                    <span class="min-w-0 truncate text-sm text-n-slate-12">
+                      {{ stage.name }}
+                    </span>
+                    <span
+                      data-testid="kanban-settings-stage-card-count"
+                      class="flex-none rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
+                    >
+                      {{ getStageCardsCount(stage) }}
+                    </span>
+                  </div>
                 </div>
               </template>
             </Draggable>
