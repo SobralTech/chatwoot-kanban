@@ -92,6 +92,7 @@ export default {
       conversationPanel: null,
       hasUserScrolled: false,
       isProgrammaticScroll: false,
+      programmaticScrollTimer: null,
       messageSentSinceOpened: false,
       labelSuggestions: [],
     };
@@ -358,6 +359,7 @@ export default {
     },
     removeScrollListener() {
       this.conversationPanel.removeEventListener('scroll', this.handleScroll);
+      clearTimeout(this.programmaticScrollTimer);
     },
     scrollToBottom() {
       this.isProgrammaticScroll = true;
@@ -430,14 +432,20 @@ export default {
 
     handleScroll(e) {
       if (this.isProgrammaticScroll) {
-        // Reset the flag
-        this.isProgrammaticScroll = false;
         this.hasUserScrolled = false;
+        // A smooth scrollIntoView fires scroll events for the duration of its
+        // animation. Only clear the flag once those events go quiet, so the
+        // in-flight animation isn't mistaken for a user scroll and doesn't
+        // race with a previous-messages fetch adjusting scrollTop mid-animation.
+        clearTimeout(this.programmaticScrollTimer);
+        this.programmaticScrollTimer = setTimeout(() => {
+          this.isProgrammaticScroll = false;
+        }, 150);
       } else {
         this.hasUserScrolled = true;
+        this.fetchPreviousMessages(e.target.scrollTop);
       }
       emitter.emit(BUS_EVENTS.ON_MESSAGE_LIST_SCROLL);
-      this.fetchPreviousMessages(e.target.scrollTop);
     },
 
     makeMessagesRead() {

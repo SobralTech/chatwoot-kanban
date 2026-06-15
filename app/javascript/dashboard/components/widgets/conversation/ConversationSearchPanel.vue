@@ -5,6 +5,8 @@ import MessageApi from 'dashboard/api/inbox/message';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import { highlightSearchTerm } from 'shared/helpers/highlightSearchTerm.js';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 export default {
   components: {
@@ -305,14 +307,7 @@ export default {
           return;
         }
 
-        await new Promise(resolve => {
-          this.$nextTick(() => {
-            document
-              .getElementById(`message${messageId}`)
-              ?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
-            resolve();
-          });
-        });
+        emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId });
       } catch (error) {
         if (
           this.isAbortError(error) ||

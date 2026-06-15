@@ -4,6 +4,8 @@ import { nextTick } from 'vue';
 
 import ConversationSearchPanel from '../ConversationSearchPanel.vue';
 import MessageApi from 'dashboard/api/inbox/message';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 import enConversationMessages from '../../../../i18n/locale/en/conversation.json';
 import ptBRConversationMessages from '../../../../i18n/locale/pt_BR/conversation.json';
 
@@ -392,19 +394,14 @@ describe('ConversationSearchPanel', () => {
   });
 
   it('scrolls to the merged result after render', async () => {
-    const scrollIntoView = vi.fn();
-    const messageElement = document.createElement('div');
-    messageElement.id = 'message2';
-    messageElement.scrollIntoView = scrollIntoView;
-    document.body.appendChild(messageElement);
+    const emitSpy = vi.spyOn(emitter, 'emit');
     createWrapper();
     wrapper.vm.conversationSearchResults = [{ id: 2 }];
 
     await wrapper.vm.selectConversationSearchResult(0);
 
-    expect(scrollIntoView).toHaveBeenCalledWith({
-      behavior: 'smooth',
-      block: 'nearest',
+    expect(emitSpy).toHaveBeenCalledWith(BUS_EVENTS.SCROLL_TO_MESSAGE, {
+      messageId: 2,
     });
   });
 
@@ -457,11 +454,7 @@ describe('ConversationSearchPanel', () => {
 
   it('does not scroll for stale result navigation responses', async () => {
     let resolveFirst;
-    const scrollIntoView = vi.fn();
-    const messageElement = document.createElement('div');
-    messageElement.id = 'message2';
-    messageElement.scrollIntoView = scrollIntoView;
-    document.body.appendChild(messageElement);
+    const emitSpy = vi.spyOn(emitter, 'emit');
     mergeConversationMessageWindow = vi
       .fn()
       .mockReturnValueOnce(
@@ -481,7 +474,10 @@ describe('ConversationSearchPanel', () => {
     resolveFirst();
     await firstNavigation;
 
-    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(emitSpy).not.toHaveBeenCalledWith(
+      BUS_EVENTS.SCROLL_TO_MESSAGE,
+      expect.anything()
+    );
   });
 
   it('closes with X and Escape', async () => {
