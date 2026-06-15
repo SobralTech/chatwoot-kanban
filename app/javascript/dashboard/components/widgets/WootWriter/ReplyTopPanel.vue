@@ -165,7 +165,7 @@ export default {
       </div>
     </div>
     <div v-if="captainTasksEnabled" class="flex items-center gap-2">
-      <div class="relative">
+      <div v-if="mode !== REPLY_EDITOR_MODES.ASSISTANT" class="relative">
         <NextButton
           ref="copilotToggleRef"
           ghost
