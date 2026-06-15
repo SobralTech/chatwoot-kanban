@@ -25,7 +25,7 @@
       "REMOVE": "Remove",
       "UPDATE": {
         "SUCCESS": "Branding image updated successfully",
-        "ERROR": "Could not update branding image. Use PNG, JPG, WEBP, GIF, SVG, or ICO under 512 KB."
+        "ERROR": "Could not update branding image. Use PNG, JPG, WEBP, GIF, or ICO under 512 KB."
       },
       "DELETE": {
         "SUCCESS": "Branding image removed successfully",
@@ -34,17 +34,17 @@
       "ASSETS": {
         "LOGO": {
           "TITLE": "Logo",
-          "DESCRIPTION": "Used for light backgrounds and standard dashboard placements.",
-          "RECOMMENDATION": "Recommended: SVG or PNG, 240 x 60 px, up to 512 KB."
+          "DESCRIPTION": "Shown in the sidebar when light mode is active.",
+          "RECOMMENDATION": "Recommended: PNG or WEBP, 240 x 60 px, up to 512 KB."
         },
         "LOGO_DARK": {
           "TITLE": "Dark mode logo",
-          "DESCRIPTION": "Used on dark backgrounds so the brand remains readable.",
-          "RECOMMENDATION": "Recommended: SVG or PNG, 240 x 60 px, up to 512 KB."
+          "DESCRIPTION": "Shown in the sidebar when dark mode is active. Falls back to the logo above if not set.",
+          "RECOMMENDATION": "Recommended: PNG or WEBP, 240 x 60 px, up to 512 KB."
         },
         "FAVICON": {
           "TITLE": "Favicon",
-          "DESCRIPTION": "Used as the browser tab icon and compact brand mark.",
+          "DESCRIPTION": "Shown as the browser tab icon for this account.",
           "RECOMMENDATION": "Recommended: PNG or ICO, 512 x 512 px, up to 512 KB."
         }
       }

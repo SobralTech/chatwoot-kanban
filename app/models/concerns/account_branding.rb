@@ -7,12 +7,14 @@ module AccountBranding
     logo_dark: 'logo_dark',
     favicon: 'favicon'
   }.freeze
+  # SVG is intentionally excluded: ActiveStorage always forces
+  # Content-Disposition: attachment for image/svg+xml (XSS prevention), so an
+  # uploaded SVG would never render inline via <img>/<link>.
   ALLOWED_BRANDING_CONTENT_TYPES = %w[
     image/jpeg
     image/png
     image/gif
     image/webp
-    image/svg+xml
     image/x-icon
     image/vnd.microsoft.icon
   ].freeze
@@ -30,7 +32,7 @@ module AccountBranding
     asset = public_send(asset_name)
     return unless asset.attached?
 
-    url_for(asset)
+    rails_blob_path(asset, only_path: true)
   end
 
   private

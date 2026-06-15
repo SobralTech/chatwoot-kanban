@@ -12,6 +12,13 @@ Rails.application.config.active_storage.content_types_allowed_inline += %w[
   audio/x-wav
 ]
 
+# Allow WEBP and ICO images (e.g. account branding logos/favicons) to serve
+# inline as <img>/<link> sources instead of forcing a download.
+Rails.application.config.active_storage.content_types_allowed_inline += %w[
+  image/webp
+  image/x-icon
+]
+
 module ActiveStorageDirectUploadMetadataFilter
   INTERNAL_METADATA_KEYS = %w[identified analyzed composed].freeze
 
