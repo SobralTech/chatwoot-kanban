@@ -63,6 +63,7 @@ class KanbanCards::ImportExistingConversationsService
         WHERE #{KanbanCard.quoted_table_name}.kanban_board_id = #{board_id}
           AND #{KanbanCard.quoted_table_name}.origin = 'conversation'
           AND #{KanbanCard.quoted_table_name}.active = FALSE
+          AND #{KanbanCard.quoted_table_name}.explicitly_deleted = FALSE
       )
     SQL
   end
@@ -83,7 +84,7 @@ class KanbanCards::ImportExistingConversationsService
         (#{insert_columns.join(', ')})
       #{insert_select_sql(batch)}
       ON CONFLICT (kanban_board_id, conversation_id, inbox_id, normalized_subject)
-        WHERE origin = 'conversation' AND conversation_id IS NOT NULL AND normalized_subject IS NOT NULL
+        WHERE active = true AND origin = 'conversation' AND conversation_id IS NOT NULL AND normalized_subject IS NOT NULL
         DO NOTHING
       RETURNING id
     SQL
@@ -102,6 +103,7 @@ class KanbanCards::ImportExistingConversationsService
       origin
       position
       active
+      explicitly_deleted
       stage_entered_at
       created_at
       updated_at
@@ -136,6 +138,7 @@ class KanbanCards::ImportExistingConversationsService
       "'conversation'",
       "(#{max_position_sql}) + ROW_NUMBER() OVER (ORDER BY conversations.id)",
       'TRUE',
+      'FALSE',
       timestamp,
       timestamp,
       timestamp
@@ -161,7 +164,6 @@ class KanbanCards::ImportExistingConversationsService
 
   def eligible_conversations
     relation = Conversation
-               .open
                .where(account_id: account.id)
                .where.not(contact_id: nil)
                .where.not(inbox_id: nil)
@@ -190,6 +192,7 @@ class KanbanCards::ImportExistingConversationsService
     KanbanCard.conversation
               .where(kanban_board_id: kanban_board.id)
               .where('kanban_cards.conversation_id = conversations.id')
+              .where('kanban_cards.active = true OR kanban_cards.explicitly_deleted = true')
               .select('1')
   end
 

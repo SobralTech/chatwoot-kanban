@@ -32,7 +32,7 @@
 #  index_kanban_cards_on_account_id_and_inbox_id      (account_id,inbox_id)
 #  index_kanban_cards_on_board_stage_position         (kanban_board_id,kanban_stage_id,position)
 #  index_kanban_cards_on_conversation_id              (conversation_id)
-#  index_kanban_cards_on_conversation_subject_unique  (kanban_board_id,conversation_id,inbox_id,normalized_subject) UNIQUE WHERE (((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL) AND (normalized_subject IS NOT NULL))
+#  index_kanban_cards_on_conversation_subject_unique  (kanban_board_id,conversation_id,inbox_id,normalized_subject) UNIQUE WHERE ((active = true) AND ((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL) AND (normalized_subject IS NOT NULL))
 #  index_kanban_cards_on_kanban_board_id_and_active   (kanban_board_id,active)
 #
 # rubocop:enable Layout/LineLength
@@ -117,7 +117,7 @@ class KanbanCard < ApplicationRecord
       self.class.lock_reorder_stages!([stage.id])
       self.class.lock_active_cards_for_stages!(kanban_board, [stage.id])
 
-      self.class.where(id: id).update_all(active: false, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+      self.class.where(id: id).update_all(active: false, explicitly_deleted: true, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
       self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: stage)
       reload
     end
