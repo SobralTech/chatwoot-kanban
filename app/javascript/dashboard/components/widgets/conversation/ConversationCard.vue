@@ -125,6 +125,7 @@ watch(
         :size="32"
         :status="currentContact.availability_status"
         :class="!showInboxName ? 'mt-4' : 'mt-8'"
+        rounded-full
         hide-offline-status
       >
         <template #overlay="{ size }">
