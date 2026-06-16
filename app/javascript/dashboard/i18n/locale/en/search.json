@@ -36,6 +36,7 @@
     "TRANSCRIPT": "Transcript",
     "CREATED_AT": "created {time}",
     "UPDATED_AT": "updated {time}",
+    "LAST_MESSAGE": "Last message: {time}",
     "SORT_BY": {
       "RELEVANCE": "Relevance"
     },

@@ -72,10 +72,6 @@ const lastActivityAtTime = computed(() => {
 
 const infoItems = computed(() => [
   {
-    value: lastActivityAtTime.value,
-    show: !!lastActivityAtTime.value,
-  },
-  {
     value: props.email,
     show: !!props.email,
   },
@@ -138,19 +134,27 @@ const inboxIcon = computed(() => {
             </span>
           </div>
         </div>
-        <div class="flex flex-wrap gap-x-2 gap-y-1.5 items-center min-w-0">
-          <template
-            v-for="(item, index) in visibleInfoItems"
-            :key="`info-${index}`"
+        <div class="flex items-start justify-between gap-3 w-full min-w-0">
+          <div class="flex flex-wrap gap-x-2 gap-y-1.5 items-center min-w-0">
+            <template
+              v-for="(item, index) in visibleInfoItems"
+              :key="`info-${index}`"
+            >
+              <span class="text-sm leading-4 min-w-0 text-n-slate-11 truncate">
+                {{ item.value }}
+              </span>
+              <div
+                v-if="index < visibleInfoItems.length - 1"
+                class="w-px h-3 bg-n-strong"
+              />
+            </template>
+          </div>
+          <span
+            v-if="lastActivityAtTime"
+            class="text-sm leading-4 flex-shrink-0 text-right text-n-slate-11 whitespace-nowrap"
           >
-            <span class="text-sm leading-4 min-w-0 text-n-slate-11 truncate">
-              {{ item.value }}
-            </span>
-            <div
-              v-if="index < visibleInfoItems.length - 1"
-              class="w-px h-3 bg-n-strong"
-            />
-          </template>
+            {{ $t('SEARCH.LAST_MESSAGE', { time: lastActivityAtTime }) }}
+          </span>
         </div>
         <slot />
       </div>
