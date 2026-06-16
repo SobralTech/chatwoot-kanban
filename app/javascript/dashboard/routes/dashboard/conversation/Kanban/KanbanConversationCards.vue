@@ -7,11 +7,12 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { getKanbanStageColorClass } from 'dashboard/helper/kanbanStageColors';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import MultiselectDropdown from 'shared/components/ui/MultiselectDropdown.vue';
+import Popover from 'dashboard/components-next/popover/Popover.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
-import { messageStamp } from 'shared/helpers/timeHelper';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
+import KanbanDueDatePicker from '../../kanban/KanbanDueDatePicker.vue';
 
 const props = defineProps({
   conversationId: {
@@ -66,6 +67,17 @@ const hasPendingRealtimeRefresh = ref(false);
 const deleteDialogRef = ref(null);
 const cardToDelete = ref(null);
 const isDeletingCard = ref(false);
+const editSaveTimer = ref(null);
+const editingCard = ref(null);
+
+const EDIT_AUTOSAVE_DELAY = 800;
+
+const cancelScheduledEdit = () => {
+  if (!editSaveTimer.value) return;
+
+  clearTimeout(editSaveTimer.value);
+  editSaveTimer.value = null;
+};
 
 const kanbanCardRealtimeEvents = new Set([
   'kanban.card.created',
@@ -104,6 +116,16 @@ const selectedLabels = computed(() =>
     selectedLabelTitles.value.includes(label.title)
   )
 );
+const selectedLabelsSummary = computed(() =>
+  selectedLabelTitles.value.length
+    ? selectedLabelTitles.value.join(', ')
+    : t('CONVERSATION_SIDEBAR.KANBAN.NO_LABELS_SELECTED')
+);
+const editLabelsSummary = computed(() =>
+  editLabelTitles.value.length
+    ? editLabelTitles.value.join(', ')
+    : t('CONVERSATION_SIDEBAR.KANBAN.NO_LABELS_SELECTED')
+);
 const canSubmit = computed(
   () => selectedBoardId.value && selectedStageId.value && !isCreating.value
 );
@@ -136,18 +158,31 @@ const stageColorClass = getKanbanStageColorClass;
 const formatDueAt = value => {
   if (!value) return t('CONVERSATION_SIDEBAR.KANBAN.NOT_SET');
 
-  return messageStamp(new Date(value).getTime() / 1000, 'LLL d, yyyy h:mm a');
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return t('CONVERSATION_SIDEBAR.KANBAN.NOT_SET');
+  }
+
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+
+  return `${day}/${month}/${date.getFullYear()}`;
 };
 
-const formatDateTimeInput = value => {
+const formatDateInput = value => {
   if (!value) return '';
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnlyMatch) return value;
 
-  const offset = date.getTimezoneOffset();
-  const localDate = new Date(date.getTime() - offset * 60000);
-  return localDate.toISOString().slice(0, 16);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 };
 
 const normalizeCollection = response =>
@@ -203,8 +238,10 @@ const resetFormState = () => {
 };
 
 const resetEditState = () => {
+  cancelScheduledEdit();
   abortEditRequests();
   editingCardId.value = null;
+  editingCard.value = null;
   editStages.value = [];
   editSubject.value = '';
   editStageId.value = '';
@@ -477,71 +514,15 @@ const onRemoveLabel = title => {
 const dueAtPayload = () => {
   if (!dueAt.value) return null;
 
-  return new Date(dueAt.value).toISOString();
+  const [year, month, day] = dueAt.value.split('-').map(Number);
+  return new Date(year, month - 1, day, 12).toISOString();
 };
 
 const editDueAtPayload = () => {
   if (!editDueAt.value) return null;
 
-  return new Date(editDueAt.value).toISOString();
-};
-
-const startEdit = async card => {
-  resetFormState();
-  resetEditState();
-  editingCardId.value = card.id;
-  editSubject.value = card.subject || '';
-  editStageId.value = cardStageId(card) || '';
-  editDueAt.value = formatDateTimeInput(card.due_at);
-  editLabelTitles.value = (card.labels || []).map(label => label.title);
-  editError.value = '';
-  store.dispatch('labels/get');
-  await loadEditStages(cardBoardId(card));
-};
-
-const submitForm = async () => {
-  if (!canSubmit.value) return;
-
-  createAbortController.value?.abort();
-  const controller = new AbortController();
-  createAbortController.value = controller;
-  isCreating.value = true;
-  createError.value = '';
-
-  try {
-    await KanbanBoardsAPI.createConversationCard(
-      props.conversationId,
-      {
-        card: {
-          kanban_board_id: selectedBoardId.value,
-          kanban_stage_id: selectedStageId.value,
-          subject: subject.value.trim(),
-          due_at: dueAtPayload(),
-          labels: selectedLabelTitles.value,
-        },
-      },
-      { signal: controller.signal }
-    );
-
-    if (controller.signal.aborted) return;
-
-    useAlert(t('CONVERSATION_SIDEBAR.KANBAN.CREATED'));
-    resetFormState();
-    hasPendingRealtimeRefresh.value = false;
-    await loadCards();
-  } catch (error) {
-    if (isAbortError(error)) return;
-
-    createError.value = getErrorMessage(
-      error,
-      t('CONVERSATION_SIDEBAR.KANBAN.CREATE_ERROR')
-    );
-  } finally {
-    if (createAbortController.value === controller) {
-      isCreating.value = false;
-      createAbortController.value = null;
-    }
-  }
+  const [year, month, day] = editDueAt.value.split('-').map(Number);
+  return new Date(year, month - 1, day, 12).toISOString();
 };
 
 const submitEdit = async card => {
@@ -562,6 +543,7 @@ const submitEdit = async card => {
       {
         kanban_stage_id: editStageId.value,
         subject: editSubject.value.trim(),
+        starts_at: null,
         due_at: editDueAtPayload(),
         labels: editLabelTitles.value,
       }
@@ -605,9 +587,87 @@ const submitEdit = async card => {
   }
 };
 
+const flushScheduledEdit = () => {
+  if (!editSaveTimer.value) return;
+
+  clearTimeout(editSaveTimer.value);
+  editSaveTimer.value = null;
+
+  if (editingCard.value) submitEdit(editingCard.value);
+};
+
+const scheduleSubmitEdit = card => {
+  cancelScheduledEdit();
+  editingCard.value = card;
+  editSaveTimer.value = setTimeout(() => {
+    editSaveTimer.value = null;
+    submitEdit(card);
+  }, EDIT_AUTOSAVE_DELAY);
+};
+
+const startEdit = async card => {
+  flushScheduledEdit();
+  resetFormState();
+  resetEditState();
+  editingCardId.value = card.id;
+  editSubject.value = card.subject || '';
+  editStageId.value = cardStageId(card) || '';
+  editDueAt.value = formatDateInput(card.due_at);
+  editLabelTitles.value = (card.labels || []).map(label => label.title);
+  editError.value = '';
+  store.dispatch('labels/get');
+  await loadEditStages(cardBoardId(card));
+};
+
+const submitForm = async () => {
+  if (!canSubmit.value) return;
+
+  createAbortController.value?.abort();
+  const controller = new AbortController();
+  createAbortController.value = controller;
+  isCreating.value = true;
+  createError.value = '';
+
+  try {
+    await KanbanBoardsAPI.createConversationCard(
+      props.conversationId,
+      {
+        card: {
+          kanban_board_id: selectedBoardId.value,
+          kanban_stage_id: selectedStageId.value,
+          subject: subject.value.trim(),
+          starts_at: null,
+          due_at: dueAtPayload(),
+          labels: selectedLabelTitles.value,
+        },
+      },
+      { signal: controller.signal }
+    );
+
+    if (controller.signal.aborted) return;
+
+    useAlert(t('CONVERSATION_SIDEBAR.KANBAN.CREATED'));
+    resetFormState();
+    hasPendingRealtimeRefresh.value = false;
+    await loadCards();
+  } catch (error) {
+    if (isAbortError(error)) return;
+
+    createError.value = getErrorMessage(
+      error,
+      t('CONVERSATION_SIDEBAR.KANBAN.CREATE_ERROR')
+    );
+  } finally {
+    if (createAbortController.value === controller) {
+      isCreating.value = false;
+      createAbortController.value = null;
+    }
+  }
+};
+
 const onSelectEditStage = (card, stage) => {
   editStageId.value = stage.id;
-  submitEdit(card);
+  scheduleSubmitEdit(card);
 };
 
 const onAddEditLabel = (card, label) => {
@@ -615,14 +675,14 @@ const onAddEditLabel = (card, label) => {
   if (!title || editLabelTitles.value.includes(title)) return;
 
   editLabelTitles.value = [...editLabelTitles.value, title];
-  submitEdit(card);
+  scheduleSubmitEdit(card);
 };
 
 const onRemoveEditLabel = (card, title) => {
   editLabelTitles.value = editLabelTitles.value.filter(
     labelTitle => labelTitle !== title
   );
-  submitEdit(card);
+  scheduleSubmitEdit(card);
 };
 
 const openDeleteConfirm = card => {
@@ -673,6 +733,7 @@ watch(
   () => props.conversationId,
   () => {
     hasPendingRealtimeRefresh.value = false;
+    flushScheduledEdit();
     resetFormState();
     resetEditState();
     loadCards();
@@ -692,6 +753,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  flushScheduledEdit();
   resetAbortController();
   abortFormRequests();
   abortEditRequests();
@@ -720,7 +782,7 @@ onBeforeUnmount(() => {
         {{ t('CONVERSATION_SIDEBAR.KANBAN.CREATE_TITLE') }}
       </h4>
 
-      <label class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1">
         <span class="text-xs font-medium text-n-slate-11">
           {{ t('CONVERSATION_SIDEBAR.KANBAN.BOARD') }}
         </span>
@@ -736,7 +798,7 @@ onBeforeUnmount(() => {
           :input-placeholder="t('CONVERSATION_SIDEBAR.KANBAN.SEARCH')"
           @select="onSelectBoard"
         />
-      </label>
+      </div>
       <p v-if="isLoadingBoards" class="m-0 text-xs text-n-slate-11">
         {{ t('CONVERSATION_SIDEBAR.KANBAN.LOADING') }}
       </p>
@@ -761,7 +823,7 @@ onBeforeUnmount(() => {
         />
       </label>
 
-      <label class="flex flex-col gap-1">
+      <div class="flex flex-col gap-1">
         <span class="text-xs font-medium text-n-slate-11">
           {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
         </span>
@@ -777,7 +839,7 @@ onBeforeUnmount(() => {
           :input-placeholder="t('CONVERSATION_SIDEBAR.KANBAN.SEARCH')"
           @select="onSelectStage"
         />
-      </label>
+      </div>
       <p v-if="isLoadingStages" class="m-0 text-xs text-n-slate-11">
         {{ t('CONVERSATION_SIDEBAR.KANBAN.LOADING') }}
       </p>
@@ -793,21 +855,51 @@ onBeforeUnmount(() => {
         {{ t('CONVERSATION_SIDEBAR.KANBAN.EMPTY_STAGES') }}
       </p>
 
-      <label class="flex flex-col gap-1">
-        <span class="text-xs font-medium text-n-slate-11">
-          {{ t('CONVERSATION_SIDEBAR.KANBAN.DUE_DATE') }}
-        </span>
-        <input
-          v-model="dueAt"
-          type="datetime-local"
-          class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
-        />
-      </label>
+      <KanbanDueDatePicker
+        v-model="dueAt"
+        :label="t('CONVERSATION_SIDEBAR.KANBAN.DUE_DATE')"
+        :placeholder="t('CONVERSATION_SIDEBAR.KANBAN.CHOOSE_DATE')"
+        :clear-label="t('CONVERSATION_SIDEBAR.KANBAN.CLEAR_DATE')"
+      />
 
-      <label class="flex flex-col gap-2">
+      <div class="flex flex-col gap-2">
         <span class="text-xs font-medium text-n-slate-11">
           {{ t('CONVERSATION_SIDEBAR.KANBAN.LABELS') }}
         </span>
+        <Popover align="start" disable-mobile-view :show-content-border="false">
+          <button
+            type="button"
+            data-testid="kanban-card-labels-menu"
+            class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span
+              aria-hidden="true"
+              class="i-lucide-tags size-4 flex-shrink-0 text-n-slate-11"
+            />
+            <span class="min-w-0 flex-1 truncate">
+              {{ selectedLabelsSummary }}
+            </span>
+            <span
+              aria-hidden="true"
+              class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11"
+            />
+          </button>
+
+          <template #content>
+            <div
+              class="block visible w-80 rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
+            >
+              <LabelDropdown
+                :account-labels="accountLabels"
+                :selected-labels="selectedLabelTitles"
+                :allow-creation="false"
+                @add="onAddLabel"
+                @remove="onRemoveLabel"
+              />
+            </div>
+          </template>
+        </Popover>
+
         <div v-if="selectedLabels.length" class="flex flex-wrap gap-1">
           <span
             v-for="label in selectedLabels"
@@ -825,16 +917,7 @@ onBeforeUnmount(() => {
             </button>
           </span>
         </div>
-        <div class="rounded-lg border border-n-weak bg-n-alpha-1 p-2">
-          <LabelDropdown
-            :account-labels="accountLabels"
-            :selected-labels="selectedLabelTitles"
-            :allow-creation="false"
-            @add="onAddLabel"
-            @remove="onRemoveLabel"
-          />
-        </div>
-      </label>
+      </div>
 
       <p v-if="createError" class="m-0 text-xs text-n-ruby-11">
         {{ createError }}
@@ -905,11 +988,11 @@ onBeforeUnmount(() => {
               v-model="editSubject"
               type="text"
               class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
-              @change="submitEdit(card)"
+              @change="scheduleSubmitEdit(card)"
             />
           </label>
 
-          <label class="flex flex-col gap-1">
+          <div class="flex flex-col gap-1">
             <span class="text-xs font-medium text-n-slate-11">
               {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
             </span>
@@ -925,7 +1008,7 @@ onBeforeUnmount(() => {
               :input-placeholder="t('CONVERSATION_SIDEBAR.KANBAN.SEARCH')"
               @select="stage => onSelectEditStage(card, stage)"
             />
-          </label>
+          </div>
 
           <p v-if="isLoadingEditStages" class="m-0 text-xs text-n-slate-11">
             {{ t('CONVERSATION_SIDEBAR.KANBAN.LOADING') }}
@@ -937,22 +1020,56 @@ onBeforeUnmount(() => {
             {{ t('CONVERSATION_SIDEBAR.KANBAN.EMPTY_STAGES') }}
           </p>
 
-          <label class="flex flex-col gap-1">
-            <span class="text-xs font-medium text-n-slate-11">
-              {{ t('CONVERSATION_SIDEBAR.KANBAN.DUE_DATE') }}
-            </span>
-            <input
-              v-model="editDueAt"
-              type="datetime-local"
-              class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
-              @change="submitEdit(card)"
-            />
-          </label>
+          <KanbanDueDatePicker
+            v-model="editDueAt"
+            :label="t('CONVERSATION_SIDEBAR.KANBAN.DUE_DATE')"
+            :placeholder="t('CONVERSATION_SIDEBAR.KANBAN.CHOOSE_DATE')"
+            :clear-label="t('CONVERSATION_SIDEBAR.KANBAN.CLEAR_DATE')"
+            @change="scheduleSubmitEdit(card)"
+          />
 
-          <label class="flex flex-col gap-2">
+          <div class="flex flex-col gap-2">
             <span class="text-xs font-medium text-n-slate-11">
               {{ t('CONVERSATION_SIDEBAR.KANBAN.LABELS') }}
             </span>
+            <Popover
+              align="start"
+              disable-mobile-view
+              :show-content-border="false"
+            >
+              <button
+                type="button"
+                data-testid="kanban-card-labels-menu"
+                class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span
+                  aria-hidden="true"
+                  class="i-lucide-tags size-4 flex-shrink-0 text-n-slate-11"
+                />
+                <span class="min-w-0 flex-1 truncate">
+                  {{ editLabelsSummary }}
+                </span>
+                <span
+                  aria-hidden="true"
+                  class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11"
+                />
+              </button>
+
+              <template #content>
+                <div
+                  class="block visible w-80 rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
+                >
+                  <LabelDropdown
+                    :account-labels="accountLabels"
+                    :selected-labels="editLabelTitles"
+                    :allow-creation="false"
+                    @add="label => onAddEditLabel(card, label)"
+                    @remove="title => onRemoveEditLabel(card, title)"
+                  />
+                </div>
+              </template>
+            </Popover>
+
             <div v-if="editLabelTitles.length" class="flex flex-wrap gap-1">
               <span
                 v-for="title in editLabelTitles"
@@ -970,16 +1087,7 @@ onBeforeUnmount(() => {
                 </button>
               </span>
             </div>
-            <div class="rounded-lg border border-n-weak bg-n-alpha-1 p-2">
-              <LabelDropdown
-                :account-labels="accountLabels"
-                :selected-labels="editLabelTitles"
-                :allow-creation="false"
-                @add="label => onAddEditLabel(card, label)"
-                @remove="title => onRemoveEditLabel(card, title)"
-              />
-            </div>
-          </label>
+          </div>
 
           <p v-if="editError" class="m-0 text-xs text-n-ruby-11">
             {{ editError }}
