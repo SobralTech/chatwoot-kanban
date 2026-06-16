@@ -129,11 +129,7 @@ export default {
         }
         this.conversationSearchResults = data.payload || [];
         this.conversationSearchMeta = data.meta || {};
-        if (this.conversationSearchResults.length) {
-          await this.selectConversationSearchResult(0);
-        } else {
-          this.activeConversationSearchResultIndex = -1;
-        }
+        this.activeConversationSearchResultIndex = -1;
       } catch (error) {
         if (!this.isLatestConversationSearchRequest(requestId, trimmedQuery)) {
           return;
