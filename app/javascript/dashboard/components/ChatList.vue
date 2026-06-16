@@ -1,6 +1,14 @@
 <script setup>
-import { ref, unref, provide, computed, watch, onMounted } from 'vue';
-import { useEventListener } from '@vueuse/core';
+import {
+  ref,
+  unref,
+  provide,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+} from 'vue';
+import { useEventListener, useDebounceFn } from '@vueuse/core';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -10,6 +18,9 @@ import {
 
 import ChatListHeader from './ChatListHeader.vue';
 import ConversationList from './ConversationList.vue';
+import SearchResultConversationsList from 'dashboard/modules/search/components/SearchResultConversationsList.vue';
+import SearchResultContactsList from 'dashboard/modules/search/components/SearchResultContactsList.vue';
+import SearchResultMessagesList from 'dashboard/modules/search/components/SearchResultMessagesList.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import ConversationFilter from 'next/filter/ConversationFilter.vue';
 import SaveCustomView from 'next/filter/SaveCustomView.vue';
@@ -140,6 +151,52 @@ const labels = useMapGetter('labels/getLabels');
 // We can't useFunctionGetter here since it needs to be called on setup?
 const getTeamFn = useMapGetter('teams/getTeam');
 const getConversationById = useMapGetter('getConversationById');
+
+const conversationSearchRecords = useMapGetter(
+  'conversationSearch/getConversationRecords'
+);
+const contactSearchRecords = useMapGetter(
+  'conversationSearch/getContactRecords'
+);
+const messageSearchRecords = useMapGetter(
+  'conversationSearch/getMessageRecords'
+);
+const searchUIFlags = useMapGetter('conversationSearch/getUIFlags');
+
+const searchQuery = ref('');
+const isSearching = computed(() => searchQuery.value.length > 0);
+
+const searchConversations = computed(() =>
+  conversationSearchRecords.value.map(r => ({
+    ...useCamelCase(r, { deep: true }),
+    type: 'conversation',
+  }))
+);
+const searchContacts = computed(() =>
+  contactSearchRecords.value.map(r => ({
+    ...useCamelCase(r, { deep: true }),
+    type: 'contact',
+  }))
+);
+const searchMessages = computed(() =>
+  messageSearchRecords.value.map(r => ({
+    ...useCamelCase(r, { deep: true }),
+    type: 'message',
+  }))
+);
+
+const debouncedSearch = useDebounceFn(q => {
+  if (!q) {
+    store.dispatch('conversationSearch/clearSearchResults');
+    return;
+  }
+  store.dispatch('conversationSearch/fullSearch', { q, page: 1 });
+}, 300);
+
+function onSearchQueryChange(q) {
+  searchQuery.value = q;
+  debouncedSearch(q);
+}
 
 const {
   selectedConversations,
@@ -759,6 +816,10 @@ useEmitter('fetch_conversation_stats', () => {
   store.dispatch('conversationStats/get', conversationFilters.value);
 });
 
+onUnmounted(() => {
+  store.dispatch('conversationSearch/clearSearchResults');
+});
+
 onMounted(() => {
   store.dispatch('setChatListFilters', conversationFilters.value);
   setFiltersFromUISettings();
@@ -850,15 +911,16 @@ watch(conversationFilters, (newVal, oldVal) => {
       :page-title="pageTitle"
       :has-applied-filters="hasAppliedFilters"
       :has-active-folders="hasActiveFolders"
-      :active-status="activeStatus"
       :is-on-expanded-layout="isOnExpandedLayout"
       :conversation-stats="conversationStats"
       :is-list-loading="chatListLoading && !conversationList.length"
+      :search-query="searchQuery"
       @add-folders="onClickOpenAddFoldersModal"
       @delete-folders="onClickOpenDeleteFoldersModal"
       @filters-modal="onToggleAdvanceFiltersModal"
       @reset-filters="resetAndFetchData"
       @basic-filter-change="onBasicFilterChange"
+      @update:search-query="onSearchQueryChange"
     />
 
     <TeleportWithDirection
@@ -883,12 +945,13 @@ watch(conversationFilters, (newVal, oldVal) => {
     />
 
     <p
-      v-if="!chatListLoading && !conversationList.length"
+      v-if="!chatListLoading && !conversationList.length && !isSearching"
       class="flex overflow-auto justify-center items-center p-4"
     >
       {{ $t('CHAT_LIST.LIST.404') }}
     </p>
     <ConversationBulkActions
+      v-if="!isSearching"
       :conversations="selectedConversations"
       :all-conversations-selected="allConversationsSelected"
       :selected-inboxes="uniqueInboxes"
@@ -898,7 +961,27 @@ watch(conversationFilters, (newVal, oldVal) => {
       :class="isOnExpandedLayout && 'sm:!w-[24rem] !w-full'"
       @select-all-conversations="toggleSelectAll"
     />
+    <div v-if="isSearching" class="flex-grow overflow-y-auto">
+      <div class="px-3 pt-2">
+        <SearchResultConversationsList
+          :conversations="searchConversations"
+          :query="searchQuery"
+          :is-fetching="searchUIFlags.conversation?.isFetching"
+        />
+        <SearchResultContactsList
+          :contacts="searchContacts"
+          :query="searchQuery"
+          :is-fetching="searchUIFlags.contact?.isFetching"
+        />
+        <SearchResultMessagesList
+          :messages="searchMessages"
+          :query="searchQuery"
+          :is-fetching="searchUIFlags.message?.isFetching"
+        />
+      </div>
+    </div>
     <ConversationList
+      v-else
       :conversation-list="conversationList"
       :is-loading="chatListLoading"
       :show-end-of-list-message="showEndOfListMessage"
