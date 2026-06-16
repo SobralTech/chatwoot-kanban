@@ -17,7 +17,6 @@ import {
   KANBAN_STAGE_COLOR_OPTIONS,
   getKanbanStageBodyColorClass,
   getKanbanStageColorOption,
-  getKanbanStageHeaderTextColorClass,
 } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -366,9 +365,6 @@ const getStageColorOption = getKanbanStageColorOption;
 
 const getStageHeaderClass = stage =>
   getStageColorOption(stage.color).headerClass;
-
-const getStageHeaderTextClass = stage =>
-  getKanbanStageHeaderTextColorClass(stage.color);
 
 const getStageBodyClass = stage => getKanbanStageBodyColorClass(stage.color);
 
@@ -1122,11 +1118,8 @@ onUnmounted(() => {
               class="flex w-80 flex-shrink-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
             >
               <header
-                class="stage-drag-handle cursor-grab flex min-h-10 items-center justify-between gap-2 px-3 py-1.5"
-                :class="[
-                  getStageHeaderClass(stage),
-                  getStageHeaderTextClass(stage),
-                ]"
+                class="stage-drag-handle cursor-grab flex min-h-10 items-center justify-between gap-2 px-3 py-1.5 text-white"
+                :class="getStageHeaderClass(stage)"
               >
                 <form
                   v-if="editingStageId === stage.id"
@@ -1190,7 +1183,7 @@ onUnmounted(() => {
                       {{ stage.name }}
                     </h3>
                     <span
-                      class="flex-shrink-0 rounded-full bg-black/10 px-2 py-0.5 text-xs font-medium dark:bg-white/20"
+                      class="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
                     >
                       {{ stage.cardsCount }}
                     </span>
@@ -1198,7 +1191,7 @@ onUnmounted(() => {
                   <div class="flex flex-shrink-0 gap-1">
                     <button
                       type="button"
-                      class="flex size-7 items-center justify-center rounded-md border border-black/20 bg-black/10 hover:bg-black/15 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/30 dark:bg-white/10 dark:hover:bg-white/20"
+                      class="flex size-8 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
                       :disabled="!!activeActionKey"
                       :aria-label="t('KANBAN.ACTIONS.ADD_ITEM')"
                       :title="t('KANBAN.ACTIONS.ADD_ITEM')"
@@ -1210,7 +1203,7 @@ onUnmounted(() => {
                       <div class="relative">
                         <button
                           type="button"
-                          class="flex size-7 items-center justify-center rounded-md border border-black/20 bg-black/10 hover:bg-black/15 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/30 dark:bg-white/10 dark:hover:bg-white/20"
+                          class="flex size-8 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
                           :disabled="!!activeActionKey"
                           :aria-label="t('KANBAN.ACTIONS.STAGE_OPTIONS')"
                           @click="
@@ -1257,21 +1250,6 @@ onUnmounted(() => {
                 class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
                 :class="getStageBodyClass(stage)"
               >
-                <button
-                  type="button"
-                  data-testid="kanban-add-item-button"
-                  :data-stage-id="stage.id"
-                  class="no-drag flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!!activeActionKey"
-                  :aria-expanded="activeAddItemStageId === stage.id"
-                  :aria-controls="`kanban-add-item-panel-${stage.id}`"
-                  :title="t('KANBAN.ACTIONS.ADD_ITEM')"
-                  @click="toggleAddItemPicker(stage)"
-                >
-                  <i class="i-lucide-plus size-4" />
-                  {{ t('KANBAN.ACTIONS.ADD_ITEM') }}
-                </button>
-
                 <KanbanOpportunityPicker
                   v-if="activeAddItemStageId === stage.id"
                   :kanban-board-id="selectedBoard.id"

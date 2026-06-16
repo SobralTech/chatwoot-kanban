@@ -52,19 +52,3 @@ export const getKanbanStageColorClass = color =>
 
 export const getKanbanStageBodyColorClass = color =>
   STAGE_BODY_COLOR_CLASSES[getKanbanStageColorOption(color).value];
-
-const STAGE_HEADER_TEXT_COLOR_CLASSES = {
-  slate: 'text-n-slate-12 dark:text-white',
-  blue: 'text-n-blue-12 dark:text-white',
-  teal: 'text-n-teal-12 dark:text-white',
-  green: 'text-green-900 dark:text-white',
-  amber: 'text-n-amber-12 dark:text-white',
-  orange: 'text-orange-900 dark:text-white',
-  ruby: 'text-n-ruby-12 dark:text-white',
-  rose: 'text-rose-900 dark:text-white',
-  violet: 'text-n-violet-12 dark:text-white',
-  iris: 'text-n-iris-12 dark:text-white',
-};
-
-export const getKanbanStageHeaderTextColorClass = color =>
-  STAGE_HEADER_TEXT_COLOR_CLASSES[getKanbanStageColorOption(color).value];
