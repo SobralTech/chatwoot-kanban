@@ -61,48 +61,56 @@ export default {
 </script>
 
 <template>
-  <div class="overflow-hidden text-ellipsis whitespace-nowrap">
+  <div class="flex items-center min-w-0 overflow-hidden gap-1">
     <template v-if="showMessageType && !messageByAgent">
       <fluent-icon
         v-if="isMessagePrivate"
         size="16"
-        class="-mt-0.5 align-middle text-n-slate-11 inline-block"
+        class="-mt-0.5 text-n-slate-11 flex-shrink-0"
         icon="lock-closed"
       />
       <fluent-icon
         v-else-if="isMessageAnActivity"
         size="16"
-        class="-mt-0.5 align-middle text-n-slate-11 inline-block"
+        class="-mt-0.5 text-n-slate-11 flex-shrink-0"
         icon="info"
       />
     </template>
-    <span v-if="message.content && isMessageSticker">
+    <span
+      v-if="message.content && isMessageSticker"
+      class="flex items-center gap-1 flex-1 min-w-0 truncate"
+    >
       <fluent-icon
         size="16"
-        class="-mt-0.5 align-middle inline-block text-n-slate-11"
+        class="-mt-0.5 inline-block text-n-slate-11 flex-shrink-0"
         icon="image"
       />
-      {{ $t('CHAT_LIST.ATTACHMENTS.image.CONTENT') }}
+      <span class="truncate">{{
+        $t('CHAT_LIST.ATTACHMENTS.image.CONTENT')
+      }}</span>
     </span>
-    <span v-else-if="message.content">
+    <span v-else-if="message.content" class="flex-1 min-w-0 truncate">
       {{ parsedLastMessage }}
     </span>
-    <span v-else-if="message.attachments">
+    <span
+      v-else-if="message.attachments"
+      class="flex items-center gap-1 flex-1 min-w-0 truncate"
+    >
       <fluent-icon
         v-if="attachmentIcon && showMessageType"
         size="16"
-        class="-mt-0.5 align-middle inline-block text-n-slate-11"
+        class="-mt-0.5 inline-block text-n-slate-11 flex-shrink-0"
         :icon="attachmentIcon"
       />
-      {{ $t(`${attachmentMessageContent}`) }}
+      <span class="truncate">{{ $t(`${attachmentMessageContent}`) }}</span>
     </span>
-    <span v-else>
+    <span v-else class="flex-1 min-w-0 truncate">
       {{ defaultEmptyMessage || $t('CHAT_LIST.NO_CONTENT') }}
     </span>
     <fluent-icon
       v-if="showMessageType && messageByAgent"
       size="14"
-      class="-mt-0.5 align-middle text-n-slate-11 inline-block"
+      class="-mt-0.5 text-n-slate-11 flex-shrink-0"
       icon="checkmark-double"
     />
   </div>
