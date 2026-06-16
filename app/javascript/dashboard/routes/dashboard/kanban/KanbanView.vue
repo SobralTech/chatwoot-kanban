@@ -1179,7 +1179,7 @@ onUnmounted(() => {
                 </form>
                 <template v-else>
                   <div class="flex min-w-0 flex-1 items-center gap-2">
-                    <h3 class="truncate text-sm font-medium">
+                    <h3 class="truncate text-sm font-medium text-white">
                       {{ stage.name }}
                     </h3>
                     <span
