@@ -43,6 +43,7 @@
       "ORDER_BY": "Order by"
     },
     "CHAT_TIME_STAMP": {
+      "NOW": "now",
       "CREATED": {
         "LATEST": "Created",
         "OLDEST": "Created at:"

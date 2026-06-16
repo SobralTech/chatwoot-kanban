@@ -38,10 +38,12 @@ export default {
   },
   computed: {
     lastActivityTime() {
-      return shortTimestamp(this.lastActivityAtTimeAgo);
+      const t = shortTimestamp(this.lastActivityAtTimeAgo);
+      return t === 'now' ? this.$t('CHAT_LIST.CHAT_TIME_STAMP.NOW') : t;
     },
     createdAtTime() {
-      return shortTimestamp(this.createdAtTimeAgo);
+      const t = shortTimestamp(this.createdAtTimeAgo);
+      return t === 'now' ? this.$t('CHAT_LIST.CHAT_TIME_STAMP.NOW') : t;
     },
     createdAt() {
       const createdTimeDiff = Date.now() - this.createdAtTimestamp * 1000;
