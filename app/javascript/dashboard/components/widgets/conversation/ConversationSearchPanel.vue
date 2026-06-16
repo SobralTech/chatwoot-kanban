@@ -357,7 +357,7 @@ export default {
       if (!message.created_at) return '';
 
       const date = fromUnixTime(Number(message.created_at));
-      if (isToday(date)) return format(date, 'h:mm a');
+      if (isToday(date)) return format(date, 'HH:mm');
       if (isSameYear(date, new Date())) return format(date, 'MMM d');
       return format(date, 'MMM d, yyyy');
     },
