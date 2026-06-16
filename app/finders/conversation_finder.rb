@@ -152,9 +152,9 @@ class ConversationFinder
     return unless params[:q]
 
     allowed_message_types = [Message.message_types[:incoming], Message.message_types[:outgoing]]
-    @conversations = conversations.joins(:messages).where('messages.content ILIKE :search', search: "%#{params[:q]}%")
+    @conversations = conversations.joins(:messages).where('unaccent(messages.content) ILIKE unaccent(:search)', search: "%#{params[:q]}%")
                                   .where(messages: { message_type: allowed_message_types }).includes(:messages)
-                                  .where('messages.content ILIKE :search', search: "%#{params[:q]}%")
+                                  .where('unaccent(messages.content) ILIKE unaccent(:search)', search: "%#{params[:q]}%")
                                   .where(messages: { message_type: allowed_message_types })
   end
 

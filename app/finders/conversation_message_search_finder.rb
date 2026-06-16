@@ -26,7 +26,7 @@ class ConversationMessageSearchFinder
   def base_query
     @base_query ||= begin
       messages = @conversation.messages.includes(:attachments, :sender, sender: { avatar_attachment: [:blob] })
-      messages.where('messages.content ILIKE :search', search: "%#{search_query}%")
+      messages.where('unaccent(messages.content) ILIKE unaccent(:search)', search: "%#{search_query}%")
     end
   end
 
