@@ -238,6 +238,7 @@ const animationClasses = computed(() => {
 
 <template>
   <button
+    type="button"
     v-bind="filteredAttrs"
     :class="{
       [STYLE_CONFIG.base]: true,
