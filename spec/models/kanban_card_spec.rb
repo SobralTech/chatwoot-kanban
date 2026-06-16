@@ -180,22 +180,6 @@ RSpec.describe KanbanCard do
       expect(card).to be_valid
     end
 
-    it 'rejects conversation card recreation with the same subject when existing card is inactive' do
-      existing_card = create(:kanban_card, :conversation_origin, active: false, subject: 'Enterprise renewal')
-      card = build(
-        :kanban_card,
-        :conversation_origin,
-        account: existing_card.account,
-        kanban_board: existing_card.kanban_board,
-        kanban_stage: existing_card.kanban_stage,
-        conversation: existing_card.conversation,
-        subject: 'Enterprise renewal'
-      )
-
-      expect(card).not_to be_valid
-      expect(card.errors[:conversation_id]).to be_present
-    end
-
     it 'allows the same conversation card in different boards' do
       existing_card = create(:kanban_card, :conversation_origin)
       other_board = create(:kanban_board, account: existing_card.account)
@@ -613,18 +597,16 @@ RSpec.describe KanbanCard do
       expect(labels_tags_taggings_query_count(sql_queries)).to eq(0)
     end
 
-    it 'deactivates and normalizes remaining active cards' do
+    it 'destroys the card and normalizes remaining active cards' do
       board = create(:kanban_board)
       stage = create(:kanban_stage, account: board.account, kanban_board: board)
       first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1)
       second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 5)
-      inactive_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 20, active: false)
 
       first_card.deactivate_and_normalize!
 
-      expect(first_card.reload).not_to be_active
+      expect { first_card.reload }.to raise_error(ActiveRecord::RecordNotFound)
       expect(second_card.reload.position).to eq(1)
-      expect(inactive_card.reload.position).to eq(20)
     end
 
     def stage_positions(stage)

@@ -70,7 +70,7 @@ class KanbanCard < ApplicationRecord
   validates :conversation_id,
             uniqueness: {
               scope: [:kanban_board_id, :inbox_id, :normalized_subject],
-              conditions: -> { where(origin: 'conversation').where.not(normalized_subject: nil) }
+              conditions: -> { where(active: true, origin: 'conversation').where.not(normalized_subject: nil) }
             },
             if: :validate_conversation_uniqueness?
   validate :due_at_after_starts_at
@@ -117,9 +117,8 @@ class KanbanCard < ApplicationRecord
       self.class.lock_reorder_stages!([stage.id])
       self.class.lock_active_cards_for_stages!(kanban_board, [stage.id])
 
-      self.class.where(id: id).update_all(active: false, explicitly_deleted: true, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+      destroy!
       self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: stage)
-      reload
     end
   end
 

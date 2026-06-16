@@ -811,17 +811,17 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(card.reload.position).to eq(1)
     end
 
-    it 'soft-deletes a card by stable ID' do
+    it 'destroys a card by stable ID' do
       card = create_manual_card
 
       expect do
         delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/by_id/#{card.id}",
                headers: agent.create_new_auth_token,
                as: :json
-      end.not_to change(KanbanCard, :count)
+      end.to change(KanbanCard, :count).by(-1)
 
       expect(response).to have_http_status(:no_content)
-      expect(card.reload).not_to be_active
+      expect { card.reload }.to raise_error(ActiveRecord::RecordNotFound)
     end
 
     it 'emits kanban.card.deleted with a compact payload' do
@@ -882,7 +882,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
              as: :json
 
       expect(response).to have_http_status(:no_content)
-      expect(card.reload).to have_attributes(conversation_id: nil, kanban_stage_id: next_stage.id, position: 1, active: false)
+      expect { card.reload }.to raise_error(ActiveRecord::RecordNotFound)
     end
 
     it 'reorders a conversation-origin card without changing legacy state' do
@@ -982,7 +982,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       )
     end
 
-    it 'soft-deletes a conversation-origin card without changing legacy state' do
+    it 'destroys a conversation-origin card without changing legacy state' do
       state = create(
         :conversation_kanban_state,
         account: account,
@@ -1000,7 +1000,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
       end.not_to change(ConversationKanbanState, :count)
 
       expect(response).to have_http_status(:no_content)
-      expect(card.reload).not_to be_active
+      expect { card.reload }.to raise_error(ActiveRecord::RecordNotFound)
       expect(state.reload).to have_attributes(kanban_stage_id: stage.id, position: 1)
     end
 
