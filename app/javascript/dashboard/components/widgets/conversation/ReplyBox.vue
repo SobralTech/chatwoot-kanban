@@ -1527,7 +1527,7 @@ export default {
   }
 
   &.is-assistant {
-    @apply bg-n-iris-2 dark:border-n-iris-3/20 border-n-iris-8/20;
+    @apply bg-n-blue-2 dark:border-n-blue-3/20 border-n-blue-8/20;
   }
 }
 

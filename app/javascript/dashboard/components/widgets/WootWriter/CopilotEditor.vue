@@ -207,14 +207,14 @@ onMounted(() => {
     <div class="overflow-y-auto max-h-56">
       <p
         v-dompurify-html="formatMessage(generatedContent, false)"
-        class="text-n-iris-12 text-sm prose-sm font-normal !mb-4"
+        class="text-n-blue-12 text-sm prose-sm font-normal !mb-4"
       />
     </div>
     <div class="editor-root relative editor--copilot space-x-2">
       <div ref="editor" />
       <div class="flex items-center justify-end absolute right-2 bottom-2">
         <NextButton
-          class="bg-n-iris-9 text-white !rounded-full"
+          class="bg-n-blue-9 text-white !rounded-full"
           icon="i-lucide-arrow-up"
           solid
           sm
@@ -229,7 +229,7 @@ onMounted(() => {
 @import '@chatwoot/prosemirror-schema/src/styles/base.scss';
 
 .editor--copilot {
-  @apply bg-n-iris-5 rounded;
+  @apply bg-n-blue-5 rounded;
 
   .ProseMirror-woot-style {
     min-height: 5rem;
@@ -239,7 +239,7 @@ onMounted(() => {
 
     .empty-node {
       &::before {
-        @apply text-n-iris-9 dark:text-n-iris-11;
+        @apply text-n-blue-9 dark:text-n-blue-11;
       }
     }
   }
