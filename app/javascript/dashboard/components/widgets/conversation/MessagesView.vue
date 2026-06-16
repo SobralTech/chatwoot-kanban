@@ -270,6 +270,7 @@ export default {
   },
 
   created() {
+    this.currentScrollTarget = null;
     emitter.on(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
     // when a message is sent we set the flag to true this hides the label suggestions,
     // until the chat is changed and the flag is reset in the watch for currentChat
@@ -335,20 +336,31 @@ export default {
       this.$store.dispatch('fetchAllAttachments', this.currentChat.id);
     },
     removeBusListeners() {
+      this.currentScrollTarget = null;
       emitter.off(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
     },
     onScrollToMessage({ messageId = '' } = {}) {
-      this.$nextTick(() => {
-        const messageElement = document.getElementById('message' + messageId);
-        if (messageElement) {
-          this.isProgrammaticScroll = true;
-          messageElement.scrollIntoView({ behavior: 'smooth' });
-          this.fetchPreviousMessages();
-        } else {
-          this.scrollToBottom();
-        }
-      });
       this.makeMessagesRead();
+      if (!messageId) {
+        this.scrollToBottom();
+        return;
+      }
+      const target = String(messageId);
+      this.currentScrollTarget = target;
+      this.scrollToMessageWithRetry(target, 10);
+    },
+    scrollToMessageWithRetry(messageId, attemptsLeft) {
+      if (this.currentScrollTarget !== messageId) return;
+      const el = document.getElementById('message' + messageId);
+      if (el) {
+        this.isProgrammaticScroll = true;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      if (attemptsLeft <= 0) return;
+      requestAnimationFrame(() =>
+        this.scrollToMessageWithRetry(messageId, attemptsLeft - 1)
+      );
     },
     addScrollListener() {
       this.conversationPanel = this.$el.querySelector('.conversation-panel');
