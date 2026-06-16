@@ -62,18 +62,12 @@ export default {
 
 <template>
   <div class="overflow-hidden text-ellipsis whitespace-nowrap">
-    <template v-if="showMessageType">
+    <template v-if="showMessageType && !messageByAgent">
       <fluent-icon
         v-if="isMessagePrivate"
         size="16"
         class="-mt-0.5 align-middle text-n-slate-11 inline-block"
         icon="lock-closed"
-      />
-      <fluent-icon
-        v-else-if="messageByAgent"
-        size="16"
-        class="-mt-0.5 align-middle text-n-slate-11 inline-block"
-        icon="arrow-reply"
       />
       <fluent-icon
         v-else-if="isMessageAnActivity"
@@ -105,5 +99,11 @@ export default {
     <span v-else>
       {{ defaultEmptyMessage || $t('CHAT_LIST.NO_CONTENT') }}
     </span>
+    <fluent-icon
+      v-if="showMessageType && messageByAgent"
+      size="14"
+      class="-mt-0.5 align-middle text-n-slate-11 inline-block"
+      icon="checkmark-double-outline"
+    />
   </div>
 </template>
