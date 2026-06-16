@@ -69,7 +69,7 @@ const allInboxes = computed(
         id,
         email,
         phoneNumber,
-        icon: getInboxIconByType(channelType, medium, 'line'),
+        icon: getInboxIconByType(channelType, medium, 'line', name),
       })) || []
 );
 

@@ -453,7 +453,7 @@ const avatarInfo = computed(() => {
     const { name, avatar_url, channel_type, medium } = inbox.value;
     const iconName = avatar_url
       ? null
-      : getInboxIconByType(channel_type, medium);
+      : getInboxIconByType(channel_type, medium, 'fill', name);
     return {
       name: iconName ? '' : name || t('CONVERSATION.NATIVE_APP'),
       src: avatar_url || '',

@@ -277,8 +277,8 @@ export default {
       return this.$store.getters['inboxes/getInbox'](this.currentInboxId);
     },
     inboxIcon() {
-      const { medium, channel_type: type } = this.inbox;
-      return getInboxIconByType(type, medium, 'line');
+      const { medium, channel_type: type, name } = this.inbox;
+      return getInboxIconByType(type, medium, 'line', name);
     },
     bannerMaxWidth() {
       const narrowTabs = ['collaborators', 'bot-configuration'];

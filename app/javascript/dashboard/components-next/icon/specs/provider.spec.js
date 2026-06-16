@@ -17,14 +17,14 @@ describe('useChannelIcon', () => {
     expect(icon).toBe('i-woot-whatsapp');
   });
 
-  it('prioritizes the editable inbox name over the channel type for WhatsApp inboxes', () => {
+  it('does not use WhatsApp icon for non-API inboxes with WhatsApp in the name', () => {
     const inbox = {
       id: 1,
       name: 'Acme Support Whatsapp',
       channel_type: 'Channel::WebWidget',
     };
     const { value: icon } = useChannelIcon(inbox);
-    expect(icon).toBe('i-woot-whatsapp');
+    expect(icon).toBe('i-woot-website');
   });
 
   it('returns correct icon for Facebook channel', () => {

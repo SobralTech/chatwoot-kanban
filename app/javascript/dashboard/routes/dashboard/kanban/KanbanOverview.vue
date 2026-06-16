@@ -61,7 +61,8 @@ const inboxIcon = inbox =>
   getInboxIconByType(
     inbox.channel_type || inbox.channelType,
     inbox.medium,
-    'line'
+    'line',
+    inbox.name
   );
 
 const retryFetch = () => {
