@@ -9,7 +9,7 @@ const props = defineProps({
     type: String,
     required: true,
     validator: value =>
-      ['ding', 'bell', 'chime', 'magic', 'ping'].includes(value),
+      ['ding', 'bell', 'chime', 'magic', 'ping', 'modern'].includes(value),
   },
   label: {
     type: String,
@@ -39,6 +39,10 @@ const alertTones = computed(() => [
   {
     value: 'ping',
     label: 'Ping',
+  },
+  {
+    value: 'modern',
+    label: 'Modern',
   },
 ]);
 
