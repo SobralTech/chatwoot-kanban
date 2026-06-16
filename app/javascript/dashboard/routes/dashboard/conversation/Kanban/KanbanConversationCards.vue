@@ -580,9 +580,9 @@ const submitEdit = async card => {
   } finally {
     isSavingEdit.value = false;
 
-    if (hasPendingEditSave.value) {
+    if (hasPendingEditSave.value && editingCard.value) {
       hasPendingEditSave.value = false;
-      submitEdit(card);
+      submitEdit(editingCard.value);
     }
   }
 };
