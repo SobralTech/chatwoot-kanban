@@ -188,7 +188,6 @@ class KanbanCards::ImportExistingConversationsService
 
   def active_card_relation
     KanbanCard.conversation
-              .active
               .where(kanban_board_id: kanban_board.id)
               .where('kanban_cards.conversation_id = conversations.id')
               .select('1')
