@@ -1,3 +1,4 @@
+# rubocop:disable Metrics/ClassLength
 class KanbanCards::ImportExistingConversationsService
   BATCH_SIZE = 1000
   GROUP_IDENTIFIER_PATTERN = '%@g.us%'.freeze
@@ -207,3 +208,4 @@ class KanbanCards::ImportExistingConversationsService
     }
   end
 end
+# rubocop:enable Metrics/ClassLength
