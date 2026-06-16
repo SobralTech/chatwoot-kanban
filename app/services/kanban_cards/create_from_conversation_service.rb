@@ -66,7 +66,7 @@ class KanbanCards::CreateFromConversationService
   end
 
   def validate_duplicate!
-    return unless KanbanCard.conversation.exists?(
+    return unless KanbanCard.conversation.active.exists?(
       kanban_board: kanban_board,
       conversation_id: conversation.id,
       inbox_id: conversation.inbox_id,
