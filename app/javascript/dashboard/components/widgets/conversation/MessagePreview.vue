@@ -103,7 +103,7 @@ export default {
       v-if="showMessageType && messageByAgent"
       size="14"
       class="-mt-0.5 align-middle text-n-slate-11 inline-block"
-      icon="checkmark-double-outline"
+      icon="checkmark-double"
     />
   </div>
 </template>
