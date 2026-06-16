@@ -97,13 +97,6 @@ const getters = {
     const hasAppliedFilters = _state.appliedFilters.length !== 0;
     return hasAppliedFilters ? filterQueryGenerator(_state.appliedFilters) : [];
   },
-  getUnAssignedChats: _state => activeFilters => {
-    return _state.allConversations.filter(conversation => {
-      const isUnAssigned = !conversation.meta.assignee;
-      const shouldFilter = applyPageFilters(conversation, activeFilters);
-      return isUnAssigned && shouldFilter;
-    });
-  },
   getParticipatingChats: (_state, _, __, rootGetters) => activeFilters => {
     const currentUserId = rootGetters.getCurrentUser?.id;
     const getWatchers = rootGetters['conversationWatchers/getByConversationId'];
