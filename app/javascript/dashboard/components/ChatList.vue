@@ -1,5 +1,6 @@
 <script setup>
 import { ref, unref, provide, computed, watch, onMounted } from 'vue';
+import { useEventListener } from '@vueuse/core';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -56,8 +57,49 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['conversationLoad']);
-const { uiSettings } = useUISettings();
+const { uiSettings, updateUISettings } = useUISettings();
 const { t } = useI18n();
+
+const CONVERSATION_LIST_DEFAULT_WIDTH = 340;
+const CONVERSATION_LIST_MIN_WIDTH = 260;
+const CONVERSATION_LIST_MAX_WIDTH = 600;
+
+const listWidth = ref(
+  uiSettings.value.conversation_list_width || CONVERSATION_LIST_DEFAULT_WIDTH
+);
+const isResizingList = ref(false);
+const resizeStartX = ref(0);
+const resizeStartWidth = ref(0);
+
+const onListResizeStart = event => {
+  isResizingList.value = true;
+  resizeStartX.value = event.clientX;
+  resizeStartWidth.value = listWidth.value;
+  Object.assign(document.body.style, {
+    cursor: 'col-resize',
+    userSelect: 'none',
+  });
+  event.preventDefault();
+};
+
+const onListResizeMove = event => {
+  if (!isResizingList.value) return;
+  const delta = event.clientX - resizeStartX.value;
+  listWidth.value = Math.max(
+    CONVERSATION_LIST_MIN_WIDTH,
+    Math.min(CONVERSATION_LIST_MAX_WIDTH, resizeStartWidth.value + delta)
+  );
+};
+
+const onListResizeEnd = () => {
+  if (!isResizingList.value) return;
+  isResizingList.value = false;
+  Object.assign(document.body.style, { cursor: '', userSelect: '' });
+  updateUISettings({ conversation_list_width: listWidth.value });
+};
+
+useEventListener(document, 'mousemove', onListResizeMove);
+useEventListener(document, 'mouseup', onListResizeEnd);
 const router = useRouter();
 const route = useRoute();
 const store = useStore();
@@ -799,8 +841,9 @@ watch(conversationFilters, (newVal, oldVal) => {
     class="flex flex-col flex-shrink-0 conversations-list-wrap bg-n-surface-1 relative"
     :class="[
       { hidden: !showConversationList },
-      isOnExpandedLayout ? 'basis-full' : 'w-[340px] 2xl:w-[412px]',
+      isOnExpandedLayout ? 'basis-full' : '',
     ]"
+    :style="isOnExpandedLayout ? undefined : { width: `${listWidth}px` }"
   >
     <slot />
     <ChatListHeader
@@ -897,5 +940,15 @@ watch(conversationFilters, (newVal, oldVal) => {
       ref="resolveAttributesModalRef"
       @submit="handleResolveWithAttributes"
     />
+    <div
+      v-if="!isOnExpandedLayout"
+      class="absolute top-0 ltr:right-0 rtl:left-0 h-full w-1 cursor-col-resize z-40 group"
+      @mousedown="onListResizeStart"
+    >
+      <div
+        class="absolute top-0 h-full w-px ltr:right-0 rtl:left-0 bg-transparent group-hover:bg-n-brand transition-colors"
+        :class="{ 'bg-n-brand': isResizingList }"
+      />
+    </div>
   </div>
 </template>
