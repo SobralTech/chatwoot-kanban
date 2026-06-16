@@ -1,10 +1,13 @@
 import {
   format,
   isSameYear,
+  isToday,
+  isYesterday,
   fromUnixTime,
   formatDistanceToNow,
   differenceInDays,
 } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 /**
  * Formats a Unix timestamp into a human-readable time format.
@@ -31,6 +34,18 @@ export const messageTimestamp = (time, dateFormat = 'MMM d, yyyy') => {
     return format(messageTime, 'LLL d y, HH:mm');
   }
   return messageDate;
+};
+
+export const humanTimestamp = time => {
+  const messageTime = fromUnixTime(time);
+  const timeStr = format(messageTime, 'HH:mm');
+  if (isToday(messageTime)) return `Hoje, ${timeStr}`;
+  if (isYesterday(messageTime)) return `Ontem, ${timeStr}`;
+  const now = new Date();
+  if (isSameYear(messageTime, now)) {
+    return format(messageTime, `d 'de' MMMM, HH:mm`, { locale: ptBR });
+  }
+  return format(messageTime, `d 'de' MMMM 'de' yyyy, HH:mm`, { locale: ptBR });
 };
 
 /**
