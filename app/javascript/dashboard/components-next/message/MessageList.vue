@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Message from './Message.vue';
 import { MESSAGE_TYPES } from './constants.js';
 import { useCamelCase } from 'dashboard/composables/useTransformKeys';
@@ -57,6 +58,7 @@ const allMessages = computed(() => {
 });
 
 const currentChat = useMapGetter('getSelectedChat');
+const { t } = useI18n();
 
 // Cache for fetched reply messages to avoid duplicate API calls
 const fetchedReplyMessages = reactive(new Map());
@@ -178,6 +180,16 @@ const getInReplyToMessage = parentMessage => {
         v-if="firstUnreadId && message.id === firstUnreadId"
         name="unreadBadge"
       />
+      <li
+        v-if="currentChat?.messageGapBeforeId === message.id"
+        class="list-none flex items-center gap-3 my-3 px-2"
+      >
+        <div class="h-px flex-1 bg-n-weak" />
+        <span class="shrink-0 text-xs text-n-slate-10">
+          {{ t('CONVERSATION.MESSAGES_GAP') }}
+        </span>
+        <div class="h-px flex-1 bg-n-weak" />
+      </li>
       <Message
         v-bind="message"
         :is-email-inbox="isAnEmailChannel"

@@ -93,11 +93,16 @@ export const mutations = {
     const [chat] = _state.allConversations.filter(c => c.id === id);
     if (!chat) return;
     chat.messages = data;
+    chat.messageGapBeforeId = null;
   },
 
   [types.MERGE_CONVERSATION_MESSAGE_WINDOW](_state, { id, data }) {
     const chat = getConversationById(_state)(id);
     if (!chat || !data.length) return;
+
+    const existingIds = new Set(chat.messages.map(m => m.id));
+    const windowIds = new Set(data.map(m => m.id));
+    const hasOverlap = data.some(m => existingIds.has(m.id));
 
     const messagesById = new Map(
       chat.messages.map(message => [message.id, message])
@@ -118,6 +123,19 @@ export const mutations = {
       }
     );
 
+    let gapBeforeMessageId = null;
+    if (!hasOverlap && chat.messages.length > 0) {
+      for (let i = 1; i < sortedMessages.length; i += 1) {
+        const prevInWindow = windowIds.has(sortedMessages[i - 1].id);
+        const currInWindow = windowIds.has(sortedMessages[i].id);
+        if (prevInWindow !== currInWindow) {
+          gapBeforeMessageId = sortedMessages[i].id;
+          break;
+        }
+      }
+    }
+
+    chat.messageGapBeforeId = gapBeforeMessageId;
     chat.messages.splice(0, chat.messages.length, ...sortedMessages);
   },
 
