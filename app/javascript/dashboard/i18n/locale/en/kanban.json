@@ -49,6 +49,7 @@
       "EDIT_STAGE": "Edit",
       "SAVE_STAGE": "Save",
       "REMOVE_STAGE": "Remove",
+      "STAGE_OPTIONS": "Stage options",
       "CANCEL": "Cancel",
       "CONFIRM_CREATE_BOARD": "Create funnel",
       "CANCEL_CREATE_BOARD": "Cancel funnel creation",
