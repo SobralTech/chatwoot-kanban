@@ -165,7 +165,7 @@ const toggleConversationLayout = () => {
           :value="searchQuery"
           type="text"
           :placeholder="$t('SEARCH.INPUT_PLACEHOLDER')"
-          class="w-full ps-8 pe-2 py-1.5 rounded-lg border border-n-weak bg-n-button-color text-sm text-n-slate-12 outline-none shadow-none appearance-none placeholder:text-n-slate-10 placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap"
+          class="reset-base w-full ps-8 pe-2 py-1.5 rounded-lg border border-n-weak bg-n-button-color text-sm text-n-slate-12 outline-none shadow-none appearance-none placeholder:text-n-slate-10 placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap"
           @input="emit('update:searchQuery', $event.target.value)"
         />
         <button
