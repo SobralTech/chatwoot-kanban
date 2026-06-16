@@ -159,18 +159,18 @@ const toggleConversationLayout = () => {
     <div class="px-3 pb-2">
       <div class="relative">
         <span
-          class="absolute ltr:left-2 rtl:right-2 top-1/2 -translate-y-1/2 i-lucide-search size-4 text-n-slate-10 pointer-events-none"
+          class="absolute start-2 top-1/2 -translate-y-1/2 i-lucide-search size-4 text-n-slate-10 pointer-events-none"
         />
         <input
           :value="searchQuery"
           type="text"
           :placeholder="$t('SEARCH.INPUT_PLACEHOLDER')"
-          class="w-full ltr:pl-8 rtl:pr-8 ltr:pr-2 rtl:pl-2 py-1.5 rounded-lg border border-n-weak bg-n-button-color text-sm text-n-slate-12 placeholder:text-n-slate-10 outline-none shadow-none appearance-none"
+          class="w-full ps-8 pe-2 py-1.5 rounded-lg border border-n-weak bg-n-button-color text-sm text-n-slate-12 outline-none shadow-none appearance-none placeholder:text-n-slate-10 placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap"
           @input="emit('update:searchQuery', $event.target.value)"
         />
         <button
           v-if="searchQuery"
-          class="absolute ltr:right-2 rtl:left-2 top-1/2 -translate-y-1/2 flex items-center cursor-pointer"
+          class="absolute end-2 top-1/2 -translate-y-1/2 flex items-center cursor-pointer"
           @click="emit('update:searchQuery', '')"
         >
           <span
