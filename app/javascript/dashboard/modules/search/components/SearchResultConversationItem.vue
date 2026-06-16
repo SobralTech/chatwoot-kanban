@@ -1,11 +1,12 @@
 <script setup>
 import { computed } from 'vue';
 import { frontendURL } from 'dashboard/helper/URLHelper.js';
-import { dynamicTime } from 'shared/helpers/timeHelper';
+import { humanTimestamp } from 'shared/helpers/timeHelper';
 import { useInbox } from 'dashboard/composables/useInbox';
 import { getInboxIconByType } from 'dashboard/helper/inbox';
 
 import CardLayout from 'dashboard/components-next/CardLayout.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 
 const props = defineProps({
@@ -25,13 +26,21 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  phone: {
+    type: String,
+    default: '',
+  },
+  thumbnail: {
+    type: String,
+    default: '',
+  },
   accountId: {
     type: [String, Number],
     default: '',
   },
-  createdAt: {
-    type: [String, Date, Number],
-    default: '',
+  lastActivityAt: {
+    type: Number,
+    default: 0,
   },
   messageId: {
     type: Number,
@@ -56,24 +65,25 @@ const navigateTo = computed(() => {
   );
 });
 
-const createdAtTime = computed(() => {
-  if (!props.createdAt) return '';
-  return dynamicTime(props.createdAt);
+const lastActivityAtTime = computed(() => {
+  if (!props.lastActivityAt) return '';
+  return humanTimestamp(props.lastActivityAt);
 });
 
 const infoItems = computed(() => [
   {
-    label: 'SEARCH.FROM',
-    value: props.name,
-    show: !!props.name,
+    value: lastActivityAtTime.value,
+    show: !!lastActivityAtTime.value,
   },
   {
-    label: 'SEARCH.EMAIL',
     value: props.email,
     show: !!props.email,
   },
   {
-    label: 'SEARCH.EMAIL_SUBJECT',
+    value: props.phone,
+    show: !!props.phone,
+  },
+  {
     value: props.emailSubject,
     show: !!props.emailSubject,
   },
@@ -85,9 +95,11 @@ const visibleInfoItems = computed(() =>
 
 const inboxName = computed(() => props.inbox?.name);
 
+const inboxDetails = computed(() => inbox.value || props.inbox || {});
+
 const inboxIcon = computed(() => {
-  if (!inbox.value) return null;
-  const { channelType, medium, name } = inbox.value;
+  const { channelType, medium, name } = inboxDetails.value;
+  if (!channelType) return null;
   return getInboxIconByType(channelType, medium, 'fill', name);
 });
 </script>
@@ -95,24 +107,23 @@ const inboxIcon = computed(() => {
 <template>
   <router-link :to="navigateTo">
     <CardLayout
-      layout="col"
-      class="[&>div]:justify-start [&>div]:gap-2 [&>div]:px-4 [&>div]:py-3 [&>div]:items-start hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
+      layout="row"
+      class="[&>div]:justify-start [&>div]:gap-3 [&>div]:px-4 [&>div]:py-3 [&>div]:items-start hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
     >
-      <div
-        class="flex items-center min-w-0 justify-between gap-2 w-full h-7 mb-1"
-      >
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-1.5 flex-shrink-0">
-            <Icon
-              icon="i-lucide-hash"
-              class="flex-shrink-0 text-n-slate-11 size-4"
-            />
-            <span class="text-n-slate-12 text-sm leading-4">
-              {{ id }}
-            </span>
-          </div>
+      <Avatar
+        :name="name"
+        :src="thumbnail"
+        :size="32"
+        rounded-full
+        class="mt-0.5 flex-shrink-0"
+      />
+      <div class="min-w-0 flex flex-col items-start gap-1.5 w-full">
+        <div class="flex items-center min-w-0 gap-3 w-full h-7">
+          <h5 class="m-0 text-sm font-medium truncate min-w-0 text-n-slate-12">
+            {{ name }}
+          </h5>
           <div v-if="inboxName" class="w-px h-3 bg-n-strong" />
-          <div v-if="inboxName" class="flex items-center gap-1.5 flex-shrink-0">
+          <div v-if="inboxName" class="flex items-center gap-1.5 min-w-0">
             <div
               v-if="inboxIcon"
               class="flex items-center justify-center flex-shrink-0 rounded-full bg-n-alpha-2 size-4"
@@ -122,36 +133,27 @@ const inboxIcon = computed(() => {
                 class="flex-shrink-0 text-n-slate-11 size-2.5"
               />
             </div>
-            <span class="text-sm leading-4 text-n-slate-12">
+            <span class="text-sm leading-4 text-n-slate-12 truncate min-w-0">
               {{ inboxName }}
             </span>
           </div>
         </div>
-        <span
-          v-if="createdAtTime"
-          class="text-sm font-normal min-w-0 truncate text-n-slate-11"
-        >
-          {{ createdAtTime }}
-        </span>
-      </div>
-      <div class="flex flex-wrap gap-x-2 gap-y-1.5 items-center">
-        <template
-          v-for="(item, index) in visibleInfoItems"
-          :key="`info-${index}`"
-        >
-          <h5 class="m-0 text-sm min-w-0 text-n-slate-12 truncate">
-            <span class="text-sm leading-4 font-normal text-n-slate-11">
-              {{ $t(item.label) + ':' }}
+        <div class="flex flex-wrap gap-x-2 gap-y-1.5 items-center min-w-0">
+          <template
+            v-for="(item, index) in visibleInfoItems"
+            :key="`info-${index}`"
+          >
+            <span class="text-sm leading-4 min-w-0 text-n-slate-11 truncate">
+              {{ item.value }}
             </span>
-            {{ item.value }}
-          </h5>
-          <div
-            v-if="index < visibleInfoItems.length - 1"
-            class="w-px h-3 bg-n-strong"
-          />
-        </template>
+            <div
+              v-if="index < visibleInfoItems.length - 1"
+              class="w-px h-3 bg-n-strong"
+            />
+          </template>
+        </div>
+        <slot />
       </div>
-      <slot />
     </CardLayout>
   </router-link>
 </template>

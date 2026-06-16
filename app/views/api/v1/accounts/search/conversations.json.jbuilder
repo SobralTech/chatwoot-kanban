@@ -4,6 +4,7 @@ json.payload do
       json.id conversation.display_id
       json.account_id conversation.account_id
       json.created_at conversation.created_at.to_i
+      json.last_activity_at conversation.last_activity_at.to_i
       json.message do
         json.partial! 'message', formats: [:json], message: conversation.messages.try(:first)
       end

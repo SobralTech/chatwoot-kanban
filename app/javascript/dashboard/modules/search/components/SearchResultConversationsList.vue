@@ -51,9 +51,11 @@ const conversationsWithSubject = computed(() => {
           :id="conversation.id"
           :name="conversation.contact.name"
           :email="conversation.contact.email"
+          :phone="conversation.contact.phoneNumber"
+          :thumbnail="conversation.contact.thumbnail"
           :account-id="accountId"
           :inbox="conversation.inbox"
-          :created-at="conversation.createdAt"
+          :last-activity-at="conversation.lastActivityAt"
           :email-subject="conversation.mailSubject"
         />
       </li>
