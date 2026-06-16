@@ -215,6 +215,7 @@ export default {
       if (this.isConversationSearchResultLoaded(result.id)) {
         this.abortConversationSearchNavigationRequest();
         this.isLoadingConversationSearchResult = false;
+        emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId: result.id });
         return;
       }
 
