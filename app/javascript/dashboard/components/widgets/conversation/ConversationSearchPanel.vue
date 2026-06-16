@@ -1,6 +1,6 @@
 <script>
 import { mapGetters } from 'vuex';
-import { format, fromUnixTime, isSameYear, isToday } from 'date-fns';
+import { fromUnixTime, isSameYear, isToday, isYesterday } from 'date-fns';
 import MessageApi from 'dashboard/api/inbox/message';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
@@ -39,6 +39,10 @@ export default {
       return this.conversationSearchResults[
         this.activeConversationSearchResultIndex
       ]?.id;
+    },
+    currentLocale() {
+      const locale = this.$i18n?.locale || this.$root?.$i18n?.locale || 'en';
+      return locale.replace(/_/g, '-');
     },
     hasMoreConversationSearchResults() {
       return !!this.conversationSearchMeta.has_more;
@@ -357,9 +361,32 @@ export default {
       if (!message.created_at) return '';
 
       const date = fromUnixTime(Number(message.created_at));
-      if (isToday(date)) return format(date, 'HH:mm');
-      if (isSameYear(date, new Date())) return format(date, 'MMM d');
-      return format(date, 'MMM d, yyyy');
+      const time = new Intl.DateTimeFormat(this.currentLocale, {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+      if (isToday(date)) return `${this.getRelativeDayLabel(0)}, ${time}`;
+      if (isYesterday(date)) return `${this.getRelativeDayLabel(-1)}, ${time}`;
+
+      const dateFormatOptions = {
+        day: 'numeric',
+        month: 'long',
+      };
+      if (!isSameYear(date, new Date())) {
+        dateFormatOptions.year = 'numeric';
+      }
+
+      const formattedDate = new Intl.DateTimeFormat(
+        this.currentLocale,
+        dateFormatOptions
+      ).format(date);
+      return `${formattedDate}, ${time}`;
+    },
+    getRelativeDayLabel(dayOffset) {
+      const label = new Intl.RelativeTimeFormat(this.currentLocale, {
+        numeric: 'auto',
+      }).format(dayOffset, 'day');
+      return label.charAt(0).toUpperCase() + label.slice(1);
     },
     hasAttachments(message = {}) {
       return !!message.attachments?.length;
