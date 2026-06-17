@@ -109,9 +109,13 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (wavesurfer.value) {
-    wavesurfer.value.destroy();
+  // Stop an in-progress recording gracefully first; destroying the
+  // instance mid-capture aborts the active media stream and throws an
+  // unhandled AbortError from inside wavesurfer's record plugin.
+  if (isRecording.value) {
+    record.value?.stopRecording();
   }
+  wavesurfer.value?.destroy();
 });
 
 defineExpose({ playPause, stopRecording, record });

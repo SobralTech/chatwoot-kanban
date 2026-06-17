@@ -247,6 +247,9 @@ export default {
           return 'i-ph-stop';
       }
     },
+    isCapturingAudio() {
+      return this.audioRecorderPlayStopIcon === 'i-ph-stop';
+    },
     showMessageSignatureButton() {
       if (this.isEditorDisabled) return false;
       return !this.isOnPrivateNote && this.isAnEmailChannel;
@@ -315,24 +318,6 @@ export default {
         />
       </FileUpload>
       <NextButton
-        v-if="showAudioRecorderButton"
-        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"
-        :icon="!isRecordingAudio ? 'i-ph-microphone' : 'i-ph-microphone-slash'"
-        slate
-        faded
-        sm
-        @click="toggleAudioRecorder"
-      />
-      <NextButton
-        v-if="showAudioPlayStopButton"
-        :icon="audioRecorderPlayStopIcon"
-        slate
-        faded
-        sm
-        :label="recordingAudioDurationText"
-        @click="toggleAudioRecorderPlayPause"
-      />
-      <NextButton
         v-if="showMessageSignatureButton"
         v-tooltip.top-end="signatureToggleTooltip"
         icon="i-ph-signature"
@@ -400,12 +385,30 @@ export default {
     </div>
     <div class="right-wrap">
       <NextButton
-        v-if="showMicToggleButton"
-        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"
-        icon="i-ph-microphone"
+        v-if="showAudioRecorderButton"
+        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.CANCEL_AUDIO_RECORDING')"
+        icon="i-ph-trash"
         slate
         faded
         sm
+        class="hover:!text-n-ruby-9 hover:!bg-n-ruby-3"
+        @click="toggleAudioRecorder"
+      />
+      <NextButton
+        v-if="showAudioPlayStopButton"
+        :icon="audioRecorderPlayStopIcon"
+        :color="isCapturingAudio ? 'ruby' : 'slate'"
+        :variant="isCapturingAudio ? 'solid' : 'faded'"
+        sm
+        :label="recordingAudioDurationText"
+        @click="toggleAudioRecorderPlayPause"
+      />
+      <NextButton
+        v-if="showMicToggleButton"
+        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"
+        icon="i-ph-microphone"
+        sm
+        :color="isNote ? 'amber' : 'blue'"
         @click="toggleAudioRecorder"
       />
       <NextButton
@@ -428,7 +431,7 @@ export default {
 }
 
 .right-wrap {
-  @apply flex;
+  @apply flex items-center gap-2;
 }
 
 :deep(.file-uploads) {
