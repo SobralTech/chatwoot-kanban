@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { frontendURL } from 'dashboard/helper/URLHelper';
 
 import CardLayout from 'dashboard/components-next/CardLayout.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 
 const props = defineProps({
   id: {
@@ -10,6 +11,10 @@ const props = defineProps({
     default: 0,
   },
   name: {
+    type: String,
+    default: '',
+  },
+  thumbnail: {
     type: String,
     default: '',
   },
@@ -30,9 +35,18 @@ const navigateTo = computed(() => {
       layout="col"
       class="[&>div]:px-4 [&>div]:py-3 hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
     >
-      <h5 class="m-0 text-sm font-medium truncate min-w-0 text-n-slate-12">
-        {{ name }}
-      </h5>
+      <div class="flex items-center gap-3 min-w-0 w-full">
+        <Avatar
+          :name="name"
+          :src="thumbnail"
+          :size="24"
+          rounded-full
+          class="flex-shrink-0"
+        />
+        <h5 class="m-0 text-sm font-medium truncate min-w-0 text-n-slate-12">
+          {{ name }}
+        </h5>
+      </div>
     </CardLayout>
   </router-link>
 </template>

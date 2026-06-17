@@ -39,6 +39,7 @@ const accountId = useMapGetter('getCurrentAccountId');
         <SearchResultContactItem
           :id="contact.id"
           :name="contact.name"
+          :thumbnail="contact.thumbnail"
           :account-id="accountId"
         />
       </li>

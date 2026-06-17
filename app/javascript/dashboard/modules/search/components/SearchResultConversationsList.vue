@@ -39,6 +39,7 @@ const accountId = useMapGetter('getCurrentAccountId');
         <SearchResultConversationItem
           :id="conversation.id"
           :name="conversation.contact.name"
+          :thumbnail="conversation.contact.thumbnail"
           :account-id="accountId"
           :message="conversation.message"
           :last-activity-at="conversation.lastActivityAt"
