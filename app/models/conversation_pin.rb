@@ -33,10 +33,6 @@ class ConversationPin < ApplicationRecord
   belongs_to :user
 
   validates :pinned_at, presence: true
-  validates :conversation_id,
-            uniqueness: { scope: :user_id, message: 'already pinned by this user' },
-            if: :personal?
-  validates :conversation_id,
-            uniqueness: { scope: :account_id, message: 'already pinned for this account' },
-            if: :account?
+  validates :conversation_id, uniqueness: { scope: :user_id }, if: :personal?
+  validates :conversation_id, uniqueness: { scope: :account_id }, if: :account?
 end

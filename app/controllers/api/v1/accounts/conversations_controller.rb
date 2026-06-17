@@ -1,4 +1,4 @@
-class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseController # rubocop:disable Metrics/ClassLength
   include Events::Types
   include DateRangeHelper
   include HmacConcern
@@ -108,33 +108,9 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
 
   def toggle_pin
     pin_type = params[:pin_type] == 'account' ? :account : :personal
-
-    existing_pin = if pin_type == :account
-                     @conversation.conversation_pins.find_by(account: current_account, pin_type: :account)
-                   else
-                     @conversation.conversation_pins.find_by(user: Current.user, pin_type: :personal)
-                   end
-
-    if existing_pin
-      existing_pin.destroy
-    else
-      @conversation.conversation_pins.create!(
-        account: current_account,
-        user: Current.user,
-        pin_type: pin_type,
-        pinned_at: Time.zone.now
-      )
-    end
-
-    if pin_type == :account
-      Rails.configuration.dispatcher.dispatch(
-        CONVERSATION_UPDATED,
-        Time.zone.now,
-        conversation: @conversation,
-        changed_attributes: {}
-      )
-    end
-
+    existing_pin = find_pin(pin_type)
+    existing_pin ? existing_pin.destroy : create_pin(pin_type)
+    broadcast_pin_update if pin_type == :account
     head :ok
   end
 
@@ -266,6 +242,29 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
 
   def assignee?
     @conversation.assignee_id? && Current.user == @conversation.assignee
+  end
+
+  def find_pin(pin_type)
+    scope = pin_type == :account ? { account: current_account } : { user: Current.user }
+    @conversation.conversation_pins.find_by(scope.merge(pin_type: pin_type))
+  end
+
+  def create_pin(pin_type)
+    @conversation.conversation_pins.create!(
+      account: current_account,
+      user: Current.user,
+      pin_type: pin_type,
+      pinned_at: Time.zone.now
+    )
+  end
+
+  def broadcast_pin_update
+    Rails.configuration.dispatcher.dispatch(
+      CONVERSATION_UPDATED,
+      Time.zone.now,
+      conversation: @conversation,
+      changed_attributes: {}
+    )
   end
 end
 

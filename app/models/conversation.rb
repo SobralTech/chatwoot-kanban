@@ -116,7 +116,7 @@ class Conversation < ApplicationRecord
   has_many :reporting_events, dependent: :destroy_async
   has_many :kanban_cards, dependent: nil
   has_many :conversation_pins, dependent: :destroy
-  has_one :account_pin, -> { where(pin_type: :account) }, class_name: 'ConversationPin'
+  has_one :account_pin, -> { where(pin_type: :account) }, class_name: 'ConversationPin', dependent: :destroy, inverse_of: :conversation
 
   before_save :ensure_snooze_until_reset
   before_create :determine_conversation_status
