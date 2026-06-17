@@ -337,10 +337,10 @@ export default {
     },
     replyTopPanelListeners() {
       return {
-        'set-reply-mode': this.setReplyMode,
-        'toggle-editor-size': this.toggleEditorSize,
-        'toggle-copilot': this.copilot.toggleEditor,
-        'execute-copilot-action': this.executeCopilotAction,
+        setReplyMode: this.setReplyMode,
+        toggleEditorSize: this.toggleEditorSize,
+        toggleCopilot: this.copilot.toggleEditor,
+        executeCopilotAction: this.executeCopilotAction,
       };
     },
     hasAttachments() {
