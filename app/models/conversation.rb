@@ -214,6 +214,14 @@ class Conversation < ApplicationRecord
     messages.chat.last(5)
   end
 
+  def last_useful_message
+    messages
+      .where(account_id: account_id, private: false)
+      .where.not(message_type: Message.message_types[:activity])
+      .reorder(created_at: :desc)
+      .first
+  end
+
   def csat_survey_link
     "#{ENV.fetch('FRONTEND_URL', nil)}/survey/responses/#{uuid}"
   end

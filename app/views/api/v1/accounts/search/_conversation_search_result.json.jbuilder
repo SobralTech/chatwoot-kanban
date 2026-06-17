@@ -2,8 +2,10 @@ json.id conversation.display_id
 json.account_id conversation.account_id
 json.created_at conversation.created_at.to_i
 json.last_activity_at conversation.last_activity_at.to_i
-json.message do
-  json.partial! 'message', formats: [:json], message: conversation.messages.try(:first)
+if (message = conversation.last_useful_message)
+  json.message do
+    json.partial! 'message', formats: [:json], message: message
+  end
 end
 json.contact do
   json.partial! 'contact', formats: [:json], contact: conversation.contact if conversation.try(:contact).present?
