@@ -215,6 +215,9 @@ export default {
         }
         return this.$t('CONVERSATION.FOOTER.MESSAGING_RESTRICTED');
       }
+      if (!this.isAnEmailChannel) {
+        return this.$t('CONVERSATION.FOOTER.SIMPLE_MSG_INPUT');
+      }
       return this.isPrivate
         ? this.$t('CONVERSATION.FOOTER.PRIVATE_MSG_INPUT')
         : this.$t('CONVERSATION.FOOTER.MSG_INPUT');
