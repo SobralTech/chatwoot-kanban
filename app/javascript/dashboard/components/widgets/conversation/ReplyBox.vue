@@ -1,5 +1,5 @@
 <script>
-import { defineAsyncComponent, useTemplateRef } from 'vue';
+import { useTemplateRef } from 'vue';
 import { mapGetters } from 'vuex';
 import { useAlert } from 'dashboard/composables';
 import { useUISettings } from 'dashboard/composables/useUISettings';
@@ -34,7 +34,6 @@ import ContentTemplates from './ContentTemplates/ContentTemplatesModal.vue';
 import { MESSAGE_MAX_LENGTH } from 'shared/helpers/MessageTypeHelper';
 import inboxMixin, { INBOX_FEATURES } from 'shared/mixins/inboxMixin';
 import { trimContent, debounce, getRecipients } from '@chatwoot/utils';
-import wootConstants from 'dashboard/constants/globals';
 import {
   extractQuotedEmailText,
   buildQuotedEmailHeader,
@@ -58,9 +57,6 @@ import { isFileTypeAllowedForChannel } from 'shared/helpers/FileHelper';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { emitter } from 'shared/helpers/mitt';
-const EmojiInput = defineAsyncComponent(
-  () => import('shared/components/emoji/EmojiInput.vue')
-);
 
 export default {
   components: {
@@ -68,7 +64,6 @@ export default {
     AttachmentPreview,
     AudioRecorder,
     ReplyBoxBanner,
-    EmojiInput,
     MessageSignatureMissingAlert,
     ReplyBottomPanel,
     ReplyEmailHead,
@@ -117,7 +112,6 @@ export default {
       message: '',
       inReplyTo: {},
       isFocused: false,
-      showEmojiPicker: false,
       attachedFiles: [],
       isRecordingAudio: false,
       recordingAudioState: '',
@@ -341,14 +335,6 @@ export default {
     },
     isAssistantAvailable() {
       return !!this.currentAccount?.conversation_assistant_available;
-    },
-    isOnExpandedLayout() {
-      const {
-        LAYOUT_TYPES: { CONDENSED },
-      } = wootConstants;
-      const { conversation_display_type: conversationDisplayType = CONDENSED } =
-        this.uiSettings;
-      return conversationDisplayType !== CONDENSED;
     },
     isMessageEmpty() {
       if (!this.message) {
@@ -672,12 +658,6 @@ export default {
     },
     getKeyboardEvents() {
       return {
-        Escape: {
-          action: () => {
-            this.hideEmojiPicker();
-          },
-          allowOnFocusedInput: true,
-        },
         '$mod+KeyK': {
           action: e => {
             e.preventDefault();
@@ -829,7 +809,6 @@ export default {
         }
 
         this.clearMessage();
-        this.hideEmojiPicker();
       }
     },
     sendMessageAsMultipleMessages(message, copilotAcceptedMessage = '') {
@@ -1012,9 +991,6 @@ export default {
       this.toEmails = '';
     },
 
-    toggleEmojiPicker() {
-      this.showEmojiPicker = !this.showEmojiPicker;
-    },
     toggleAudioRecorder() {
       this.isRecordingAudio = !this.isRecordingAudio;
       if (!this.isRecordingAudio) {
@@ -1027,11 +1003,6 @@ export default {
         this.$refs.audioRecorderInput.stopRecording();
       } else {
         this.$refs.audioRecorderInput.playPause();
-      }
-    },
-    hideEmojiPicker() {
-      if (this.showEmojiPicker) {
-        this.toggleEmojiPicker();
       }
     },
     onTypingOn() {
@@ -1336,14 +1307,6 @@ export default {
           :message="inReplyTo"
           @dismiss="resetReplyToMessage"
         />
-        <EmojiInput
-          v-if="!isOnAssistant && showEmojiPicker"
-          v-on-clickaway="hideEmojiPicker"
-          :class="{
-            'emoji-dialog--expanded': isOnExpandedLayout,
-          }"
-          :on-click="addIntoEditor"
-        />
         <ReplyEmailHead
           v-if="!isOnAssistant && showReplyHead && isDefaultEditorMode"
           v-model:cc-emails="ccEmails"
@@ -1473,13 +1436,11 @@ export default {
         :recording-audio-state="recordingAudioState"
         :send-button-text="replyButtonLabel"
         :show-audio-recorder="showAudioRecorder"
-        :show-emoji-picker="showEmojiPicker"
         :show-file-upload="showFileUpload"
         :show-quoted-reply-toggle="shouldShowQuotedReplyToggle"
         :quoted-reply-enabled="quotedReplyPreference"
         :toggle-audio-recorder-play-pause="toggleAudioRecorderPlayPause"
         :toggle-audio-recorder="toggleAudioRecorder"
-        :toggle-emoji-picker="toggleEmojiPicker"
         :message="message"
         :portal-slug="connectedPortalSlug"
         :new-conversation-modal-active="newConversationModalActive"
@@ -1537,23 +1498,5 @@ export default {
 
 .reply-box__top {
   @apply relative py-0 px-3 -mt-px;
-}
-
-.emoji-dialog {
-  @apply top-[unset] -bottom-10 ltr:-left-80 ltr:right-[unset] rtl:left-[unset] rtl:-right-80;
-
-  &::before {
-    filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.08));
-    @apply ltr:-right-4 bottom-2 rtl:-left-4 ltr:rotate-[270deg] rtl:rotate-[90deg];
-  }
-}
-
-.emoji-dialog--expanded {
-  @apply left-[unset] bottom-0 absolute z-[100];
-
-  &::before {
-    transform: rotate(0deg);
-    @apply ltr:left-1 rtl:right-1 -bottom-2;
-  }
 }
 </style>
