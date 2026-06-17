@@ -1352,7 +1352,7 @@ export default {
           enable-variables
           :variables="messageVariables"
           :signature="messageSignature"
-          allow-signature
+          :allow-signature="isAnEmailChannel"
           :channel-type="channelType"
           :medium="inbox.medium"
           @typing-off="onTypingOff"
