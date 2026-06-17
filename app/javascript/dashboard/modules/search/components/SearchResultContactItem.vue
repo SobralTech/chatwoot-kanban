@@ -30,12 +30,12 @@ const navigateTo = computed(() => {
 </script>
 
 <template>
-  <router-link :to="navigateTo">
+  <router-link :to="navigateTo" class="block w-full min-w-0">
     <CardLayout
       layout="col"
-      class="[&>div]:px-4 [&>div]:py-3 hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
+      class="[&>div]:px-3 [&>div]:py-2.5 hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
     >
-      <div class="flex items-center gap-3 min-w-0 w-full">
+      <div class="flex items-center gap-2.5 min-w-0 w-full">
         <Avatar
           :name="name"
           :src="thumbnail"
@@ -43,7 +43,9 @@ const navigateTo = computed(() => {
           rounded-full
           class="flex-shrink-0"
         />
-        <h5 class="m-0 text-sm font-medium truncate min-w-0 text-n-slate-12">
+        <h5
+          class="m-0 text-sm font-medium truncate min-w-0 flex-1 text-n-slate-12"
+        >
           {{ name }}
         </h5>
       </div>

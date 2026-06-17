@@ -116,16 +116,16 @@ const isOutgoingMessage = computed(() => {
 </script>
 
 <template>
-  <router-link :to="navigateTo">
+  <router-link :to="navigateTo" class="block w-full min-w-0">
     <CardLayout
       layout="col"
-      class="[&>div]:px-4 [&>div]:py-3 [&>div]:gap-2 hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
+      class="[&>div]:px-3 [&>div]:py-2.5 [&>div]:gap-2 hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
     >
-      <div class="flex items-center gap-3 min-w-0 w-full">
+      <div class="flex items-center gap-2.5 min-w-0 w-full">
         <Avatar
           :name="name"
           :src="thumbnail"
-          :size="32"
+          :size="28"
           rounded-full
           class="flex-shrink-0"
         />
