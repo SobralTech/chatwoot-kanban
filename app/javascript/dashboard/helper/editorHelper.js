@@ -645,7 +645,16 @@ export function calculateMenuPosition(coords, rect, isRtl) {
   const top = onTop
     ? Math.max(-26, selTop - rect.top - MENU_CONFIG.H - MENU_CONFIG.GAP)
     : Math.max(start.bottom, end.bottom) - rect.top + MENU_CONFIG.GAP;
-  return { left, top, width: MENU_CONFIG.W };
+
+  // `top` is relative to the container, but the container itself can sit
+  // anywhere on screen. Clamp so the menu's absolute screen position never
+  // falls above or below the actual browser viewport.
+  const minTop = -rect.top + MENU_CONFIG.GAP;
+  const maxTop =
+    window.innerHeight - rect.top - MENU_CONFIG.H - MENU_CONFIG.GAP;
+  const clampedTop = Math.min(Math.max(top, minTop), Math.max(minTop, maxTop));
+
+  return { left, top: clampedTop, width: MENU_CONFIG.W };
 }
 
 /* End Menu Positioning Helpers */
