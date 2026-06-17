@@ -463,7 +463,9 @@ export default {
       />
       <NextButton
         v-else
-        :label="sendButtonText"
+        v-tooltip.top-end="singleLine ? sendButtonText : undefined"
+        :icon="singleLine ? 'i-ph-paper-plane-right-fill' : undefined"
+        :label="singleLine ? undefined : sendButtonText"
         type="submit"
         sm
         :color="isNote ? 'amber' : 'blue'"
