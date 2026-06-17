@@ -223,7 +223,7 @@
     },
     "REPLYBOX": {
       "REPLY": "Responder",
-      "PRIVATE_NOTE": "Mensagem Privada",
+      "PRIVATE_NOTE": "Nota Interna",
       "ASSISTANT": "Assistente",
       "SEND": "Enviar",
       "CREATE": "Enviar",

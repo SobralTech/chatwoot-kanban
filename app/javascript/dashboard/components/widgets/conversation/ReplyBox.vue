@@ -318,6 +318,31 @@ export default {
         'is-focused': this.isFocused || this.hasAttachments,
       };
     },
+    replyTopPanelProps() {
+      return {
+        mode: this.replyType,
+        conversationId: this.conversationId,
+        isReplyRestricted: this.isReplyRestricted,
+        showAssistant: this.isAssistantAvailable,
+        disabled:
+          (this.copilot.isActive.value &&
+            this.copilot.isButtonDisabled.value) ||
+          this.showAudioRecorderEditor,
+        isEditorDisabled: this.isEditorDisabled,
+        isMessageLengthReachingThreshold: this.isMessageLengthReachingThreshold,
+        charactersRemaining: this.charactersRemaining,
+        editorContent: this.message,
+        hasContent: this.hasMeaningfulEditorContent,
+      };
+    },
+    replyTopPanelListeners() {
+      return {
+        'set-reply-mode': this.setReplyMode,
+        'toggle-editor-size': this.toggleEditorSize,
+        'toggle-copilot': this.copilot.toggleEditor,
+        'execute-copilot-action': this.executeCopilotAction,
+      };
+    },
     hasAttachments() {
       return this.attachedFiles.length;
     },
@@ -1253,25 +1278,17 @@ export default {
 
 <template>
   <ReplyBoxBanner :message="message" :is-on-private-note="isOnPrivateNote" />
+  <ReplyTopPanel
+    v-if="!isAnEmailChannel"
+    class="mx-2 mb-2"
+    v-bind="replyTopPanelProps"
+    v-on="replyTopPanelListeners"
+  />
   <div ref="replyEditor" class="reply-box" :class="replyBoxClass">
     <ReplyTopPanel
-      :mode="replyType"
-      :conversation-id="conversationId"
-      :is-reply-restricted="isReplyRestricted"
-      :show-assistant="isAssistantAvailable"
-      :disabled="
-        (copilot.isActive.value && copilot.isButtonDisabled.value) ||
-        showAudioRecorderEditor
-      "
-      :is-editor-disabled="isEditorDisabled"
-      :is-message-length-reaching-threshold="isMessageLengthReachingThreshold"
-      :characters-remaining="charactersRemaining"
-      :editor-content="message"
-      :has-content="hasMeaningfulEditorContent"
-      @set-reply-mode="setReplyMode"
-      @toggle-editor-size="toggleEditorSize"
-      @toggle-copilot="copilot.toggleEditor"
-      @execute-copilot-action="executeCopilotAction"
+      v-if="isAnEmailChannel"
+      v-bind="replyTopPanelProps"
+      v-on="replyTopPanelListeners"
     />
     <ArticleSearchPopover
       v-if="showArticleSearchPopover && connectedPortalSlug"
