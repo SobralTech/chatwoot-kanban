@@ -45,8 +45,16 @@ const currentPage = ref(1);
 const totalPages = ref(1);
 const error = ref('');
 const messagesContainer = ref(null);
+const textareaRef = ref(null);
 
 const hasMoreMessages = computed(() => currentPage.value < totalPages.value);
+
+const adjustTextareaHeight = () => {
+  const el = textareaRef.value;
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
 
 const scrollToBottom = () => {
   nextTick(() => {
@@ -78,6 +86,7 @@ const debouncedSaveQuestionDraft = debounce(saveQuestionDraft, 500, true);
 
 watch(question, () => {
   debouncedSaveQuestionDraft();
+  nextTick(adjustTextareaHeight);
 });
 
 onBeforeUnmount(() => {
@@ -185,7 +194,10 @@ const sendToCustomer = async message => {
   }
 };
 
-onMounted(fetchMessages);
+onMounted(() => {
+  fetchMessages();
+  nextTick(adjustTextareaHeight);
+});
 </script>
 
 <template>
@@ -323,10 +335,13 @@ onMounted(fetchMessages);
 
     <form class="space-y-2" @submit.prevent="askAssistant">
       <textarea
+        ref="textareaRef"
         v-model="question"
-        class="assistant-question-input w-full rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+        rows="1"
+        class="assistant-question-input w-full resize-none rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
         :placeholder="t('CONVERSATION.ASSISTANT.PLACEHOLDER')"
         @keydown.enter="handleQuestionKeydown"
+        @input="adjustTextareaHeight"
       />
       <div class="flex items-center justify-between gap-2">
         <span
@@ -350,21 +365,9 @@ onMounted(fetchMessages);
 </template>
 
 <style lang="scss" scoped>
-.resizable-editor-wrapper {
-  .assistant-question-input {
-    min-height: clamp(
-      var(--editor-min-allowed, 5rem),
-      var(--editor-height, 5rem),
-      var(--editor-max-allowed, 7.5rem)
-    );
-    max-height: clamp(
-      var(--editor-min-allowed, 5rem),
-      var(--editor-height, 5rem),
-      var(--editor-max-allowed, 7.5rem)
-    );
-    transition:
-      min-height var(--editor-height-transition, 180ms ease),
-      max-height var(--editor-height-transition, 180ms ease);
-  }
+.assistant-question-input {
+  min-height: 5rem;
+  max-height: 12rem;
+  overflow-y: auto;
 }
 </style>
