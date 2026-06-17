@@ -1,22 +1,39 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, useTemplateRef } from 'vue';
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  useTemplateRef,
+} from 'vue';
 import { useEventListener } from '@vueuse/core';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 const props = defineProps({
   containerHeight: { type: Number, default: 0 },
+  isAnEmailChannel: { type: Boolean, default: true },
 });
 
-const DEFAULT_HEIGHT = 120;
-const MIN_HEIGHT = 80;
+const EMAIL_DEFAULT_HEIGHT = 120;
+const EMAIL_MIN_HEIGHT = 80;
+const COMPACT_DEFAULT_HEIGHT = 30;
+const COMPACT_MIN_HEIGHT = 30;
 const MIN_MESSAGES_HEIGHT = 200;
 const EXPAND_RATIO = 0.5;
 const RESET_DELAY_MS = 120;
 
+const DEFAULT_HEIGHT = computed(() =>
+  props.isAnEmailChannel ? EMAIL_DEFAULT_HEIGHT : COMPACT_DEFAULT_HEIGHT
+);
+const MIN_HEIGHT = computed(() =>
+  props.isAnEmailChannel ? EMAIL_MIN_HEIGHT : COMPACT_MIN_HEIGHT
+);
+
 const wrapperRef = useTemplateRef('wrapperRef');
 const surroundingHeight = ref(0);
-const editorHeight = ref(DEFAULT_HEIGHT);
+const editorHeight = ref(DEFAULT_HEIGHT.value);
 const isResizing = ref(false);
 const startY = ref(0);
 const startHeight = ref(0);
@@ -39,13 +56,15 @@ const isContainerReady = computed(() => props.containerHeight > 0);
 const sizeBounds = computed(() => {
   const h = props.containerHeight;
   const s = surroundingHeight.value;
-  const max = Math.max(MIN_HEIGHT, h - MIN_MESSAGES_HEIGHT - s);
-  const expanded = clamp(Math.floor(h * EXPAND_RATIO - s / 2), MIN_HEIGHT, max);
+  const min = MIN_HEIGHT.value;
+  const defaultHeight = DEFAULT_HEIGHT.value;
+  const max = Math.max(min, h - MIN_MESSAGES_HEIGHT - s);
+  const expanded = clamp(Math.floor(h * EXPAND_RATIO - s / 2), min, max);
   return {
-    min: MIN_HEIGHT,
-    max: isContainerReady.value ? max : DEFAULT_HEIGHT,
+    min,
+    max: isContainerReady.value ? max : defaultHeight,
     expanded,
-    default: clamp(DEFAULT_HEIGHT, MIN_HEIGHT, max),
+    default: clamp(defaultHeight, min, max),
   };
 });
 
@@ -104,6 +123,13 @@ const handleMessageSent = () => {
   resetTimeoutId = setTimeout(resetEditorHeight, RESET_DELAY_MS);
 };
 
+watch(
+  () => props.isAnEmailChannel,
+  () => {
+    editorHeight.value = sizeBounds.value.default;
+  }
+);
+
 onMounted(() => {
   emitter.on(BUS_EVENTS.MESSAGE_SENT, handleMessageSent);
 });
@@ -139,6 +165,7 @@ defineExpose({ toggleEditorExpand, resetEditorHeight });
     }"
   >
     <div
+      v-if="isAnEmailChannel"
       class="group absolute inset-x-0 -top-4 z-10 flex h-4 cursor-row-resize select-none items-center justify-center bg-gradient-to-b from-transparent from-10% dark:to-n-surface-1/80 to-n-surface-1/90 backdrop-blur-[0.01875rem]"
       @mousedown="onResizeStart"
       @touchstart.prevent="onResizeStart"
