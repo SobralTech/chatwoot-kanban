@@ -37,6 +37,21 @@
     "CREATED_AT": "created {time}",
     "UPDATED_AT": "updated {time}",
     "LAST_MESSAGE": "Last message: {time}",
+    "PREVIEW_ATTACHMENT": {
+      "AUDIO": "Audio",
+      "CONTACT": "Contact",
+      "EMBED": "Embed",
+      "FILE": "File",
+      "IMAGE": "Image",
+      "INSTAGRAM_POST": "Instagram post",
+      "INSTAGRAM_REEL": "Instagram reel",
+      "INSTAGRAM_STORY": "Instagram story",
+      "LINK": "Link",
+      "LOCATION": "Location",
+      "SHARED_CONTENT": "Shared content",
+      "STORY_MENTION": "Story mention",
+      "VIDEO": "Video"
+    },
     "SORT_BY": {
       "RELEVANCE": "Relevance"
     },

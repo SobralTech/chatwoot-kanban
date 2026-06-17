@@ -1,12 +1,12 @@
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { frontendURL } from 'dashboard/helper/URLHelper.js';
-import { humanTimestamp } from 'shared/helpers/timeHelper';
-import { useInbox } from 'dashboard/composables/useInbox';
-import { getInboxIconByType } from 'dashboard/helper/inbox';
+import { messageStamp } from 'shared/helpers/timeHelper';
+import { MESSAGE_TYPE } from 'shared/constants/messages';
+import { ATTACHMENT_TYPES } from 'dashboard/components-next/message/constants.js';
 
 import CardLayout from 'dashboard/components-next/CardLayout.vue';
-import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 
 const props = defineProps({
@@ -14,23 +14,7 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
-  inbox: {
-    type: Object,
-    default: () => ({}),
-  },
   name: {
-    type: String,
-    default: '',
-  },
-  email: {
-    type: String,
-    default: '',
-  },
-  phone: {
-    type: String,
-    default: '',
-  },
-  thumbnail: {
     type: String,
     default: '',
   },
@@ -46,18 +30,18 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
-  emailSubject: {
-    type: String,
-    default: '',
+  message: {
+    type: Object,
+    default: () => ({}),
   },
 });
 
-const { inbox } = useInbox(props.inbox?.id);
+const { t } = useI18n();
 
 const navigateTo = computed(() => {
   const params = {};
-  if (props.messageId) {
-    params.messageId = props.messageId;
+  if (props.messageId || props.message?.id) {
+    params.messageId = props.messageId || props.message.id;
   }
   return frontendURL(
     `accounts/${props.accountId}/conversations/${props.id}`,
@@ -65,99 +49,99 @@ const navigateTo = computed(() => {
   );
 });
 
-const lastActivityAtTime = computed(() => {
-  if (!props.lastActivityAt) return '';
-  return humanTimestamp(props.lastActivityAt);
+const previewMessage = computed(() => props.message || {});
+
+const previewTime = computed(() => {
+  const timestamp = previewMessage.value.createdAt || props.lastActivityAt;
+  if (!timestamp) return '';
+
+  return messageStamp(timestamp, 'HH:mm');
 });
 
-const infoItems = computed(() => [
-  {
-    value: props.email,
-    show: !!props.email,
-  },
-  {
-    value: props.phone,
-    show: !!props.phone,
-  },
-  {
-    value: props.emailSubject,
-    show: !!props.emailSubject,
-  },
-]);
+const attachmentLabels = computed(() => ({
+  [ATTACHMENT_TYPES.IMAGE]: t('SEARCH.PREVIEW_ATTACHMENT.IMAGE'),
+  [ATTACHMENT_TYPES.AUDIO]: t('SEARCH.PREVIEW_ATTACHMENT.AUDIO'),
+  [ATTACHMENT_TYPES.VIDEO]: t('SEARCH.PREVIEW_ATTACHMENT.VIDEO'),
+  [ATTACHMENT_TYPES.FILE]: t('SEARCH.PREVIEW_ATTACHMENT.FILE'),
+  [ATTACHMENT_TYPES.LOCATION]: t('SEARCH.PREVIEW_ATTACHMENT.LOCATION'),
+  [ATTACHMENT_TYPES.FALLBACK]: t('SEARCH.PREVIEW_ATTACHMENT.LINK'),
+  [ATTACHMENT_TYPES.SHARE]: t('SEARCH.PREVIEW_ATTACHMENT.SHARED_CONTENT'),
+  [ATTACHMENT_TYPES.CONTACT]: t('SEARCH.PREVIEW_ATTACHMENT.CONTACT'),
+  [ATTACHMENT_TYPES.STORY_MENTION]: t(
+    'SEARCH.PREVIEW_ATTACHMENT.STORY_MENTION'
+  ),
+  [ATTACHMENT_TYPES.IG_REEL]: t('SEARCH.PREVIEW_ATTACHMENT.INSTAGRAM_REEL'),
+  [ATTACHMENT_TYPES.IG_POST]: t('SEARCH.PREVIEW_ATTACHMENT.INSTAGRAM_POST'),
+  [ATTACHMENT_TYPES.IG_STORY]: t('SEARCH.PREVIEW_ATTACHMENT.INSTAGRAM_STORY'),
+  [ATTACHMENT_TYPES.EMBED]: t('SEARCH.PREVIEW_ATTACHMENT.EMBED'),
+}));
 
-const visibleInfoItems = computed(() =>
-  infoItems.value.filter(item => item.show)
-);
+const previewText = computed(() => {
+  const { content, contentAttributes, attachments = [] } = previewMessage.value;
+  if (content) {
+    return content;
+  }
 
-const inboxName = computed(() => props.inbox?.name);
+  const emailSubject = contentAttributes?.email?.subject;
+  if (emailSubject) {
+    return emailSubject;
+  }
 
-const inboxDetails = computed(() => inbox.value || props.inbox || {});
+  const [attachment] = attachments;
+  if (!attachment) {
+    return '';
+  }
 
-const inboxIcon = computed(() => {
-  const { channelType, medium, name } = inboxDetails.value;
-  if (!channelType) return null;
-  return getInboxIconByType(channelType, medium, 'fill', name);
+  if (attachment.fileType === ATTACHMENT_TYPES.FILE) {
+    return (
+      attachment.extension?.toUpperCase() || t('SEARCH.PREVIEW_ATTACHMENT.FILE')
+    );
+  }
+
+  return (
+    attachmentLabels.value[attachment.fileType] ||
+    t('SEARCH.PREVIEW_ATTACHMENT.FILE')
+  );
+});
+
+const isOutgoingMessage = computed(() => {
+  const messageType = previewMessage.value.messageType;
+  return messageType !== undefined && messageType !== MESSAGE_TYPE.INCOMING;
 });
 </script>
 
 <template>
   <router-link :to="navigateTo">
     <CardLayout
-      layout="row"
-      class="[&>div]:justify-start [&>div]:gap-3 [&>div]:px-4 [&>div]:py-3 [&>div]:items-start hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
+      layout="col"
+      class="[&>div]:px-4 [&>div]:py-3 [&>div]:gap-2 hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
     >
-      <Avatar
-        :name="name"
-        :src="thumbnail"
-        :size="32"
-        rounded-full
-        class="mt-0.5 flex-shrink-0"
-      />
-      <div class="min-w-0 flex flex-col items-start gap-1.5 w-full">
-        <div class="flex items-center min-w-0 gap-3 w-full h-7">
-          <h5 class="m-0 text-sm font-medium truncate min-w-0 text-n-slate-12">
-            {{ name }}
-          </h5>
-          <div v-if="inboxName" class="w-px h-3 bg-n-strong" />
-          <div v-if="inboxName" class="flex items-center gap-1.5 min-w-0">
-            <div
-              v-if="inboxIcon"
-              class="flex items-center justify-center flex-shrink-0 rounded-full bg-n-alpha-2 size-4"
-            >
-              <Icon
-                :icon="inboxIcon"
-                class="flex-shrink-0 text-n-slate-11 size-2.5"
-              />
-            </div>
-            <span class="text-sm leading-4 text-n-slate-12 truncate min-w-0">
-              {{ inboxName }}
-            </span>
-          </div>
-        </div>
-        <div class="flex items-start justify-between gap-3 w-full min-w-0">
-          <div class="flex flex-wrap gap-x-2 gap-y-1.5 items-center min-w-0">
-            <template
-              v-for="(item, index) in visibleInfoItems"
-              :key="`info-${index}`"
-            >
-              <span class="text-sm leading-4 min-w-0 text-n-slate-11 truncate">
-                {{ item.value }}
-              </span>
-              <div
-                v-if="index < visibleInfoItems.length - 1"
-                class="w-px h-3 bg-n-strong"
-              />
-            </template>
-          </div>
-          <span
-            v-if="lastActivityAtTime"
-            class="text-sm leading-4 flex-shrink-0 text-right text-n-slate-11 whitespace-nowrap"
-          >
-            {{ $t('SEARCH.LAST_MESSAGE', { time: lastActivityAtTime }) }}
-          </span>
-        </div>
-        <slot />
+      <div class="flex items-start justify-between gap-3 min-w-0 w-full">
+        <h5
+          class="m-0 text-sm font-medium truncate min-w-0 text-n-slate-12 flex-1"
+        >
+          {{ name }}
+        </h5>
+        <span
+          v-if="previewTime"
+          class="text-xs leading-4 flex-shrink-0 text-n-slate-11 whitespace-nowrap"
+        >
+          {{ previewTime }}
+        </span>
       </div>
+      <div
+        class="flex items-center gap-1.5 min-w-0 w-full text-sm text-n-slate-11"
+      >
+        <Icon
+          v-if="isOutgoingMessage"
+          icon="i-lucide-check-check"
+          class="size-3.5 flex-shrink-0 text-n-slate-11"
+        />
+        <span class="truncate min-w-0 text-n-slate-11">
+          {{ previewText }}
+        </span>
+      </div>
+      <slot />
     </CardLayout>
   </router-link>
 </template>
