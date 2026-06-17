@@ -170,6 +170,7 @@ watch(
         v-else-if="lastMessageInChat"
         key="message-preview"
         :message="lastMessageInChat"
+        :pin-icon="pinIcon"
         class="my-0 mx-2 leading-6 h-6 flex-1 min-w-0 text-sm"
         :class="messagePreviewClass"
       />
@@ -203,12 +204,6 @@ watch(
           v-if="hasUnread"
           :count="unreadCount"
           class="ltr:ml-auto rtl:mr-auto mt-1"
-        />
-        <fluent-icon
-          v-if="pinIcon"
-          :icon="pinIcon"
-          size="12"
-          class="ltr:ml-auto rtl:mr-auto mt-1 text-n-slate-10"
         />
       </div>
       <CardLabels

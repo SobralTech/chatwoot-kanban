@@ -18,6 +18,10 @@ export default {
       type: String,
       default: '',
     },
+    pinIcon: {
+      type: String,
+      default: '',
+    },
   },
   setup() {
     const { getPlainText } = useMessageFormatter();
@@ -62,9 +66,15 @@ export default {
 
 <template>
   <div class="flex items-center min-w-0 overflow-hidden gap-1">
-    <template v-if="showMessageType && !messageByAgent">
+    <template v-if="showMessageType">
       <fluent-icon
-        v-if="isMessagePrivate"
+        v-if="messageByAgent"
+        size="14"
+        class="-mt-0.5 text-n-slate-11 flex-shrink-0"
+        icon="checkmark-double"
+      />
+      <fluent-icon
+        v-else-if="isMessagePrivate"
         size="16"
         class="-mt-0.5 text-n-slate-11 flex-shrink-0"
         icon="lock-closed"
@@ -108,10 +118,10 @@ export default {
       {{ defaultEmptyMessage || $t('CHAT_LIST.NO_CONTENT') }}
     </span>
     <fluent-icon
-      v-if="showMessageType && messageByAgent"
-      size="14"
-      class="-mt-0.5 text-n-slate-11 flex-shrink-0"
-      icon="checkmark-double"
+      v-if="pinIcon"
+      size="12"
+      class="-mt-0.5 text-n-slate-10 flex-shrink-0"
+      :icon="pinIcon"
     />
   </div>
 </template>
