@@ -20,6 +20,7 @@ const EMAIL_DEFAULT_HEIGHT = 120;
 const EMAIL_MIN_HEIGHT = 80;
 const COMPACT_DEFAULT_HEIGHT = 30;
 const COMPACT_MIN_HEIGHT = 30;
+const COMPACT_MAX_HEIGHT = 142;
 const MIN_MESSAGES_HEIGHT = 200;
 const EXPAND_RATIO = 0.5;
 const RESET_DELAY_MS = 120;
@@ -58,7 +59,9 @@ const sizeBounds = computed(() => {
   const s = surroundingHeight.value;
   const min = MIN_HEIGHT.value;
   const defaultHeight = DEFAULT_HEIGHT.value;
-  const max = Math.max(min, h - MIN_MESSAGES_HEIGHT - s);
+  const max = props.isAnEmailChannel
+    ? Math.max(min, h - MIN_MESSAGES_HEIGHT - s)
+    : COMPACT_MAX_HEIGHT;
   const expanded = clamp(Math.floor(h * EXPAND_RATIO - s / 2), min, max);
   return {
     min,
