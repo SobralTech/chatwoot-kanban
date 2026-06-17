@@ -401,7 +401,7 @@ export default {
       <MenuItem
         v-if="isAllowed([MENU.PIN_ME])"
         :option="{
-          icon: isPinnedByMe ? 'pin-off' : 'pin',
+          icon: isPinnedByMe ? 'dismiss-circle' : 'star-emphasis',
           label: isPinnedByMe
             ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_FOR_ME')
             : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_FOR_ME'),
@@ -412,7 +412,7 @@ export default {
       <MenuItem
         v-if="isAllowed([MENU.PIN_ALL])"
         :option="{
-          icon: isPinnedForAll ? 'pin-off' : 'pin',
+          icon: isPinnedForAll ? 'dismiss-circle' : 'people-team',
           label: isPinnedForAll
             ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_FOR_ALL')
             : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_FOR_ALL'),
