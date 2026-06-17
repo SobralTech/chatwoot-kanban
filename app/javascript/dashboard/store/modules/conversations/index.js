@@ -296,8 +296,17 @@ export const mutations = {
         return;
       }
 
-      const { messages, ...updates } = conversation;
-      allConversations[index] = { ...selectedConversation, ...updates };
+      const {
+        messages,
+        personal_pinned_at: incomingPersonalPin,
+        ...updates
+      } = conversation;
+      allConversations[index] = {
+        ...selectedConversation,
+        ...updates,
+        personal_pinned_at:
+          incomingPersonalPin ?? selectedConversation.personal_pinned_at,
+      };
       if (_state.selectedChatId === conversation.id) {
         emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
       }

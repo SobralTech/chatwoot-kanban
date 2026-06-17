@@ -59,6 +59,12 @@ const showMetaSection = computed(() => {
 
 const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
 
+const pinIcon = computed(() => {
+  if (props.chat.account_pinned_at) return 'people-team';
+  if (props.chat.personal_pinned_at) return 'star-emphasis';
+  return '';
+});
+
 const showLabelsSection = computed(() => {
   return props.chat.labels?.length > 0 || hasSlaPolicyId.value;
 });
@@ -219,6 +225,12 @@ watch(
           v-if="hasUnread"
           :count="unreadCount"
           class="ltr:ml-auto rtl:mr-auto mt-1"
+        />
+        <fluent-icon
+          v-if="pinIcon"
+          :icon="pinIcon"
+          size="12"
+          class="ltr:ml-auto rtl:mr-auto mt-1 text-n-slate-10"
         />
       </div>
       <CardLabels
