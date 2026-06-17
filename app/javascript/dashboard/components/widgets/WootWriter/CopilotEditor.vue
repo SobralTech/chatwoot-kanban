@@ -233,7 +233,7 @@ onMounted(() => {
 
   .ProseMirror-woot-style {
     min-height: 5rem;
-    max-height: 7.5rem !important;
+    max-height: 12rem !important;
     overflow: auto;
     @apply px-2 !important;
 
