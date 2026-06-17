@@ -368,6 +368,19 @@ export const mutations = {
     message.call = { ...message.call, status: callStatus };
   },
 
+  [types.UPDATE_CONVERSATION_PIN](
+    _state,
+    { conversationId, pinType, pinnedAt }
+  ) {
+    const chat = getConversationById(_state)(conversationId);
+    if (!chat) return;
+    if (pinType === 'personal') {
+      chat.personal_pinned_at = pinnedAt;
+    } else {
+      chat.account_pinned_at = pinnedAt;
+    }
+  },
+
   [types.SET_ACTIVE_INBOX](_state, inboxId) {
     _state.currentInbox = inboxId ? parseInt(inboxId, 10) : null;
   },

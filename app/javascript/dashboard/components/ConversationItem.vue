@@ -176,6 +176,11 @@ const onDeleteConversation = () => {
   deleteConversation(props.source.id);
   closeContextMenu();
 };
+
+const onTogglePin = ({ chatId, pinType }) => {
+  store.dispatch('toggleConversationPin', { conversationId: chatId, pinType });
+  closeContextMenu();
+};
 </script>
 
 <template>
@@ -229,6 +234,8 @@ const onDeleteConversation = () => {
       :has-unread-messages="source.unread_count > 0"
       :conversation-labels="source.labels"
       :conversation-url="conversationPath"
+      :is-pinned-by-me="!!source.personal_pinned_at"
+      :is-pinned-for-all="!!source.account_pinned_at"
       @update-conversation="onUpdateConversation"
       @assign-agent="onAssignAgent"
       @assign-label="onAssignLabel"
@@ -238,6 +245,7 @@ const onDeleteConversation = () => {
       @mark-as-read="onMarkAsRead"
       @assign-priority="onAssignPriority"
       @delete-conversation="onDeleteConversation"
+      @toggle-pin="onTogglePin"
       @close="closeContextMenu"
     />
   </ContextMenu>

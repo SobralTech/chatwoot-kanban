@@ -161,7 +161,17 @@ const sortConfig = {
   },
 };
 
+const getPinnedAt = conversation =>
+  conversation.account_pinned_at || conversation.personal_pinned_at || null;
+
 export const sortComparator = (a, b, sortKey) => {
+  const aPinnedAt = getPinnedAt(a);
+  const bPinnedAt = getPinnedAt(b);
+
+  if (aPinnedAt && !bPinnedAt) return -1;
+  if (!aPinnedAt && bPinnedAt) return 1;
+  if (aPinnedAt && bPinnedAt) return bPinnedAt - aPinnedAt;
+
   const [sortMethod, sortDirection] =
     SORT_OPTIONS[sortKey] || SORT_OPTIONS.last_activity_at_desc;
   return sortConfig[sortMethod](a, b, sortDirection);

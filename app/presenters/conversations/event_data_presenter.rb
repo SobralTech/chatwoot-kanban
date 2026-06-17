@@ -17,6 +17,7 @@ class Conversations::EventDataPresenter < SimpleDelegator
       first_reply_created_at: first_reply_created_at,
       priority: priority,
       waiting_since: waiting_since.to_i,
+      account_pinned_at: account_pin&.pinned_at&.to_i,
       **push_timestamps
     }
   end

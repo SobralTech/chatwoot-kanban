@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_16_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_17_110939) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -735,6 +735,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_16_130000) do
     t.index ["conversation_id"], name: "index_conversation_participants_on_conversation_id"
     t.index ["user_id", "conversation_id"], name: "index_conversation_participants_on_user_id_and_conversation_id", unique: true
     t.index ["user_id"], name: "index_conversation_participants_on_user_id"
+  end
+
+  create_table "conversation_pins", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "user_id", null: false
+    t.integer "pin_type", default: 0, null: false
+    t.datetime "pinned_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_conversation_pins_on_account_id"
+    t.index ["conversation_id", "account_id"], name: "idx_conv_pins_account_unique", unique: true, where: "(pin_type = 1)"
+    t.index ["conversation_id", "user_id"], name: "idx_conv_pins_personal_unique", unique: true, where: "(pin_type = 0)"
+    t.index ["conversation_id"], name: "index_conversation_pins_on_conversation_id"
+    t.index ["user_id"], name: "index_conversation_pins_on_user_id"
   end
 
   create_table "conversations", id: :serial, force: :cascade do |t|
@@ -1467,6 +1482,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_16_130000) do
   add_foreign_key "conversation_assistant_messages", "conversations"
   add_foreign_key "conversation_assistant_messages", "messages", column: "sent_message_id"
   add_foreign_key "conversation_assistant_messages", "users"
+  add_foreign_key "conversation_pins", "accounts"
+  add_foreign_key "conversation_pins", "conversations"
+  add_foreign_key "conversation_pins", "users"
   add_foreign_key "inboxes", "portals"
   add_foreign_key "kanban_board_inboxes", "accounts"
   add_foreign_key "kanban_board_inboxes", "inboxes"

@@ -106,6 +106,38 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
     head :ok
   end
 
+  def toggle_pin
+    pin_type = params[:pin_type] == 'account' ? :account : :personal
+
+    existing_pin = if pin_type == :account
+                     @conversation.conversation_pins.find_by(account: current_account, pin_type: :account)
+                   else
+                     @conversation.conversation_pins.find_by(user: Current.user, pin_type: :personal)
+                   end
+
+    if existing_pin
+      existing_pin.destroy
+    else
+      @conversation.conversation_pins.create!(
+        account: current_account,
+        user: Current.user,
+        pin_type: pin_type,
+        pinned_at: Time.zone.now
+      )
+    end
+
+    if pin_type == :account
+      Rails.configuration.dispatcher.dispatch(
+        CONVERSATION_UPDATED,
+        Time.zone.now,
+        conversation: @conversation,
+        changed_attributes: {}
+      )
+    end
+
+    head :ok
+  end
+
   def toggle_typing_status
     typing_status_manager = ::Conversations::TypingStatusManager.new(@conversation, Current.user, params)
     typing_status_manager.toggle_typing_status

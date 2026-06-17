@@ -545,6 +545,37 @@ const actions = {
     commit(types.SET_CONTEXT_MENU_CHAT_ID, chatId);
   },
 
+  toggleConversationPin: async (
+    { commit, getters },
+    { conversationId, pinType }
+  ) => {
+    const conversation = getters.getConversationById(conversationId);
+    if (!conversation) return;
+
+    const isPinned =
+      pinType === 'personal'
+        ? !!conversation.personal_pinned_at
+        : !!conversation.account_pinned_at;
+
+    // optimistic update
+    commit(types.UPDATE_CONVERSATION_PIN, {
+      conversationId,
+      pinType,
+      pinnedAt: isPinned ? null : Math.floor(Date.now() / 1000),
+    });
+
+    try {
+      await ConversationApi.togglePin({ conversationId, pinType });
+    } catch (error) {
+      // revert on failure
+      commit(types.UPDATE_CONVERSATION_PIN, {
+        conversationId,
+        pinType,
+        pinnedAt: isPinned ? Math.floor(Date.now() / 1000) : null,
+      });
+    }
+  },
+
   getInboxCaptainAssistantById: async ({ commit }, conversationId) => {
     try {
       const response = await ConversationApi.getInboxAssistant(conversationId);

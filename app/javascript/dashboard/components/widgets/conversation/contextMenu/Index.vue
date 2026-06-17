@@ -24,6 +24,8 @@ const MENU = {
   DELETE: 'delete',
   OPEN_NEW_TAB: 'open-new-tab',
   COPY_LINK: 'copy-link',
+  PIN_ME: 'pin-me',
+  PIN_ALL: 'pin-all',
 };
 
 export default {
@@ -65,6 +67,14 @@ export default {
       type: Array,
       default: () => [],
     },
+    isPinnedByMe: {
+      type: Boolean,
+      default: false,
+    },
+    isPinnedForAll: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: [
     'updateConversation',
@@ -76,6 +86,7 @@ export default {
     'assignLabel',
     'removeLabel',
     'deleteConversation',
+    'togglePin',
     'close',
   ],
   setup() {
@@ -239,6 +250,10 @@ export default {
     deleteConversation() {
       this.$emit('deleteConversation', this.chatId);
     },
+    togglePin(pinType) {
+      this.$emit('togglePin', { chatId: this.chatId, pinType });
+      this.$emit('close');
+    },
     openInNewTab() {
       if (!this.conversationUrl) return;
 
@@ -381,7 +396,33 @@ export default {
       </MenuItemWithSubmenu>
       <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
     </template>
+    <template v-if="isAllowed([MENU.PIN_ME, MENU.PIN_ALL])">
+      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
+      <MenuItem
+        v-if="isAllowed([MENU.PIN_ME])"
+        :option="{
+          icon: isPinnedByMe ? 'pin-off' : 'pin',
+          label: isPinnedByMe
+            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_FOR_ME')
+            : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_FOR_ME'),
+        }"
+        variant="icon"
+        @click.stop="togglePin('personal')"
+      />
+      <MenuItem
+        v-if="isAllowed([MENU.PIN_ALL])"
+        :option="{
+          icon: isPinnedForAll ? 'pin-off' : 'pin',
+          label: isPinnedForAll
+            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_FOR_ALL')
+            : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_FOR_ALL'),
+        }"
+        variant="icon"
+        @click.stop="togglePin('account')"
+      />
+    </template>
     <template v-if="isAllowed([MENU.OPEN_NEW_TAB, MENU.COPY_LINK])">
+      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
       <MenuItem
         v-if="isAllowed([MENU.OPEN_NEW_TAB])"
         :option="openInNewTabOption"
