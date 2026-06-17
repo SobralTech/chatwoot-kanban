@@ -157,6 +157,7 @@ defineExpose({ toggleEditorExpand, resetEditorHeight });
   <div
     ref="wrapperRef"
     class="relative resizable-editor-wrapper"
+    :class="{ 'is-auto-grow': !isAnEmailChannel }"
     :style="{
       '--editor-height': editorHeight + 'px',
       '--editor-min-allowed': sizeBounds.min + 'px',

@@ -1042,6 +1042,13 @@ useEmitter(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, insertContentIntoEditor);
       min-height var(--editor-height-transition, 180ms ease),
       max-height var(--editor-height-transition, 180ms ease);
   }
+
+  // Non-email channels: no manual resize, box grows with content
+  // between the min and max bounds instead of locking to a fixed height.
+  &.is-auto-grow .ProseMirror-woot-style {
+    min-height: var(--editor-min-allowed, 1.875rem);
+    max-height: var(--editor-max-allowed, 7.5rem);
+  }
 }
 
 .ProseMirror-prompt-backdrop::backdrop {
