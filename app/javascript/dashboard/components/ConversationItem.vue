@@ -14,7 +14,6 @@ const props = defineProps({
   label: { type: String, default: '' },
   conversationType: { type: String, default: '' },
   foldersId: { type: [String, Number], default: 0 },
-  showAssignee: { type: Boolean, default: false },
   showExpanded: { type: Boolean, default: false },
 });
 
@@ -57,7 +56,6 @@ const activeInbox = useMapGetter('getSelectedInbox');
 const accountId = useMapGetter('getCurrentAccountId');
 
 const chatMetadata = computed(() => props.source.meta || {});
-const assignee = computed(() => chatMetadata.value.assignee || {});
 const senderId = computed(() => chatMetadata.value.sender?.id);
 
 const currentContact = computed(() =>
@@ -75,9 +73,6 @@ const showInboxName = computed(
   () => !activeInbox.value && inboxesList.value.length > 1
 );
 const isInboxView = computed(() => !!activeInbox.value);
-const showAssigneeForExpandedCard = computed(
-  () => props.showExpanded || props.showAssignee
-);
 
 const conversationPath = computed(() =>
   frontendURL(
@@ -189,11 +184,9 @@ const onTogglePin = ({ chatId, pinType }) => {
     v-if="showExpanded"
     :chat="source"
     :current-contact="currentContact"
-    :assignee="assignee"
     :inbox="inbox"
     :selected="isConversationSelected(source.id)"
     :is-active-chat="isActiveChat"
-    :show-assignee="showAssigneeForExpandedCard"
     :show-inbox-name="showInboxName"
     :is-inbox-view="isInboxView"
     @select-conversation="onExpandedSelect"
@@ -207,11 +200,9 @@ const onTogglePin = ({ chatId, pinType }) => {
     v-else
     :chat="source"
     :current-contact="currentContact"
-    :assignee="assignee"
     :inbox="inbox"
     :selected="isConversationSelected(source.id)"
     :is-active-chat="isActiveChat"
-    :show-assignee="showAssignee"
     :show-inbox-name="showInboxName"
     @click="onCardClick"
     @contextmenu="openContextMenu"

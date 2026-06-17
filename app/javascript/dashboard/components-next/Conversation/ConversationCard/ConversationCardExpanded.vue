@@ -6,7 +6,6 @@ import CardContent from './CardContent.vue';
 import CardLabels from './CardLabelsV5.vue';
 import CardPriorityIcon from './CardPriorityIcon.vue';
 import InboxName from 'dashboard/components-next/Conversation/InboxName.vue';
-import Avatar from 'next/avatar/Avatar.vue';
 import TimeAgo from 'dashboard/components/ui/TimeAgo.vue';
 import SLACardLabel from 'dashboard/components-next/Conversation/Sla/SLACardLabel.vue';
 import CardStatusIcon from './CardStatusIcon.vue';
@@ -16,11 +15,9 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 const props = defineProps({
   chat: { type: Object, required: true },
   currentContact: { type: Object, required: true },
-  assignee: { type: Object, default: () => ({}) },
   inbox: { type: Object, default: () => ({}) },
   selected: { type: Boolean, default: false },
   isActiveChat: { type: Boolean, default: false },
-  showAssignee: { type: Boolean, default: false },
   showInboxName: { type: Boolean, default: false },
   isInboxView: { type: Boolean, default: false },
 });
@@ -96,26 +93,6 @@ const selectedModel = computed({
 
       <div class="w-4 flex items-center justify-center flex-shrink-0">
         <CardPriorityIcon :priority="chat.priority" show-empty />
-      </div>
-
-      <div class="w-4 flex items-center justify-center flex-shrink-0">
-        <Avatar
-          v-if="showAssignee && assignee.name"
-          v-tooltip.top="{
-            content: assignee.name,
-            delay: { show: 500, hide: 0 },
-          }"
-          :name="assignee.name"
-          :src="assignee.thumbnail"
-          :size="14"
-          :status="assignee.availability_status"
-          hide-offline-status
-        />
-        <Icon
-          v-else
-          icon="i-woot-empty-assignee"
-          class="size-4 text-n-slate-7"
-        />
       </div>
 
       <div class="w-4 flex items-center justify-center flex-shrink-0">

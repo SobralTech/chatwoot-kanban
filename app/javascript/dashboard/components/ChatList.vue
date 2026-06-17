@@ -255,8 +255,6 @@ const currentUserDetails = computed(() => {
   return { id, name };
 });
 
-const showAssigneeInConversationCard = computed(() => true);
-
 const currentPageFilterKey = computed(() => {
   return hasAppliedFiltersOrActiveFolders.value
     ? 'appliedFilters'
@@ -989,7 +987,6 @@ watch(conversationFilters, (newVal, oldVal) => {
       :team-id="teamId"
       :folders-id="foldersId"
       :conversation-type="conversationType"
-      :show-assignee="showAssigneeInConversationCard"
       :is-on-expanded-layout="isOnExpandedLayout"
       @load-more="loadMoreConversations"
     />

@@ -15,11 +15,9 @@ import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
 const props = defineProps({
   chat: { type: Object, required: true },
   currentContact: { type: Object, required: true },
-  assignee: { type: Object, default: () => ({}) },
   inbox: { type: Object, default: () => ({}) },
   selected: { type: Boolean, default: false },
   isActiveChat: { type: Boolean, default: false },
-  showAssignee: { type: Boolean, default: false },
   showInboxName: { type: Boolean, default: false },
   hideThumbnail: { type: Boolean, default: false },
   compact: { type: Boolean, default: false },
@@ -50,11 +48,7 @@ const voiceCallData = computed(() => {
 });
 
 const showMetaSection = computed(() => {
-  return (
-    props.showInboxName ||
-    (props.showAssignee && props.assignee.name) ||
-    props.chat.priority
-  );
+  return props.showInboxName || props.chat.priority;
 });
 
 const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
@@ -162,13 +156,6 @@ watch(
             'flex-1 justify-between': !showInboxName,
           }"
         >
-          <span
-            v-if="showAssignee && assignee.name"
-            class="text-n-slate-11 text-xs font-medium leading-3 py-0.5 px-0 inline-flex items-center truncate"
-          >
-            <fluent-icon icon="person" size="12" class="text-n-slate-11" />
-            {{ assignee.name }}
-          </span>
           <CardPriorityIcon
             :priority="chat.priority"
             class="flex-shrink-0 !size-3.5"

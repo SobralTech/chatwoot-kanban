@@ -144,7 +144,6 @@ onMounted(() => {
         :key="conversation.id"
         :chat="conversation"
         :current-contact="contactGetter(conversation.meta?.sender?.id) || {}"
-        :assignee="conversation.meta?.assignee || {}"
         :inbox="inboxGetter(conversation.inbox_id) || {}"
         :is-active-chat="currentChat.id === conversation.id"
         :show-inbox-name="showInboxName"
