@@ -367,7 +367,7 @@ onMounted(() => {
 <style lang="scss" scoped>
 .assistant-question-input {
   min-height: 5rem;
-  max-height: 12rem;
+  max-height: 142px;
   overflow-y: auto;
 }
 </style>

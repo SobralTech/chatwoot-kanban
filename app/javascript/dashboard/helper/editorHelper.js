@@ -598,9 +598,13 @@ export function getSelectionCoords(editorView, selection, rect) {
   const end = editorView.coordsAtPos(selection.to, -1);
 
   const selTop = Math.min(start.top, end.top);
-  const spaceAbove = selTop - rect.top;
+  const selBottom = Math.max(start.bottom, end.bottom);
+  // selTop/selBottom come from coordsAtPos in viewport coordinates, so
+  // comparing them directly against the menu size tells us if there's
+  // real room on screen above the selection, not just room inside the
+  // editor container. This biases towards opening above whenever possible.
   const onTop =
-    spaceAbove > MENU_CONFIG.H + MENU_CONFIG.GAP || end.bottom > rect.bottom;
+    selTop > MENU_CONFIG.H + MENU_CONFIG.GAP || selBottom > rect.bottom;
 
   return { start, end, selTop, onTop };
 }
@@ -641,20 +645,20 @@ export function calculateMenuPosition(coords, rect, isRtl) {
   // Ensure menu stays within container bounds
   const left = Math.min(Math.max(0, rawLeft), rect.width - MENU_CONFIG.W);
 
-  // Calculate Top: align to selection or bottom of selection
+  const selBottom = Math.max(start.bottom, end.bottom);
+
+  // selTop/selBottom are viewport coordinates, so the "above" branch is
+  // already screen-safe. When forced below (no room above), clamp the
+  // downward offset so the menu never renders past the bottom of the
+  // browser viewport — but never pull it above the selection itself.
   const top = onTop
     ? Math.max(-26, selTop - rect.top - MENU_CONFIG.H - MENU_CONFIG.GAP)
-    : Math.max(start.bottom, end.bottom) - rect.top + MENU_CONFIG.GAP;
+    : Math.min(
+        selBottom - rect.top + MENU_CONFIG.GAP,
+        window.innerHeight - rect.top - MENU_CONFIG.H - MENU_CONFIG.GAP
+      );
 
-  // `top` is relative to the container, but the container itself can sit
-  // anywhere on screen. Clamp so the menu's absolute screen position never
-  // falls above or below the actual browser viewport.
-  const minTop = -rect.top + MENU_CONFIG.GAP;
-  const maxTop =
-    window.innerHeight - rect.top - MENU_CONFIG.H - MENU_CONFIG.GAP;
-  const clampedTop = Math.min(Math.max(top, minTop), Math.max(minTop, maxTop));
-
-  return { left, top: clampedTop, width: MENU_CONFIG.W };
+  return { left, top, width: MENU_CONFIG.W };
 }
 
 /* End Menu Positioning Helpers */
