@@ -47,10 +47,6 @@ const voiceCallData = computed(() => {
   };
 });
 
-const showMetaSection = computed(() => {
-  return props.showInboxName || props.chat.priority;
-});
-
 const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
 
 const pinIcon = computed(() => {
@@ -142,31 +138,26 @@ watch(
     </div>
     <div class="px-0 py-3 flex-1 min-w-0 border-line">
       <div
-        v-if="showMetaSection"
+        v-if="showInboxName"
         class="flex items-center min-w-0 gap-1"
         :class="{
           'ltr:ml-2 rtl:mr-2': !compact,
           'mx-2': compact,
         }"
       >
-        <InboxName v-if="showInboxName" :inbox="inbox" class="flex-1 min-w-0" />
-        <div
-          class="flex items-baseline gap-2 flex-shrink-0"
-          :class="{
-            'flex-1 justify-between': !showInboxName,
-          }"
-        >
-          <CardPriorityIcon
-            :priority="chat.priority"
-            class="flex-shrink-0 !size-3.5"
-          />
-        </div>
+        <InboxName :inbox="inbox" class="flex-1 min-w-0" />
       </div>
       <h4
-        class="conversation--user text-sm my-0 mx-2 capitalize pt-0.5 text-ellipsis overflow-hidden whitespace-nowrap flex-1 min-w-0 ltr:pr-16 rtl:pl-16 text-n-slate-12"
+        class="conversation--user text-sm my-0 mx-2 capitalize pt-0.5 flex items-center gap-1 min-w-0 flex-1 ltr:pr-16 rtl:pl-16 text-n-slate-12"
         :class="hasUnread ? 'font-semibold' : 'font-medium'"
       >
-        {{ currentContact.name }}
+        <span class="text-ellipsis overflow-hidden whitespace-nowrap min-w-0">
+          {{ currentContact.name }}
+        </span>
+        <CardPriorityIcon
+          :priority="chat.priority"
+          class="flex-shrink-0 !size-3.5"
+        />
       </h4>
       <VoiceCallStatus
         v-if="voiceCallData.status"
@@ -199,7 +190,7 @@ watch(
       </p>
       <div
         class="absolute flex flex-col ltr:right-3 rtl:left-3"
-        :class="showMetaSection ? 'top-8' : 'top-4'"
+        :class="showInboxName ? 'top-8' : 'top-4'"
       >
         <span class="ml-auto font-normal leading-4 text-xs">
           <TimeAgo
