@@ -11,10 +11,12 @@ import VideoCallButton from '../VideoCallButton.vue';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
 import { mapGetters } from 'vuex';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import CopilotTrigger from './CopilotTrigger.vue';
+import { CHAR_LENGTH_WARNING } from './constants';
 
 export default {
   name: 'ReplyBottomPanel',
-  components: { NextButton, FileUpload, VideoCallButton },
+  components: { NextButton, FileUpload, VideoCallButton, CopilotTrigger },
   mixins: [inboxMixin],
   props: {
     isNote: {
@@ -120,12 +122,29 @@ export default {
       type: Boolean,
       default: false,
     },
+    singleLine: {
+      type: Boolean,
+      default: false,
+    },
+    copilotDisabled: {
+      type: Boolean,
+      default: false,
+    },
+    isMessageLengthReachingThreshold: {
+      type: Boolean,
+      default: false,
+    },
+    charactersRemaining: {
+      type: Number,
+      default: 0,
+    },
   },
   emits: [
     'toggleInsertArticle',
     'selectWhatsappTemplate',
     'selectContentTemplate',
     'toggleQuotedReply',
+    'executeCopilotAction',
   ],
   setup(props) {
     const { setSignatureFlagForInbox, fetchSignatureFlagFromUISettings } =
@@ -169,7 +188,16 @@ export default {
     wrapClass() {
       return {
         'is-note-mode': this.isNote,
+        'is-single-line': this.singleLine,
       };
+    },
+    charLengthClass() {
+      return this.charactersRemaining < 0 ? 'text-n-ruby-9' : 'text-n-slate-11';
+    },
+    characterLengthWarning() {
+      return this.charactersRemaining < 0
+        ? `${-this.charactersRemaining} ${CHAR_LENGTH_WARNING.NEGATIVE}`
+        : `${this.charactersRemaining} ${CHAR_LENGTH_WARNING.UNDER_50}`;
     },
     showAttachButton() {
       if (this.isEditorDisabled) return false;
@@ -290,7 +318,10 @@ export default {
 </script>
 
 <template>
-  <div class="flex justify-between p-3" :class="wrapClass">
+  <div
+    class="flex p-3"
+    :class="[wrapClass, singleLine ? 'items-center gap-2' : 'justify-between']"
+  >
     <div class="left-wrap">
       <FileUpload
         v-if="showAttachButton"
@@ -317,6 +348,17 @@ export default {
           sm
         />
       </FileUpload>
+      <CopilotTrigger
+        v-if="singleLine"
+        :conversation-id="conversationId"
+        :disabled="copilotDisabled"
+        :is-editor-disabled="isEditorDisabled"
+        :editor-content="message"
+        :has-content="hasContent"
+        @execute-copilot-action="
+          (action, data) => $emit('executeCopilotAction', action, data)
+        "
+      />
       <NextButton
         v-if="showMessageSignatureButton"
         v-tooltip.top-end="signatureToggleTooltip"
@@ -327,7 +369,7 @@ export default {
         @click="toggleMessageSignature"
       />
       <NextButton
-        v-if="showQuotedReplyToggle"
+        v-if="!singleLine && showQuotedReplyToggle"
         v-tooltip.top-end="quotedReplyToggleTooltip"
         icon="i-ph-quotes"
         :variant="quotedReplyEnabled ? 'solid' : 'faded'"
@@ -337,7 +379,7 @@ export default {
         @click="$emit('toggleQuotedReply')"
       />
       <NextButton
-        v-if="enableWhatsAppTemplates"
+        v-if="!singleLine && enableWhatsAppTemplates"
         v-tooltip.top-end="$t('CONVERSATION.FOOTER.WHATSAPP_TEMPLATES')"
         icon="i-ph-whatsapp-logo"
         slate
@@ -346,7 +388,7 @@ export default {
         @click="$emit('selectWhatsappTemplate')"
       />
       <NextButton
-        v-if="enableContentTemplates"
+        v-if="!singleLine && enableContentTemplates"
         v-tooltip.top-end="'Content Templates'"
         icon="i-ph-whatsapp-logo"
         slate
@@ -356,6 +398,7 @@ export default {
       />
       <VideoCallButton
         v-if="
+          !singleLine &&
           (isAWebWidgetInbox || isAPIInbox) &&
           !isOnPrivateNote &&
           !isEditorDisabled
@@ -374,7 +417,7 @@ export default {
         </div>
       </transition>
       <NextButton
-        v-if="enableInsertArticleInReply"
+        v-if="!singleLine && enableInsertArticleInReply"
         v-tooltip.top-end="$t('HELP_CENTER.ARTICLE_SEARCH.OPEN_ARTICLE_SEARCH')"
         icon="i-ph-article-ny-times"
         slate
@@ -382,6 +425,13 @@ export default {
         sm
         @click="toggleInsertArticle"
       />
+    </div>
+    <slot />
+    <div
+      v-if="singleLine && isMessageLengthReachingThreshold"
+      class="text-xs whitespace-nowrap"
+    >
+      <span :class="charLengthClass">{{ characterLengthWarning }}</span>
     </div>
     <div class="right-wrap">
       <NextButton
@@ -427,11 +477,11 @@ export default {
 
 <style lang="scss" scoped>
 .left-wrap {
-  @apply items-center flex gap-2;
+  @apply items-center flex gap-2 flex-shrink-0;
 }
 
 .right-wrap {
-  @apply flex items-center gap-2;
+  @apply flex items-center gap-2 flex-shrink-0;
 }
 
 :deep(.file-uploads) {

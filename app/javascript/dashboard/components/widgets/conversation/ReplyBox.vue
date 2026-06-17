@@ -324,6 +324,7 @@ export default {
         conversationId: this.conversationId,
         isReplyRestricted: this.isReplyRestricted,
         showAssistant: this.isAssistantAvailable,
+        isAnEmailChannel: this.isAnEmailChannel,
         disabled:
           (this.copilot.isActive.value &&
             this.copilot.isButtonDisabled.value) ||
@@ -341,6 +342,47 @@ export default {
         toggleEditorSize: this.toggleEditorSize,
         toggleCopilot: this.copilot.toggleEditor,
         executeCopilotAction: this.executeCopilotAction,
+      };
+    },
+    isSingleLineLayout() {
+      return (
+        !this.isAnEmailChannel &&
+        this.isDefaultEditorMode &&
+        !this.isOnAssistant
+      );
+    },
+    messageEditorProps() {
+      return {
+        conversationId: this.conversationId,
+        editorId: this.editorStateId,
+        class: this.isSingleLineLayout
+          ? 'input popover-prosemirror-menu flex-1 min-w-0'
+          : 'input popover-prosemirror-menu',
+        isPrivate: this.isOnPrivateNote,
+        placeholder: this.messagePlaceHolder,
+        updateSelectionWith: this.updateEditorSelectionWith,
+        minHeight: 4,
+        disabled: this.isEditorDisabled,
+        enableVariables: true,
+        variables: this.messageVariables,
+        signature: this.messageSignature,
+        allowSignature: this.isAnEmailChannel,
+        channelType: this.channelType,
+        medium: this.inbox.medium,
+      };
+    },
+    messageEditorListeners() {
+      return {
+        typingOff: this.onTypingOff,
+        typingOn: this.onTypingOn,
+        focus: this.onFocus,
+        blur: this.onBlur,
+        toggleUserMention: this.toggleUserMention,
+        toggleCannedMenu: this.toggleCannedMenu,
+        toggleVariablesMenu: this.toggleVariablesMenu,
+        clearSelection: this.clearEditorSelection,
+        executeCopilotAction: this.executeCopilotAction,
+        sendCannedResponse: this.sendCannedResponse,
       };
     },
     hasAttachments() {
@@ -1286,6 +1328,16 @@ export default {
     v-bind="replyTopPanelProps"
     v-on="replyTopPanelListeners"
   />
+  <div
+    v-if="!isAnEmailChannel && !isOnAssistant && hasAttachments"
+    class="mx-2 mb-2"
+    @paste="onPaste"
+  >
+    <AttachmentPreview
+      :attachments="attachedFiles"
+      @remove-attachment="removeAttachment"
+    />
+  </div>
   <div ref="replyEditor" class="reply-box" :class="replyBoxClass">
     <ReplyTopPanel
       v-if="isAnEmailChannel"
@@ -1357,33 +1409,13 @@ export default {
           @send="copilot.sendFollowUp"
         />
         <WootMessageEditor
-          v-else-if="!isOnAssistant && !showAudioRecorderEditor"
+          v-else-if="
+            !isOnAssistant && !showAudioRecorderEditor && isAnEmailChannel
+          "
           ref="messageEditor"
           v-model="message"
-          :conversation-id="conversationId"
-          :editor-id="editorStateId"
-          class="input popover-prosemirror-menu"
-          :is-private="isOnPrivateNote"
-          :placeholder="messagePlaceHolder"
-          :update-selection-with="updateEditorSelectionWith"
-          :min-height="4"
-          :disabled="isEditorDisabled"
-          enable-variables
-          :variables="messageVariables"
-          :signature="messageSignature"
-          :allow-signature="isAnEmailChannel"
-          :channel-type="channelType"
-          :medium="inbox.medium"
-          @typing-off="onTypingOff"
-          @typing-on="onTypingOn"
-          @focus="onFocus"
-          @blur="onBlur"
-          @toggle-user-mention="toggleUserMention"
-          @toggle-canned-menu="toggleCannedMenu"
-          @toggle-variables-menu="toggleVariablesMenu"
-          @clear-selection="clearEditorSelection"
-          @execute-copilot-action="executeCopilotAction"
-          @send-canned-response="sendCannedResponse"
+          v-bind="messageEditorProps"
+          v-on="messageEditorListeners"
         />
 
         <QuotedEmailPreview
@@ -1397,7 +1429,12 @@ export default {
         />
 
         <div
-          v-if="!isOnAssistant && hasAttachments && isDefaultEditorMode"
+          v-if="
+            isAnEmailChannel &&
+            !isOnAssistant &&
+            hasAttachments &&
+            isDefaultEditorMode
+          "
           class="bg-transparent py-0 mb-2"
           @paste="onPaste"
         >
@@ -1463,11 +1500,27 @@ export default {
         :message="message"
         :portal-slug="connectedPortalSlug"
         :new-conversation-modal-active="newConversationModalActive"
+        :single-line="isSingleLineLayout"
+        :copilot-disabled="
+          (copilot.isActive.value && copilot.isButtonDisabled.value) ||
+          showAudioRecorderEditor
+        "
+        :is-message-length-reaching-threshold="isMessageLengthReachingThreshold"
+        :characters-remaining="charactersRemaining"
         @select-whatsapp-template="openWhatsappTemplateModal"
         @select-content-template="openContentTemplateModal"
         @toggle-insert-article="toggleInsertArticle"
         @toggle-quoted-reply="toggleQuotedReply"
-      />
+        @execute-copilot-action="executeCopilotAction"
+      >
+        <WootMessageEditor
+          v-if="isSingleLineLayout"
+          ref="messageEditor"
+          v-model="message"
+          v-bind="messageEditorProps"
+          v-on="messageEditorListeners"
+        />
+      </ReplyBottomPanel>
     </Transition>
 
     <WhatsappTemplates

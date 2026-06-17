@@ -1,29 +1,26 @@
 <script>
-import { ref } from 'vue';
 import { useKeyboardEvents } from 'dashboard/composables/useKeyboardEvents';
 import { useCaptain } from 'dashboard/composables/useCaptain';
-import { useTrack } from 'dashboard/composables';
-import { vOnClickOutside } from '@vueuse/components';
 import { REPLY_EDITOR_MODES, CHAR_LENGTH_WARNING } from './constants';
-import { CAPTAIN_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import EditorModeToggle from './EditorModeToggle.vue';
-import CopilotMenuBar from './CopilotMenuBar.vue';
+import CopilotTrigger from './CopilotTrigger.vue';
 
 export default {
   name: 'ReplyTopPanel',
   components: {
     NextButton,
     EditorModeToggle,
-    CopilotMenuBar,
-  },
-  directives: {
-    OnClickOutside: vOnClickOutside,
+    CopilotTrigger,
   },
   props: {
     mode: {
       type: String,
       default: REPLY_EDITOR_MODES.REPLY,
+    },
+    isAnEmailChannel: {
+      type: Boolean,
+      default: true,
     },
     isReplyRestricted: {
       type: Boolean,
@@ -75,28 +72,6 @@ export default {
       setReplyMode(REPLY_EDITOR_MODES.NOTE);
     };
     const { captainTasksEnabled } = useCaptain();
-    const showCopilotMenu = ref(false);
-    const copilotToggleRef = ref(null);
-
-    const handleCopilotAction = (actionKey, data) => {
-      emit('executeCopilotAction', actionKey, data || props.editorContent);
-      showCopilotMenu.value = false;
-    };
-
-    const toggleCopilotMenu = () => {
-      const isOpening = !showCopilotMenu.value;
-      if (isOpening) {
-        useTrack(CAPTAIN_EVENTS.EDITOR_AI_MENU_OPENED, {
-          conversationId: props.conversationId,
-          entryPoint: 'top_panel',
-        });
-      }
-      showCopilotMenu.value = isOpening;
-    };
-
-    const handleClickOutside = () => {
-      showCopilotMenu.value = false;
-    };
 
     const keyboardEvents = {
       'Alt+KeyP': {
@@ -116,11 +91,6 @@ export default {
       handleNoteClick,
       REPLY_EDITOR_MODES,
       captainTasksEnabled,
-      handleCopilotAction,
-      showCopilotMenu,
-      copilotToggleRef,
-      toggleCopilotMenu,
-      handleClickOutside,
     };
   },
   computed: {
@@ -157,40 +127,28 @@ export default {
       :show-assistant="showAssistant"
       @set-mode="setReplyMode"
     />
-    <div class="flex items-center mx-4 my-0">
+    <div v-if="isAnEmailChannel" class="flex items-center mx-4 my-0">
       <div v-if="isMessageLengthReachingThreshold" class="text-xs">
         <span :class="charLengthClass">
           {{ characterLengthWarning }}
         </span>
       </div>
     </div>
-    <div v-if="captainTasksEnabled" class="flex items-center gap-2">
-      <div v-if="mode !== REPLY_EDITOR_MODES.ASSISTANT" class="relative">
-        <NextButton
-          ref="copilotToggleRef"
-          ghost
-          :disabled="disabled || isEditorDisabled"
-          :class="{
-            'text-n-violet-9 hover:enabled:!bg-n-violet-3': !showCopilotMenu,
-            'text-n-violet-9 bg-n-violet-3': showCopilotMenu,
-          }"
-          sm
-          icon="i-ph-sparkle-fill"
-          @click="toggleCopilotMenu"
-        />
-        <CopilotMenuBar
-          v-if="showCopilotMenu"
-          v-on-click-outside="[
-            handleClickOutside,
-            { ignore: [copilotToggleRef] },
-          ]"
-          :has-selection="false"
-          :has-content="hasContent"
-          :conversation-id="conversationId"
-          class="ltr:right-0 rtl:left-0 bottom-full mb-2"
-          @execute-copilot-action="handleCopilotAction"
-        />
-      </div>
+    <div
+      v-if="isAnEmailChannel && captainTasksEnabled"
+      class="flex items-center gap-2"
+    >
+      <CopilotTrigger
+        v-if="mode !== REPLY_EDITOR_MODES.ASSISTANT"
+        :conversation-id="conversationId"
+        :disabled="disabled"
+        :is-editor-disabled="isEditorDisabled"
+        :editor-content="editorContent"
+        :has-content="hasContent"
+        @execute-copilot-action="
+          (action, data) => $emit('executeCopilotAction', action, data)
+        "
+      />
       <NextButton
         ghost
         class="text-n-slate-11"
