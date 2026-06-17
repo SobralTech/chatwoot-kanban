@@ -92,7 +92,6 @@ export default {
       type: Number,
       required: true,
     },
-    // eslint-disable-next-line vue/no-unused-properties
     message: {
       type: String,
       default: '',
@@ -176,8 +175,7 @@ export default {
       if (this.isEditorDisabled) return false;
       return this.showFileUpload || this.isNote;
     },
-    showAudioRecorderButton() {
-      if (this.isEditorDisabled) return false;
+    audioRecorderEligible() {
       if (this.isALineChannel || this.isATiktokChannel) {
         return false;
       }
@@ -193,6 +191,23 @@ export default {
         ) && this.showAudioRecorder
         // !isSafari
       );
+    },
+    hasContent() {
+      return !!this.message && !!this.message.trim().replace(/\n/g, '').length;
+    },
+    // While idle, the mic/send slot below covers starting a recording.
+    // This left-side button only re-appears once recording is in progress,
+    // acting as the stop control.
+    showAudioRecorderButton() {
+      if (this.isEditorDisabled) return false;
+      if (!this.isRecordingAudio) return false;
+      return this.audioRecorderEligible;
+    },
+    showMicToggleButton() {
+      if (this.isEditorDisabled) return false;
+      if (this.isRecordingAudio) return false;
+      if (this.hasContent) return false;
+      return this.audioRecorderEligible;
     },
     showAudioPlayStopButton() {
       if (this.isEditorDisabled) return false;
@@ -385,6 +400,16 @@ export default {
     </div>
     <div class="right-wrap">
       <NextButton
+        v-if="showMicToggleButton"
+        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"
+        icon="i-ph-microphone"
+        slate
+        faded
+        sm
+        @click="toggleAudioRecorder"
+      />
+      <NextButton
+        v-else
         :label="sendButtonText"
         type="submit"
         sm

@@ -347,7 +347,9 @@ export default {
       return this.attachedFiles.length;
     },
     showAudioRecorder() {
-      return !this.isOnPrivateNote && this.showFileUpload;
+      return (
+        !this.isOnPrivateNote && this.showFileUpload && !this.isAnEmailChannel
+      );
     },
     showAudioRecorderEditor() {
       return this.showAudioRecorder && this.isRecordingAudio;
