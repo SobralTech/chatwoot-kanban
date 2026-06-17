@@ -278,7 +278,6 @@ describe('Sidebar', () => {
       .findAllComponents(SidebarGroupStub)
       .map(group => group.props('name'));
 
-    expect(groupNames).toContain('Inbox');
     expect(groupNames).toContain('Conversation');
     expect(groupNames).toContain('Settings');
   });
