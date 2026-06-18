@@ -48,10 +48,7 @@
         "LATEST": "Created",
         "OLDEST": "Created at:"
       },
-      "LAST_ACTIVITY": {
-        "NOT_ACTIVE": "Last activity:",
-        "ACTIVE": "Last activity"
-      }
+      "LAST_MESSAGE": "Last message:"
     },
     "SORT_ORDER_ITEMS": {
       "last_activity_at_asc": {

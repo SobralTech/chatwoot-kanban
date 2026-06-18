@@ -6,6 +6,7 @@ import {
   fromUnixTime,
   formatDistanceToNow,
   differenceInDays,
+  differenceInCalendarDays,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -46,6 +47,21 @@ export const humanTimestamp = time => {
     return format(messageTime, `d 'de' MMMM, HH:mm`, { locale: ptBR });
   }
   return format(messageTime, `d 'de' MMMM 'de' yyyy, HH:mm`, { locale: ptBR });
+};
+
+/**
+ * Formats a Unix timestamp as: time if today, "Ontem" if yesterday,
+ * weekday name within the last week, or a full date otherwise.
+ * @param {number} time - Unix timestamp.
+ * @returns {string} Formatted timestamp string.
+ */
+export const relativeDayTimestamp = time => {
+  const date = fromUnixTime(time);
+  if (isToday(date)) return format(date, 'HH:mm');
+  if (isYesterday(date)) return 'Ontem';
+  const daysAgo = differenceInCalendarDays(new Date(), date);
+  if (daysAgo <= 6) return format(date, 'EEEE', { locale: ptBR });
+  return format(date, 'dd/MM/yyyy');
 };
 
 /**
