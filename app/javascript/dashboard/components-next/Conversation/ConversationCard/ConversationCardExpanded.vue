@@ -176,7 +176,8 @@ const selectedModel = computed({
           :conversation-id="chat.id"
           :last-activity-timestamp="chat.timestamp"
           :created-at-timestamp="chat.created_at"
-          class="font-440 !text-xs text-n-slate-11"
+          class="font-440 !text-xs"
+          :class="unreadCount > 0 ? 'text-n-blue-9' : 'text-n-slate-11'"
         />
       </div>
     </div>
