@@ -22,6 +22,7 @@ import inboxMixin, { INBOX_FEATURES } from 'shared/mixins/inboxMixin';
 // utils
 import { emitter } from 'shared/helpers/mitt';
 import { getTypingUsersText } from '../../../helper/commons';
+import { calculateScrollTop } from './helpers/scrollTopCalculationHelper';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import {
   filterDuplicateSourceMessages,
@@ -374,7 +375,36 @@ export default {
     },
     scrollToBottom() {
       this.isProgrammaticScroll = true;
-      this.conversationPanel.scrollTop = this.conversationPanel.scrollHeight;
+      let relevantMessages = [];
+
+      // label suggestions are not part of the messages list
+      // so we need to handle them separately
+      let labelSuggestions =
+        this.conversationPanel.querySelector('.label-suggestion');
+
+      // if there are unread messages, scroll to the first unread message
+      if (this.unreadMessageCount > 0) {
+        // capturing only the unread messages
+        relevantMessages =
+          this.conversationPanel.querySelectorAll('.message--unread');
+      } else if (labelSuggestions) {
+        // when scrolling to the bottom, the label suggestions is below the last message
+        // so we scroll there if there are no unread messages
+        // Unread messages always take the highest priority
+        relevantMessages = [labelSuggestions];
+      } else {
+        // if there are no unread messages or label suggestion, scroll to the last message
+        // capturing last message from the messages list
+        relevantMessages = Array.from(
+          this.conversationPanel.querySelectorAll('.message--read')
+        ).slice(-1);
+      }
+
+      this.conversationPanel.scrollTop = calculateScrollTop(
+        this.conversationPanel.scrollHeight,
+        this.$el.scrollHeight,
+        relevantMessages
+      );
     },
     setScrollParams() {
       this.heightBeforeLoad = this.conversationPanel.scrollHeight;
