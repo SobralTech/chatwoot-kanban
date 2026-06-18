@@ -185,6 +185,7 @@ export default {
     },
     async scrollToSearchedMessage(messageId, conversationId) {
       if (!messageId) {
+        emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
         return;
       }
       // The message linked from search may live outside the window of
