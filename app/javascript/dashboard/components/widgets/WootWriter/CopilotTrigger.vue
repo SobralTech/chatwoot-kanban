@@ -13,6 +13,7 @@ const props = defineProps({
   isEditorDisabled: { type: Boolean, default: false },
   editorContent: { type: String, default: undefined },
   hasContent: { type: Boolean, default: false },
+  largeIconOnly: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['executeCopilotAction']);
@@ -46,11 +47,13 @@ const handleClickOutside = () => {
   <div v-if="captainTasksEnabled" class="relative">
     <NextButton
       ref="copilotToggleRef"
-      ghost
+      :variant="largeIconOnly ? 'link' : 'ghost'"
       :disabled="disabled || isEditorDisabled"
       :class="{
-        'text-n-violet-9 hover:enabled:!bg-n-violet-3': !showCopilotMenu,
-        'text-n-violet-9 bg-n-violet-3': showCopilotMenu,
+        'text-n-violet-9 hover:enabled:!bg-n-violet-3':
+          !largeIconOnly && !showCopilotMenu,
+        'text-n-violet-9 bg-n-violet-3': !largeIconOnly && showCopilotMenu,
+        'copilot-trigger--large text-n-violet-9': largeIconOnly,
       }"
       sm
       icon="i-ph-sparkle-fill"
@@ -67,3 +70,19 @@ const handleClickOutside = () => {
     />
   </div>
 </template>
+
+<style lang="scss" scoped>
+.copilot-trigger--large {
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  padding: 0 !important;
+  font-size: 1.375rem !important;
+  background-color: transparent !important;
+
+  &:hover:enabled,
+  &:focus-visible:enabled,
+  &:active:enabled {
+    background-color: transparent !important;
+  }
+}
+</style>

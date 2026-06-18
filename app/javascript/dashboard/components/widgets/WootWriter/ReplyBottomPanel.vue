@@ -282,6 +282,9 @@ export default {
       if (this.isEditorDisabled) return false;
       return !this.isOnPrivateNote && this.isAnEmailChannel;
     },
+    shouldUseLargeActionIcons() {
+      return this.singleLine && !this.isAnEmailChannel;
+    },
     sendWithSignature() {
       // channelType is sourced from inboxMixin
       return this.fetchSignatureFlagFromUISettings(this.channelType);
@@ -343,9 +346,12 @@ export default {
           v-if="showAttachButton"
           v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_ATTACH_ICON')"
           icon="i-ph-paperclip"
-          slate
-          faded
-          sm
+          :slate="!shouldUseLargeActionIcons"
+          :faded="!shouldUseLargeActionIcons"
+          :color="shouldUseLargeActionIcons ? 'slate' : null"
+          :variant="shouldUseLargeActionIcons ? 'link' : null"
+          :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
+          :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
         />
       </FileUpload>
       <CopilotTrigger
@@ -355,6 +361,7 @@ export default {
         :is-editor-disabled="isEditorDisabled"
         :editor-content="message"
         :has-content="hasContent"
+        :large-icon-only="shouldUseLargeActionIcons"
         @execute-copilot-action="
           (action, data) => $emit('executeCopilotAction', action, data)
         "
@@ -457,8 +464,10 @@ export default {
         v-if="showMicToggleButton"
         v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"
         icon="i-ph-microphone"
-        sm
+        :variant="shouldUseLargeActionIcons ? 'link' : null"
+        :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
         :color="isNote ? 'amber' : 'blue'"
+        :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
         @click="toggleAudioRecorder"
       />
       <NextButton
@@ -466,11 +475,13 @@ export default {
         v-tooltip.top-end="singleLine ? sendButtonText : undefined"
         :icon="singleLine ? 'i-ph-paper-plane-right-fill' : undefined"
         :label="singleLine ? undefined : sendButtonText"
+        :variant="shouldUseLargeActionIcons ? 'link' : null"
         type="submit"
-        sm
+        :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
         :color="isNote ? 'amber' : 'blue'"
         :disabled="isSendDisabled"
         class="flex-shrink-0"
+        :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
         @click="onSend"
       />
     </div>
@@ -486,6 +497,20 @@ export default {
   @apply flex items-center gap-2 flex-shrink-0;
 }
 
+.compact-action-button {
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  padding: 0 !important;
+  font-size: 1.375rem !important;
+  background-color: transparent !important;
+
+  &:hover:enabled,
+  &:focus-visible:enabled,
+  &:active:enabled {
+    background-color: transparent !important;
+  }
+}
+
 :deep(.file-uploads) {
   label {
     @apply cursor-pointer;
@@ -494,5 +519,9 @@ export default {
   &:hover button {
     @apply enabled:bg-n-slate-9/20;
   }
+}
+
+:deep(.file-uploads:hover .compact-action-button) {
+  @apply enabled:!bg-transparent;
 }
 </style>
