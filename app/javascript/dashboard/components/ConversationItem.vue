@@ -27,7 +27,6 @@ const assignTeam = inject('assignTeam');
 const assignLabels = inject('assignLabels');
 const removeLabels = inject('removeLabels');
 const updateConversationStatus = inject('updateConversationStatus');
-const toggleContextMenu = inject('toggleContextMenu');
 const markAsUnread = inject('markAsUnread');
 const markAsRead = inject('markAsRead');
 const assignPriority = inject('assignPriority');
@@ -42,9 +41,6 @@ const contextMenu = ref({ x: null, y: null });
 watch(
   () => props.source.id,
   () => {
-    if (showContextMenu.value) {
-      toggleContextMenu(false);
-    }
     showContextMenu.value = false;
     contextMenu.value = { x: null, y: null };
   }
@@ -116,14 +112,12 @@ const onExpandedSelect = checked => {
 
 const openContextMenu = e => {
   e.preventDefault();
-  toggleContextMenu(true);
   contextMenu.value.x = e.pageX || e.clientX;
   contextMenu.value.y = e.pageY || e.clientY;
   showContextMenu.value = true;
 };
 
 const closeContextMenu = () => {
-  toggleContextMenu(false);
   showContextMenu.value = false;
   contextMenu.value.x = null;
   contextMenu.value.y = null;

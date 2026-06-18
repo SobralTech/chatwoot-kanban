@@ -24,7 +24,6 @@ const emit = defineEmits(['loadMore']);
 
 const conversationListRef = ref(null);
 const virtualListRef = ref(null);
-const isContextMenuOpen = ref(false);
 
 provide('contextMenuElementTarget', virtualListRef);
 
@@ -43,15 +42,9 @@ const intersectionObserverOptions = computed(() => ({
   rootMargin: '100px 0px 100px 0px',
 }));
 
-const onContextMenuToggle = state => {
-  isContextMenuOpen.value = state;
-};
-
 const loadMoreConversations = () => {
   emit('loadMore');
 };
-
-provide('toggleContextMenu', onContextMenuToggle);
 
 defineExpose({ conversationListRef });
 </script>
@@ -60,7 +53,6 @@ defineExpose({ conversationListRef });
   <div
     ref="conversationListRef"
     class="flex-1 min-h-0 overflow-y-auto conversations-list"
-    :class="{ '!overflow-hidden': isContextMenuOpen }"
   >
     <Virtualizer
       ref="virtualListRef"
