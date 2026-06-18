@@ -1,4 +1,5 @@
 import { CONVERSATION_PRIORITY_ORDER } from 'shared/constants/messages';
+import { getLastMessage } from 'dashboard/helper/conversationHelper';
 
 export const findPendingMessageIndex = (chat, message) => {
   const { echo_id: tempMessageId } = message;
@@ -124,9 +125,19 @@ const sortDescending = (valueA, valueB) => valueB - valueA;
 const getSortOrderFunction = sortOrder =>
   sortOrder === 'asc' ? sortAscending : sortDescending;
 
+const getLastActivityTimestamp = chat => {
+  const lastMessage = Array.isArray(chat.messages)
+    ? getLastMessage(chat)
+    : null;
+  return lastMessage?.created_at || chat.last_activity_at;
+};
+
 const sortConfig = {
   sortOnLastActivityAt: (a, b, sortDirection) =>
-    getSortOrderFunction(sortDirection)(a.last_activity_at, b.last_activity_at),
+    getSortOrderFunction(sortDirection)(
+      getLastActivityTimestamp(a),
+      getLastActivityTimestamp(b)
+    ),
 
   sortOnCreatedAt: (a, b, sortDirection) =>
     getSortOrderFunction(sortDirection)(a.created_at, b.created_at),
