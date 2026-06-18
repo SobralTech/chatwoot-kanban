@@ -170,15 +170,18 @@ export default {
     setActiveChat() {
       if (this.conversationId) {
         const selectedConversation = this.findConversation();
-        // If conversation doesn't exist or selected conversation is same as the active
-        // conversation, don't set active conversation.
-        if (
-          !selectedConversation ||
-          selectedConversation.id === this.currentChat.id
-        ) {
+        if (!selectedConversation) {
           return;
         }
         const { messageId } = this.$route.query;
+        // Conversation is already active: just scroll to the requested
+        // message instead of skipping navigation entirely.
+        if (selectedConversation.id === this.currentChat.id) {
+          if (messageId) {
+            emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId });
+          }
+          return;
+        }
         this.$store
           .dispatch('setActiveChat', {
             data: selectedConversation,
