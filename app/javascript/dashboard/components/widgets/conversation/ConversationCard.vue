@@ -198,7 +198,6 @@ watch(
             :last-activity-timestamp="
               lastMessageInChat?.created_at || chat.timestamp
             "
-            :created-at-timestamp="chat.created_at"
             :conversation-id="chat.id"
             :class="hasUnread ? '!text-n-blue-9 hover:!text-n-blue-9' : ''"
           />

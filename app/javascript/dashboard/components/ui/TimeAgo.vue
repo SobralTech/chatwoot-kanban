@@ -4,9 +4,6 @@ const HOUR_IN_MILLI_SECONDS = MINUTE_IN_MILLI_SECONDS * 60;
 const DAY_IN_MILLI_SECONDS = HOUR_IN_MILLI_SECONDS * 24;
 
 import {
-  dynamicTime,
-  dateFormat,
-  shortTimestamp,
   relativeDayTimestamp,
   humanTimestamp,
 } from 'shared/helpers/timeHelper';
@@ -22,10 +19,6 @@ export default {
       type: [String, Date, Number],
       default: '',
     },
-    createdAtTimestamp: {
-      type: [String, Date, Number],
-      default: '',
-    },
     conversationId: {
       type: [String, Number],
       default: '',
@@ -34,7 +27,6 @@ export default {
   data() {
     return {
       lastActivityAtTimeAgo: relativeDayTimestamp(this.lastActivityTimestamp),
-      createdAtTimeAgo: dynamicTime(this.createdAtTimestamp),
       timer: null,
     };
   },
@@ -42,27 +34,8 @@ export default {
     lastActivityTime() {
       return this.lastActivityAtTimeAgo;
     },
-    createdAtTime() {
-      const t = shortTimestamp(this.createdAtTimeAgo);
-      return t === 'now' ? this.$t('CHAT_LIST.CHAT_TIME_STAMP.NOW') : t;
-    },
-    createdAt() {
-      const createdTimeDiff = Date.now() - this.createdAtTimestamp * 1000;
-      const isBeforeAMonth = createdTimeDiff > DAY_IN_MILLI_SECONDS * 30;
-      return !isBeforeAMonth
-        ? `${this.$t('CHAT_LIST.CHAT_TIME_STAMP.CREATED.LATEST')} ${
-            this.createdAtTimeAgo
-          }`
-        : `${this.$t('CHAT_LIST.CHAT_TIME_STAMP.CREATED.OLDEST')} ${dateFormat(
-            this.createdAtTimestamp
-          )}`;
-    },
-    lastActivity() {
-      return `${this.$t('CHAT_LIST.CHAT_TIME_STAMP.LAST_MESSAGE')} ${humanTimestamp(this.lastActivityTimestamp)}`;
-    },
     tooltipText() {
-      return `${this.createdAt}
-              ${this.lastActivity}`;
+      return `Última mensagem: ${humanTimestamp(this.lastActivityTimestamp)}`;
     },
   },
   watch: {
@@ -71,15 +44,11 @@ export default {
         this.lastActivityTimestamp
       );
     },
-    createdAtTimestamp() {
-      this.createdAtTimeAgo = dynamicTime(this.createdAtTimestamp);
-    },
     conversationId() {
       // Reset display values and timer when the row is recycled to a different conversation.
       this.lastActivityAtTimeAgo = relativeDayTimestamp(
         this.lastActivityTimestamp
       );
-      this.createdAtTimeAgo = dynamicTime(this.createdAtTimestamp);
       if (this.isAutoRefreshEnabled) {
         clearTimeout(this.timer);
         this.createTimer();
@@ -100,7 +69,6 @@ export default {
         this.lastActivityAtTimeAgo = relativeDayTimestamp(
           this.lastActivityTimestamp
         );
-        this.createdAtTimeAgo = dynamicTime(this.createdAtTimestamp);
         this.createTimer();
       }, this.refreshTime());
     },
