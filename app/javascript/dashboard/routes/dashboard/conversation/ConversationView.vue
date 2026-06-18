@@ -177,9 +177,7 @@ export default {
         // Conversation is already active: just scroll to the requested
         // message instead of skipping navigation entirely.
         if (selectedConversation.id === this.currentChat.id) {
-          if (messageId) {
-            emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId });
-          }
+          this.scrollToSearchedMessage(messageId, selectedConversation.id);
           return;
         }
         this.$store
@@ -188,11 +186,35 @@ export default {
             after: messageId,
           })
           .then(() => {
-            emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId });
+            this.scrollToSearchedMessage(messageId, selectedConversation.id);
           });
       } else {
         this.$store.dispatch('clearSelectedState');
       }
+    },
+    async scrollToSearchedMessage(messageId, conversationId) {
+      if (!messageId) {
+        return;
+      }
+      // The message linked from search may live outside the window of
+      // messages already loaded for this conversation, so fetch the
+      // window around it before attempting to scroll.
+      const isMessageLoaded = this.currentChat.messages?.some(
+        message => Number(message.id) === Number(messageId)
+      );
+      if (!isMessageLoaded) {
+        try {
+          await this.$store.dispatch('mergeConversationMessageWindow', {
+            conversationId,
+            around: messageId,
+            before_limit: 20,
+            after_limit: 20,
+          });
+        } catch (error) {
+          return;
+        }
+      }
+      emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId });
     },
     onSearch() {
       this.showSearchModal = true;
