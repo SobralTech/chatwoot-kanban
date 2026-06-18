@@ -467,14 +467,26 @@ const avatarInfo = computed(() => {
     if (senderName) {
       return { name: senderName, src: senderAvatarUrl ?? '' };
     }
-    return { name: t('CONVERSATION.BOT'), src: '' };
+    return {
+      name: t('CONVERSATION.BOT'),
+      src: '',
+      iconName: 'i-lucide-bot-message-square',
+    };
   }
 
   const { sender } = props;
   const { name, type, avatarUrl, thumbnail } = sender || {};
 
-  // If sender type is agent bot, use avatarUrl
-  if ([SENDER_TYPES.AGENT_BOT, SENDER_TYPES.CAPTAIN_ASSISTANT].includes(type)) {
+  // If sender type is agent bot, use avatarUrl, falling back to a robot icon
+  if (type === SENDER_TYPES.AGENT_BOT) {
+    return {
+      name: name ?? '',
+      src: avatarUrl ?? '',
+      iconName: 'i-lucide-bot-message-square',
+    };
+  }
+
+  if (type === SENDER_TYPES.CAPTAIN_ASSISTANT) {
     return {
       name: name ?? '',
       src: avatarUrl ?? '',
