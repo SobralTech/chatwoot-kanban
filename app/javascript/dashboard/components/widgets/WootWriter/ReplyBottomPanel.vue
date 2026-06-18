@@ -498,10 +498,10 @@ export default {
 }
 
 .compact-action-button {
-  width: 2.5rem !important;
-  height: 2.5rem !important;
+  width: 2.25rem !important;
+  height: 2.25rem !important;
   padding: 0 !important;
-  font-size: 1.375rem !important;
+  font-size: 1.25rem !important;
   background-color: transparent !important;
 
   &:hover:enabled,
