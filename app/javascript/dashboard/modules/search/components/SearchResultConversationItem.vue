@@ -31,10 +31,6 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
-  messageId: {
-    type: Number,
-    default: 0,
-  },
   message: {
     type: Object,
     default: () => ({}),
@@ -43,16 +39,9 @@ const props = defineProps({
 
 const { t } = useI18n();
 
-const navigateTo = computed(() => {
-  const params = {};
-  if (props.messageId || props.message?.id) {
-    params.messageId = props.messageId || props.message.id;
-  }
-  return frontendURL(
-    `accounts/${props.accountId}/conversations/${props.id}`,
-    params
-  );
-});
+const navigateTo = computed(() =>
+  frontendURL(`accounts/${props.accountId}/conversations/${props.id}`)
+);
 
 const previewMessage = computed(() => props.message || {});
 
