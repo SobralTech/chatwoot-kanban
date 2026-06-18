@@ -28,6 +28,14 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  showInboxNameBelowName: {
+    type: Boolean,
+    default: false,
+  },
+  hideAssignee: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const router = useRouter();
@@ -105,6 +113,7 @@ const onCardClick = e => {
         <div class="flex items-center gap-2">
           <CardPriorityIcon :priority="conversation.priority || null" />
           <div
+            v-if="!showInboxNameBelowName"
             v-tooltip.left="inboxName"
             class="flex items-center justify-center flex-shrink-0 rounded-full bg-n-alpha-2 size-5"
           >
@@ -118,15 +127,26 @@ const onCardClick = e => {
           </span>
         </div>
       </div>
+      <div
+        v-if="showInboxNameBelowName"
+        class="flex items-center gap-1.5 -mt-1"
+      >
+        <Icon :icon="inboxIcon" class="flex-shrink-0 text-n-slate-11 size-3" />
+        <span class="text-xs truncate text-n-slate-11">
+          {{ inboxName }}
+        </span>
+      </div>
       <CardMessagePreview
         v-show="showMessagePreviewWithoutMeta"
         :conversation="conversation"
+        :hide-assignee="hideAssignee"
       />
       <CardMessagePreviewWithMeta
         v-show="!showMessagePreviewWithoutMeta"
         ref="cardMessagePreviewWithMetaRef"
         :conversation="conversation"
         :account-labels="accountLabels"
+        :hide-assignee="hideAssignee"
       />
     </div>
   </div>

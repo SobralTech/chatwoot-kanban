@@ -10,6 +10,10 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  hideAssignee: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const { t } = useI18n();
@@ -47,7 +51,7 @@ const unreadMessagesCount = computed(() => {
     </p>
     <div class="flex items-center flex-shrink-0 gap-2 pb-2">
       <Avatar
-        v-if="assignee.name"
+        v-if="assignee.name && !hideAssignee"
         :name="assignee.name"
         :src="assignee.thumbnail"
         :size="20"

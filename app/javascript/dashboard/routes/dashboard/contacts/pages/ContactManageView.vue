@@ -21,7 +21,7 @@ const router = useRouter();
 const contact = useMapGetter('contacts/getContactById');
 const uiFlags = useMapGetter('contacts/getUIFlags');
 
-const activeTab = ref('attributes');
+const activeTab = ref('history');
 const contactMergeRef = ref(null);
 
 const isFetchingItem = computed(() => uiFlags.value.isFetchingItem);
@@ -37,8 +37,8 @@ const showSpinner = computed(
 const { t } = useI18n();
 
 const CONTACT_TABS_OPTIONS = [
-  { key: 'ATTRIBUTES', value: 'attributes' },
   { key: 'HISTORY', value: 'history' },
+  { key: 'ATTRIBUTES', value: 'attributes' },
   { key: 'NOTES', value: 'notes' },
   { key: 'MERGE', value: 'merge' },
 ];
