@@ -112,14 +112,13 @@ const toggleContactDetails = () => {
 <template>
   <div
     ref="conversationHeader"
-    class="flex flex-col gap-3 items-center justify-between flex-1 w-full min-w-0 xl:flex-row px-3 pt-3 pb-2 h-24 xl:h-12"
+    class="flex flex-row items-center justify-between flex-1 w-full min-w-0 gap-3 px-3 py-2 min-h-12"
   >
-    <div
-      class="flex items-center justify-start w-full xl:w-auto max-w-full min-w-0 xl:flex-1"
-    >
+    <div class="flex items-center justify-start flex-1 min-w-0">
       <BackButton
         v-if="showBackButton"
         :back-url="backButtonUrl"
+        icon-only
         class="ltr:mr-2 rtl:ml-2"
       />
       <div
@@ -141,36 +140,41 @@ const toggleContactDetails = () => {
           rounded-full
         />
         <div
-          class="flex flex-row items-end min-w-0 max-w-full gap-2 ml-2 overflow-hidden rtl:ml-0 rtl:mr-2"
+          class="flex flex-col min-w-0 max-w-full gap-0.5 ml-2 overflow-hidden rtl:ml-0 rtl:mr-2"
           data-testid="conversation-header-contact-name"
         >
-          <span
-            class="min-w-0 flex-1 text-base font-medium leading-tight truncate text-n-slate-12 group-hover:text-n-slate-12"
-          >
-            {{ currentContact.name }}
-          </span>
-          <fluent-icon
-            v-if="!isHMACVerified"
-            v-tooltip="$t('CONVERSATION.UNVERIFIED_SESSION')"
-            size="14"
-            class="text-n-amber-10 my-0 mx-0 min-w-[14px] flex-shrink-0"
-            icon="warning"
-          />
-          <span v-if="isSnoozed" class="flex-shrink-0 text-xs text-n-slate-11">
-            {{ headerSeparator }}
-          </span>
-          <span
-            v-if="isSnoozed"
-            class="flex-shrink-0 text-xs font-medium text-n-amber-10"
-          >
-            {{ snoozedDisplayText }}
-          </span>
-          <InboxName :inbox="inbox" class="!mx-0 flex-shrink-0 pb-px" />
+          <div class="flex items-center min-w-0 gap-2">
+            <span
+              class="min-w-0 flex-1 text-base font-medium leading-tight truncate text-n-slate-12 group-hover:text-n-slate-12"
+            >
+              {{ currentContact.name }}
+            </span>
+            <fluent-icon
+              v-if="!isHMACVerified"
+              v-tooltip="$t('CONVERSATION.UNVERIFIED_SESSION')"
+              size="14"
+              class="text-n-amber-10 my-0 mx-0 min-w-[14px] flex-shrink-0"
+              icon="warning"
+            />
+            <span
+              v-if="isSnoozed"
+              class="flex-shrink-0 text-xs text-n-slate-11"
+            >
+              {{ headerSeparator }}
+            </span>
+            <span
+              v-if="isSnoozed"
+              class="flex-shrink-0 text-xs font-medium text-n-amber-10"
+            >
+              {{ snoozedDisplayText }}
+            </span>
+          </div>
+          <InboxName :inbox="inbox" class="!mx-0" />
         </div>
       </div>
     </div>
     <div
-      class="flex flex-row items-center justify-start xl:justify-end flex-shrink-0 gap-2 w-full xl:w-auto header-actions-wrap"
+      class="flex flex-row items-center justify-end flex-shrink-0 gap-2 header-actions-wrap"
     >
       <SLACardLabel
         v-if="hasSlaPolicyId"

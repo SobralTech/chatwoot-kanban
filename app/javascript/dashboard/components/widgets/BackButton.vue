@@ -13,6 +13,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  iconOnly: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const goBack = () => {
@@ -30,9 +34,12 @@ const buttonStyleClass = props.compact ? 'text-sm' : 'text-base';
   <button
     class="flex items-center p-0 font-normal cursor-pointer text-n-slate-11"
     :class="buttonStyleClass"
+    :aria-label="buttonLabel || $t('GENERAL_SETTINGS.BACK')"
     @click.capture="goBack"
   >
     <i class="i-lucide-chevron-left -ml-1 text-lg" />
-    {{ buttonLabel || $t('GENERAL_SETTINGS.BACK') }}
+    <span v-if="!iconOnly">{{
+      buttonLabel || $t('GENERAL_SETTINGS.BACK')
+    }}</span>
   </button>
 </template>
