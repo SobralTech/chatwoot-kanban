@@ -198,7 +198,7 @@ watch(
             :last-activity-timestamp="chat.timestamp"
             :created-at-timestamp="chat.created_at"
             :conversation-id="chat.id"
-            :class="hasUnread ? 'text-n-blue-9 hover:text-n-blue-9' : ''"
+            :class="hasUnread ? '!text-n-blue-9 hover:!text-n-blue-9' : ''"
           />
         </span>
         <UnreadBadge
