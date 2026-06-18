@@ -45,7 +45,7 @@ const contactConversations = computed(() =>
       :contact="contactsById(conversation.meta.sender.id)"
       :state-inbox="stateInbox(conversation.inboxId)"
       :account-labels="accountLabelsValue"
-      show-inbox-name-below-name
+      show-inbox-as-header
       hide-assignee
       class="rounded-none hover:rounded-xl hover:bg-n-alpha-1 dark:hover:bg-n-alpha-3"
     />

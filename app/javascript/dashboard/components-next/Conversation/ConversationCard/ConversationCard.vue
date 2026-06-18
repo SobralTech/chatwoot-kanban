@@ -28,7 +28,7 @@ const props = defineProps({
     type: Array,
     required: true,
   },
-  showInboxNameBelowName: {
+  showInboxAsHeader: {
     type: Boolean,
     default: false,
   },
@@ -99,21 +99,28 @@ const onCardClick = e => {
     @click="onCardClick"
   >
     <Avatar
+      v-if="!showInboxAsHeader"
       :name="currentContactName"
       :src="currentContactThumbnail"
       :size="24"
       :status="currentContactStatus"
       rounded-full
     />
+    <div
+      v-else
+      class="flex items-center justify-center flex-shrink-0 rounded-full bg-n-alpha-2 size-6"
+    >
+      <Icon :icon="inboxIcon" class="flex-shrink-0 text-n-slate-11 size-3" />
+    </div>
     <div class="flex flex-col w-full gap-1 min-w-0">
       <div class="flex items-center justify-between h-6 gap-2">
         <h4 class="text-base font-medium truncate text-n-slate-12">
-          {{ currentContactName }}
+          {{ showInboxAsHeader ? inboxName : currentContactName }}
         </h4>
         <div class="flex items-center gap-2">
           <CardPriorityIcon :priority="conversation.priority || null" />
           <div
-            v-if="!showInboxNameBelowName"
+            v-if="!showInboxAsHeader"
             v-tooltip.left="inboxName"
             class="flex items-center justify-center flex-shrink-0 rounded-full bg-n-alpha-2 size-5"
           >
@@ -126,15 +133,6 @@ const onCardClick = e => {
             {{ lastActivityAt }}
           </span>
         </div>
-      </div>
-      <div
-        v-if="showInboxNameBelowName"
-        class="flex items-center gap-1.5 -mt-1"
-      >
-        <Icon :icon="inboxIcon" class="flex-shrink-0 text-n-slate-11 size-3" />
-        <span class="text-xs truncate text-n-slate-11">
-          {{ inboxName }}
-        </span>
       </div>
       <CardMessagePreview
         v-show="showMessagePreviewWithoutMeta"
