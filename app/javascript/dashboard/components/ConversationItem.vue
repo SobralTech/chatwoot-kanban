@@ -172,8 +172,8 @@ const onDeleteConversation = () => {
   closeContextMenu();
 };
 
-const onTogglePin = ({ chatId, pinType }) => {
-  store.dispatch('toggleConversationPin', { conversationId: chatId, pinType });
+const onTogglePin = ({ chatId }) => {
+  store.dispatch('toggleConversationPin', { conversationId: chatId });
   closeContextMenu();
 };
 </script>
@@ -225,8 +225,7 @@ const onTogglePin = ({ chatId, pinType }) => {
       :has-unread-messages="source.unread_count > 0"
       :conversation-labels="source.labels"
       :conversation-url="conversationPath"
-      :is-pinned-by-me="!!source.personal_pinned_at"
-      :is-pinned-for-all="!!source.account_pinned_at"
+      :is-pinned="!!source.account_pinned_at"
       @update-conversation="onUpdateConversation"
       @assign-agent="onAssignAgent"
       @assign-label="onAssignLabel"

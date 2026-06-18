@@ -24,8 +24,7 @@ const MENU = {
   DELETE: 'delete',
   OPEN_NEW_TAB: 'open-new-tab',
   COPY_LINK: 'copy-link',
-  PIN_ME: 'pin-me',
-  PIN_ALL: 'pin-all',
+  PIN: 'pin',
 };
 
 export default {
@@ -67,11 +66,7 @@ export default {
       type: Array,
       default: () => [],
     },
-    isPinnedByMe: {
-      type: Boolean,
-      default: false,
-    },
-    isPinnedForAll: {
+    isPinned: {
       type: Boolean,
       default: false,
     },
@@ -250,8 +245,8 @@ export default {
     deleteConversation() {
       this.$emit('deleteConversation', this.chatId);
     },
-    togglePin(pinType) {
-      this.$emit('togglePin', { chatId: this.chatId, pinType });
+    togglePin() {
+      this.$emit('togglePin', { chatId: this.chatId });
       this.$emit('close');
     },
     openInNewTab() {
@@ -396,29 +391,17 @@ export default {
       </MenuItemWithSubmenu>
       <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
     </template>
-    <template v-if="isAllowed([MENU.PIN_ME, MENU.PIN_ALL])">
+    <template v-if="isAllowed([MENU.PIN])">
       <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
       <MenuItem
-        v-if="isAllowed([MENU.PIN_ME])"
         :option="{
-          icon: isPinnedByMe ? 'dismiss-circle' : 'star-emphasis',
-          label: isPinnedByMe
-            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_FOR_ME')
-            : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_FOR_ME'),
+          icon: isPinned ? 'pin-dismiss' : 'pin',
+          label: isPinned
+            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_CONVERSATION')
+            : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_CONVERSATION'),
         }"
         variant="icon"
-        @click.stop="togglePin('personal')"
-      />
-      <MenuItem
-        v-if="isAllowed([MENU.PIN_ALL])"
-        :option="{
-          icon: isPinnedForAll ? 'dismiss-circle' : 'people-team',
-          label: isPinnedForAll
-            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_FOR_ALL')
-            : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_FOR_ALL'),
-        }"
-        variant="icon"
-        @click.stop="togglePin('account')"
+        @click.stop="togglePin"
       />
     </template>
     <template v-if="isAllowed([MENU.OPEN_NEW_TAB, MENU.COPY_LINK])">

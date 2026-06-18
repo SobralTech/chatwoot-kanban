@@ -133,108 +133,35 @@ describe('#mutations', () => {
   });
 
   describe('#UPDATE_CONVERSATION_PIN', () => {
-    it('sets personal_pinned_at when pinType is personal', () => {
+    it('sets account_pinned_at', () => {
       const state = {
-        allConversations: [
-          { id: 1, personal_pinned_at: null, account_pinned_at: null },
-        ],
+        allConversations: [{ id: 1, account_pinned_at: null }],
       };
       mutations[types.UPDATE_CONVERSATION_PIN](state, {
         conversationId: 1,
-        pinType: 'personal',
-        pinnedAt: 1700000000,
-      });
-      expect(state.allConversations[0].personal_pinned_at).toBe(1700000000);
-      expect(state.allConversations[0].account_pinned_at).toBeNull();
-    });
-
-    it('sets account_pinned_at when pinType is account', () => {
-      const state = {
-        allConversations: [
-          { id: 1, personal_pinned_at: null, account_pinned_at: null },
-        ],
-      };
-      mutations[types.UPDATE_CONVERSATION_PIN](state, {
-        conversationId: 1,
-        pinType: 'account',
         pinnedAt: 1700000000,
       });
       expect(state.allConversations[0].account_pinned_at).toBe(1700000000);
-      expect(state.allConversations[0].personal_pinned_at).toBeNull();
     });
 
     it('sets pinnedAt to null when unpinning', () => {
       const state = {
-        allConversations: [
-          { id: 1, personal_pinned_at: 1700000000, account_pinned_at: null },
-        ],
+        allConversations: [{ id: 1, account_pinned_at: 1700000000 }],
       };
       mutations[types.UPDATE_CONVERSATION_PIN](state, {
         conversationId: 1,
-        pinType: 'personal',
         pinnedAt: null,
       });
-      expect(state.allConversations[0].personal_pinned_at).toBeNull();
+      expect(state.allConversations[0].account_pinned_at).toBeNull();
     });
 
     it('does nothing if conversation is not found', () => {
-      const state = { allConversations: [{ id: 2, personal_pinned_at: null }] };
+      const state = { allConversations: [{ id: 2, account_pinned_at: null }] };
       mutations[types.UPDATE_CONVERSATION_PIN](state, {
         conversationId: 999,
-        pinType: 'personal',
         pinnedAt: 1700000000,
       });
-      expect(state.allConversations[0].personal_pinned_at).toBeNull();
-    });
-  });
-
-  describe('#UPDATE_CONVERSATION — personal_pinned_at protection', () => {
-    const baseState = () => ({
-      allConversations: [
-        {
-          id: 1,
-          updated_at: 100,
-          personal_pinned_at: 1700000000,
-          account_pinned_at: null,
-          messages: [],
-        },
-      ],
-      selectedChatId: null,
-      conversationFilters: {},
-    });
-
-    it('preserves personal_pinned_at when broadcast data omits the key', () => {
-      const state = baseState();
-      mutations[types.UPDATE_CONVERSATION](state, {
-        id: 1,
-        updated_at: 200,
-        account_pinned_at: 1700001000,
-        messages: [],
-      });
-      expect(state.allConversations[0].personal_pinned_at).toBe(1700000000);
-      expect(state.allConversations[0].account_pinned_at).toBe(1700001000);
-    });
-
-    it('preserves personal_pinned_at when broadcast data has it as null', () => {
-      const state = baseState();
-      mutations[types.UPDATE_CONVERSATION](state, {
-        id: 1,
-        updated_at: 200,
-        personal_pinned_at: null,
-        messages: [],
-      });
-      expect(state.allConversations[0].personal_pinned_at).toBe(1700000000);
-    });
-
-    it('updates personal_pinned_at when broadcast explicitly provides a value', () => {
-      const state = baseState();
-      mutations[types.UPDATE_CONVERSATION](state, {
-        id: 1,
-        updated_at: 200,
-        personal_pinned_at: 1700002000,
-        messages: [],
-      });
-      expect(state.allConversations[0].personal_pinned_at).toBe(1700002000);
+      expect(state.allConversations[0].account_pinned_at).toBeNull();
     });
   });
 });

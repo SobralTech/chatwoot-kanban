@@ -45,11 +45,7 @@ const voiceCallData = computed(() => {
 
 const unreadCount = computed(() => props.chat.unread_count);
 
-const pinIcon = computed(() => {
-  if (props.chat.account_pinned_at) return 'people-team';
-  if (props.chat.personal_pinned_at) return 'star-emphasis';
-  return '';
-});
+const isPinned = computed(() => !!props.chat.account_pinned_at);
 
 const slaCardLabel = useTemplateRef('slaCardLabel');
 
@@ -101,10 +97,11 @@ const selectedModel = computed({
 
       <div class="w-4 flex items-center justify-center flex-shrink-0">
         <fluent-icon
-          v-if="pinIcon"
-          :icon="pinIcon"
-          size="14"
-          class="text-n-slate-10"
+          v-if="isPinned"
+          icon="pin"
+          type="filled"
+          size="17"
+          class="text-n-blue-9"
         />
       </div>
 

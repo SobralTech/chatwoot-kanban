@@ -18,9 +18,9 @@ export default {
       type: String,
       default: '',
     },
-    pinIcon: {
-      type: String,
-      default: '',
+    isPinned: {
+      type: Boolean,
+      default: false,
     },
   },
   setup() {
@@ -118,10 +118,11 @@ export default {
       {{ defaultEmptyMessage || $t('CHAT_LIST.NO_CONTENT') }}
     </span>
     <fluent-icon
-      v-if="pinIcon"
-      size="12"
-      class="-mt-0.5 text-n-slate-10 flex-shrink-0"
-      :icon="pinIcon"
+      v-if="isPinned"
+      size="15"
+      type="filled"
+      class="-mt-0.5 text-n-blue-9 flex-shrink-0"
+      icon="pin"
     />
   </div>
 </template>

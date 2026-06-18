@@ -30,62 +30,30 @@ RSpec.describe ConversationPin do
       expect(pin).not_to be_valid
     end
 
-    context 'with personal pin_type' do
-      it 'rejects a duplicate personal pin for the same conversation and user' do
-        existing = create(:conversation_pin, pin_type: :personal)
-        duplicate = build(
-          :conversation_pin,
-          pin_type: :personal,
-          conversation: existing.conversation,
-          account: existing.account,
-          user: existing.user
-        )
-        expect(duplicate).not_to be_valid
-        expect(duplicate.errors[:conversation_id]).to be_present
-      end
-
-      it 'allows personal pins for the same conversation by different users' do
-        existing = create(:conversation_pin, pin_type: :personal)
-        other_user = create(:user, account: existing.account, role: :agent)
-        pin = build(
-          :conversation_pin,
-          pin_type: :personal,
-          conversation: existing.conversation,
-          account: existing.account,
-          user: other_user
-        )
-        expect(pin).to be_valid
-      end
+    it 'rejects a duplicate pin for the same conversation' do
+      existing = create(:conversation_pin)
+      other_user = create(:user, account: existing.account, role: :agent)
+      duplicate = build(
+        :conversation_pin,
+        conversation: existing.conversation,
+        account: existing.account,
+        user: other_user
+      )
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:conversation_id]).to be_present
     end
 
-    context 'with account pin_type' do
-      it 'rejects a duplicate account pin for the same conversation' do
-        existing = create(:conversation_pin, pin_type: :account)
-        other_user = create(:user, account: existing.account, role: :agent)
-        duplicate = build(
-          :conversation_pin,
-          pin_type: :account,
-          conversation: existing.conversation,
-          account: existing.account,
-          user: other_user
-        )
-        expect(duplicate).not_to be_valid
-        expect(duplicate.errors[:conversation_id]).to be_present
-      end
-
-      it 'allows multiple conversations pinned at account level' do
-        existing = create(:conversation_pin, pin_type: :account)
-        other_conv = create(:conversation, account: existing.account)
-        other_user = create(:user, account: existing.account, role: :agent)
-        pin = build(
-          :conversation_pin,
-          pin_type: :account,
-          conversation: other_conv,
-          account: existing.account,
-          user: other_user
-        )
-        expect(pin).to be_valid
-      end
+    it 'allows multiple conversations to be pinned' do
+      existing = create(:conversation_pin)
+      other_conv = create(:conversation, account: existing.account)
+      other_user = create(:user, account: existing.account, role: :agent)
+      pin = build(
+        :conversation_pin,
+        conversation: other_conv,
+        account: existing.account,
+        user: other_user
+      )
+      expect(pin).to be_valid
     end
   end
 

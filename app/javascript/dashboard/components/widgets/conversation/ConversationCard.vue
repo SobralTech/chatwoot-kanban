@@ -49,11 +49,7 @@ const voiceCallData = computed(() => {
 
 const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
 
-const pinIcon = computed(() => {
-  if (props.chat.account_pinned_at) return 'people-team';
-  if (props.chat.personal_pinned_at) return 'star-emphasis';
-  return '';
-});
+const isPinned = computed(() => !!props.chat.account_pinned_at);
 
 const showLabelsSection = computed(() => {
   return props.chat.labels?.length > 0 || hasSlaPolicyId.value;
@@ -170,7 +166,7 @@ watch(
         v-else-if="lastMessageInChat"
         key="message-preview"
         :message="lastMessageInChat"
-        :pin-icon="pinIcon"
+        :is-pinned="isPinned"
         class="my-0 mx-2 leading-6 h-6 flex-1 min-w-0 text-sm"
         :class="messagePreviewClass"
       />

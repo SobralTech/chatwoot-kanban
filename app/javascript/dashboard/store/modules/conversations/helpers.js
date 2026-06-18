@@ -172,8 +172,7 @@ const sortConfig = {
   },
 };
 
-const getPinnedAt = conversation =>
-  conversation.account_pinned_at || conversation.personal_pinned_at || null;
+const getPinnedAt = conversation => conversation.account_pinned_at || null;
 
 export const sortComparator = (a, b, sortKey) => {
   const aPinnedAt = getPinnedAt(a);

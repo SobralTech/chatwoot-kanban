@@ -107,10 +107,9 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
   end
 
   def toggle_pin
-    pin_type = params[:pin_type] == 'account' ? :account : :personal
-    existing_pin = find_pin(pin_type)
-    existing_pin ? existing_pin.destroy : create_pin(pin_type)
-    broadcast_pin_update if pin_type == :account
+    existing_pin = @conversation.account_pin
+    existing_pin ? existing_pin.destroy : create_pin
+    broadcast_pin_update
     head :ok
   end
 
@@ -244,16 +243,10 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
     @conversation.assignee_id? && Current.user == @conversation.assignee
   end
 
-  def find_pin(pin_type)
-    scope = pin_type == :account ? { account: current_account } : { user: Current.user }
-    @conversation.conversation_pins.find_by(scope.merge(pin_type: pin_type))
-  end
-
-  def create_pin(pin_type)
+  def create_pin
     @conversation.conversation_pins.create!(
       account: current_account,
       user: Current.user,
-      pin_type: pin_type,
       pinned_at: Time.zone.now
     )
   end

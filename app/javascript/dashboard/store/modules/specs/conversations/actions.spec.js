@@ -833,52 +833,48 @@ describe('#addMentions', () => {
       const getters = { getConversationById: () => null };
       await actions.toggleConversationPin(
         { commit, getters },
-        { conversationId, pinType: 'personal' }
+        { conversationId }
       );
       expect(commit).not.toHaveBeenCalled();
     });
 
-    it('optimistically pins a personal conversation and calls API', async () => {
+    it('optimistically pins a conversation and calls API', async () => {
       axios.post.mockResolvedValue({});
       const getters = {
         getConversationById: () => ({
           id: conversationId,
-          personal_pinned_at: null,
           account_pinned_at: null,
         }),
       };
       await actions.toggleConversationPin(
         { commit, getters },
-        { conversationId, pinType: 'personal' }
+        { conversationId }
       );
       expect(commit).toHaveBeenCalledWith(
         types.UPDATE_CONVERSATION_PIN,
         expect.objectContaining({
           conversationId,
-          pinType: 'personal',
           pinnedAt: expect.any(Number),
         })
       );
     });
 
-    it('optimistically unpins when personal_pinned_at is already set', async () => {
+    it('optimistically unpins when account_pinned_at is already set', async () => {
       axios.post.mockResolvedValue({});
       const getters = {
         getConversationById: () => ({
           id: conversationId,
-          personal_pinned_at: 1700000000,
-          account_pinned_at: null,
+          account_pinned_at: 1700000000,
         }),
       };
       await actions.toggleConversationPin(
         { commit, getters },
-        { conversationId, pinType: 'personal' }
+        { conversationId }
       );
       expect(commit).toHaveBeenCalledWith(
         types.UPDATE_CONVERSATION_PIN,
         expect.objectContaining({
           conversationId,
-          pinType: 'personal',
           pinnedAt: null,
         })
       );
@@ -889,13 +885,12 @@ describe('#addMentions', () => {
       const getters = {
         getConversationById: () => ({
           id: conversationId,
-          personal_pinned_at: null,
           account_pinned_at: null,
         }),
       };
       await actions.toggleConversationPin(
         { commit, getters },
-        { conversationId, pinType: 'personal' }
+        { conversationId }
       );
       expect(commit).toHaveBeenCalledTimes(2);
       // second commit reverts: pinnedAt back to null (was unpinned before)
@@ -903,7 +898,6 @@ describe('#addMentions', () => {
         types.UPDATE_CONVERSATION_PIN,
         expect.objectContaining({
           conversationId,
-          pinType: 'personal',
           pinnedAt: null,
         })
       );

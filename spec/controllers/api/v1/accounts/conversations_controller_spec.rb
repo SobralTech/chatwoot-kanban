@@ -1236,51 +1236,27 @@ RSpec.describe 'Conversations API', type: :request do
         create(:inbox_member, user: agent, inbox: conversation.inbox)
       end
 
-      it 'creates a personal pin when none exists' do
+      it 'creates a pin when none exists' do
         post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin",
              headers: agent.create_new_auth_token,
-             params: { pin_type: 'personal' },
-             as: :json
-
-        expect(response).to have_http_status(:ok)
-        expect(conversation.conversation_pins.personal.find_by(user: agent)).to be_present
-      end
-
-      it 'destroys an existing personal pin (toggle off)' do
-        create(:conversation_pin, pin_type: :personal, conversation: conversation, account: account, user: agent)
-
-        post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin",
-             headers: agent.create_new_auth_token,
-             params: { pin_type: 'personal' },
-             as: :json
-
-        expect(response).to have_http_status(:ok)
-        expect(conversation.conversation_pins.personal.find_by(user: agent)).to be_nil
-      end
-
-      it 'creates an account pin when none exists' do
-        post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin",
-             headers: agent.create_new_auth_token,
-             params: { pin_type: 'account' },
              as: :json
 
         expect(response).to have_http_status(:ok)
         expect(conversation.reload.account_pin).to be_present
       end
 
-      it 'destroys an existing account pin (toggle off)' do
-        create(:conversation_pin, pin_type: :account, conversation: conversation, account: account, user: agent)
+      it 'destroys an existing pin (toggle off)' do
+        create(:conversation_pin, conversation: conversation, account: account, user: agent)
 
         post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin",
              headers: agent.create_new_auth_token,
-             params: { pin_type: 'account' },
              as: :json
 
         expect(response).to have_http_status(:ok)
         expect(conversation.reload.account_pin).to be_nil
       end
 
-      it 'broadcasts a conversation updated event when toggling an account pin' do
+      it 'broadcasts a conversation updated event when toggling a pin' do
         expect(Rails.configuration.dispatcher).to receive(:dispatch).with(
           Events::Types::CONVERSATION_UPDATED,
           anything,
@@ -1289,20 +1265,6 @@ RSpec.describe 'Conversations API', type: :request do
 
         post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin",
              headers: agent.create_new_auth_token,
-             params: { pin_type: 'account' },
-             as: :json
-      end
-
-      it 'does not broadcast for personal pin toggle' do
-        expect(Rails.configuration.dispatcher).not_to receive(:dispatch).with(
-          Events::Types::CONVERSATION_UPDATED,
-          anything,
-          anything
-        )
-
-        post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin",
-             headers: agent.create_new_auth_token,
-             params: { pin_type: 'personal' },
              as: :json
       end
     end

@@ -137,10 +137,8 @@ class ConversationApi extends ApiClient {
     return axios.get(`${this.url}/${conversationId}/inbox_assistant`);
   }
 
-  togglePin({ conversationId, pinType }) {
-    return axios.post(`${this.url}/${conversationId}/toggle_pin`, {
-      pin_type: pinType,
-    });
+  togglePin({ conversationId }) {
+    return axios.post(`${this.url}/${conversationId}/toggle_pin`);
   }
 
   delete(conversationId) {

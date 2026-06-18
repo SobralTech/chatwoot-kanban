@@ -2,7 +2,6 @@
 
 FactoryBot.define do
   factory :conversation_pin do
-    pin_type { :personal }
     pinned_at { Time.current }
 
     after(:build) do |pin|

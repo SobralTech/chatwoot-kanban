@@ -282,24 +282,9 @@ describe('#sortComparator', () => {
 
   it('floats a pinned conversation above an unpinned one', () => {
     const pinned = conv({ account_pinned_at: 1700000000 });
-    const unpinned = conv({
-      account_pinned_at: null,
-      personal_pinned_at: null,
-    });
+    const unpinned = conv({ account_pinned_at: null });
     expect(sortComparator(pinned, unpinned, 'last_activity_at_desc')).toBe(-1);
     expect(sortComparator(unpinned, pinned, 'last_activity_at_desc')).toBe(1);
-  });
-
-  it('uses personal_pinned_at to float conversation when no account pin', () => {
-    const pinned = conv({
-      personal_pinned_at: 1700000000,
-      account_pinned_at: null,
-    });
-    const unpinned = conv({
-      personal_pinned_at: null,
-      account_pinned_at: null,
-    });
-    expect(sortComparator(pinned, unpinned, 'last_activity_at_desc')).toBe(-1);
   });
 
   it('sorts two pinned conversations by most recently pinned first', () => {
@@ -313,32 +298,14 @@ describe('#sortComparator', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('account_pinned_at beats personal_pinned_at for sort order between two pinned', () => {
-    const accountPinned = conv({
-      account_pinned_at: 1700001000,
-      personal_pinned_at: null,
-    });
-    const personalPinned = conv({
-      account_pinned_at: null,
-      personal_pinned_at: 1700002000,
-    });
-    // account_pinned_at=1700001000 vs personal_pinned_at=1700002000 as the effective pin timestamps
-    // bPinnedAt - aPinnedAt: 1700002000 - 1700001000 > 0 → personal pin is "newer" so it sorts first
-    expect(
-      sortComparator(accountPinned, personalPinned, 'last_activity_at_desc')
-    ).toBeGreaterThan(0);
-  });
-
   it('falls back to sort key for two unpinned conversations', () => {
     const newer = conv({
       last_activity_at: 2000,
       account_pinned_at: null,
-      personal_pinned_at: null,
     });
     const older = conv({
       last_activity_at: 1000,
       account_pinned_at: null,
-      personal_pinned_at: null,
     });
     // last_activity_at_desc: newer should come first (negative result)
     expect(sortComparator(newer, older, 'last_activity_at_desc')).toBeLessThan(

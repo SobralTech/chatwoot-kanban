@@ -296,16 +296,10 @@ export const mutations = {
         return;
       }
 
-      const {
-        messages,
-        personal_pinned_at: incomingPersonalPin,
-        ...updates
-      } = conversation;
+      const { messages, ...updates } = conversation;
       allConversations[index] = {
         ...selectedConversation,
         ...updates,
-        personal_pinned_at:
-          incomingPersonalPin ?? selectedConversation.personal_pinned_at,
       };
       if (_state.selectedChatId === conversation.id) {
         emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
@@ -377,17 +371,10 @@ export const mutations = {
     message.call = { ...message.call, status: callStatus };
   },
 
-  [types.UPDATE_CONVERSATION_PIN](
-    _state,
-    { conversationId, pinType, pinnedAt }
-  ) {
+  [types.UPDATE_CONVERSATION_PIN](_state, { conversationId, pinnedAt }) {
     const chat = getConversationById(_state)(conversationId);
     if (!chat) return;
-    if (pinType === 'personal') {
-      chat.personal_pinned_at = pinnedAt;
-    } else {
-      chat.account_pinned_at = pinnedAt;
-    }
+    chat.account_pinned_at = pinnedAt;
   },
 
   [types.SET_ACTIVE_INBOX](_state, inboxId) {

@@ -59,6 +59,5 @@ json.last_activity_at conversation.last_activity_at.to_i
 json.priority conversation.priority
 json.waiting_since conversation.waiting_since.to_i.to_i
 json.account_pinned_at conversation.account_pin&.pinned_at&.to_i
-json.personal_pinned_at conversation.conversation_pins.find_by(user: Current.user, pin_type: :personal)&.pinned_at&.to_i
 json.sla_policy_id conversation.sla_policy_id
 json.partial! 'enterprise/api/v1/conversations/partials/conversation', conversation: conversation if ChatwootApp.enterprise?
