@@ -149,6 +149,16 @@ const badgeStyles = computed(() => {
   };
 });
 
+const inboxBadgeStyles = computed(() => {
+  const badgeSize = Math.max(props.size * 0.55, 14); // 55% of avatar size, minimum 14px
+  return {
+    width: `${badgeSize}px`,
+    height: `${badgeSize}px`,
+    top: `${props.size - badgeSize / 1.1}px`,
+    left: `${props.size - badgeSize / 1.1}px`,
+  };
+});
+
 const iconStyles = computed(() => ({
   fontSize: `${props.size / 1.6}px`,
 }));
@@ -204,7 +214,7 @@ watch(
     <slot name="badge" :size="size">
       <div
         v-if="inbox"
-        :style="badgeStyles"
+        :style="inboxBadgeStyles"
         class="absolute z-20 flex items-center justify-center rounded-full bg-n-solid-1 border border-transparent flex-shrink-0"
       >
         <ChannelIcon :inbox="inbox" class="w-full h-full text-n-slate-11" />

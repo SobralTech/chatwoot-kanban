@@ -142,7 +142,7 @@ watch(
           'mx-2': compact,
         }"
       >
-        <InboxName :inbox="inbox" :show-icon="false" class="flex-1 min-w-0" />
+        <InboxName :inbox="inbox" class="flex-1 min-w-0" />
       </div>
       <h4
         class="conversation--user text-sm my-0 mx-2 capitalize pt-0.5 flex items-center gap-1 min-w-0 flex-1 ltr:pr-16 rtl:pl-16 text-n-slate-12"
