@@ -1,5 +1,6 @@
 <script>
 import { mapGetters } from 'vuex';
+import { useWindowSize } from '@vueuse/core';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAccount } from 'dashboard/composables/useAccount';
 import ChatList from '../../../components/ChatList.vue';
@@ -58,11 +59,13 @@ export default {
   setup() {
     const { uiSettings, updateUISettings } = useUISettings();
     const { accountId } = useAccount();
+    const { width: windowWidth } = useWindowSize();
 
     return {
       uiSettings,
       updateUISettings,
       accountId,
+      windowWidth,
     };
   },
   data() {
@@ -83,6 +86,9 @@ export default {
       return this.conversationId ? true : !this.isOnExpandedLayout;
     },
     isOnExpandedLayout() {
+      if (this.windowWidth >= wootConstants.SMALL_SCREEN_BREAKPOINT) {
+        return false;
+      }
       const {
         LAYOUT_TYPES: { CONDENSED },
       } = wootConstants;
@@ -137,21 +143,6 @@ export default {
     initialize() {
       this.$store.dispatch('setActiveInbox', this.inboxId);
       this.setActiveChat();
-    },
-    toggleConversationLayout() {
-      const { LAYOUT_TYPES } = wootConstants;
-      const {
-        conversation_display_type:
-          conversationDisplayType = LAYOUT_TYPES.CONDENSED,
-      } = this.uiSettings;
-      const newViewType =
-        conversationDisplayType === LAYOUT_TYPES.CONDENSED
-          ? LAYOUT_TYPES.EXPANDED
-          : LAYOUT_TYPES.CONDENSED;
-      this.updateUISettings({
-        conversation_display_type: newViewType,
-        previously_used_conversation_display_type: newViewType,
-      });
     },
     fetchConversationIfUnavailable() {
       if (!this.conversationId) {
