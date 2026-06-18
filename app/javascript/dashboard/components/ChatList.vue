@@ -8,7 +8,7 @@ import {
   onMounted,
   onUnmounted,
 } from 'vue';
-import { useEventListener, useDebounceFn, useWindowSize } from '@vueuse/core';
+import { useEventListener, useDebounceFn } from '@vueuse/core';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -75,20 +75,18 @@ const CONVERSATION_LIST_DEFAULT_WIDTH = 340;
 const CONVERSATION_LIST_MIN_WIDTH = 260;
 const CONVERSATION_LIST_MAX_WIDTH = 600;
 
+const isWideScreenOnLoad =
+  window.innerWidth >= wootConstants.SMALL_SCREEN_BREAKPOINT;
+
 const listWidth = ref(
-  uiSettings.value.conversation_list_width || CONVERSATION_LIST_DEFAULT_WIDTH
+  isWideScreenOnLoad
+    ? CONVERSATION_LIST_MIN_WIDTH
+    : uiSettings.value.conversation_list_width ||
+        CONVERSATION_LIST_DEFAULT_WIDTH
 );
 const isResizingList = ref(false);
 const resizeStartX = ref(0);
 const resizeStartWidth = ref(0);
-
-const { width: windowWidth } = useWindowSize();
-const isWideScreen = computed(
-  () => windowWidth.value >= wootConstants.SMALL_SCREEN_BREAKPOINT
-);
-const displayedListWidth = computed(() =>
-  isWideScreen.value ? CONVERSATION_LIST_MIN_WIDTH : listWidth.value
-);
 
 const onListResizeStart = event => {
   isResizingList.value = true;
@@ -910,9 +908,7 @@ watch(conversationFilters, (newVal, oldVal) => {
       { hidden: !showConversationList },
       isOnExpandedLayout ? 'basis-full' : '',
     ]"
-    :style="
-      isOnExpandedLayout ? undefined : { width: `${displayedListWidth}px` }
-    "
+    :style="isOnExpandedLayout ? undefined : { width: `${listWidth}px` }"
   >
     <slot />
     <ChatListHeader
@@ -1031,7 +1027,7 @@ watch(conversationFilters, (newVal, oldVal) => {
       @submit="handleResolveWithAttributes"
     />
     <div
-      v-if="!isOnExpandedLayout && !isWideScreen"
+      v-if="!isOnExpandedLayout"
       class="absolute top-0 ltr:right-0 rtl:left-0 h-full w-1 cursor-col-resize z-40 group"
       @mousedown="onListResizeStart"
     >
