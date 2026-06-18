@@ -200,21 +200,21 @@ watch(
     class="relative inline-flex group/avatar z-0 flex-shrink-0 align-middle"
     :style="containerStyles"
   >
-    <!-- Status Badge -->
+    <!-- Inbox / Status Badge -->
     <slot name="badge" :size="size">
       <div
-        v-if="status && STATUS_CLASSES[status]"
-        class="absolute z-20 border rounded-full border-n-slate-3"
-        :style="badgeStyles"
-        :class="STATUS_CLASSES[status]"
-      />
-      <div
-        v-if="inbox && !(status && STATUS_CLASSES[status])"
+        v-if="inbox"
         :style="badgeStyles"
         class="absolute z-20 flex items-center justify-center rounded-full bg-n-solid-1 border border-transparent flex-shrink-0"
       >
         <ChannelIcon :inbox="inbox" class="w-full h-full text-n-slate-11" />
       </div>
+      <div
+        v-else-if="status && STATUS_CLASSES[status]"
+        class="absolute z-20 border rounded-full border-n-slate-3"
+        :style="badgeStyles"
+        :class="STATUS_CLASSES[status]"
+      />
     </slot>
 
     <!-- Delete Avatar Button -->
