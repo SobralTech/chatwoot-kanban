@@ -560,6 +560,7 @@ provideMessageContext({
   variant,
   orientation,
   isBotOrAgentMessage,
+  isOwnMessage,
   shouldGroupWithNext,
 });
 </script>

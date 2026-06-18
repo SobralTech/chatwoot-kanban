@@ -15,9 +15,14 @@ const props = defineProps({
   hideMeta: { type: Boolean, default: false },
 });
 
-const { variant, orientation, inReplyTo, shouldGroupWithNext } =
+const { variant, orientation, inReplyTo, shouldGroupWithNext, isOwnMessage } =
   useMessageContext();
 const { t } = useI18n();
+
+// Other agents' bubbles use a deeper step on the same blue scale so they
+// read darker in light mode and lighter in dark mode than the current
+// user's own messages (which keep the default n-solid-blue).
+const otherAgentBubbleClass = 'bg-n-blue-6 text-n-slate-12';
 
 const varaintBaseMap = {
   [MESSAGE_VARIANTS.AGENT]: 'bg-n-solid-blue text-n-slate-12',
@@ -59,7 +64,11 @@ const flexOrientationClass = computed(() => {
 });
 
 const messageClass = computed(() => {
-  const classToApply = [varaintBaseMap[variant.value]];
+  const classToApply = [
+    variant.value === MESSAGE_VARIANTS.AGENT && !isOwnMessage.value
+      ? otherAgentBubbleClass
+      : varaintBaseMap[variant.value],
+  ];
 
   if (variant.value !== MESSAGE_VARIANTS.ACTIVITY) {
     classToApply.push(orientationMap[orientation.value]);
