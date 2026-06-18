@@ -174,7 +174,9 @@ const selectedModel = computed({
       <div class="flex-shrink-0 w-[4.375rem] text-end">
         <TimeAgo
           :conversation-id="chat.id"
-          :last-activity-timestamp="chat.timestamp"
+          :last-activity-timestamp="
+            lastMessageInChat?.created_at || chat.timestamp
+          "
           :created-at-timestamp="chat.created_at"
           class="font-440 !text-xs"
           :class="unreadCount > 0 ? '!text-n-blue-9' : 'text-n-slate-11'"
