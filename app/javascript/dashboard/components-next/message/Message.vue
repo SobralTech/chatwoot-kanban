@@ -93,6 +93,7 @@ import { useBranding } from 'shared/composables/useBranding';
  * @property {string|null} [senderType=null] - The type of the sender
  * @property {string} content - The message content
  * @property {boolean} [groupWithNext=false] - Whether the message should be grouped with the next message
+ * @property {boolean} [groupWithPrevious=false] - Whether the message should be grouped with the previous message
  * @property {Object|null} [inReplyTo=null] - The message to which this message is a reply
  * @property {boolean} [isEmailInbox=false] - Whether the message is from an email inbox
  * @property {number} conversationId - The ID of the conversation to which the message belongs
@@ -125,6 +126,7 @@ const props = defineProps({
   createdAt: { type: Number, required: true }, // eslint-disable-line vue/no-unused-properties
   currentUserId: { type: Number, required: true }, // eslint-disable-line vue/no-unused-properties
   groupWithNext: { type: Boolean, default: false },
+  groupWithPrevious: { type: Boolean, default: false },
   inboxId: { type: Number, default: null }, // eslint-disable-line vue/no-unused-properties
   inboxSupportsReplyTo: { type: Object, default: () => ({}) },
   inReplyTo: { type: Object, default: null }, // eslint-disable-line vue/no-unused-properties
@@ -264,6 +266,7 @@ const gridTemplate = computed(() => {
       "meta"
     `,
     [ORIENTATION.RIGHT]: `
+      "name avatar"
       "bubble avatar"
       "meta spacer"
     `,
@@ -278,9 +281,24 @@ const shouldGroupWithNext = computed(() => {
   return props.groupWithNext;
 });
 
+// Messages sent by the current user shouldn't show an avatar/name, only
+// messages sent by other agents or bots should.
+const isOwnMessage = computed(() => {
+  if (
+    props.status === MESSAGE_STATUS.PROGRESS &&
+    props.messageType === MESSAGE_TYPES.OUTGOING
+  ) {
+    return true;
+  }
+
+  const senderId = props.senderId ?? props.sender?.id;
+  return senderId != null && senderId === props.currentUserId;
+});
+
 const shouldShowAvatar = computed(() => {
   if (props.messageType === MESSAGE_TYPES.ACTIVITY) return false;
   if (orientation.value === ORIENTATION.LEFT) return false;
+  if (isOwnMessage.value) return false;
 
   return true;
 });
@@ -556,7 +574,6 @@ provideMessageContext({
     :class="[
       flexOrientationClass,
       {
-        'group-with-next': shouldGroupWithNext,
         'bg-n-alpha-1': showBackgroundHighlight,
         'bg-n-amber-3/60 outline outline-1 -outline-offset-1 outline-n-amber-6 rounded-lg':
           isActiveSearchResult,
@@ -581,9 +598,16 @@ provideMessageContext({
       }"
     >
       <div
-        v-if="!shouldGroupWithNext && shouldShowAvatar"
+        v-if="!groupWithPrevious && shouldShowAvatar"
+        class="[grid-area:name] flex items-center gap-1.5 mb-1 text-xs text-n-slate-11"
+        :class="flexOrientationClass"
+      >
+        {{ avatarInfo.name }}
+      </div>
+      <div
+        v-if="!groupWithPrevious && shouldShowAvatar"
         v-tooltip.left-end="avatarTooltip"
-        class="[grid-area:avatar] flex items-end"
+        class="[grid-area:avatar] flex items-start"
       >
         <Avatar v-bind="avatarInfo" :size="24" />
       </div>
@@ -621,15 +645,3 @@ provideMessageContext({
     </div>
   </div>
 </template>
-
-<style lang="scss">
-.group-with-next + .message-bubble-container {
-  .left-bubble {
-    @apply ltr:rounded-tl-sm rtl:rounded-tr-sm;
-  }
-
-  .right-bubble {
-    @apply ltr:rounded-tr-sm rtl:rounded-tl-sm;
-  }
-}
-</style>

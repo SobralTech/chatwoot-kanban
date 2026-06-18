@@ -134,6 +134,18 @@ const shouldGroupWithNext = (index, searchList) => {
 };
 
 /**
+ * Determines if a message should be grouped with the previous message
+ * @param {Number} index - Index of the current message
+ * @param {Array} searchList - Array of messages to check
+ * @returns {Boolean} - Whether the message should be grouped with previous
+ */
+const shouldGroupWithPrevious = (index, searchList) => {
+  if (index === 0) return false;
+
+  return shouldGroupWithNext(index - 1, searchList);
+};
+
+/**
  * Gets the message that was replied to
  * @param {Object} parentMessage - The message containing the reply reference
  * @returns {Object|null} - The message being replied to, or null if not found
@@ -195,6 +207,7 @@ const getInReplyToMessage = parentMessage => {
         :is-email-inbox="isAnEmailChannel"
         :in-reply-to="getInReplyToMessage(message)"
         :group-with-next="shouldGroupWithNext(index, allMessages)"
+        :group-with-previous="shouldGroupWithPrevious(index, allMessages)"
         :inbox-supports-reply-to="inboxSupportsReplyTo"
         :current-user-id="currentUserId"
         :conversation-search-query="conversationSearchQuery"
