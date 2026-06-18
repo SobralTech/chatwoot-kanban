@@ -443,7 +443,7 @@ export default {
         <input
           ref="conversationSearchInput"
           :value="conversationSearchQuery"
-          type="search"
+          type="text"
           class="reset-base block w-full h-9 mb-0 rounded-lg border border-n-weak bg-n-surface-1 py-1 pl-12 pr-12 text-sm text-n-slate-12 placeholder:text-n-slate-10 focus:border-n-brand focus:outline-none focus:ring-1 focus:ring-n-brand rtl:pl-12 rtl:pr-10"
           :placeholder="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
           :aria-label="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
@@ -534,7 +534,7 @@ export default {
               />
               <span
                 v-dompurify-html="getHighlightedContent(result)"
-                class="line-clamp-2 break-words [&_.conversation-search-panel-highlight]:bg-n-amber-5 [&_.conversation-search-panel-highlight]:text-n-slate-12 [&_.conversation-search-panel-highlight]:rounded-sm [&_.conversation-search-panel-highlight]:px-0.5"
+                class="line-clamp-2 break-words [&_.conversation-search-panel-highlight]:text-n-blue-11 [&_.conversation-search-panel-highlight]:font-semibold"
               />
             </div>
           </button>
