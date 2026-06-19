@@ -241,6 +241,8 @@
       "INBOX": "Inbox: {inbox}",
       "ASSIGNEE": "Assignee: {assignee}",
       "PRIORITY": "Priority: {priority}",
+      "CHANGE_PRIORITY": "Change priority",
+      "PRIORITY_UPDATE_ERROR": "Could not update the card priority.",
       "LAST_ACTIVITY": "Last activity: {time}"
     },
     "NOTES": {

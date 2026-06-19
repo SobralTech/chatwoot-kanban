@@ -826,6 +826,21 @@ const confirmRemoveCard = async () => {
   await removeCard(card);
 };
 
+const updateCardPriority = async (card, priorityValue) => {
+  if (!selectedBoard.value?.id) return;
+
+  try {
+    await KanbanBoardsAPI.updateCardDetailsById(
+      selectedBoard.value.id,
+      card.id,
+      { priority: priorityValue || null }
+    );
+    patchVisibleCard({ id: card.id, card_priority: priorityValue });
+  } catch (error) {
+    showActionError(error, t('KANBAN.CARD.PRIORITY_UPDATE_ERROR'));
+  }
+};
+
 const selectBoard = boardId => {
   if (boardId === activeBoardId.value) return;
 
@@ -1312,6 +1327,7 @@ onUnmounted(() => {
                       @open-details="openDetails"
                       @open-conversation="openConversation"
                       @remove-card="openRemoveCardConfirmation"
+                      @update-priority="updateCardPriority"
                     />
                   </template>
                 </Draggable>

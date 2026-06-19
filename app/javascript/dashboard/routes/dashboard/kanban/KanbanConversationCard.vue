@@ -9,6 +9,7 @@ import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import InboxName from 'dashboard/components/widgets/InboxName.vue';
+import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 
 const props = defineProps({
@@ -22,7 +23,12 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['openDetails', 'openConversation', 'removeCard']);
+const emit = defineEmits([
+  'openDetails',
+  'openConversation',
+  'removeCard',
+  'updatePriority',
+]);
 
 const { t } = useI18n();
 const store = useStore();
@@ -41,10 +47,28 @@ const hasConversation = computed(() => !!props.card.conversationId);
 const contactName = computed(
   () => contact.value?.name || t('KANBAN.CARD.UNKNOWN_CONTACT')
 );
-const priority = computed(() => props.card.card_priority || '');
-const hasSupportedPriority = computed(() =>
-  Object.values(CONVERSATION_PRIORITY).includes(priority.value)
+const priority = computed(
+  () => props.card.cardPriority ?? props.card.card_priority ?? ''
 );
+const priorityOptions = computed(() => [
+  { value: '', label: t('CONVERSATION.PRIORITY.OPTIONS.NONE') },
+  {
+    value: CONVERSATION_PRIORITY.URGENT,
+    label: t('CONVERSATION.PRIORITY.OPTIONS.URGENT'),
+  },
+  {
+    value: CONVERSATION_PRIORITY.HIGH,
+    label: t('CONVERSATION.PRIORITY.OPTIONS.HIGH'),
+  },
+  {
+    value: CONVERSATION_PRIORITY.MEDIUM,
+    label: t('CONVERSATION.PRIORITY.OPTIONS.MEDIUM'),
+  },
+  {
+    value: CONVERSATION_PRIORITY.LOW,
+    label: t('CONVERSATION.PRIORITY.OPTIONS.LOW'),
+  },
+]);
 const inboxName = computed(
   () =>
     inbox.value?.name ||
@@ -108,6 +132,11 @@ const dueAtClasses = computed(() => {
 
 const openDetails = event => {
   emit('openDetails', props.card, event);
+};
+
+const onSelectPriority = (option, hide) => {
+  emit('updatePriority', props.card, option.value);
+  hide?.();
 };
 
 const openConversation = event => {
@@ -205,16 +234,60 @@ const openConversation = event => {
       </div>
 
       <div
-        v-if="hasSupportedPriority || stageTime || dueAtLabel"
         data-testid="kanban-card-meta"
         class="mt-1 flex items-center justify-between gap-1.5 text-xs leading-4 text-n-slate-10"
       >
-        <CardPriorityIcon
-          v-if="hasSupportedPriority"
-          :priority="priority"
-          class="flex-shrink-0 !size-3.5"
-        />
-        <span v-else />
+        <span class="no-drag inline-flex flex-shrink-0" @click.stop>
+          <Popover
+            align="start"
+            disable-mobile-view
+            :show-content-border="false"
+          >
+            <button
+              type="button"
+              data-testid="kanban-card-priority-trigger"
+              :title="t('KANBAN.CARD.CHANGE_PRIORITY')"
+              class="flex flex-shrink-0 items-center justify-center rounded-md p-0.5 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand"
+            >
+              <CardPriorityIcon
+                :priority="priority"
+                show-empty
+                class="!size-3.5"
+              />
+            </button>
+
+            <template #content="{ hide }">
+              <div
+                class="block visible w-44 rounded-lg border border-n-strong bg-n-alpha-3 p-1 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
+              >
+                <ul class="grid gap-0.5">
+                  <li v-for="option in priorityOptions" :key="option.value">
+                    <button
+                      type="button"
+                      data-testid="kanban-card-priority-option"
+                      :data-selected="option.value === priority"
+                      class="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs text-n-slate-12 hover:bg-n-alpha-2"
+                      @click="onSelectPriority(option, hide)"
+                    >
+                      <CardPriorityIcon
+                        :priority="option.value"
+                        show-empty
+                        class="size-3.5 flex-shrink-0"
+                      />
+                      <span class="min-w-0 flex-1 truncate">{{
+                        option.label
+                      }}</span>
+                      <i
+                        v-if="option.value === priority"
+                        class="i-lucide-check size-3.5 flex-shrink-0 text-n-brand"
+                      />
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </template>
+          </Popover>
+        </span>
 
         <div class="flex min-w-0 items-center justify-end gap-1.5">
           <span
