@@ -313,6 +313,12 @@ const updateStage = async stage => {
 };
 
 const openRemoveStageConfirmation = stage => {
+  if (getStageCardsCount(stage) > 0) {
+    stageError.value = t('KANBAN.ACTIONS.REMOVE_STAGE_NOT_EMPTY');
+    useAlert(stageError.value);
+    return;
+  }
+
   stagePendingRemoval.value = stage;
   showRemoveStageConfirmation.value = true;
 };
@@ -336,11 +342,12 @@ const removeStage = async () => {
     await store.dispatch('kanbanBoards/refreshBoards');
     useAlert(t('KANBAN.ACTIONS.REMOVE_STAGE_SUCCESS'));
   } catch (error) {
-    stageError.value = getErrorMessage(
-      error,
-      t('KANBAN.ACTIONS.REMOVE_STAGE_ERROR')
-    );
+    stageError.value =
+      error?.response?.status === 422
+        ? t('KANBAN.ACTIONS.REMOVE_STAGE_NOT_EMPTY')
+        : getErrorMessage(error, t('KANBAN.ACTIONS.REMOVE_STAGE_ERROR'));
     useAlert(stageError.value);
+    await refreshBoard();
   } finally {
     isRemovingStage.value = false;
   }
