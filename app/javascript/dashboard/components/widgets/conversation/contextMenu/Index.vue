@@ -417,9 +417,7 @@ export default {
     <template v-if="isAllowed([MENU.MUTE_NOTIFICATIONS])">
       <MenuItem
         :option="{
-          icon: isNotificationsMuted
-            ? 'speaker-1-outline'
-            : 'speaker-mute-outline',
+          icon: isNotificationsMuted ? 'speaker-1' : 'speaker-mute',
           label: isNotificationsMuted
             ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNMUTE_NOTIFICATIONS')
             : $t('CONVERSATION.CARD_CONTEXT_MENU.MUTE_NOTIFICATIONS'),
