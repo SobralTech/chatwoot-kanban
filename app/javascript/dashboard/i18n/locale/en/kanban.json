@@ -55,7 +55,6 @@
       "CANCEL_CREATE_BOARD": "Cancel funnel creation",
       "ADD_ITEM": "Add item",
       "LOAD_MORE_CARDS": "Load more",
-      "LOADING_CARDS": "Loading",
       "LOAD_CARDS_ERROR": "Failed to load cards",
       "ADD_CARD": "Add",
       "CONVERSATION_ID_PLACEHOLDER": "Conversation ID",

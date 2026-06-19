@@ -1328,16 +1328,15 @@ onUnmounted(() => {
                   type="button"
                   data-testid="kanban-load-more-cards"
                   :data-stage-id="stage.id"
-                  class="no-drag flex w-full items-center justify-center gap-1 rounded-md border border-n-weak bg-n-alpha-1 px-3 py-2 text-sm font-medium text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                  class="no-drag flex w-full items-center justify-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white hover:enabled:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="isStageCardsLoading(stage.id)"
                   @click="loadMoreStageCards(stage)"
                 >
-                  <i class="i-lucide-loader-2 size-4" />
-                  {{
-                    isStageCardsLoading(stage.id)
-                      ? t('KANBAN.ACTIONS.LOADING_CARDS')
-                      : t('KANBAN.ACTIONS.LOAD_MORE_CARDS')
-                  }}
+                  <i
+                    v-if="isStageCardsLoading(stage.id)"
+                    class="i-lucide-loader-2 size-4 animate-spin"
+                  />
+                  <span v-else>{{ t('KANBAN.ACTIONS.LOAD_MORE_CARDS') }}</span>
                 </button>
               </div>
             </section>
