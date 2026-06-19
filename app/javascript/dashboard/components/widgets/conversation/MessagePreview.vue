@@ -68,16 +68,16 @@ export default {
   <div class="flex items-center min-w-0 overflow-hidden gap-1">
     <template v-if="showMessageType">
       <fluent-icon
-        v-if="messageByAgent"
-        size="14"
-        class="-mt-0.5 text-n-slate-11 flex-shrink-0"
-        icon="checkmark-double"
-      />
-      <fluent-icon
-        v-else-if="isMessagePrivate"
+        v-if="isMessagePrivate"
         size="16"
         class="-mt-0.5 text-n-slate-11 flex-shrink-0"
         icon="lock-closed"
+      />
+      <fluent-icon
+        v-else-if="messageByAgent"
+        size="14"
+        class="-mt-0.5 text-n-slate-11 flex-shrink-0"
+        icon="checkmark-double"
       />
       <fluent-icon
         v-else-if="isMessageAnActivity"
