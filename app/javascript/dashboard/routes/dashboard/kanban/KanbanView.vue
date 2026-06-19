@@ -1280,14 +1280,6 @@ onUnmounted(() => {
                 class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
                 :class="getStageBodyClass(stage)"
               >
-                <KanbanOpportunityPicker
-                  v-if="activeAddItemStageId === stage.id"
-                  :kanban-board-id="selectedBoard.id"
-                  :kanban-stage-id="stage.id"
-                  @created="refreshStageFirstPage(stage.id)"
-                  @close="closeAddItemPicker"
-                />
-
                 <Draggable
                   :list="stage.cards"
                   item-key="id"
@@ -1395,6 +1387,20 @@ onUnmounted(() => {
         @close="closeOpportunityDetails"
         @updated="onOpportunityUpdated"
         @open-conversation="onOpportunityOpenConversation"
+      />
+    </woot-modal>
+
+    <woot-modal
+      v-if="activeAddItemStageId && selectedBoard"
+      :show="!!activeAddItemStageId"
+      :show-close-button="false"
+      :on-close="closeAddItemPicker"
+    >
+      <KanbanOpportunityPicker
+        :kanban-board-id="selectedBoard.id"
+        :kanban-stage-id="activeAddItemStageId"
+        @created="refreshStageFirstPage(activeAddItemStageId)"
+        @close="closeAddItemPicker"
       />
     </woot-modal>
   </main>
