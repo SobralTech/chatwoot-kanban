@@ -36,6 +36,19 @@ describe Notification::PushNotificationService do
         end
       end
 
+      it 'sends a fallback icon when the contact has no avatar' do
+        with_modified_env VAPID_PUBLIC_KEY: 'test' do
+          create(:notification_subscription, user: notification.user)
+
+          described_class.new(notification: notification).perform
+
+          expect(WebPush).to have_received(:payload_send) do |message:, **|
+            payload = JSON.parse(message)
+            expect(payload['icon']).to start_with('data:image/svg+xml;base64,')
+          end
+        end
+      end
+
       it 'sends a fcm notification for firebase subscription' do
         with_modified_env ENABLE_PUSH_RELAY_SERVER: 'false' do
           create(:notification_subscription, user: notification.user, subscription_type: 'fcm')

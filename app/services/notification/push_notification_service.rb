@@ -1,5 +1,15 @@
+# rubocop:disable Metrics/ClassLength
 class Notification::PushNotificationService
   include Rails.application.routes.url_helpers
+
+  AVATAR_COLORS = [
+    ['#FBDCEF', '#C2298A'],
+    ['#FFE0BB', '#99543A'],
+    ['#E8E8E8', '#60646C'],
+    ['#CCF3EA', '#008573'],
+    ['#EBEBFE', '#4747C2'],
+    ['#E1E9FF', '#3A5BC7']
+  ].freeze
 
   pattr_initialize [:notification!]
 
@@ -41,7 +51,7 @@ class Notification::PushNotificationService
   end
 
   def notification_icon
-    conversation.contact.avatar_url
+    conversation.contact.avatar_url.presence || generated_contact_avatar_icon
   end
 
   def push_url
@@ -155,9 +165,40 @@ class Notification::PushNotificationService
   def fcm_notification
     {
       title: notification.push_message_title,
-      body: notification.push_message_body
+      body: notification.push_message_body,
+      icon: notification_icon
     }
   end
+
+  def generated_contact_avatar_icon
+    svg = <<~SVG
+      <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+        <rect width="128" height="128" rx="32" fill="#{avatar_background_color}" />
+        <text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="#{avatar_text_color}" font-family="Inter, Arial, sans-serif" font-size="48" font-weight="700">#{ERB::Util.html_escape(avatar_initials)}</text>
+      </svg>
+    SVG
+
+    "data:image/svg+xml;base64,#{Base64.strict_encode64(svg)}"
+  end
+
+  def avatar_initials
+    words = contact_display_name.split.compact_blank
+    return 'C' if words.blank?
+
+    return words.first[0].upcase if words.one?
+
+    words.first(2).pluck(0).join.upcase
+  end
+
+  def avatar_color_set
+    @avatar_color_set ||= AVATAR_COLORS[contact_display_name.length % AVATAR_COLORS.length]
+  end
+
+  def avatar_background_color = avatar_color_set[0]
+
+  def avatar_text_color = avatar_color_set[1]
+
+  def contact_display_name = @contact_display_name ||= conversation.contact.name.presence || "Contact ##{conversation.contact_id}"
 
   def fcm_android_options
     {
@@ -176,3 +217,4 @@ class Notification::PushNotificationService
     }
   end
 end
+# rubocop:enable Metrics/ClassLength
