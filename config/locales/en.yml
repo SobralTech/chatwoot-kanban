@@ -245,11 +245,14 @@ en:
       conversation_creation: 'A conversation (#%{display_id}) has been created in %{inbox_name}'
       conversation_assignment: 'A conversation (#%{display_id}) has been assigned to you'
       assigned_conversation_new_message: 'A new message is created in conversation (#%{display_id})'
-      conversation_mention: 'You have been mentioned in conversation (#%{display_id})'
+      conversation_mention: "%{agent_name} marked you in %{contact_name}'s conversation"
+      contact_message: '%{contact_name} - %{inbox_name}'
       sla_missed_first_response: 'SLA target first response missed for conversation (#%{display_id})'
       sla_missed_next_response: 'SLA target next response missed for conversation (#%{display_id})'
       sla_missed_resolution: 'SLA target resolution missed for conversation (#%{display_id})'
     attachment: 'Attachment'
+    attachment_message: 'Sent an attachment'
+    audio_message: 'Audio message'
     no_content: 'No content'
   conversations:
     captain:

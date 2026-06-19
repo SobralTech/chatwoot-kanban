@@ -3,9 +3,16 @@ require 'rails_helper'
 describe Notification::PushNotificationService do
   let!(:account) { create(:account) }
   let!(:user) { create(:user, account: account) }
-  let!(:notification) { create(:notification, user: user, account: user.accounts.first) }
+  let!(:notification) { create(:notification, notification_type: 'contact_message', user: user, account: user.accounts.first) }
   let(:fcm_double) { instance_double(FCM) }
   let(:fcm_service_double) { instance_double(Notification::FcmService, fcm_client: fcm_double) }
+
+  before do
+    notification_setting = user.notification_settings.find_by(account_id: account.id)
+    notification_setting.selected_email_flags = [:email_contact_message]
+    notification_setting.selected_push_flags = [:push_contact_message]
+    notification_setting.save!
+  end
 
   describe '#perform' do
     context 'when the push server returns success' do

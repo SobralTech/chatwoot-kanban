@@ -60,18 +60,10 @@ RSpec.describe SlaEvent, type: :model do
       create(:conversation_participant, conversation: conversation, user: participant)
     end
 
-    it 'creates notifications for conversation participants, admins, and assignee' do
+    it 'does not create agent notifications' do
       sla_event
 
-      expect(Notification.count).to eq(3)
-      # check if notification type is sla_missed_first_response
-      expect(Notification.where(notification_type: 'sla_missed_first_response').count).to eq(3)
-      # Check if notification is created for the assignee
-      expect(Notification.where(user_id: assignee.id).count).to eq(1)
-      # Check if notification is created for the account admin
-      expect(Notification.where(user_id: admin.id).count).to eq(1)
-      # Check if notification is created for participant
-      expect(Notification.where(user_id: participant.id).count).to eq(1)
+      expect(Notification.count).to eq(0)
     end
   end
 end

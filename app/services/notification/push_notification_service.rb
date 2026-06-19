@@ -33,9 +33,15 @@ class Notification::PushNotificationService
   def push_message
     {
       title: notification.push_message_title,
+      body: notification.push_message_body,
+      icon: notification_icon,
       tag: "#{notification.notification_type}_#{conversation.display_id}_#{notification.id}",
       url: push_url
     }
+  end
+
+  def notification_icon
+    conversation.contact.avatar_url
   end
 
   def push_url

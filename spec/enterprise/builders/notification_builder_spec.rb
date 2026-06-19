@@ -10,12 +10,12 @@ describe NotificationBuilder do
     before do
       create(:inbox_member, user: agent, inbox: inbox)
       notification_setting = agent.notification_settings.find_by(account_id: account.id)
-      notification_setting.selected_email_flags = [:email_conversation_creation]
-      notification_setting.selected_push_flags = [:push_conversation_creation]
+      notification_setting.selected_email_flags = [:email_contact_message]
+      notification_setting.selected_push_flags = [:push_contact_message]
       notification_setting.save!
     end
 
-    def build_notification(conversation, type: 'conversation_creation')
+    def build_notification(conversation, type: 'contact_message')
       described_class.new(
         notification_type: type,
         user: agent,

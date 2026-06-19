@@ -19,6 +19,7 @@
     },
     "TYPES": {
       "CONVERSATION_MENTION": "You have been mentioned in a conversation",
+      "CONTACT_MESSAGE": "New message from a contact",
       "CONVERSATION_CREATION": "New conversation created",
       "CONVERSATION_ASSIGNMENT": "A conversation has been assigned to you",
       "ASSIGNED_CONVERSATION_NEW_MESSAGE": "New message in an assigned conversation",
@@ -29,6 +30,7 @@
     },
     "TYPES_NEXT": {
       "CONVERSATION_MENTION": "Mentioned",
+      "CONTACT_MESSAGE": "New message",
       "CONVERSATION_ASSIGNMENT": "Assigned to you",
       "CONVERSATION_CREATION": "New Conversation",
       "SLA_MISSED_FIRST_RESPONSE": "SLA breach",

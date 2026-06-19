@@ -29,7 +29,18 @@ class NotificationSetting < ApplicationRecord
 
   EMAIL_NOTIFICATION_FLAGS = ::Notification::NOTIFICATION_TYPES.transform_keys { |key| "email_#{key}".to_sym }.invert.freeze
   PUSH_NOTIFICATION_FLAGS = ::Notification::NOTIFICATION_TYPES.transform_keys { |key| "push_#{key}".to_sym }.invert.freeze
+  VISIBLE_NOTIFICATION_TYPES = %w[contact_message conversation_mention].freeze
+  VISIBLE_EMAIL_FLAGS = VISIBLE_NOTIFICATION_TYPES.map { |key| "email_#{key}" }.freeze
+  VISIBLE_PUSH_FLAGS = VISIBLE_NOTIFICATION_TYPES.map { |key| "push_#{key}" }.freeze
 
   has_flags EMAIL_NOTIFICATION_FLAGS.merge(column: 'email_flags').merge(DEFAULT_QUERY_SETTING)
   has_flags PUSH_NOTIFICATION_FLAGS.merge(column: 'push_flags').merge(DEFAULT_QUERY_SETTING)
+
+  def visible_selected_email_flags
+    selected_email_flags & VISIBLE_EMAIL_FLAGS
+  end
+
+  def visible_selected_push_flags
+    selected_push_flags & VISIBLE_PUSH_FLAGS
+  end
 end
