@@ -32,12 +32,12 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.has_more).to be(true)
     end
 
-    it 'clamps limit to 50' do
+    it 'uses the given limit as-is' do
       cards = create_visible_cards(51)
 
-      result = query(limit: 100).call
+      result = query(limit: 30).call
 
-      expect(result.cards).to eq(cards.first(50))
+      expect(result.cards).to eq(cards.first(30))
       expect(result.has_more).to be(true)
     end
 

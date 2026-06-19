@@ -30,12 +30,12 @@ class KanbanCards::VisibleStageCardsQuery
     anchor = cursor_after_id.present? ? cursor_anchor! : nil
     total_count = visible_cards.count
     ids = paginated_card_ids(anchor)
-    page_ids = ids.first(clamped_limit)
+    page_ids = ids.first(effective_limit)
     cards = payload_cards(page_ids)
 
     Result.new(
       cards: cards,
-      has_more: ids.length > clamped_limit,
+      has_more: ids.length > effective_limit,
       next_cursor: next_cursor_for(page_ids, ids),
       total_count: total_count
     )
@@ -72,7 +72,7 @@ class KanbanCards::VisibleStageCardsQuery
     scope = visible_cards.ordered
     scope = scope.where(after_anchor_condition(anchor)) if anchor.present?
 
-    scope.limit(clamped_limit + 1).ids
+    scope.limit(effective_limit + 1).ids
   end
 
   def payload_cards(ids)
@@ -115,13 +115,15 @@ class KanbanCards::VisibleStageCardsQuery
   end
 
   def next_cursor_for(page_ids, ids)
-    return if ids.length <= clamped_limit || page_ids.blank?
+    return if ids.length <= effective_limit || page_ids.blank?
 
     { after_id: page_ids.last }
   end
 
-  def clamped_limit
-    @clamped_limit ||= (limit || DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
+  # Callers (controllers) are responsible for clamping limit to [1, MAX_LIMIT]
+  # before it reaches this service.
+  def effective_limit
+    @effective_limit ||= (limit || DEFAULT_LIMIT).to_i
   end
 
   def cursor_after_id
