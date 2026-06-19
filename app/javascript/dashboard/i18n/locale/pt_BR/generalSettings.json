@@ -225,6 +225,8 @@
       "ASSIGN_A_TEAM": "Atribuir um time",
       "MUTE_CONVERSATION": "Silenciar conversa",
       "UNMUTE_CONVERSATION": "Reativar conversa",
+      "PIN_CONVERSATION": "Fixar conversa",
+      "UNPIN_CONVERSATION": "Desafixar conversa",
       "REMOVE_LABEL_FROM_CONVERSATION": "Remover etiqueta da conversa",
       "REOPEN_CONVERSATION": "Reabrir conversa",
       "RESOLVE_CONVERSATION": "Resolver conversa",

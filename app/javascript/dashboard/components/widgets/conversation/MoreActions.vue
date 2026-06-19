@@ -12,8 +12,10 @@ import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.v
 
 import {
   CMD_MUTE_CONVERSATION,
+  CMD_PIN_CONVERSATION,
   CMD_SEND_TRANSCRIPT,
   CMD_UNMUTE_CONVERSATION,
+  CMD_UNPIN_CONVERSATION,
 } from 'dashboard/helper/commandbar/events';
 
 // No props needed as we're getting currentChat from the store directly
@@ -28,6 +30,8 @@ const currentChat = computed(() => store.getters.getSelectedChat);
 const isNotificationsMuted = computed(
   () => !!currentChat.value.additional_attributes?.notifications_muted
 );
+
+const isPinned = computed(() => !!currentChat.value.account_pinned_at);
 
 const actionMenuItems = computed(() => {
   const items = [];
@@ -45,6 +49,22 @@ const actionMenuItems = computed(() => {
       label: t('CONVERSATION.CARD_CONTEXT_MENU.UNMUTE_NOTIFICATIONS'),
       action: 'unmute',
       value: 'unmute',
+    });
+  }
+
+  if (!isPinned.value) {
+    items.push({
+      icon: 'i-lucide-pin',
+      label: t('CONVERSATION.CARD_CONTEXT_MENU.PIN_CONVERSATION'),
+      action: 'pin',
+      value: 'pin',
+    });
+  } else {
+    items.push({
+      icon: 'i-lucide-pin-off',
+      label: t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_CONVERSATION'),
+      action: 'unpin',
+      value: 'unpin',
     });
   }
 
@@ -71,11 +91,20 @@ const toggleNotificationsMute = () => {
   );
 };
 
+// This function is needed for the event listeners
+const togglePin = () => {
+  store.dispatch('toggleConversationPin', {
+    conversationId: currentChat.value.id,
+  });
+};
+
 const handleActionClick = ({ action }) => {
   toggleDropdown(false);
 
   if (action === 'mute' || action === 'unmute') {
     toggleNotificationsMute();
+  } else if (action === 'pin' || action === 'unpin') {
+    togglePin();
   } else if (action === 'send_transcript') {
     toggleEmailModal();
   }
@@ -83,11 +112,15 @@ const handleActionClick = ({ action }) => {
 
 emitter.on(CMD_MUTE_CONVERSATION, toggleNotificationsMute);
 emitter.on(CMD_UNMUTE_CONVERSATION, toggleNotificationsMute);
+emitter.on(CMD_PIN_CONVERSATION, togglePin);
+emitter.on(CMD_UNPIN_CONVERSATION, togglePin);
 emitter.on(CMD_SEND_TRANSCRIPT, toggleEmailModal);
 
 onUnmounted(() => {
   emitter.off(CMD_MUTE_CONVERSATION, toggleNotificationsMute);
   emitter.off(CMD_UNMUTE_CONVERSATION, toggleNotificationsMute);
+  emitter.off(CMD_PIN_CONVERSATION, togglePin);
+  emitter.off(CMD_UNPIN_CONVERSATION, togglePin);
   emitter.off(CMD_SEND_TRANSCRIPT, toggleEmailModal);
 });
 </script>

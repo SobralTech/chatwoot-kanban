@@ -260,6 +260,8 @@
       "ASSIGN_A_TEAM": "Assign a team",
       "MUTE_CONVERSATION": "Mute conversation",
       "UNMUTE_CONVERSATION": "Unmute conversation",
+      "PIN_CONVERSATION": "Pin conversation",
+      "UNPIN_CONVERSATION": "Unpin conversation",
       "REMOVE_LABEL_FROM_CONVERSATION": "Remove label from the conversation",
       "REOPEN_CONVERSATION": "Reopen conversation",
       "RESOLVE_CONVERSATION": "Resolve conversation",
