@@ -1276,7 +1276,7 @@ onUnmounted(() => {
                 <Draggable
                   :list="stage.cards"
                   item-key="id"
-                  class="flex min-h-48 flex-1 flex-col gap-2 rounded-md"
+                  class="flex min-h-48 flex-shrink-0 flex-col gap-2 rounded-md"
                   :title="
                     hasActiveFilters
                       ? t('KANBAN.ACTIONS.REORDER_DISABLED_FILTERED')
