@@ -43,7 +43,7 @@ RSpec.describe 'Kanban stage cards API', type: :request do
         'limit' => 2,
         'has_more' => false,
         'next_cursor' => nil,
-        'total_count' => 4
+        'total_count' => nil
       )
     end
 

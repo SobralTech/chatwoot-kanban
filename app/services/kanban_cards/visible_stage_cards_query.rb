@@ -28,7 +28,6 @@ class KanbanCards::VisibleStageCardsQuery
     return empty_result unless valid_board_and_stage?
 
     anchor = cursor_after_id.present? ? cursor_anchor! : nil
-    total_count = visible_cards.count
     ids = paginated_card_ids(anchor)
     page_ids = ids.first(effective_limit)
     cards = payload_cards(page_ids)
@@ -37,7 +36,9 @@ class KanbanCards::VisibleStageCardsQuery
       cards: cards,
       has_more: ids.length > effective_limit,
       next_cursor: next_cursor_for(page_ids, ids),
-      total_count: total_count
+      # Counting on every cursor-paginated page would re-scan the whole
+      # stage on each load-more click; only the first page needs it.
+      total_count: anchor.nil? ? visible_cards.count : nil
     )
   end
 

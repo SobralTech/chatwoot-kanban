@@ -241,13 +241,13 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect { query(cursor: { after_id: card.id }).call }.to raise_error(described_class::RefreshRequiredError)
     end
 
-    it 'keeps total_count based on all visible cards' do
+    it 'omits total_count on cursor-paginated pages to avoid recounting the whole stage' do
       cards = create_visible_cards(3)
 
       result = query(limit: 1, cursor: { after_id: cards.first.id }).call
 
       expect(result.cards).to eq([cards.second])
-      expect(result.total_count).to eq(3)
+      expect(result.total_count).to be_nil
     end
 
     it 'keeps query count bounded with 30 cards' do
