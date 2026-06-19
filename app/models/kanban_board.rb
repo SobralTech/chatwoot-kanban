@@ -55,6 +55,10 @@ class KanbanBoard < ApplicationRecord
     where("inbox_scope_mode = 'all_inboxes' OR (inbox_scope_mode = 'selected_inboxes' AND EXISTS (#{joins_sql}))")
   }
 
+  def assignable_users
+    all_agents? ? account.users : visible_users
+  end
+
   def inbox_allowed?(inbox_or_id)
     inbox_id = inbox_or_id.is_a?(Inbox) ? inbox_or_id.id : inbox_or_id.to_i
 

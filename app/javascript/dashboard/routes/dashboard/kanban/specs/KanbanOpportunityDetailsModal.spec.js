@@ -26,6 +26,17 @@ vi.mock('vue-i18n', () => ({
           'Add a single note for this card',
         'KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE': 'Agent',
         'KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED': 'Unassigned',
+        'KANBAN.OPPORTUNITY_DETAILS.NO_ASSIGNABLE_USERS': 'No agents available',
+        'KANBAN.OPPORTUNITY_DETAILS.LOAD_ASSIGNEES_ERROR':
+          'Could not load assignees.',
+        'KANBAN.OPPORTUNITY_DETAILS.SAVE_ASSIGNEES_ERROR':
+          'Could not save assignees.',
+        'KANBAN.OPPORTUNITY_DETAILS.PRIORITY': 'Priority',
+        'KANBAN.OPPORTUNITY_DETAILS.PRIORITY_NONE': 'No priority',
+        'CONVERSATION.PRIORITY.OPTIONS.URGENT': 'Urgent',
+        'CONVERSATION.PRIORITY.OPTIONS.HIGH': 'High',
+        'CONVERSATION.PRIORITY.OPTIONS.MEDIUM': 'Medium',
+        'CONVERSATION.PRIORITY.OPTIONS.LOW': 'Low',
         'KANBAN.OPPORTUNITY_DETAILS.CONVERSATION': 'Conversation',
         'KANBAN.OPPORTUNITY_DETAILS.CONVERSATION_ID': 'Conversation #{id}',
         'KANBAN.OPPORTUNITY_DETAILS.NO_INBOX': 'No inbox linked',
@@ -75,6 +86,8 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     updateCardDetailsById: vi.fn(),
     getCardLabels: vi.fn(),
     updateCardLabels: vi.fn(),
+    getCardAssignees: vi.fn(),
+    updateCardAssignees: vi.fn(),
   },
 }));
 
@@ -203,12 +216,20 @@ const labels = [
   { id: 2, title: 'enterprise', color: '#00ff00' },
 ];
 
+const assignableUsers = [
+  { id: 7, name: 'Jane Agent', avatar_url: 'jane.png' },
+  { id: 8, name: 'John Agent', avatar_url: 'john.png' },
+];
+
 const mountModal = async ({
   card = buildCard(),
   resolveLoad = true,
   resolveLabels = true,
+  resolveAssignees = true,
   accountLabels = labels,
   assignedLabels = [labels[0]],
+  assignedUsers = [assignableUsers[0]],
+  availableAssignableUsers = assignableUsers,
 } = {}) => {
   storeMocks.labels = accountLabels;
   storeMocks.dispatch.mockResolvedValue();
@@ -216,6 +237,15 @@ const mountModal = async ({
   if (resolveLabels) {
     KanbanBoardsAPI.getCardLabels.mockResolvedValue({
       data: { payload: assignedLabels },
+    });
+  }
+
+  if (resolveAssignees) {
+    KanbanBoardsAPI.getCardAssignees.mockResolvedValue({
+      data: {
+        payload: assignedUsers,
+        assignable_users: availableAssignableUsers,
+      },
     });
   }
 
@@ -384,6 +414,33 @@ describe('KanbanOpportunityDetailsModal', () => {
     ).toBe(false);
     expect(dueAtPicker(wrapper).props('modelValue')).toBe('2026-06-05');
     expect(dueAtInput(wrapper).text()).toBe('2026-06-05');
+  });
+
+  it('loads priority into the select', async () => {
+    const wrapper = await mountModal({ card: buildCard({ priority: 'high' }) });
+
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-priority"]').element.value
+    ).toBe('high');
+  });
+
+  it('saves priority', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
+      data: buildCard({ priority: 'urgent' }),
+    });
+    const wrapper = await mountModal();
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-priority"]')
+      .setValue('urgent');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
+      10,
+      501,
+      expect.objectContaining({ priority: 'urgent' })
+    );
   });
 
   it('saves description with existing scalar fields', async () => {
@@ -560,12 +617,58 @@ describe('KanbanOpportunityDetailsModal', () => {
     ).toContain('Acme Buyer');
   });
 
-  it('renders assignee as read-only text', async () => {
+  it('loads assignees through getCardAssignees', async () => {
+    await mountModal();
+
+    expect(KanbanBoardsAPI.getCardAssignees).toHaveBeenCalledWith(10, 501);
+  });
+
+  it('renders assigned users as chips', async () => {
     const wrapper = await mountModal();
 
     expect(
       wrapper.find('[data-testid="kanban-opportunity-assignee"]').text()
     ).toContain('Jane Agent');
+  });
+
+  it('renders unassigned state when no one is assigned', async () => {
+    const wrapper = await mountModal({ assignedUsers: [] });
+
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-no-assignees"]').text()
+    ).toContain('Unassigned');
+  });
+
+  it('lists assignable users in the dropdown', async () => {
+    const wrapper = await mountModal();
+    const options = wrapper.findAll(
+      '[data-testid="kanban-opportunity-assignee-option"]'
+    );
+
+    expect(options).toHaveLength(2);
+    expect(options[0].attributes('data-selected')).toBe('true');
+    expect(options[1].attributes('data-selected')).toBe('false');
+  });
+
+  it('toggles an assignee through updateCardAssignees', async () => {
+    KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
+      data: {
+        payload: [assignableUsers[0], assignableUsers[1]],
+        assignable_users: assignableUsers,
+      },
+    });
+    const wrapper = await mountModal();
+
+    await wrapper
+      .findAll('[data-testid="kanban-opportunity-assignee-option"]')[1]
+      .trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardAssignees).toHaveBeenCalledWith(
+      10,
+      501,
+      [7, 8]
+    );
   });
 
   it('loads assigned card labels through getCardLabels', async () => {

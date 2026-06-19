@@ -101,6 +101,16 @@ class KanbanBoardsAPI extends ApiClient {
     });
   }
 
+  getCardAssignees(boardId, cardId) {
+    return axios.get(`${this.url}/${boardId}/cards/by_id/${cardId}/assignees`);
+  }
+
+  updateCardAssignees(boardId, cardId, assigneeIds) {
+    return axios.put(`${this.url}/${boardId}/cards/by_id/${cardId}/assignees`, {
+      assignee_ids: assigneeIds,
+    });
+  }
+
   reorderCardById(boardId, cardId, payloadOrDirection) {
     const payload =
       typeof payloadOrDirection === 'string'

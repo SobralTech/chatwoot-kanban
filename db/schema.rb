@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_18_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_06_19_100001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1039,6 +1039,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_18_000001) do
     t.index ["account_id"], name: "index_kanban_boards_on_account_id"
   end
 
+  create_table "kanban_card_assignees", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_card_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_kanban_card_assignees_on_account_id"
+    t.index ["kanban_card_id", "user_id"], name: "index_kanban_card_assignees_on_kanban_card_id_and_user_id", unique: true
+    t.index ["kanban_card_id"], name: "index_kanban_card_assignees_on_kanban_card_id"
+    t.index ["user_id"], name: "index_kanban_card_assignees_on_user_id"
+  end
+
   create_table "kanban_cards", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "kanban_board_id", null: false
@@ -1057,6 +1069,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_18_000001) do
     t.datetime "due_at"
     t.datetime "stage_entered_at", null: false
     t.text "description"
+    t.integer "priority"
     t.index ["account_id", "active"], name: "index_kanban_cards_on_account_id_and_active"
     t.index ["account_id", "contact_id"], name: "index_kanban_cards_on_account_id_and_contact_id"
     t.index ["account_id", "inbox_id"], name: "index_kanban_cards_on_account_id_and_inbox_id"
@@ -1490,6 +1503,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_18_000001) do
   add_foreign_key "kanban_board_members", "accounts"
   add_foreign_key "kanban_board_members", "kanban_boards"
   add_foreign_key "kanban_board_members", "users"
+  add_foreign_key "kanban_card_assignees", "accounts"
+  add_foreign_key "kanban_card_assignees", "kanban_cards"
+  add_foreign_key "kanban_card_assignees", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").
       after(:insert).

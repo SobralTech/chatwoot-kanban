@@ -41,7 +41,7 @@ const hasConversation = computed(() => !!props.card.conversationId);
 const contactName = computed(
   () => contact.value?.name || t('KANBAN.CARD.UNKNOWN_CONTACT')
 );
-const priority = computed(() => conversation.value.priority || '');
+const priority = computed(() => props.card.card_priority || '');
 const hasSupportedPriority = computed(() =>
   Object.values(CONVERSATION_PRIORITY).includes(priority.value)
 );
@@ -54,10 +54,10 @@ const inboxName = computed(
 const contactThumbnail = computed(
   () => contact.value?.thumbnail || contact.value?.avatarUrl || ''
 );
-const assignee = computed(() => conversation.value?.meta?.assignee || null);
-const assigneeName = computed(() => assignee.value?.name || '');
-const assigneeThumbnail = computed(
-  () => assignee.value?.thumbnail || assignee.value?.avatarUrl || ''
+const assignees = computed(() => props.card.assignees || []);
+const primaryAssignee = computed(() => assignees.value[0] || null);
+const extraAssigneeCount = computed(() =>
+  Math.max(assignees.value.length - 1, 0)
 );
 const subject = computed(() => props.card.subject || '');
 
@@ -85,7 +85,7 @@ const dueAtDate = computed(() => {
   return Number.isNaN(dueDate.getTime()) ? null : dueDate;
 });
 const dueAtLabel = computed(() =>
-  dueAtDate.value ? format(dueAtDate.value, 'MMM d') : ''
+  dueAtDate.value ? format(dueAtDate.value, 'dd/MM/yyyy') : ''
 );
 const dueAtStatus = computed(() => {
   if (!dueAtDate.value) return '';
@@ -173,13 +173,23 @@ const openConversation = event => {
           {{ contactName }}
         </h4>
 
-        <Avatar
-          v-if="assigneeName"
-          :name="assigneeName"
-          :src="assigneeThumbnail"
-          :size="18"
-          rounded-full
-        />
+        <span
+          v-if="primaryAssignee"
+          class="relative flex flex-shrink-0 items-center"
+        >
+          <Avatar
+            :name="primaryAssignee.name"
+            :src="primaryAssignee.avatar_url"
+            :size="18"
+            rounded-full
+          />
+          <span
+            v-if="extraAssigneeCount"
+            class="absolute -bottom-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-n-slate-9 px-0.5 text-[9px] font-medium leading-none text-white"
+          >
+            +{{ extraAssigneeCount }}
+          </span>
+        </span>
       </div>
 
       <div class="mt-1 flex min-w-0">

@@ -17,6 +17,12 @@ json.inbox do
 end
 json.conversation_id conversation&.display_id
 json.priority conversation&.priority
+json.card_priority card.priority
+json.assignees card.assignees do |assignee_user|
+  json.id assignee_user.id
+  json.name assignee_user.name
+  json.avatar_url assignee_user.avatar_url
+end
 json.conversation do
   if conversation
     json.id conversation.id

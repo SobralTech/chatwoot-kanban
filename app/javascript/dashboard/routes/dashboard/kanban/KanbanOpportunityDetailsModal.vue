@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
@@ -33,16 +34,23 @@ const card = ref(null);
 const subject = ref('');
 const description = ref('');
 const dueAt = ref('');
+const priority = ref('');
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isLoadingLabels = ref(false);
 const isSavingLabels = ref(false);
+const isLoadingAssignees = ref(false);
+const isSavingAssignees = ref(false);
 const loadError = ref('');
 const saveError = ref('');
 const labelsLoadError = ref('');
 const labelsSaveError = ref('');
+const assigneesLoadError = ref('');
+const assigneesSaveError = ref('');
 const subjectError = ref('');
 const selectedLabelTitles = ref([]);
+const assignedUsers = ref([]);
+const assignableUsers = ref([]);
 
 const modalTitle = computed(() => t('KANBAN.OPPORTUNITY_DETAILS.TITLE'));
 const cardDisplayId = computed(() => card.value?.id || props.cardId);
@@ -53,14 +61,23 @@ const inboxName = computed(
     card.value?.conversation?.inbox?.name ||
     t('KANBAN.OPPORTUNITY_DETAILS.NO_INBOX')
 );
-const conversationAssignee = computed(
-  () => card.value?.conversation?.meta?.assignee || card.value?.assignee
+const selectedAssigneeIds = computed(() =>
+  assignedUsers.value.map(user => user.id)
 );
-const assigneeName = computed(
-  () =>
-    conversationAssignee.value?.name ||
-    t('KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED')
-);
+const assigneesSummary = computed(() => {
+  if (!assignedUsers.value.length) {
+    return t('KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED');
+  }
+
+  return assignedUsers.value.map(user => user.name).join(', ');
+});
+const priorityOptions = computed(() => [
+  { value: '', label: t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY_NONE') },
+  { value: 'urgent', label: t('CONVERSATION.PRIORITY.OPTIONS.URGENT') },
+  { value: 'high', label: t('CONVERSATION.PRIORITY.OPTIONS.HIGH') },
+  { value: 'medium', label: t('CONVERSATION.PRIORITY.OPTIONS.MEDIUM') },
+  { value: 'low', label: t('CONVERSATION.PRIORITY.OPTIONS.LOW') },
+]);
 const contactName = computed(
   () =>
     card.value?.contact?.name ||
@@ -136,6 +153,7 @@ const setFormState = payload => {
   subject.value = card.value.subject || '';
   description.value = card.value.description || '';
   dueAt.value = formatDateInput(card.value.dueAt);
+  priority.value = card.value.priority || '';
 };
 
 const getLabelsPayload = response =>
@@ -161,6 +179,62 @@ const loadLabels = async () => {
   } finally {
     isLoadingLabels.value = false;
   }
+};
+
+const loadAssignees = async () => {
+  isLoadingAssignees.value = true;
+  assigneesLoadError.value = '';
+
+  try {
+    const response = await KanbanBoardsAPI.getCardAssignees(
+      props.boardId,
+      props.cardId
+    );
+    assignedUsers.value = response?.data?.payload || [];
+    assignableUsers.value = response?.data?.assignable_users || [];
+  } catch (error) {
+    assigneesLoadError.value = getErrorMessage(
+      error,
+      t('KANBAN.OPPORTUNITY_DETAILS.LOAD_ASSIGNEES_ERROR')
+    );
+  } finally {
+    isLoadingAssignees.value = false;
+  }
+};
+
+const saveAssignees = async nextIds => {
+  if (isSavingAssignees.value) return;
+
+  isSavingAssignees.value = true;
+  assigneesSaveError.value = '';
+  const previousUsers = [...assignedUsers.value];
+
+  try {
+    const response = await KanbanBoardsAPI.updateCardAssignees(
+      props.boardId,
+      props.cardId,
+      nextIds
+    );
+    assignedUsers.value = response?.data?.payload || [];
+    assignableUsers.value =
+      response?.data?.assignable_users || assignableUsers.value;
+  } catch (error) {
+    assignedUsers.value = previousUsers;
+    assigneesSaveError.value = getErrorMessage(
+      error,
+      t('KANBAN.OPPORTUNITY_DETAILS.SAVE_ASSIGNEES_ERROR')
+    );
+  } finally {
+    isSavingAssignees.value = false;
+  }
+};
+
+const onToggleAssignee = user => {
+  const nextIds = selectedAssigneeIds.value.includes(user.id)
+    ? selectedAssigneeIds.value.filter(id => id !== user.id)
+    : [...selectedAssigneeIds.value, user.id];
+
+  saveAssignees(nextIds);
 };
 
 const loadCard = async () => {
@@ -203,6 +277,7 @@ const saveCard = async () => {
       description: description.value.trim() ? description.value : null,
       starts_at: null,
       due_at: toIso8601(dueAt.value),
+      priority: priority.value || null,
     };
     const response = await KanbanBoardsAPI.updateCardDetailsById(
       props.boardId,
@@ -280,6 +355,7 @@ const openConversation = () => {
 onMounted(() => {
   loadCard();
   loadLabels();
+  loadAssignees();
 });
 </script>
 
@@ -501,17 +577,135 @@ onMounted(() => {
               </p>
             </section>
 
-            <section class="grid gap-2 rounded-lg border border-n-weak p-3">
+            <section class="grid gap-3 rounded-lg border border-n-weak p-3">
               <h3 class="mb-0 text-sm font-medium text-n-slate-12">
                 {{ t('KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE') }}
               </h3>
               <p
-                data-testid="kanban-opportunity-assignee"
-                class="mb-0 flex items-center gap-2 text-sm text-n-slate-11"
+                v-if="assigneesLoadError"
+                data-testid="kanban-opportunity-assignees-load-error"
+                class="mb-0 text-sm text-n-ruby-11"
               >
-                <i class="i-lucide-user-round size-4 flex-shrink-0" />
-                <span class="min-w-0 truncate">{{ assigneeName }}</span>
+                {{ assigneesLoadError }}
               </p>
+
+              <Popover
+                align="start"
+                disable-mobile-view
+                :show-content-border="false"
+              >
+                <button
+                  type="button"
+                  data-testid="kanban-opportunity-assignees-menu"
+                  class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="isLoadingAssignees || isSavingAssignees"
+                >
+                  <i
+                    class="i-lucide-users size-4 flex-shrink-0 text-n-slate-11"
+                  />
+                  <span class="min-w-0 flex-1 truncate">
+                    {{ assigneesSummary }}
+                  </span>
+                  <i
+                    class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11"
+                  />
+                </button>
+
+                <template #content>
+                  <div
+                    class="block visible w-72 rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
+                  >
+                    <ul class="grid gap-1">
+                      <li v-for="user in assignableUsers" :key="user.id">
+                        <button
+                          type="button"
+                          data-testid="kanban-opportunity-assignee-option"
+                          :data-selected="selectedAssigneeIds.includes(user.id)"
+                          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+                          @click="onToggleAssignee(user)"
+                        >
+                          <input
+                            type="checkbox"
+                            class="pointer-events-none"
+                            :checked="selectedAssigneeIds.includes(user.id)"
+                            tabindex="-1"
+                          />
+                          <Avatar
+                            :name="user.name"
+                            :src="user.avatar_url"
+                            :size="20"
+                            rounded-full
+                          />
+                          <span class="min-w-0 flex-1 truncate">
+                            {{ user.name }}
+                          </span>
+                        </button>
+                      </li>
+                    </ul>
+                    <p
+                      v-if="!assignableUsers.length"
+                      class="mb-0 px-2 py-1.5 text-sm text-n-slate-11"
+                    >
+                      {{ t('KANBAN.OPPORTUNITY_DETAILS.NO_ASSIGNABLE_USERS') }}
+                    </p>
+                  </div>
+                </template>
+              </Popover>
+
+              <div
+                v-if="assignedUsers.length"
+                data-testid="kanban-opportunity-assignees"
+                class="flex flex-wrap gap-2"
+              >
+                <span
+                  v-for="user in assignedUsers"
+                  :key="user.id"
+                  data-testid="kanban-opportunity-assignee"
+                  class="inline-flex items-center gap-2 rounded-full border border-n-weak bg-n-alpha-1 px-3 py-1 text-xs font-medium text-n-slate-11"
+                >
+                  <Avatar
+                    :name="user.name"
+                    :src="user.avatar_url"
+                    :size="16"
+                    rounded-full
+                  />
+                  <span>{{ user.name }}</span>
+                </span>
+              </div>
+              <p
+                v-else-if="!isLoadingAssignees && !assigneesLoadError"
+                data-testid="kanban-opportunity-no-assignees"
+                class="mb-0 text-sm text-n-slate-11"
+              >
+                {{ t('KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED') }}
+              </p>
+
+              <p
+                v-if="assigneesSaveError"
+                data-testid="kanban-opportunity-assignees-save-error"
+                class="mb-0 text-sm text-n-ruby-11"
+              >
+                {{ assigneesSaveError }}
+              </p>
+            </section>
+
+            <section class="grid gap-2 rounded-lg border border-n-weak p-3">
+              <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY') }}
+              </h3>
+              <select
+                v-model="priority"
+                data-testid="kanban-opportunity-priority"
+                class="min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+              >
+                <option
+                  v-for="option in priorityOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
             </section>
 
             <section class="grid gap-3 rounded-lg border border-n-weak p-3">

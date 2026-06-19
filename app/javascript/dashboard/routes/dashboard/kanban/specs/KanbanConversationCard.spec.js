@@ -40,14 +40,14 @@ const buildCard = overrides => ({
   stage_entered_at: '2026-06-05T18:00:00-03:00',
   due_at: '2026-06-07T18:00:00-03:00',
   conversationId: 42,
+  card_priority: 'high',
+  assignees: [{ id: 7, name: 'Agent Smith', avatar_url: 'agent.png' }],
   conversation: {
     inboxId: 5,
     status: 'open',
-    priority: 'high',
     lastActivityAt: 123,
     meta: {
       sender: { id: 7, name: 'Jane Doe', thumbnail: 'jane.png' },
-      assignee: { name: 'Agent Smith', thumbnail: 'agent.png' },
     },
     messages: [{ content: 'First message' }],
   },
@@ -61,6 +61,8 @@ const buildManualCard = overrides =>
     inbox: { id: 12, name: 'Sales Inbox' },
     conversationId: null,
     conversation: null,
+    card_priority: null,
+    assignees: [],
     ...overrides,
   });
 
@@ -106,7 +108,7 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.text()).toContain('Support Inbox');
     expect(wrapper.text()).toContain('Agent Smith');
     expect(wrapper.text()).toContain('now');
-    expect(wrapper.text()).toContain('Jun 7');
+    expect(wrapper.text()).toContain('07/06/2026');
   });
 
   it('keeps the draggable root intact', () => {
@@ -129,12 +131,7 @@ describe('KanbanConversationCard', () => {
     'uses the native priority indicator for %s priority',
     priority => {
       const wrapper = mountCard({
-        card: buildCard({
-          conversation: {
-            ...buildCard().conversation,
-            priority,
-          },
-        }),
+        card: buildCard({ card_priority: priority }),
       });
 
       expect(
@@ -147,12 +144,7 @@ describe('KanbanConversationCard', () => {
 
   it('does not render the priority indicator when priority is missing', () => {
     const wrapper = mountCard({
-      card: buildCard({
-        conversation: {
-          ...buildCard().conversation,
-          priority: null,
-        },
-      }),
+      card: buildCard({ card_priority: null }),
     });
 
     expect(wrapper.findComponent({ name: 'CardPriorityIcon' }).exists()).toBe(
@@ -162,17 +154,31 @@ describe('KanbanConversationCard', () => {
 
   it('does not render the priority indicator for unexpected priority values', () => {
     const wrapper = mountCard({
-      card: buildCard({
-        conversation: {
-          ...buildCard().conversation,
-          priority: 'critical',
-        },
-      }),
+      card: buildCard({ card_priority: 'critical' }),
     });
 
     expect(wrapper.findComponent({ name: 'CardPriorityIcon' }).exists()).toBe(
       false
     );
+  });
+
+  it('shows an overflow badge when more than one assignee is set', () => {
+    const wrapper = mountCard({
+      card: buildCard({
+        assignees: [
+          { id: 7, name: 'Agent Smith', avatar_url: 'agent.png' },
+          { id: 8, name: 'Agent Jones', avatar_url: 'jones.png' },
+        ],
+      }),
+    });
+
+    expect(wrapper.text()).toContain('+1');
+  });
+
+  it('does not show an overflow badge for a single assignee', () => {
+    const wrapper = mountCard();
+
+    expect(wrapper.text()).not.toContain('+1');
   });
 
   it('emits openDetails when the card surface is clicked', async () => {
@@ -297,14 +303,8 @@ describe('KanbanConversationCard', () => {
         subject: '',
         stage_entered_at: null,
         due_at: null,
-        conversation: {
-          ...buildCard().conversation,
-          priority: null,
-          meta: {
-            ...buildCard().conversation.meta,
-            assignee: null,
-          },
-        },
+        card_priority: null,
+        assignees: [],
       }),
     });
 

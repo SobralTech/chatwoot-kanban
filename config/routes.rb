@@ -146,6 +146,8 @@ Rails.application.routes.draw do
               patch 'cards/by_id/:id/reorder', to: 'cards#reorder'
               get 'cards/by_id/:id/labels', to: 'cards/labels#index'
               put 'cards/by_id/:id/labels', to: 'cards/labels#update'
+              get 'cards/by_id/:id/assignees', to: 'cards/assignees#index'
+              put 'cards/by_id/:id/assignees', to: 'cards/assignees#update'
             end
           end
           namespace :channels do

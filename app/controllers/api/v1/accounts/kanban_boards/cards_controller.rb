@@ -68,7 +68,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def card_params
-    params.require(:card).permit(:kanban_stage_id, :position, :subject, :description, :starts_at, :due_at, labels: [])
+    params.require(:card).permit(:kanban_stage_id, :position, :subject, :description, :starts_at, :due_at, :priority, labels: [])
   end
 
   def manual_card_params
@@ -138,7 +138,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def stable_card_update_params
-    card_params.slice(:subject, :description, :starts_at, :due_at)
+    card_params.slice(:subject, :description, :starts_at, :due_at, :priority)
   end
 
   def labels_param_present?

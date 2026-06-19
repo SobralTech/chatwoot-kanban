@@ -11,6 +11,7 @@
 #  normalized_subject :string
 #  origin             :string           not null
 #  position           :integer          default(0), not null
+#  priority           :integer
 #  stage_entered_at   :datetime         not null
 #  starts_at          :datetime
 #  subject            :string
@@ -32,7 +33,7 @@
 #  index_kanban_cards_on_account_id_and_inbox_id      (account_id,inbox_id)
 #  index_kanban_cards_on_board_stage_position         (kanban_board_id,kanban_stage_id,position)
 #  index_kanban_cards_on_conversation_id              (conversation_id)
-#  index_kanban_cards_on_conversation_subject_unique  (kanban_board_id,conversation_id,inbox_id,normalized_subject) UNIQUE WHERE ((active = true) AND ((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL) AND (normalized_subject IS NOT NULL))
+#  index_kanban_cards_on_conversation_subject_unique  (kanban_board_id,conversation_id,inbox_id,normalized_subject) UNIQUE WHERE (((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL) AND (normalized_subject IS NOT NULL))
 #  index_kanban_cards_on_kanban_board_id_and_active   (kanban_board_id,active)
 #
 # rubocop:enable Layout/LineLength
@@ -46,10 +47,15 @@ class KanbanCard < ApplicationRecord
   belongs_to :inbox
   belongs_to :conversation, optional: true
 
+  has_many :kanban_card_assignees, dependent: :destroy
+  has_many :assignees, through: :kanban_card_assignees, source: :user
+
   enum :origin, {
     conversation: 'conversation',
     manual: 'manual'
   }
+
+  enum :priority, { low: 0, medium: 1, high: 2, urgent: 3 }
 
   before_validation :normalize_subject
   before_validation :normalize_blank_description
@@ -107,6 +113,17 @@ class KanbanCard < ApplicationRecord
 
       normalize_reorder_stages!(source_stage, kanban_stage)
       reload
+    end
+  end
+
+  def update_assignees!(user_ids)
+    target_ids = Array(user_ids).filter_map(&:presence).map(&:to_i).uniq
+
+    self.class.transaction do
+      kanban_card_assignees.where.not(user_id: target_ids).destroy_all
+      (target_ids - kanban_card_assignees.pluck(:user_id)).each do |user_id|
+        kanban_card_assignees.create!(account: account, user_id: user_id)
+      end
     end
   end
 
