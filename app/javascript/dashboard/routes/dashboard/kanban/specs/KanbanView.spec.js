@@ -136,6 +136,7 @@ const buildPagination = (overrides = {}) => ({
   limit: 20,
   has_more: false,
   next_cursor: null,
+  total_count: 0,
   ...overrides,
 });
 
@@ -166,8 +167,7 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
           },
         },
       ],
-      cards_count: 1,
-      pagination: buildPagination(),
+      pagination: buildPagination({ total_count: 1 }),
     },
     {
       id: 200,
@@ -175,8 +175,7 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
       active: true,
       position: 2,
       cards: stageBCards,
-      cards_count: stageBCards.length,
-      pagination: buildPagination(),
+      pagination: buildPagination({ total_count: stageBCards.length }),
     },
   ],
   ...overrides,

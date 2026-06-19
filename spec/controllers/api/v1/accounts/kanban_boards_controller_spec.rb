@@ -174,11 +174,11 @@ RSpec.describe 'Kanban Boards API', type: :request do
       response_stage = response.parsed_body['stages'].first
       expect(response).to have_http_status(:success)
       expect(response_stage['cards'].pluck('id')).to eq(cards.first(20).pluck(:id))
-      expect(response_stage['cards_count']).to eq(21)
       expect(response_stage['pagination']).to include(
         'limit' => 20,
         'has_more' => true,
-        'next_cursor' => { 'after_id' => cards[19].id }
+        'next_cursor' => { 'after_id' => cards[19].id },
+        'total_count' => 21
       )
     end
 
@@ -213,7 +213,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       response_stage = response.parsed_body['stages'].first
       expect(response).to have_http_status(:success)
       expect(response_stage['cards'].pluck('id')).to eq(filtered_cards.pluck(:id))
-      expect(response_stage['cards_count']).to eq(2)
+      expect(response_stage['pagination']['total_count']).to eq(2)
     end
 
     it 'keeps historical cards visible without an explicit inbox filter' do
@@ -262,7 +262,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       response_stage = response.parsed_body['stages'].first
       expect(response).to have_http_status(:success)
       expect(response_stage['cards'].pluck('id')).to eq([filtered_card.id])
-      expect(response_stage['cards_count']).to eq(1)
+      expect(response_stage['pagination']['total_count']).to eq(1)
     end
 
     it 'rejects assignee ids from another account' do
@@ -295,7 +295,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       response_stage = response.parsed_body['stages'].first
       expect(response).to have_http_status(:success)
       expect(response_stage['cards'].pluck('id')).to eq([filtered_card.id])
-      expect(response_stage['cards_count']).to eq(1)
+      expect(response_stage['pagination']['total_count']).to eq(1)
     end
 
     it 'excludes manual cards when filtering embedded cards by assignee ids' do
@@ -346,7 +346,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(rendered_card_ids.length).to eq(20)
-      expect(response.parsed_body['stages'].first['cards_count']).to eq(30)
+      expect(response.parsed_body['stages'].first['pagination']['total_count']).to eq(30)
       expect(card_load_queries).to include(match(/SELECT "kanban_cards"\."id".*LIMIT/))
       expect(card_load_queries).to include(match(/WHERE "kanban_cards"\."id" IN \((\$\d+, ){19}\$\d+\)/))
     end

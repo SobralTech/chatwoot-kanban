@@ -153,6 +153,7 @@ const normalizeKanbanPayload = data => {
             nextCursor: data.stages[index].pagination.next_cursor,
           }
         : stage.pagination,
+      cardsCount: data.stages[index]?.pagination?.total_count ?? 0,
     }));
   }
 

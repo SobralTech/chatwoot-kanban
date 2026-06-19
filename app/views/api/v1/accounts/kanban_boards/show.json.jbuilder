@@ -7,7 +7,6 @@ json.stages do
     json.partial! 'api/v1/accounts/kanban_boards/stage', formats: [:json], kanban_stage: kanban_stage
 
     stage_card_result = @stage_card_results.fetch(kanban_stage)
-    json.cards_count stage_card_result.total_count
     json.cards do
       json.array! stage_card_result.cards do |card|
         json.partial!(
@@ -22,6 +21,7 @@ json.stages do
       json.limit @stage_card_limit
       json.has_more stage_card_result.has_more
       json.next_cursor stage_card_result.next_cursor
+      json.total_count stage_card_result.total_count
     end
   end
 end
