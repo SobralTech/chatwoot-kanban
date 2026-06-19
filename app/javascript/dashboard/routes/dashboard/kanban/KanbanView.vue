@@ -728,15 +728,14 @@ const onCardDragChange = async (stage, event) => {
   }
 
   // Dropping on the last loaded slot while more cards exist beyond the
-  // page sends a position past the stage's real card count, which the
-  // backend clamps to the true end of the stage.
+  // page means the true end of the stage isn't known locally, so the
+  // position is omitted and the backend appends the card to the real end.
   const isLastLoadedSlot = targetIndex === stage.cards.length - 1;
-  const destinationPosition =
-    isLastLoadedSlot && stage.pagination?.hasMore
-      ? Number.MAX_SAFE_INTEGER
-      : targetIndex + 1;
+  const appendsToStageEnd = isLastLoadedSlot && !!stage.pagination?.hasMore;
+  const destinationPosition = appendsToStageEnd ? undefined : targetIndex + 1;
   const stageChanged = card.kanbanStageId !== stage.id;
-  const positionChanged = card.position !== destinationPosition;
+  const positionChanged =
+    appendsToStageEnd || card.position !== destinationPosition;
   if (!stageChanged && !positionChanged) return;
 
   isPersistingCardDrag.value = true;
@@ -744,7 +743,7 @@ const onCardDragChange = async (stage, event) => {
   const payload = {
     card: {
       kanban_stage_id: stage.id,
-      position: destinationPosition,
+      ...(appendsToStageEnd ? {} : { position: destinationPosition }),
     },
   };
 

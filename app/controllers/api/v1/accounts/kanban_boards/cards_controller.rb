@@ -106,11 +106,12 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def reorder_kanban_card
     source_stage_id = @kanban_card.kanban_stage_id
+    target_stage = target_card_stage_for_reorder
 
     KanbanCard.transaction do
       @kanban_card.reorder_to_position!(
-        kanban_stage: target_card_stage_for_reorder,
-        position: params.dig(:card, :position) || @kanban_card.position
+        kanban_stage: target_stage,
+        position: params.dig(:card, :position) || next_card_position(target_stage)
       )
     end
 
