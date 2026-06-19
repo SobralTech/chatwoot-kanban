@@ -58,6 +58,40 @@ describe NotificationBuilder do
       ).to be_nil
     end
 
+    it 'creates a contact_message notification when audio contact_message is enabled' do
+      notification_setting = user.notification_settings.find_by(account_id: account.id)
+      notification_setting.selected_email_flags = []
+      notification_setting.selected_push_flags = []
+      notification_setting.save!
+      user.update!(ui_settings: user.ui_settings.merge('enable_audio_alerts' => 'contact_message'))
+
+      expect do
+        described_class.new(
+          notification_type: 'contact_message',
+          user: user,
+          account: account,
+          primary_actor: primary_actor
+        ).perform
+      end.to change { user.notifications.count }.by(1)
+    end
+
+    it 'creates a contact_message notification when legacy audio alerts are enabled' do
+      notification_setting = user.notification_settings.find_by(account_id: account.id)
+      notification_setting.selected_email_flags = []
+      notification_setting.selected_push_flags = []
+      notification_setting.save!
+      user.update!(ui_settings: user.ui_settings.merge('enable_audio_alerts' => 'assigned+unassigned'))
+
+      expect do
+        described_class.new(
+          notification_type: 'contact_message',
+          user: user,
+          account: account,
+          primary_actor: primary_actor
+        ).perform
+      end.to change { user.notifications.count }.by(1)
+    end
+
     it 'will create a conversation_mention notification even though user is not subscribed to it' do
       notification_setting = user.notification_settings.find_by(account_id: account.id)
       notification_setting.selected_email_flags = []
