@@ -1394,6 +1394,7 @@ onUnmounted(() => {
       v-if="activeAddItemStageId && selectedBoard"
       :show="!!activeAddItemStageId"
       :show-close-button="false"
+      size="modal-narrow"
       :on-close="closeAddItemPicker"
     >
       <KanbanOpportunityPicker

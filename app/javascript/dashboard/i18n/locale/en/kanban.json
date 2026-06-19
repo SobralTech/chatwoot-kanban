@@ -223,8 +223,7 @@
       "SUBJECT_REQUIRED": "Enter a subject to create the opportunity.",
       "CREATION_ERROR": "Could not create the opportunity. Try again.",
       "LEGACY_UNAVAILABLE": "Manual opportunities are unavailable for legacy-read boards.",
-      "CLEAR_CONTACT": "Clear selected contact",
-      "CLOSE": "Close add item picker"
+      "CLEAR_CONTACT": "Clear selected contact"
     },
     "CARD": {
       "UNKNOWN_CONTACT": "Unknown contact",

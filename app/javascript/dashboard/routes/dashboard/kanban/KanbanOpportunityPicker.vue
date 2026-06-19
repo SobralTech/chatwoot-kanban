@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 import { debounce } from '@chatwoot/utils';
@@ -262,11 +262,6 @@ const selectInbox = inbox => {
   creationError.value = '';
 };
 
-const handleClose = () => {
-  resetPicker();
-  emit('close');
-};
-
 const selectContact = contact => {
   abortContactSearch();
   resetSubmission();
@@ -315,6 +310,12 @@ const createManualOpportunity = async () => {
   }
 };
 
+const contactSearchInputRef = ref(null);
+
+onMounted(() => {
+  contactSearchInputRef.value?.focus();
+});
+
 onUnmounted(() => {
   abortContactSearch();
   resetInboxes();
@@ -327,31 +328,22 @@ onUnmounted(() => {
     :data-stage-id="kanbanStageId"
     class="no-drag rounded-lg border border-n-weak bg-n-surface-2 p-3"
   >
-    <div class="flex items-start justify-between gap-2">
-      <div class="min-w-0 flex-1">
-        <label :for="`kanban-contact-search-${kanbanStageId}`" class="sr-only">
-          {{ t('KANBAN.ADD_ITEM.SEARCH_LABEL') }}
-        </label>
-        <div>
-          <input
-            :id="`kanban-contact-search-${kanbanStageId}`"
-            v-model="contactSearchQuery"
-            type="search"
-            data-testid="kanban-contact-search-input"
-            class="no-drag min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-            :placeholder="t('KANBAN.ADD_ITEM.PLACEHOLDER')"
-            @input="onContactSearchInput"
-          />
-        </div>
+    <div class="min-w-0">
+      <label :for="`kanban-contact-search-${kanbanStageId}`" class="sr-only">
+        {{ t('KANBAN.ADD_ITEM.SEARCH_LABEL') }}
+      </label>
+      <div>
+        <input
+          :id="`kanban-contact-search-${kanbanStageId}`"
+          ref="contactSearchInputRef"
+          v-model="contactSearchQuery"
+          type="search"
+          data-testid="kanban-contact-search-input"
+          class="no-drag min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+          :placeholder="t('KANBAN.ADD_ITEM.PLACEHOLDER')"
+          @input="onContactSearchInput"
+        />
       </div>
-      <button
-        type="button"
-        class="mt-1 flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
-        :aria-label="t('KANBAN.ADD_ITEM.CLOSE')"
-        @click="handleClose"
-      >
-        <i class="i-lucide-x size-4" />
-      </button>
     </div>
 
     <div class="mt-3">
