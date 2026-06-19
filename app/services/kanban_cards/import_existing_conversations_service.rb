@@ -118,7 +118,6 @@ class KanbanCards::ImportExistingConversationsService
 
   def eligible_conversations
     relation = Conversation
-               .open
                .where(account_id: account.id)
                .where.not(contact_id: nil)
                .where.not(inbox_id: nil)

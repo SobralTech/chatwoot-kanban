@@ -26,12 +26,14 @@ RSpec.describe KanbanCards::ImportExistingConversationsService do
       )
     end
 
-    it 'uses open conversations only' do
+    it 'imports conversations regardless of status' do
       create(:conversation, account: account, inbox: inbox, status: 'open')
+      create(:conversation, account: account, inbox: inbox, status: 'pending')
       create(:conversation, account: account, inbox: inbox, status: 'resolved')
+      create(:conversation, account: account, inbox: inbox, status: 'snoozed')
 
       expect { described_class.new(account: account, kanban_board: board).perform! }
-        .to change(KanbanCard.conversation, :count).by(1)
+        .to change(KanbanCard.conversation, :count).by(4)
     end
 
     it 'does not import conversations from another account' do
@@ -128,7 +130,7 @@ RSpec.describe KanbanCards::ImportExistingConversationsService do
       create(:conversation, account: account, inbox: inbox)
       create(:conversation, account: account, inbox: inbox, status: 'resolved')
 
-      expect(described_class.new(account: account, kanban_board: board).estimated_count).to eq(1)
+      expect(described_class.new(account: account, kanban_board: board).estimated_count).to eq(2)
     end
   end
 end
