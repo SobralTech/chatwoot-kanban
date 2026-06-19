@@ -31,6 +31,8 @@ const isSaving = ref(false);
 const isSavingAutomation = ref(false);
 const isDeleting = ref(false);
 const isCreatingStage = ref(false);
+const isUpdatingStage = ref(false);
+const isRemovingStage = ref(false);
 const isImportingConversations = ref(false);
 const loadError = ref('');
 const saveError = ref('');
@@ -39,9 +41,14 @@ const importError = ref('');
 const showDeleteConfirmation = ref(false);
 const showCreateStageForm = ref(false);
 const showImportExistingConversationsModal = ref(false);
+const showRemoveStageConfirmation = ref(false);
 const stages = ref([]);
 const newStageName = ref('');
 const newStageColor = ref(DEFAULT_KANBAN_STAGE_COLOR);
+const editingStageId = ref(null);
+const editStageName = ref('');
+const editStageColor = ref(DEFAULT_KANBAN_STAGE_COLOR);
+const stagePendingRemoval = ref(null);
 const activeStageActionKey = ref('');
 const ignoreGroupsForImport = ref(false);
 
@@ -264,6 +271,78 @@ const createStage = async () => {
     useAlert(stageError.value);
   } finally {
     isCreatingStage.value = false;
+  }
+};
+
+const openEditStage = stage => {
+  editingStageId.value = stage.id;
+  editStageName.value = stage.name;
+  editStageColor.value = stage.color || DEFAULT_KANBAN_STAGE_COLOR;
+};
+
+const closeEditStage = () => {
+  editingStageId.value = null;
+  editStageName.value = '';
+  editStageColor.value = DEFAULT_KANBAN_STAGE_COLOR;
+};
+
+const updateStage = async stage => {
+  const name = editStageName.value.trim();
+  if (!name || isUpdatingStage.value || !isAdmin.value) return;
+
+  isUpdatingStage.value = true;
+  stageError.value = '';
+
+  try {
+    await KanbanBoardsAPI.updateStage(boardId.value, stage.id, {
+      stage: { name, color: editStageColor.value },
+    });
+    closeEditStage();
+    await refreshBoard();
+    await store.dispatch('kanbanBoards/refreshBoards');
+    useAlert(t('KANBAN.ACTIONS.UPDATE_STAGE_SUCCESS'));
+  } catch (error) {
+    stageError.value = getErrorMessage(
+      error,
+      t('KANBAN.ACTIONS.UPDATE_STAGE_ERROR')
+    );
+    useAlert(stageError.value);
+  } finally {
+    isUpdatingStage.value = false;
+  }
+};
+
+const openRemoveStageConfirmation = stage => {
+  stagePendingRemoval.value = stage;
+  showRemoveStageConfirmation.value = true;
+};
+
+const closeRemoveStageConfirmation = () => {
+  showRemoveStageConfirmation.value = false;
+  stagePendingRemoval.value = null;
+};
+
+const removeStage = async () => {
+  const stage = stagePendingRemoval.value;
+  if (!stage || isRemovingStage.value || !isAdmin.value) return;
+
+  isRemovingStage.value = true;
+  stageError.value = '';
+
+  try {
+    await KanbanBoardsAPI.deleteStage(boardId.value, stage.id);
+    closeRemoveStageConfirmation();
+    await refreshBoard();
+    await store.dispatch('kanbanBoards/refreshBoards');
+    useAlert(t('KANBAN.ACTIONS.REMOVE_STAGE_SUCCESS'));
+  } catch (error) {
+    stageError.value = getErrorMessage(
+      error,
+      t('KANBAN.ACTIONS.REMOVE_STAGE_ERROR')
+    );
+    useAlert(stageError.value);
+  } finally {
+    isRemovingStage.value = false;
   }
 };
 
@@ -508,26 +587,107 @@ onMounted(fetchSettings);
               @end="onStageDragEnd"
             >
               <template #item="{ element: stage }">
-                <div
-                  :data-stage-id="stage.id"
-                  data-testid="kanban-settings-stage-row"
-                  class="stage-drag-handle flex cursor-grab items-center gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2"
-                >
-                  <span class="i-lucide-grip-vertical size-4 text-n-slate-10" />
-                  <div class="flex min-w-0 items-center gap-2">
+                <div :data-stage-id="stage.id" class="grid gap-2">
+                  <div
+                    v-if="editingStageId !== stage.id"
+                    data-testid="kanban-settings-stage-row"
+                    class="stage-drag-handle flex cursor-grab items-center gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2"
+                  >
                     <span
-                      class="size-4 flex-none rounded-full"
-                      :class="getStageColorClass(stage)"
+                      class="i-lucide-grip-vertical size-4 text-n-slate-10"
                     />
-                    <span class="min-w-0 truncate text-sm text-n-slate-12">
-                      {{ stage.name }}
-                    </span>
-                    <span
-                      data-testid="kanban-settings-stage-card-count"
-                      class="flex-none rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
-                    >
-                      {{ getStageCardsCount(stage) }}
-                    </span>
+                    <div class="flex min-w-0 flex-1 items-center gap-2">
+                      <span
+                        class="size-4 flex-none rounded-full"
+                        :class="getStageColorClass(stage)"
+                      />
+                      <span class="min-w-0 truncate text-sm text-n-slate-12">
+                        {{ stage.name }}
+                      </span>
+                      <span
+                        data-testid="kanban-settings-stage-card-count"
+                        class="flex-none rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
+                      >
+                        {{ getStageCardsCount(stage) }}
+                      </span>
+                    </div>
+                    <div class="flex flex-none items-center gap-1">
+                      <Button
+                        data-testid="kanban-settings-edit-stage"
+                        icon="i-lucide-pencil"
+                        variant="ghost"
+                        color="slate"
+                        size="sm"
+                        :title="t('KANBAN.ACTIONS.EDIT_STAGE')"
+                        @click="openEditStage(stage)"
+                      />
+                      <Button
+                        data-testid="kanban-settings-remove-stage"
+                        icon="i-lucide-trash"
+                        variant="ghost"
+                        color="ruby"
+                        size="sm"
+                        :title="t('KANBAN.ACTIONS.REMOVE_STAGE')"
+                        @click="openRemoveStageConfirmation(stage)"
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    v-else
+                    data-testid="kanban-settings-edit-stage-panel"
+                    class="grid gap-3 rounded-md border border-n-weak bg-n-surface-2 p-3"
+                  >
+                    <div class="flex flex-wrap items-center gap-2">
+                      <button
+                        v-for="colorOption in KANBAN_STAGE_COLOR_OPTIONS"
+                        :key="colorOption.value"
+                        type="button"
+                        class="size-5 rounded-full border border-n-strong ring-offset-2"
+                        :class="[
+                          colorOption.swatchClass,
+                          editStageColor === colorOption.value
+                            ? 'ring-2 ring-n-brand'
+                            : 'hover:ring-2 hover:ring-n-weak',
+                        ]"
+                        :aria-label="
+                          t('KANBAN.ACTIONS.SELECT_STAGE_COLOR', {
+                            color: colorOption.value,
+                          })
+                        "
+                        @click="editStageColor = colorOption.value"
+                      />
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <input
+                        v-model="editStageName"
+                        data-testid="kanban-settings-edit-stage-name"
+                        type="text"
+                        class="min-w-64 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                        :placeholder="
+                          t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')
+                        "
+                      />
+                      <Button
+                        type="button"
+                        data-testid="kanban-settings-save-stage"
+                        icon="i-lucide-check"
+                        :label="t('KANBAN.ACTIONS.SAVE_STAGE')"
+                        color="blue"
+                        size="sm"
+                        :disabled="!editStageName.trim()"
+                        :is-loading="isUpdatingStage"
+                        @click="updateStage(stage)"
+                      />
+                      <Button
+                        type="button"
+                        icon="i-lucide-x"
+                        :label="t('KANBAN.ACTIONS.CANCEL')"
+                        color="slate"
+                        size="sm"
+                        @click="closeEditStage"
+                      />
+                    </div>
                   </div>
                 </div>
               </template>
@@ -675,6 +835,16 @@ onMounted(fetchSettings);
         :message="t('KANBAN.REMOVE_BOARD.MESSAGE')"
         :confirm-text="t('KANBAN.REMOVE_BOARD.CONFIRM')"
         :reject-text="t('KANBAN.REMOVE_BOARD.CANCEL')"
+      />
+
+      <woot-delete-modal
+        v-model:show="showRemoveStageConfirmation"
+        :on-close="closeRemoveStageConfirmation"
+        :on-confirm="removeStage"
+        :title="t('KANBAN.REMOVE_STAGE.TITLE')"
+        :message="t('KANBAN.REMOVE_STAGE.MESSAGE')"
+        :confirm-text="t('KANBAN.REMOVE_STAGE.CONFIRM')"
+        :reject-text="t('KANBAN.REMOVE_STAGE.CANCEL')"
       />
 
       <woot-modal
