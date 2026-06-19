@@ -185,6 +185,8 @@
       "UNPIN_CONVERSATION": "Desafixar Conversa",
       "MUTE_NOTIFICATIONS": "Silenciar Notificações",
       "UNMUTE_NOTIFICATIONS": "Reativar Notificações",
+      "MUTE_NOTIFICATIONS_SUCCESS": "Notificações silenciadas para esta conversa",
+      "UNMUTE_NOTIFICATIONS_SUCCESS": "Notificações reativadas para esta conversa",
       "NOTIFICATIONS_MUTED": "Notificações silenciadas para esta conversa",
       "OPEN_IN_NEW_TAB": "Abrir em nova aba",
       "COPY_LINK": "Copiar link da conversa",

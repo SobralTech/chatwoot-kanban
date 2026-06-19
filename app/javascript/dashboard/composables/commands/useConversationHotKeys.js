@@ -330,7 +330,9 @@ export function useConversationHotKeys() {
   const conversationAdditionalActions = computed(() => {
     return prepareActions(
       [
-        currentChat.value.muted ? UNMUTE_ACTION : MUTE_ACTION,
+        currentChat.value.additional_attributes?.notifications_muted
+          ? UNMUTE_ACTION
+          : MUTE_ACTION,
         SEND_TRANSCRIPT_ACTION,
       ],
       t
