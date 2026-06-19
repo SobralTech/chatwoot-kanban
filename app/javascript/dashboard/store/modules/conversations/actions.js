@@ -482,6 +482,36 @@ const actions = {
     }
   },
 
+  toggleConversationNotificationsMute: async (
+    { commit, getters },
+    { conversationId }
+  ) => {
+    const conversation = getters.getConversationById(conversationId);
+    if (!conversation) return;
+
+    const isMuted = !!conversation.additional_attributes?.notifications_muted;
+
+    // optimistic update
+    commit(types.UPDATE_CONVERSATION_NOTIFICATIONS_MUTE, {
+      conversationId,
+      muted: !isMuted,
+    });
+
+    try {
+      if (isMuted) {
+        await ConversationApi.unmuteNotifications(conversationId);
+      } else {
+        await ConversationApi.muteNotifications(conversationId);
+      }
+    } catch (error) {
+      // revert on failure
+      commit(types.UPDATE_CONVERSATION_NOTIFICATIONS_MUTE, {
+        conversationId,
+        muted: isMuted,
+      });
+    }
+  },
+
   sendEmailTranscript: async (_, { conversationId, email }) => {
     await ConversationApi.sendEmailTranscript({ conversationId, email });
   },

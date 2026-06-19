@@ -26,8 +26,7 @@ class NotificationBuilder
   def build_notification
     return unless Notification.enabled_notification_type?(notification_type)
     return if skip_contact_message_notification?
-    # skip notifications for blocked conversations except for user mentions
-    return if primary_actor.contact.blocked? && notification_type != 'conversation_mention'
+    return if skip_due_to_muted_or_blocked_conversation?
     # respect conversation access (inbox/team membership and custom-role permissions)
     return unless user_can_access_conversation?
 
@@ -42,6 +41,13 @@ class NotificationBuilder
 
   def skip_contact_message_notification?
     notification_type == 'contact_message' && !user_subscribed_to_notification?
+  end
+
+  def skip_due_to_muted_or_blocked_conversation?
+    return true if primary_actor.notifications_muted?
+
+    # skip notifications for blocked conversations except for user mentions
+    primary_actor.contact.blocked? && notification_type != 'conversation_mention'
   end
 
   def user_can_access_conversation?

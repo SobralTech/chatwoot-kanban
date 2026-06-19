@@ -5,6 +5,7 @@ import CardAvatar from './CardAvatar.vue';
 import CardContent from './CardContent.vue';
 import CardLabels from './CardLabelsV5.vue';
 import CardPriorityIcon from './CardPriorityIcon.vue';
+import CardMutedIcon from './CardMutedIcon.vue';
 import InboxName from 'dashboard/components-next/Conversation/InboxName.vue';
 import TimeAgo from 'dashboard/components/ui/TimeAgo.vue';
 import SLACardLabel from 'dashboard/components-next/Conversation/Sla/SLACardLabel.vue';
@@ -46,6 +47,10 @@ const voiceCallData = computed(() => {
 const unreadCount = computed(() => props.chat.unread_count);
 
 const isPinned = computed(() => !!props.chat.account_pinned_at);
+
+const isNotificationsMuted = computed(
+  () => !!props.chat.additional_attributes?.notifications_muted
+);
 
 const slaCardLabel = useTemplateRef('slaCardLabel');
 
@@ -140,9 +145,10 @@ const selectedModel = computed({
       />
 
       <h4
-        class="text-heading-3 my-0 capitalize truncate text-n-slate-12 font-medium w-32 flex-shrink-0"
+        class="text-heading-3 my-0 capitalize truncate text-n-slate-12 font-medium w-32 flex-shrink-0 flex items-center gap-1"
       >
-        {{ currentContact.name }}
+        <span class="truncate">{{ currentContact.name }}</span>
+        <CardMutedIcon :muted="isNotificationsMuted" class="flex-shrink-0" />
       </h4>
 
       <CardContent

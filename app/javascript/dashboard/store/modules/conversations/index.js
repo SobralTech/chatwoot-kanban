@@ -377,6 +377,18 @@ export const mutations = {
     chat.account_pinned_at = pinnedAt;
   },
 
+  [types.UPDATE_CONVERSATION_NOTIFICATIONS_MUTE](
+    _state,
+    { conversationId, muted }
+  ) {
+    const chat = getConversationById(_state)(conversationId);
+    if (!chat) return;
+    chat.additional_attributes = {
+      ...chat.additional_attributes,
+      notifications_muted: muted,
+    };
+  },
+
   [types.SET_ACTIVE_INBOX](_state, inboxId) {
     _state.currentInbox = inboxId ? parseInt(inboxId, 10) : null;
   },

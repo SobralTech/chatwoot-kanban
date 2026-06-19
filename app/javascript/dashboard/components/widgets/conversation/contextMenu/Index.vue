@@ -25,6 +25,7 @@ const MENU = {
   OPEN_NEW_TAB: 'open-new-tab',
   COPY_LINK: 'copy-link',
   PIN: 'pin',
+  MUTE_NOTIFICATIONS: 'mute-notifications',
 };
 
 export default {
@@ -70,6 +71,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    isNotificationsMuted: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: [
     'updateConversation',
@@ -82,6 +87,7 @@ export default {
     'removeLabel',
     'deleteConversation',
     'togglePin',
+    'toggleNotificationsMute',
     'close',
   ],
   setup() {
@@ -249,6 +255,10 @@ export default {
       this.$emit('togglePin', { chatId: this.chatId });
       this.$emit('close');
     },
+    toggleNotificationsMute() {
+      this.$emit('toggleNotificationsMute', { chatId: this.chatId });
+      this.$emit('close');
+    },
     openInNewTab() {
       if (!this.conversationUrl) return;
 
@@ -402,6 +412,20 @@ export default {
         }"
         variant="icon"
         @click.stop="togglePin"
+      />
+    </template>
+    <template v-if="isAllowed([MENU.MUTE_NOTIFICATIONS])">
+      <MenuItem
+        :option="{
+          icon: isNotificationsMuted
+            ? 'speaker-1-outline'
+            : 'speaker-mute-outline',
+          label: isNotificationsMuted
+            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNMUTE_NOTIFICATIONS')
+            : $t('CONVERSATION.CARD_CONTEXT_MENU.MUTE_NOTIFICATIONS'),
+        }"
+        variant="icon"
+        @click.stop="toggleNotificationsMute"
       />
     </template>
     <template v-if="isAllowed([MENU.OPEN_NEW_TAB, MENU.COPY_LINK])">

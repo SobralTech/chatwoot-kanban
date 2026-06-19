@@ -170,6 +170,13 @@ const onTogglePin = ({ chatId }) => {
   store.dispatch('toggleConversationPin', { conversationId: chatId });
   closeContextMenu();
 };
+
+const onToggleNotificationsMute = ({ chatId }) => {
+  store.dispatch('toggleConversationNotificationsMute', {
+    conversationId: chatId,
+  });
+  closeContextMenu();
+};
 </script>
 
 <template>
@@ -220,6 +227,9 @@ const onTogglePin = ({ chatId }) => {
       :conversation-labels="source.labels"
       :conversation-url="conversationPath"
       :is-pinned="!!source.account_pinned_at"
+      :is-notifications-muted="
+        !!source.additional_attributes?.notifications_muted
+      "
       @update-conversation="onUpdateConversation"
       @assign-agent="onAssignAgent"
       @assign-label="onAssignLabel"
@@ -230,6 +240,7 @@ const onTogglePin = ({ chatId }) => {
       @assign-priority="onAssignPriority"
       @delete-conversation="onDeleteConversation"
       @toggle-pin="onTogglePin"
+      @toggle-notifications-mute="onToggleNotificationsMute"
       @close="closeContextMenu"
     />
   </ContextMenu>
