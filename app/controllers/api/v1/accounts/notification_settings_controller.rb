@@ -31,6 +31,6 @@ class Api::V1::Accounts::NotificationSettingsController < Api::V1::Accounts::Bas
   end
 
   def filter_flags(selected_flags, allowed_flags)
-    Array(selected_flags) & allowed_flags
+    Array(selected_flags).map(&:to_s) & allowed_flags
   end
 end

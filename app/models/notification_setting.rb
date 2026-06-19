@@ -37,10 +37,10 @@ class NotificationSetting < ApplicationRecord
   has_flags PUSH_NOTIFICATION_FLAGS.merge(column: 'push_flags').merge(DEFAULT_QUERY_SETTING)
 
   def visible_selected_email_flags
-    selected_email_flags & VISIBLE_EMAIL_FLAGS
+    Array(selected_email_flags).map(&:to_s) & VISIBLE_EMAIL_FLAGS
   end
 
   def visible_selected_push_flags
-    selected_push_flags & VISIBLE_PUSH_FLAGS
+    Array(selected_push_flags).map(&:to_s) & VISIBLE_PUSH_FLAGS
   end
 end
