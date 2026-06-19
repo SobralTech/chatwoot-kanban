@@ -4,9 +4,7 @@ import { useUISettings } from 'dashboard/composables/useUISettings';
 import AudioAlertTone from './AudioAlertTone.vue';
 import AudioAlertEvent from './AudioAlertEvent.vue';
 import AudioAlertCondition from './AudioAlertCondition.vue';
-import { computed, onMounted, ref, watch } from 'vue';
-import { useStore } from 'dashboard/composables/store';
-const store = useStore();
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 import { initializeAudioAlerts } from 'dashboard/helper/scriptHelpers';
@@ -28,7 +26,7 @@ const i18nKeyPrefix = 'PROFILE_SETTINGS.FORM.AUDIO_NOTIFICATIONS_SECTION';
 const initializeNotificationUISettings = newUISettings => {
   const updatedUISettings = camelcaseKeys(newUISettings);
 
-  audioAlert.value = updatedUISettings.enableAudioAlerts;
+  audioAlert.value = updatedUISettings.enableAudioAlerts || 'none';
   playAudioWhenTabIsInactive.value = !updatedUISettings.alwaysPlayAudioAlert;
   alertIfUnreadConversationExist.value =
     updatedUISettings.alertIfUnreadAssignedConversationExist;
@@ -62,10 +60,6 @@ const handleAudioConfigChange = value => {
   initializeAudioAlerts(currentUser.value);
   useAlert(t('PROFILE_SETTINGS.FORM.API.UPDATE_SUCCESS'));
 };
-
-onMounted(() => {
-  store.dispatch('userNotificationSettings/get');
-});
 
 const handAudioAlertChange = value => {
   audioAlert.value = value;

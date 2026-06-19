@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import CheckBox from 'v3/components/Form/CheckBox.vue';
-import { ALERT_EVENTS, EVENT_TYPES } from './constants';
+import { AUDIO_ALERT_TYPES } from './constants';
 
 const props = defineProps({
   label: {
@@ -16,15 +16,34 @@ const props = defineProps({
 
 const emit = defineEmits(['update']);
 
-const alertEvents = ALERT_EVENTS;
-const alertEventValues = Object.values(EVENT_TYPES);
+const alertEvents = AUDIO_ALERT_TYPES;
+const alertEventValues = alertEvents.map(({ value }) => value);
+
+const normalizeLegacySelection = value => {
+  const values = value.split('+').filter(Boolean);
+
+  if (
+    values.length === 0 ||
+    values.every(item => ['none', 'false'].includes(item))
+  ) {
+    return [];
+  }
+
+  if (
+    values.some(item =>
+      ['assigned', 'unassigned', 'notme', 'mine', 'all', 'true'].includes(item)
+    )
+  ) {
+    return ['contact_message'];
+  }
+
+  return null;
+};
 
 const selectedValue = computed({
   get: () => {
-    // maintain backward compatibility
-    if (props.value === 'none') return [];
-    if (props.value === 'mine') return [EVENT_TYPES.ASSIGNED];
-    if (props.value === 'all') return [...alertEventValues];
+    const legacySelection = normalizeLegacySelection(props.value);
+    if (legacySelection) return legacySelection;
 
     const validValues = props.value
       .split('+')
@@ -88,11 +107,7 @@ const alertDescription = computed(() => {
           :for="`checkbox-${option.value}`"
           class="text-sm text-n-slate-12 font-normal"
         >
-          {{
-            $t(
-              `PROFILE_SETTINGS.FORM.AUDIO_NOTIFICATIONS_SECTION.ALERT_TYPES.${option.label.toUpperCase()}`
-            )
-          }}
+          {{ $t(option.label) }}
         </label>
       </div>
       <div class="text-n-slate-11 text-sm font-medium mt-2">
