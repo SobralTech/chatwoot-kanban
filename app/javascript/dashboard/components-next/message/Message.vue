@@ -607,7 +607,7 @@ provideMessageContext({
       </div>
       <div
         v-if="!groupWithPrevious && shouldShowAvatar"
-        v-tooltip.left-end="avatarTooltip"
+        v-tooltip.left-start="avatarTooltip"
         class="[grid-area:avatar] flex items-start"
       >
         <Avatar v-bind="avatarInfo" :size="24" />
