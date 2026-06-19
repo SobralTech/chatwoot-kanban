@@ -416,12 +416,12 @@ describe('KanbanOpportunityDetailsModal', () => {
     expect(dueAtInput(wrapper).text()).toBe('2026-06-05');
   });
 
-  it('loads priority into the select', async () => {
+  it('loads priority into the dropdown', async () => {
     const wrapper = await mountModal({ card: buildCard({ priority: 'high' }) });
 
     expect(
-      wrapper.find('[data-testid="kanban-opportunity-priority"]').element.value
-    ).toBe('high');
+      wrapper.find('[data-testid="kanban-opportunity-priority"]').text()
+    ).toContain('High');
   });
 
   it('saves priority', async () => {
@@ -431,8 +431,9 @@ describe('KanbanOpportunityDetailsModal', () => {
     const wrapper = await mountModal();
 
     await wrapper
-      .find('[data-testid="kanban-opportunity-priority"]')
-      .setValue('urgent');
+      .findAll('[data-testid="kanban-priority-option"]')
+      .find(option => option.text().includes('Urgent'))
+      .trigger('click');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
 

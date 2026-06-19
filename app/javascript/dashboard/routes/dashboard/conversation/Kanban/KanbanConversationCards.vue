@@ -10,9 +10,12 @@ import MultiselectDropdown from 'shared/components/ui/MultiselectDropdown.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import KanbanDueDatePicker from '../../kanban/KanbanDueDatePicker.vue';
+import KanbanPriorityDropdown from '../../kanban/KanbanPriorityDropdown.vue';
 
 const props = defineProps({
   conversationId: {
@@ -46,6 +49,9 @@ const selectedStageId = ref('');
 const subject = ref('');
 const dueAt = ref('');
 const selectedLabelTitles = ref([]);
+const priority = ref('');
+const assigneeIds = ref([]);
+const assignableUsers = ref([]);
 const isLoadingBoards = ref(false);
 const isLoadingStages = ref(false);
 const isCreating = ref(false);
@@ -58,6 +64,12 @@ const editSubject = ref('');
 const editStageId = ref('');
 const editDueAt = ref('');
 const editLabelTitles = ref([]);
+const editPriority = ref('');
+const editAssignedUsers = ref([]);
+const editAssignableUsers = ref([]);
+const isLoadingEditAssignees = ref(false);
+const isSavingEditAssignees = ref(false);
+const editAssigneesError = ref('');
 const editError = ref('');
 const isLoadingEditStages = ref(false);
 const isSavingEdit = ref(false);
@@ -125,6 +137,22 @@ const editLabelsSummary = computed(() =>
   editLabelTitles.value.length
     ? editLabelTitles.value.join(', ')
     : t('CONVERSATION_SIDEBAR.KANBAN.NO_LABELS_SELECTED')
+);
+const selectedAssignees = computed(() =>
+  assignableUsers.value.filter(user => assigneeIds.value.includes(user.id))
+);
+const assigneesSummary = computed(() =>
+  selectedAssignees.value.length
+    ? selectedAssignees.value.map(user => user.name).join(', ')
+    : t('CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNEES_SELECTED')
+);
+const editSelectedAssigneeIds = computed(() =>
+  editAssignedUsers.value.map(user => user.id)
+);
+const editAssigneesSummary = computed(() =>
+  editAssignedUsers.value.length
+    ? editAssignedUsers.value.map(user => user.name).join(', ')
+    : t('CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNEES_SELECTED')
 );
 const canSubmit = computed(
   () => selectedBoardId.value && selectedStageId.value && !isCreating.value
@@ -229,6 +257,9 @@ const resetFormState = () => {
   subject.value = '';
   dueAt.value = '';
   selectedLabelTitles.value = [];
+  priority.value = '';
+  assigneeIds.value = [];
+  assignableUsers.value = [];
   isLoadingBoards.value = false;
   isLoadingStages.value = false;
   isCreating.value = false;
@@ -247,6 +278,10 @@ const resetEditState = () => {
   editStageId.value = '';
   editDueAt.value = '';
   editLabelTitles.value = [];
+  editPriority.value = '';
+  editAssignedUsers.value = [];
+  editAssignableUsers.value = [];
+  editAssigneesError.value = '';
   editError.value = '';
   isLoadingEditStages.value = false;
   isSavingEdit.value = false;
@@ -360,6 +395,7 @@ const loadStages = async boardId => {
 
     stages.value = response.data?.stages || [];
     selectedStageId.value = activeStages.value[0]?.id || '';
+    assignableUsers.value = response.data?.assignable_users || [];
   } catch (error) {
     if (isAbortError(error) || stagesRequestId.value !== currentRequestId) {
       return;
@@ -511,6 +547,12 @@ const onRemoveLabel = title => {
   );
 };
 
+const onToggleAssignee = user => {
+  assigneeIds.value = assigneeIds.value.includes(user.id)
+    ? assigneeIds.value.filter(id => id !== user.id)
+    : [...assigneeIds.value, user.id];
+};
+
 const dueAtPayload = () => {
   if (!dueAt.value) return null;
 
@@ -546,6 +588,7 @@ const submitEdit = async card => {
         starts_at: null,
         due_at: editDueAtPayload(),
         labels: editLabelTitles.value,
+        priority: editPriority.value || null,
       }
     );
 
@@ -605,6 +648,62 @@ const scheduleSubmitEdit = card => {
   }, EDIT_AUTOSAVE_DELAY);
 };
 
+const loadEditAssignees = async card => {
+  isLoadingEditAssignees.value = true;
+  editAssigneesError.value = '';
+
+  try {
+    const response = await KanbanBoardsAPI.getCardAssignees(
+      cardBoardId(card),
+      card.id
+    );
+    editAssignedUsers.value = response?.data?.payload || [];
+    editAssignableUsers.value = response?.data?.assignable_users || [];
+  } catch (error) {
+    editAssigneesError.value = getErrorMessage(
+      error,
+      t('CONVERSATION_SIDEBAR.KANBAN.LOAD_ASSIGNEES_ERROR')
+    );
+  } finally {
+    isLoadingEditAssignees.value = false;
+  }
+};
+
+const saveEditAssignees = async (card, nextIds) => {
+  if (isSavingEditAssignees.value) return;
+
+  isSavingEditAssignees.value = true;
+  editAssigneesError.value = '';
+  const previousUsers = [...editAssignedUsers.value];
+
+  try {
+    const response = await KanbanBoardsAPI.updateCardAssignees(
+      cardBoardId(card),
+      card.id,
+      nextIds
+    );
+    editAssignedUsers.value = response?.data?.payload || [];
+    editAssignableUsers.value =
+      response?.data?.assignable_users || editAssignableUsers.value;
+  } catch (error) {
+    editAssignedUsers.value = previousUsers;
+    editAssigneesError.value = getErrorMessage(
+      error,
+      t('CONVERSATION_SIDEBAR.KANBAN.SAVE_ASSIGNEES_ERROR')
+    );
+  } finally {
+    isSavingEditAssignees.value = false;
+  }
+};
+
+const onToggleEditAssignee = (card, user) => {
+  const nextIds = editSelectedAssigneeIds.value.includes(user.id)
+    ? editSelectedAssigneeIds.value.filter(id => id !== user.id)
+    : [...editSelectedAssigneeIds.value, user.id];
+
+  saveEditAssignees(card, nextIds);
+};
+
 const startEdit = async card => {
   flushScheduledEdit();
   resetFormState();
@@ -614,9 +713,13 @@ const startEdit = async card => {
   editStageId.value = cardStageId(card) || '';
   editDueAt.value = formatDateInput(card.due_at);
   editLabelTitles.value = (card.labels || []).map(label => label.title);
+  editPriority.value = card.priority || '';
   editError.value = '';
   store.dispatch('labels/get');
-  await loadEditStages(cardBoardId(card));
+  await Promise.all([
+    loadEditStages(cardBoardId(card)),
+    loadEditAssignees(card),
+  ]);
 };
 
 const submitForm = async () => {
@@ -639,6 +742,8 @@ const submitForm = async () => {
           starts_at: null,
           due_at: dueAtPayload(),
           labels: selectedLabelTitles.value,
+          priority: priority.value || null,
+          assignee_ids: assigneeIds.value,
         },
       },
       { signal: controller.signal }
@@ -667,6 +772,11 @@ const submitForm = async () => {
 
 const onSelectEditStage = (card, stage) => {
   editStageId.value = stage.id;
+  scheduleSubmitEdit(card);
+};
+
+const onEditPriorityChange = (card, value) => {
+  editPriority.value = value;
   scheduleSubmitEdit(card);
 };
 
@@ -919,6 +1029,106 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <div class="flex flex-col gap-1">
+        <span class="text-xs font-medium text-n-slate-11">
+          {{ t('CONVERSATION_SIDEBAR.KANBAN.PRIORITY') }}
+        </span>
+        <KanbanPriorityDropdown
+          v-model="priority"
+          test-id="kanban-card-priority-menu"
+          :none-label="t('CONVERSATION_SIDEBAR.KANBAN.PRIORITY_NONE')"
+        />
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <span class="text-xs font-medium text-n-slate-11">
+          {{ t('CONVERSATION_SIDEBAR.KANBAN.ASSIGNEES') }}
+        </span>
+        <Popover align="start" disable-mobile-view :show-content-border="false">
+          <button
+            type="button"
+            data-testid="kanban-card-assignees-menu"
+            class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span
+              aria-hidden="true"
+              class="i-lucide-users size-4 flex-shrink-0 text-n-slate-11"
+            />
+            <span class="min-w-0 flex-1 truncate">
+              {{ assigneesSummary }}
+            </span>
+            <span
+              aria-hidden="true"
+              class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11"
+            />
+          </button>
+
+          <template #content>
+            <div
+              class="block visible w-72 rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
+            >
+              <ul class="grid gap-1">
+                <li v-for="user in assignableUsers" :key="user.id">
+                  <button
+                    type="button"
+                    data-testid="kanban-card-assignee-option"
+                    :data-selected="assigneeIds.includes(user.id)"
+                    class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+                    @click="onToggleAssignee(user)"
+                  >
+                    <input
+                      type="checkbox"
+                      class="pointer-events-none"
+                      :checked="assigneeIds.includes(user.id)"
+                      tabindex="-1"
+                    />
+                    <Avatar
+                      :name="user.name"
+                      :src="user.avatar_url"
+                      :size="20"
+                      rounded-full
+                    />
+                    <span class="min-w-0 flex-1 truncate">
+                      {{ user.name }}
+                    </span>
+                  </button>
+                </li>
+              </ul>
+              <p
+                v-if="!assignableUsers.length"
+                class="mb-0 px-2 py-1.5 text-sm text-n-slate-11"
+              >
+                {{ t('CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNABLE_USERS') }}
+              </p>
+            </div>
+          </template>
+        </Popover>
+
+        <div v-if="selectedAssignees.length" class="flex flex-wrap gap-1">
+          <span
+            v-for="user in selectedAssignees"
+            :key="user.id"
+            class="inline-flex items-center gap-1 rounded-md bg-n-slate-3 px-2 py-1 text-xs text-n-slate-12"
+          >
+            <Avatar
+              :name="user.name"
+              :src="user.avatar_url"
+              :size="14"
+              rounded-full
+            />
+            {{ user.name }}
+            <button
+              type="button"
+              class="text-n-slate-11 hover:text-n-slate-12"
+              :aria-label="user.name"
+              @click="onToggleAssignee(user)"
+            >
+              <span aria-hidden="true" class="i-lucide-x size-3" />
+            </button>
+          </span>
+        </div>
+      </div>
+
       <p v-if="createError" class="m-0 text-xs text-n-ruby-11">
         {{ createError }}
       </p>
@@ -1089,6 +1299,117 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
+          <div class="flex flex-col gap-1">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.PRIORITY') }}
+            </span>
+            <KanbanPriorityDropdown
+              :model-value="editPriority"
+              test-id="kanban-card-priority-menu"
+              :none-label="t('CONVERSATION_SIDEBAR.KANBAN.PRIORITY_NONE')"
+              @update:model-value="value => onEditPriorityChange(card, value)"
+            />
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <span class="text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.ASSIGNEES') }}
+            </span>
+            <p v-if="editAssigneesError" class="m-0 text-xs text-n-ruby-11">
+              {{ editAssigneesError }}
+            </p>
+            <Popover
+              align="start"
+              disable-mobile-view
+              :show-content-border="false"
+            >
+              <button
+                type="button"
+                data-testid="kanban-card-assignees-menu"
+                class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isLoadingEditAssignees || isSavingEditAssignees"
+              >
+                <span
+                  aria-hidden="true"
+                  class="i-lucide-users size-4 flex-shrink-0 text-n-slate-11"
+                />
+                <span class="min-w-0 flex-1 truncate">
+                  {{ editAssigneesSummary }}
+                </span>
+                <span
+                  aria-hidden="true"
+                  class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11"
+                />
+              </button>
+
+              <template #content>
+                <div
+                  class="block visible w-72 rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
+                >
+                  <ul class="grid gap-1">
+                    <li v-for="user in editAssignableUsers" :key="user.id">
+                      <button
+                        type="button"
+                        data-testid="kanban-card-assignee-option"
+                        :data-selected="
+                          editSelectedAssigneeIds.includes(user.id)
+                        "
+                        class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+                        @click="onToggleEditAssignee(card, user)"
+                      >
+                        <input
+                          type="checkbox"
+                          class="pointer-events-none"
+                          :checked="editSelectedAssigneeIds.includes(user.id)"
+                          tabindex="-1"
+                        />
+                        <Avatar
+                          :name="user.name"
+                          :src="user.avatar_url"
+                          :size="20"
+                          rounded-full
+                        />
+                        <span class="min-w-0 flex-1 truncate">
+                          {{ user.name }}
+                        </span>
+                      </button>
+                    </li>
+                  </ul>
+                  <p
+                    v-if="!editAssignableUsers.length"
+                    class="mb-0 px-2 py-1.5 text-sm text-n-slate-11"
+                  >
+                    {{ t('CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNABLE_USERS') }}
+                  </p>
+                </div>
+              </template>
+            </Popover>
+
+            <div v-if="editAssignedUsers.length" class="flex flex-wrap gap-1">
+              <span
+                v-for="user in editAssignedUsers"
+                :key="user.id"
+                class="inline-flex items-center gap-1 rounded-md bg-n-slate-3 px-2 py-1 text-xs text-n-slate-12"
+              >
+                <Avatar
+                  :name="user.name"
+                  :src="user.avatar_url"
+                  :size="14"
+                  rounded-full
+                />
+                {{ user.name }}
+                <button
+                  type="button"
+                  class="text-n-slate-11 hover:text-n-slate-12"
+                  :aria-label="user.name"
+                  @click="onToggleEditAssignee(card, user)"
+                >
+                  <span aria-hidden="true" class="i-lucide-x size-3" />
+                </button>
+              </span>
+            </div>
+          </div>
+
           <p v-if="editError" class="m-0 text-xs text-n-ruby-11">
             {{ editError }}
           </p>
@@ -1174,6 +1495,50 @@ onBeforeUnmount(() => {
             </div>
             <p v-else class="m-0 text-sm text-n-slate-11">
               {{ t('CONVERSATION_SIDEBAR.KANBAN.NO_LABELS') }}
+            </p>
+          </div>
+
+          <div class="min-w-0">
+            <p class="mb-1 text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.PRIORITY') }}
+            </p>
+            <p
+              v-if="card.priority"
+              class="m-0 flex items-center gap-1.5 text-sm text-n-slate-12"
+            >
+              <CardPriorityIcon :priority="card.priority" class="size-4" />
+              {{
+                t(
+                  `CONVERSATION.PRIORITY.OPTIONS.${card.priority.toUpperCase()}`
+                )
+              }}
+            </p>
+            <p v-else class="m-0 text-sm text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.PRIORITY_NONE') }}
+            </p>
+          </div>
+
+          <div class="min-w-0">
+            <p class="mb-1 text-xs font-medium text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.ASSIGNEES') }}
+            </p>
+            <div v-if="card.assignees?.length" class="flex flex-wrap gap-1">
+              <span
+                v-for="user in card.assignees"
+                :key="user.id"
+                class="inline-flex min-w-0 items-center gap-1 rounded-full bg-n-slate-3 px-2 py-1 text-xs text-n-slate-12"
+              >
+                <Avatar
+                  :name="user.name"
+                  :src="user.avatar_url"
+                  :size="14"
+                  rounded-full
+                />
+                <span class="truncate">{{ user.name }}</span>
+              </span>
+            </div>
+            <p v-else class="m-0 text-sm text-n-slate-11">
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNEES') }}
             </p>
           </div>
         </div>

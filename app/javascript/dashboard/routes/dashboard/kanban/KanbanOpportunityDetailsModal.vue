@@ -12,6 +12,7 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
+import KanbanPriorityDropdown from './KanbanPriorityDropdown.vue';
 
 const props = defineProps({
   boardId: {
@@ -71,13 +72,6 @@ const assigneesSummary = computed(() => {
 
   return assignedUsers.value.map(user => user.name).join(', ');
 });
-const priorityOptions = computed(() => [
-  { value: '', label: t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY_NONE') },
-  { value: 'urgent', label: t('CONVERSATION.PRIORITY.OPTIONS.URGENT') },
-  { value: 'high', label: t('CONVERSATION.PRIORITY.OPTIONS.HIGH') },
-  { value: 'medium', label: t('CONVERSATION.PRIORITY.OPTIONS.MEDIUM') },
-  { value: 'low', label: t('CONVERSATION.PRIORITY.OPTIONS.LOW') },
-]);
 const contactName = computed(
   () =>
     card.value?.contact?.name ||
@@ -693,19 +687,11 @@ onMounted(() => {
               <h3 class="mb-0 text-sm font-medium text-n-slate-12">
                 {{ t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY') }}
               </h3>
-              <select
+              <KanbanPriorityDropdown
                 v-model="priority"
-                data-testid="kanban-opportunity-priority"
-                class="min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-              >
-                <option
-                  v-for="option in priorityOptions"
-                  :key="option.value"
-                  :value="option.value"
-                >
-                  {{ option.label }}
-                </option>
-              </select>
+                test-id="kanban-opportunity-priority"
+                :none-label="t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY_NONE')"
+              />
             </section>
 
             <section class="grid gap-3 rounded-lg border border-n-weak p-3">

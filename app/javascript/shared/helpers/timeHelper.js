@@ -71,7 +71,7 @@ export const relativeDayTimestamp = time => {
  */
 export const dynamicTime = time => {
   const unixTime = fromUnixTime(time);
-  return formatDistanceToNow(unixTime, { addSuffix: true });
+  return formatDistanceToNow(unixTime, { addSuffix: true, locale: ptBR });
 };
 
 /**
@@ -92,36 +92,40 @@ export const dateFormat = (time, df = 'MMM d, yyyy') => {
  * @returns {string} Shortened time description.
  */
 export const shortTimestamp = (time, withAgo = false) => {
-  // This function takes a time string and converts it to a short time string
-  // with the following format: 1m, 1h, 1d, 1mo, 1y
-  // The function also takes an optional boolean parameter withAgo
-  // which will add the word "ago" to the end of the time string
-  const suffix = withAgo ? ' ago' : '';
+  // This function takes a pt-BR relative time string (from dynamicTime) and
+  // converts it to a short time string with the following format:
+  // 1m, 1h, 1d, 1mo, 1y. The optional withAgo parameter appends "atrás".
+  const suffix = withAgo ? ' atrás' : '';
   const timeMappings = {
-    'less than a minute ago': 'now',
-    'in less than a minute': 'now',
-    'a minute ago': `1m${suffix}`,
-    'an hour ago': `1h${suffix}`,
-    'a day ago': `1d${suffix}`,
-    'a month ago': `1mo${suffix}`,
-    'a year ago': `1y${suffix}`,
+    'há menos de um minuto': 'agora',
+    'em menos de um minuto': 'agora',
+    'há meio minuto': 'agora',
+    'há 1 minuto': `1m${suffix}`,
+    'há cerca de 1 hora': `1h${suffix}`,
+    'há 1 hora': `1h${suffix}`,
+    'há 1 dia': `1d${suffix}`,
+    'há cerca de 1 mês': `1mo${suffix}`,
+    'há 1 mês': `1mo${suffix}`,
+    'há cerca de 1 ano': `1y${suffix}`,
+    'há 1 ano': `1y${suffix}`,
   };
   // Check if the time string is one of the specific cases
   if (timeMappings[time]) {
     return timeMappings[time];
   }
   const convertToShortTime = time
-    .replace(/about|over|almost|/g, '')
-    .replace(' minute ago', `m${suffix}`)
-    .replace(' minutes ago', `m${suffix}`)
-    .replace(' hour ago', `h${suffix}`)
-    .replace(' hours ago', `h${suffix}`)
-    .replace(' day ago', `d${suffix}`)
-    .replace(' days ago', `d${suffix}`)
-    .replace(' month ago', `mo${suffix}`)
-    .replace(' months ago', `mo${suffix}`)
-    .replace(' year ago', `y${suffix}`)
-    .replace(' years ago', `y${suffix}`);
+    .replace(/^há |^em /, '')
+    .replace(/cerca de |mais de |quase /g, '')
+    .replace(' minutos', `m${suffix}`)
+    .replace(' minuto', `m${suffix}`)
+    .replace(' horas', `h${suffix}`)
+    .replace(' hora', `h${suffix}`)
+    .replace(' dias', `d${suffix}`)
+    .replace(' dia', `d${suffix}`)
+    .replace(' meses', `mo${suffix}`)
+    .replace(' mês', `mo${suffix}`)
+    .replace(' anos', `y${suffix}`)
+    .replace(' ano', `y${suffix}`);
   return convertToShortTime;
 };
 

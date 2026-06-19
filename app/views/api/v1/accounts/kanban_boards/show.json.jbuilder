@@ -1,6 +1,11 @@
 json.partial! 'api/v1/accounts/kanban_boards/kanban_board', formats: [:json], kanban_board: @kanban_board
 json.inbox_scope_mode @kanban_board.inbox_scope_mode
 json.allowed_inbox_ids @kanban_board.kanban_board_inboxes.order(:inbox_id).pluck(:inbox_id)
+json.assignable_users @kanban_board.assignable_users.order(:name) do |user|
+  json.id user.id
+  json.name user.name
+  json.avatar_url user.avatar_url
+end
 
 json.stages do
   json.array! @kanban_stages do |kanban_stage|

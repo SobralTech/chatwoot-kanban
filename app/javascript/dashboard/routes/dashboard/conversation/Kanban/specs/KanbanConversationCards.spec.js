@@ -4,13 +4,8 @@ import KanbanConversationCards from '../KanbanConversationCards.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
-import { messageStamp } from 'shared/helpers/timeHelper';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
-
-vi.mock('shared/helpers/timeHelper', () => ({
-  messageStamp: vi.fn(() => 'Jun 7, 2026 6:00 PM'),
-}));
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -26,9 +21,28 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION_SIDEBAR.KANBAN.SUBJECT': 'Subject',
         'CONVERSATION_SIDEBAR.KANBAN.STAGE': 'Opportunity stage',
         'CONVERSATION_SIDEBAR.KANBAN.DUE_DATE': 'Due date',
+        'CONVERSATION_SIDEBAR.KANBAN.CHOOSE_DATE': 'Escolha a data',
+        'CONVERSATION_SIDEBAR.KANBAN.CLEAR_DATE': 'Clear due date',
         'CONVERSATION_SIDEBAR.KANBAN.LABELS': 'Labels',
         'CONVERSATION_SIDEBAR.KANBAN.NOT_SET': 'Not set',
         'CONVERSATION_SIDEBAR.KANBAN.NO_LABELS': 'No labels',
+        'CONVERSATION_SIDEBAR.KANBAN.PRIORITY': 'Priority',
+        'CONVERSATION_SIDEBAR.KANBAN.PRIORITY_NONE': 'No priority',
+        'CONVERSATION_SIDEBAR.KANBAN.ASSIGNEES': 'Agents',
+        'CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNEES': 'No agents assigned',
+        'CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNEES_SELECTED':
+          'No agents selected',
+        'CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNABLE_USERS':
+          'No agents available',
+        'CONVERSATION_SIDEBAR.KANBAN.LOAD_ASSIGNEES_ERROR':
+          'Could not load agents.',
+        'CONVERSATION_SIDEBAR.KANBAN.SAVE_ASSIGNEES_ERROR':
+          'Could not save agents.',
+        'CONVERSATION.PRIORITY.OPTIONS.NONE': 'No priority',
+        'CONVERSATION.PRIORITY.OPTIONS.URGENT': 'Urgent',
+        'CONVERSATION.PRIORITY.OPTIONS.HIGH': 'High',
+        'CONVERSATION.PRIORITY.OPTIONS.MEDIUM': 'Medium',
+        'CONVERSATION.PRIORITY.OPTIONS.LOW': 'Low',
         'CONVERSATION_SIDEBAR.KANBAN.SELECT_BOARD': 'Select a board',
         'CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE': 'Select a stage',
         'CONVERSATION_SIDEBAR.KANBAN.EMPTY_BOARDS':
@@ -70,6 +84,8 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     createConversationCard: vi.fn(),
     updateCardDetailsById: vi.fn(),
     updateCardLabels: vi.fn(),
+    getCardAssignees: vi.fn(),
+    updateCardAssignees: vi.fn(),
     deleteCardById: vi.fn(),
   },
 }));
@@ -194,6 +210,29 @@ const buildStage = overrides => ({
   ...overrides,
 });
 
+const dueDatePickerStub = {
+  name: 'KanbanDueDatePicker',
+  inheritAttrs: false,
+  props: ['modelValue', 'label', 'placeholder', 'clearLabel'],
+  emits: ['update:modelValue', 'change'],
+  template: `
+    <label>
+      <span class="text-xs font-medium text-n-slate-11">{{ label }}</span>
+      <button type="button" data-testid="kanban-due-date-picker">
+        {{ modelValue || placeholder }}
+      </button>
+      <button
+        type="button"
+        data-testid="kanban-clear-due-date"
+        :aria-label="clearLabel"
+        @click="$emit('update:modelValue', ''); $emit('change', '')"
+      >
+        clear
+      </button>
+    </label>
+  `,
+};
+
 const store = {
   dispatch: vi.fn(),
   getters: {
@@ -201,9 +240,26 @@ const store = {
   },
 };
 
+const popoverStub = {
+  name: 'Popover',
+  props: ['align', 'disableMobileView', 'showContentBorder'],
+  template: `
+    <div>
+      <slot />
+      <slot name="content" />
+    </div>
+  `,
+};
+
 const mountComponent = (props = { conversationId: 456 }) =>
   mount(KanbanConversationCards, {
     props,
+    global: {
+      stubs: {
+        KanbanDueDatePicker: dueDatePickerStub,
+        Popover: popoverStub,
+      },
+    },
   });
 
 const openForm = async wrapper => {
@@ -222,9 +278,16 @@ const emitKanbanRealtimeEvent = payload => {
   emitter.emit(BUS_EVENTS.KANBAN_REALTIME_EVENT, payload);
 };
 
+const waitForAutosave = async () => {
+  await new Promise(resolve => {
+    setTimeout(resolve, 850);
+  });
+  await flushPromises();
+};
+
 const formLabels = wrapper =>
   wrapper
-    .findAll('label span')
+    .findAll('.text-xs.font-medium.text-n-slate-11')
     .map(node => node.text())
     .filter(Boolean);
 
@@ -232,7 +295,6 @@ describe('KanbanConversationCards', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     emitter.all.clear();
-    messageStamp.mockReturnValue('Jun 7, 2026 6:00 PM');
 
     useStore.mockReturnValue(store);
     useMapGetter.mockImplementation(key => {
@@ -266,6 +328,12 @@ describe('KanbanConversationCards', () => {
     });
     KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
       data: { payload: [accountLabels[1]] },
+    });
+    KanbanBoardsAPI.getCardAssignees.mockResolvedValue({
+      data: { payload: [], assignable_users: [] },
+    });
+    KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
+      data: { payload: [], assignable_users: [] },
     });
     KanbanBoardsAPI.deleteCardById.mockResolvedValue({});
   });
@@ -482,7 +550,7 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
 
     const editLabels = wrapper
-      .findAll('li form > div p.text-xs, li form > label > span.text-xs')
+      .findAll('li form .text-xs.font-medium.text-n-slate-11')
       .map(node => node.text());
 
     expect(editLabels).toEqual([
@@ -491,6 +559,8 @@ describe('KanbanConversationCards', () => {
       'Opportunity stage',
       'Due date',
       'Labels',
+      'Priority',
+      'Agents',
     ]);
   });
 
@@ -513,8 +583,8 @@ describe('KanbanConversationCards', () => {
     expect(stageDropdown.props('selectedItem')).toEqual(
       expect.objectContaining({ id: 20 })
     );
-    expect(wrapper.find('input[type="datetime-local"]').element.value).toBe(
-      '2026-06-07T21:00'
+    expect(wrapper.find('[data-testid="kanban-due-date-picker"]').text()).toBe(
+      '2026-06-07'
     );
     expect(wrapper.text()).toContain('urgente');
     expect(wrapper.text()).toContain('vendas');
@@ -545,7 +615,9 @@ describe('KanbanConversationCards', () => {
     const wrapper = mountComponent();
     await flushPromises();
 
-    expect(wrapper.find('input[type="datetime-local"]').element.value).toBe('');
+    expect(wrapper.find('[data-testid="kanban-due-date-picker"]').text()).toBe(
+      'Escolha a data'
+    );
     expect(wrapper.findAll('.rounded-md.bg-n-slate-3')).toHaveLength(0);
   });
 
@@ -594,6 +666,8 @@ describe('KanbanConversationCards', () => {
       'Opportunity stage',
       'Due date',
       'Labels',
+      'Priority',
+      'Agents',
     ]);
   });
 
@@ -697,16 +771,17 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
     await openForm(wrapper);
 
-    await wrapper
-      .find('input[type="datetime-local"]')
-      .setValue('2026-06-07T18:00');
+    wrapper
+      .findComponent({ name: 'KanbanDueDatePicker' })
+      .vm.$emit('update:modelValue', '2026-06-07');
+    await nextTick();
     await wrapper.find('form').trigger('submit.prevent');
 
     expect(KanbanBoardsAPI.createConversationCard).toHaveBeenCalledWith(
       456,
       expect.objectContaining({
         card: expect.objectContaining({
-          due_at: new Date('2026-06-07T18:00').toISOString(),
+          due_at: new Date(2026, 5, 7, 12).toISOString(),
         }),
       }),
       { signal: expect.any(AbortSignal) }
@@ -752,8 +827,11 @@ describe('KanbanConversationCards', () => {
           kanban_board_id: 10,
           kanban_stage_id: 20,
           subject: 'Enterprise renewal',
+          starts_at: null,
           due_at: null,
           labels: ['urgente'],
+          priority: null,
+          assignee_ids: [],
         },
       },
       { signal: expect.any(AbortSignal) }
@@ -870,14 +948,19 @@ describe('KanbanConversationCards', () => {
     KanbanBoardsAPI.updateCardDetailsById.mockClear();
     await wrapper.find('input[type="text"]').setValue('  Updated renewal  ');
     await flushPromises();
-    await wrapper
-      .find('input[type="datetime-local"]')
-      .setValue('2026-06-08T10:30');
+    wrapper
+      .findComponent({ name: 'KanbanDueDatePicker' })
+      .vm.$emit('update:modelValue', '2026-06-08');
+    wrapper
+      .findComponent({ name: 'KanbanDueDatePicker' })
+      .vm.$emit('change', '2026-06-08');
+    await nextTick();
     await flushPromises();
     await wrapper
       .findComponent({ name: 'LabelDropdown' })
       .vm.$emit('remove', 'urgente');
     await flushPromises();
+    await waitForAutosave();
 
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
       10,
@@ -885,8 +968,10 @@ describe('KanbanConversationCards', () => {
       {
         kanban_stage_id: 20,
         subject: 'Updated renewal',
-        due_at: new Date('2026-06-08T10:30').toISOString(),
+        starts_at: null,
+        due_at: new Date(2026, 5, 8, 12).toISOString(),
         labels: ['vendas'],
+        priority: null,
       }
     );
     expect(KanbanBoardsAPI.updateCardLabels).not.toHaveBeenCalled();
@@ -905,6 +990,7 @@ describe('KanbanConversationCards', () => {
     await openEditForm(wrapper);
     await wrapper.find('input[type="text"]').setValue('Custom edit');
     await flushPromises();
+    await waitForAutosave();
 
     expect(wrapper.text()).toContain('Invalid stage');
     expect(wrapper.find('input[type="text"]').element.value).toBe(
