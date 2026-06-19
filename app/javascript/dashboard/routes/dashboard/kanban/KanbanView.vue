@@ -52,6 +52,7 @@ const activeAddItemStageId = ref(null);
 const stageCardsLoading = ref({});
 const stageCardsErrors = ref({});
 const stageRefreshRequests = new Map();
+const stageDataVersions = new Map();
 const cardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
@@ -251,7 +252,14 @@ const applyStageCardsPage = (stageId, page, shouldAppend = true) => {
   }));
 };
 
+const getStageDataVersion = stageId => stageDataVersions.get(stageId) || 0;
+
 const applyStageFirstPage = (stageId, page) => {
+  // Bumping the version lets an in-flight loadMoreStageCards request for
+  // this stage detect that its cursor/pagination are now stale and bail
+  // out instead of clobbering this fresher replace with a stale append.
+  stageDataVersions.set(stageId, getStageDataVersion(stageId) + 1);
+
   updateStageCards(stageId, stage => ({
     ...stage,
     cards: page.cards || [],
@@ -341,24 +349,31 @@ const loadMoreStageCards = async stage => {
     return;
   }
 
-  setStageCardsLoading(stage.id, true);
-  setStageCardsError(stage.id);
+  const stageId = stage.id;
+  const dataVersion = getStageDataVersion(stageId);
+  setStageCardsLoading(stageId, true);
+  setStageCardsError(stageId);
 
   try {
-    const page = await fetchStageCardsPage(stage.id, {
+    const page = await fetchStageCardsPage(stageId, {
       limit: stageCardsPageLimit,
       cursor: stage.pagination?.nextCursor,
     });
-    applyStageCardsPage(stage.id, page);
+
+    // A first-page replace (reload or realtime refresh) landed while this
+    // request was in flight; this page's cursor/pagination are stale.
+    if (getStageDataVersion(stageId) !== dataVersion) return;
+
+    applyStageCardsPage(stageId, page);
   } catch (error) {
     if (isRefreshRequiredError(error)) {
-      await reloadStageCards(stage.id);
+      await reloadStageCards(stageId);
       return;
     }
 
-    setStageCardsError(stage.id, t('KANBAN.ACTIONS.LOAD_CARDS_ERROR'));
+    setStageCardsError(stageId, t('KANBAN.ACTIONS.LOAD_CARDS_ERROR'));
   } finally {
-    setStageCardsLoading(stage.id, false);
+    setStageCardsLoading(stageId, false);
   }
 };
 
