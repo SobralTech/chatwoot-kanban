@@ -992,6 +992,11 @@ const onOpportunityOpenConversation = card => {
   openConversationInNewTab(card);
 };
 
+const onOpportunityRemoveCard = card => {
+  closeOpportunityDetails();
+  openRemoveCardConfirmation(card);
+};
+
 watch(activeBoardId, (boardId, previousBoardId) => {
   if (!boards.value.length) return;
 
@@ -1481,6 +1486,7 @@ onUnmounted(() => {
         @close="closeOpportunityDetails"
         @updated="onOpportunityUpdated"
         @open-conversation="onOpportunityOpenConversation"
+        @remove-card="onOpportunityRemoveCard"
       />
     </woot-modal>
 

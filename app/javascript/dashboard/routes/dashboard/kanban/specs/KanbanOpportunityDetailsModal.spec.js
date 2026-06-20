@@ -29,8 +29,7 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.OPPORTUNITY_DETAILS.NO_ASSIGNABLE_USERS': 'No agents available',
         'KANBAN.OPPORTUNITY_DETAILS.LOAD_ASSIGNEES_ERROR':
           'Could not load assignees.',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_ASSIGNEES_ERROR':
-          'Could not save assignees.',
+        'KANBAN.ACTIONS.REMOVE_CARD': 'Remove',
         'KANBAN.OPPORTUNITY_DETAILS.PRIORITY': 'Priority',
         'KANBAN.OPPORTUNITY_DETAILS.PRIORITY_NONE': 'No priority',
         'CONVERSATION.PRIORITY.OPTIONS.URGENT': 'Urgent',
@@ -51,14 +50,9 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.OPPORTUNITY_DETAILS.SAVING': 'Saving...',
         'KANBAN.OPPORTUNITY_DETAILS.SAVE_SUCCESS': 'Opportunity saved.',
         'KANBAN.OPPORTUNITY_DETAILS.LABELS': 'Labels',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_LABELS': 'Save labels',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVING_LABELS': 'Saving labels...',
-        'KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_AVAILABLE': 'No labels available',
         'KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_SELECTED': 'No labels selected',
         'KANBAN.OPPORTUNITY_DETAILS.LOAD_LABELS_ERROR':
           'Could not load labels.',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_LABELS_ERROR':
-          'Could not save labels.',
         'KANBAN.OPPORTUNITY_DETAILS.OPEN_CONVERSATION': 'Open conversation',
         'KANBAN.OPPORTUNITY_DETAILS.NO_LINKED_CONVERSATION':
           'No linked conversation',
@@ -165,6 +159,21 @@ const dueDatePickerStub = {
   `,
 };
 
+const editorStub = {
+  name: 'Editor',
+  inheritAttrs: false,
+  props: ['modelValue', 'placeholder', 'showCharacterCount'],
+  emits: ['update:modelValue'],
+  template: `
+    <textarea
+      v-bind="$attrs"
+      :value="modelValue"
+      :placeholder="placeholder"
+      @input="$emit('update:modelValue', $event.target.value)"
+    />
+  `,
+};
+
 const popoverStub = {
   name: 'Popover',
   props: ['align', 'disableMobileView', 'showContentBorder'],
@@ -206,7 +215,7 @@ const buildCard = overrides => ({
     id: 42,
     meta: { assignee: { id: 7, name: 'Jane Agent' } },
   },
-  inbox: { id: 3, name: 'Sales Inbox' },
+  inbox: { id: 3, name: 'Sales Inbox', channel_type: 'Channel::Email' },
   contact: { id: 91, name: 'Acme Buyer' },
   ...overrides,
 });
@@ -265,6 +274,7 @@ const mountModal = async ({
         KanbanDueDatePicker: dueDatePickerStub,
         Popover: popoverStub,
         LabelDropdown: labelDropdownStub,
+        Editor: editorStub,
       },
     },
   });
@@ -331,7 +341,7 @@ describe('KanbanOpportunityDetailsModal', () => {
 
     expect(subjectInput(wrapper).classes()).toContain('w-full');
     expect(descriptionInput(wrapper).classes()).toEqual(
-      expect.arrayContaining(['max-w-full', 'w-full', 'min-h-[18rem]'])
+      expect.arrayContaining(['max-w-full', 'w-full'])
     );
   });
 
@@ -584,6 +594,12 @@ describe('KanbanOpportunityDetailsModal', () => {
     ).toContain('Sales Inbox');
     expect(
       wrapper
+        .find('[data-testid="kanban-opportunity-conversation"]')
+        .findComponent({ name: 'ChannelIcon' })
+        .props('inbox')
+    ).toEqual(buildCard().inbox);
+    expect(
+      wrapper
         .find('[data-testid="kanban-opportunity-open-conversation"]')
         .text()
     ).toContain('Open conversation');
@@ -616,6 +632,43 @@ describe('KanbanOpportunityDetailsModal', () => {
     expect(
       wrapper.find('[data-testid="kanban-opportunity-contact"]').text()
     ).toContain('Acme Buyer');
+  });
+
+  it('renders a contact avatar with initials fallback when there is no photo', async () => {
+    const wrapper = await mountModal();
+    const contact = wrapper
+      .find('[data-testid="kanban-opportunity-contact"]')
+      .findComponent({ name: 'Avatar' });
+
+    expect(contact.exists()).toBe(true);
+    expect(contact.props('name')).toBe('Acme Buyer');
+    expect(contact.text()).toContain('AB');
+  });
+
+  it('renders the contact photo when a thumbnail is available', async () => {
+    const wrapper = await mountModal({
+      card: buildCard({
+        contact: { id: 91, name: 'Acme Buyer', thumbnail: 'acme.png' },
+      }),
+    });
+    const contact = wrapper
+      .find('[data-testid="kanban-opportunity-contact"]')
+      .findComponent({ name: 'Avatar' });
+
+    expect(contact.props('src')).toBe('acme.png');
+  });
+
+  it('renders a generic icon when there is no linked contact', async () => {
+    const wrapper = await mountModal({
+      card: buildCard({ contact: null }),
+    });
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-opportunity-contact"]')
+        .findComponent({ name: 'Avatar' })
+        .exists()
+    ).toBe(false);
   });
 
   it('loads assignees through getCardAssignees', async () => {
@@ -651,7 +704,29 @@ describe('KanbanOpportunityDetailsModal', () => {
     expect(options[1].attributes('data-selected')).toBe('false');
   });
 
-  it('toggles an assignee through updateCardAssignees', async () => {
+  it('toggles an assignee locally without saving immediately', async () => {
+    const wrapper = await mountModal();
+
+    await wrapper
+      .findAll('[data-testid="kanban-opportunity-assignee-option"]')[1]
+      .trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardAssignees).not.toHaveBeenCalled();
+    expect(
+      wrapper
+        .findAll('[data-testid="kanban-opportunity-assignee-option"]')[1]
+        .attributes('data-selected')
+    ).toBe('true');
+  });
+
+  it('saves toggled assignees through updateCardAssignees on submit', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
+      data: buildCard(),
+    });
+    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
+      data: { payload: [labels[0]] },
+    });
     KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
       data: {
         payload: [assignableUsers[0], assignableUsers[1]],
@@ -663,6 +738,7 @@ describe('KanbanOpportunityDetailsModal', () => {
     await wrapper
       .findAll('[data-testid="kanban-opportunity-assignee-option"]')[1]
       .trigger('click');
+    await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardAssignees).toHaveBeenCalledWith(
@@ -706,13 +782,33 @@ describe('KanbanOpportunityDetailsModal', () => {
     );
   });
 
-  it('labels auto-save through updateCardLabels', async () => {
+  it('toggles a label locally without saving immediately', async () => {
+    const wrapper = await mountModal();
+
+    await labelDropdownOptions(wrapper)[1].trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardLabels).not.toHaveBeenCalled();
+    expect(labelButtons(wrapper)).toHaveLength(2);
+  });
+
+  it('saves toggled labels through updateCardLabels on submit', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
+      data: buildCard(),
+    });
     KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
       data: { payload: labels },
+    });
+    KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
+      data: {
+        payload: [assignableUsers[0]],
+        assignable_users: assignableUsers,
+      },
     });
     const wrapper = await mountModal();
 
     await labelDropdownOptions(wrapper)[1].trigger('click');
+    await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledWith(10, 501, [
@@ -721,10 +817,7 @@ describe('KanbanOpportunityDetailsModal', () => {
     ]);
   });
 
-  it('labels save preserves scalar form state', async () => {
-    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
-      data: { payload: labels },
-    });
+  it('preserves scalar form state when toggling a label without saving', async () => {
     const wrapper = await mountModal();
 
     await subjectInput(wrapper).setValue('Modified subject');
@@ -756,5 +849,16 @@ describe('KanbanOpportunityDetailsModal', () => {
       .trigger('click');
 
     expect(wrapper.emitted('close')).toHaveLength(1);
+  });
+
+  it('emits removeCard with the loaded card from the header delete action', async () => {
+    const card = buildCard();
+    const wrapper = await mountModal({ card });
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-remove-card"]')
+      .trigger('click');
+
+    expect(wrapper.emitted('removeCard')[0][0]).toMatchObject(card);
   });
 });

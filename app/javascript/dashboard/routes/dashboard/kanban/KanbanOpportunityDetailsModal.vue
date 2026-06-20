@@ -7,6 +7,8 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
+import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
+import Editor from 'dashboard/components-next/Editor/Editor.vue';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -25,7 +27,12 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['close', 'updated', 'openConversation']);
+const emit = defineEmits([
+  'close',
+  'updated',
+  'openConversation',
+  'removeCard',
+]);
 
 const { t } = useI18n();
 const store = useStore();
@@ -39,15 +46,11 @@ const priority = ref('');
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isLoadingLabels = ref(false);
-const isSavingLabels = ref(false);
 const isLoadingAssignees = ref(false);
-const isSavingAssignees = ref(false);
 const loadError = ref('');
 const saveError = ref('');
 const labelsLoadError = ref('');
-const labelsSaveError = ref('');
 const assigneesLoadError = ref('');
-const assigneesSaveError = ref('');
 const subjectError = ref('');
 const selectedLabelTitles = ref([]);
 const assignedUsers = ref([]);
@@ -56,11 +59,11 @@ const assignableUsers = ref([]);
 const modalTitle = computed(() => t('KANBAN.OPPORTUNITY_DETAILS.TITLE'));
 const cardDisplayId = computed(() => card.value?.id || props.cardId);
 const hasConversation = computed(() => !!card.value?.conversationId);
+const inboxObject = computed(
+  () => card.value?.inbox || card.value?.conversation?.inbox || null
+);
 const inboxName = computed(
-  () =>
-    card.value?.inbox?.name ||
-    card.value?.conversation?.inbox?.name ||
-    t('KANBAN.OPPORTUNITY_DETAILS.NO_INBOX')
+  () => inboxObject.value?.name || t('KANBAN.OPPORTUNITY_DETAILS.NO_INBOX')
 );
 const selectedAssigneeIds = computed(() =>
   assignedUsers.value.map(user => user.id)
@@ -72,6 +75,7 @@ const assigneesSummary = computed(() => {
 
   return assignedUsers.value.map(user => user.name).join(', ');
 });
+const hasContact = computed(() => !!card.value?.contact);
 const contactName = computed(
   () =>
     card.value?.contact?.name ||
@@ -196,39 +200,10 @@ const loadAssignees = async () => {
   }
 };
 
-const saveAssignees = async nextIds => {
-  if (isSavingAssignees.value) return;
-
-  isSavingAssignees.value = true;
-  assigneesSaveError.value = '';
-  const previousUsers = [...assignedUsers.value];
-
-  try {
-    const response = await KanbanBoardsAPI.updateCardAssignees(
-      props.boardId,
-      props.cardId,
-      nextIds
-    );
-    assignedUsers.value = response?.data?.payload || [];
-    assignableUsers.value =
-      response?.data?.assignable_users || assignableUsers.value;
-  } catch (error) {
-    assignedUsers.value = previousUsers;
-    assigneesSaveError.value = getErrorMessage(
-      error,
-      t('KANBAN.OPPORTUNITY_DETAILS.SAVE_ASSIGNEES_ERROR')
-    );
-  } finally {
-    isSavingAssignees.value = false;
-  }
-};
-
 const onToggleAssignee = user => {
-  const nextIds = selectedAssigneeIds.value.includes(user.id)
-    ? selectedAssigneeIds.value.filter(id => id !== user.id)
-    : [...selectedAssigneeIds.value, user.id];
-
-  saveAssignees(nextIds);
+  assignedUsers.value = selectedAssigneeIds.value.includes(user.id)
+    ? assignedUsers.value.filter(existing => existing.id !== user.id)
+    : [...assignedUsers.value, user];
 };
 
 const loadCard = async () => {
@@ -273,13 +248,35 @@ const saveCard = async () => {
       due_at: toIso8601(dueAt.value),
       priority: priority.value || null,
     };
-    const response = await KanbanBoardsAPI.updateCardDetailsById(
-      props.boardId,
-      props.cardId,
-      payload
+    const [cardResponse, labelsResponse, assigneesResponse] = await Promise.all(
+      [
+        KanbanBoardsAPI.updateCardDetailsById(
+          props.boardId,
+          props.cardId,
+          payload
+        ),
+        KanbanBoardsAPI.updateCardLabels(
+          props.boardId,
+          props.cardId,
+          selectedLabelTitles.value
+        ),
+        KanbanBoardsAPI.updateCardAssignees(
+          props.boardId,
+          props.cardId,
+          selectedAssigneeIds.value
+        ),
+      ]
     );
-    const updatedCard = normalizeCard(response.data || {});
+
+    const updatedCard = normalizeCard(cardResponse.data || {});
     setFormState(updatedCard);
+    selectedLabelTitles.value = getLabelsPayload(labelsResponse).map(
+      label => label.title || label
+    );
+    assignedUsers.value = assigneesResponse?.data?.payload || [];
+    assignableUsers.value =
+      assigneesResponse?.data?.assignable_users || assignableUsers.value;
+
     emit('updated', updatedCard);
     useAlert(t('KANBAN.OPPORTUNITY_DETAILS.SAVE_SUCCESS'));
   } catch (error) {
@@ -292,46 +289,18 @@ const saveCard = async () => {
   }
 };
 
-const saveLabels = async nextTitles => {
-  if (isSavingLabels.value) return;
-
-  isSavingLabels.value = true;
-  labelsSaveError.value = '';
-  const previousTitles = [...selectedLabelTitles.value];
-  selectedLabelTitles.value = nextTitles;
-
-  try {
-    const response = await KanbanBoardsAPI.updateCardLabels(
-      props.boardId,
-      props.cardId,
-      nextTitles
-    );
-    selectedLabelTitles.value = getLabelsPayload(response).map(
-      label => label.title || label
-    );
-  } catch (error) {
-    selectedLabelTitles.value = previousTitles;
-    labelsSaveError.value = getErrorMessage(
-      error,
-      t('KANBAN.OPPORTUNITY_DETAILS.SAVE_LABELS_ERROR')
-    );
-  } finally {
-    isSavingLabels.value = false;
-  }
-};
-
 const onAddLabel = label => {
   const title = label?.title || label;
   if (!title || selectedLabelTitleSet.value.has(title)) return;
 
-  saveLabels([...selectedLabelTitles.value, title]);
+  selectedLabelTitles.value = [...selectedLabelTitles.value, title];
 };
 
 const onRemoveLabel = title => {
   if (!title || !selectedLabelTitleSet.value.has(title)) return;
 
-  saveLabels(
-    selectedLabelTitles.value.filter(selectedTitle => selectedTitle !== title)
+  selectedLabelTitles.value = selectedLabelTitles.value.filter(
+    selectedTitle => selectedTitle !== title
   );
 };
 
@@ -381,6 +350,17 @@ onMounted(() => {
         >
           <i class="i-lucide-copy size-4" />
         </button>
+        <button
+          v-if="card"
+          type="button"
+          data-testid="kanban-opportunity-remove-card"
+          class="flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-ruby-11 hover:bg-n-ruby-2"
+          :aria-label="t('KANBAN.ACTIONS.REMOVE_CARD')"
+          :title="t('KANBAN.ACTIONS.REMOVE_CARD')"
+          @click="emit('removeCard', card)"
+        >
+          <i class="i-lucide-trash size-4" />
+        </button>
       </div>
     </div>
 
@@ -423,46 +403,62 @@ onMounted(() => {
               @input="subjectError = ''"
             />
 
-            <section class="grid gap-2 rounded-lg border border-n-weak p-3">
+            <section
+              class="grid min-w-0 gap-2 rounded-lg border border-n-weak p-3"
+            >
               <h3 class="mb-0 text-sm font-medium text-n-slate-12">
                 {{ t('KANBAN.OPPORTUNITY_DETAILS.CONTACT') }}
               </h3>
               <p
                 data-testid="kanban-opportunity-contact"
-                class="mb-0 flex items-center gap-2 text-sm text-n-slate-11"
+                class="mb-0 flex min-w-0 items-center gap-2 text-sm text-n-slate-11"
               >
-                <i class="i-lucide-user-round size-4 flex-shrink-0" />
+                <Avatar
+                  v-if="hasContact"
+                  :name="contactName"
+                  :src="card.contact.thumbnail"
+                  :size="20"
+                  rounded-full
+                />
+                <i v-else class="i-lucide-user-round size-4 flex-shrink-0" />
                 <span class="min-w-0 truncate">{{ contactName }}</span>
               </p>
             </section>
 
-            <label class="grid gap-1.5">
+            <div class="grid min-w-0 gap-1.5">
               <span class="text-sm font-medium text-n-slate-12">
                 {{ t('KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION') }}
               </span>
-              <textarea
+              <Editor
                 v-model="description"
-                rows="12"
                 data-testid="kanban-opportunity-description"
-                class="min-h-[18rem] max-w-full w-full min-w-0 resize-y rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                :show-character-count="false"
                 :placeholder="
                   t('KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_PLACEHOLDER')
                 "
+                class="max-w-full w-full [&>div]:min-h-[18rem]"
               />
-            </label>
+            </div>
           </section>
 
           <aside class="grid min-w-0 content-start gap-4">
-            <section class="grid gap-3 rounded-lg border border-n-weak p-3">
+            <section
+              class="grid min-w-0 gap-3 rounded-lg border border-n-weak p-3"
+            >
               <h3 class="mb-0 text-sm font-medium text-n-slate-12">
                 {{ t('KANBAN.OPPORTUNITY_DETAILS.CONVERSATION') }}
               </h3>
               <p
                 v-if="hasConversation"
                 data-testid="kanban-opportunity-conversation"
-                class="mb-0 flex items-center gap-2 text-sm text-n-slate-11"
+                class="mb-0 flex min-w-0 items-center gap-2 text-sm text-n-slate-11"
               >
-                <i class="i-lucide-inbox size-4 flex-shrink-0" />
+                <ChannelIcon
+                  v-if="inboxObject"
+                  :inbox="inboxObject"
+                  class="size-4 flex-shrink-0"
+                />
+                <i v-else class="i-lucide-inbox size-4 flex-shrink-0" />
                 <span class="min-w-0 truncate">{{ inboxName }}</span>
               </p>
               <p
@@ -507,7 +503,7 @@ onMounted(() => {
                   type="button"
                   data-testid="kanban-opportunity-labels-menu"
                   class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="isLoadingLabels || isSavingLabels"
+                  :disabled="isLoadingLabels"
                 >
                   <i
                     class="i-lucide-tags size-4 flex-shrink-0 text-n-slate-11"
@@ -561,14 +557,6 @@ onMounted(() => {
               >
                 {{ t('KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_SELECTED') }}
               </p>
-
-              <p
-                v-if="labelsSaveError"
-                data-testid="kanban-opportunity-labels-save-error"
-                class="mb-0 text-sm text-n-ruby-11"
-              >
-                {{ labelsSaveError }}
-              </p>
             </section>
 
             <section class="grid gap-3 rounded-lg border border-n-weak p-3">
@@ -592,7 +580,7 @@ onMounted(() => {
                   type="button"
                   data-testid="kanban-opportunity-assignees-menu"
                   class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="isLoadingAssignees || isSavingAssignees"
+                  :disabled="isLoadingAssignees"
                 >
                   <i
                     class="i-lucide-users size-4 flex-shrink-0 text-n-slate-11"
@@ -672,14 +660,6 @@ onMounted(() => {
                 class="mb-0 text-sm text-n-slate-11"
               >
                 {{ t('KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED') }}
-              </p>
-
-              <p
-                v-if="assigneesSaveError"
-                data-testid="kanban-opportunity-assignees-save-error"
-                class="mb-0 text-sm text-n-ruby-11"
-              >
-                {{ assigneesSaveError }}
               </p>
             </section>
 

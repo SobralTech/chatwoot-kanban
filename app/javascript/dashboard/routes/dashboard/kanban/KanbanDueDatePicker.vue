@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   addDays,
   addMonths,
@@ -39,12 +40,19 @@ const modelValue = defineModel({
   default: '',
 });
 
-const monthFormatter = new Intl.DateTimeFormat('pt-BR', { month: 'long' });
-const monthOptions = Array.from({ length: 12 }, (_, index) => ({
-  value: index,
-  label: monthFormatter.format(new Date(2026, index, 1)),
-}));
-const weekdayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
+const { t } = useI18n();
+
+const monthOptions = computed(() =>
+  Array.from({ length: 12 }, (_, index) => ({
+    value: index,
+    label: t(`KANBAN.OPPORTUNITY_DETAILS.MONTHS.${index}`),
+  }))
+);
+const weekdayLabels = computed(() =>
+  Array.from({ length: 7 }, (_, index) =>
+    t(`KANBAN.OPPORTUNITY_DETAILS.WEEKDAYS_SHORT.${index}`)
+  )
+);
 
 const parseDateValue = value => {
   if (!value) return null;
