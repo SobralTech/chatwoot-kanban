@@ -20,6 +20,6 @@ const { t } = useI18n();
       delay: { show: 500, hide: 0 },
     }"
     icon="i-lucide-volume-x"
-    class="size-3.5 text-n-slate-9"
+    class="size-5 text-n-slate-9"
   />
 </template>

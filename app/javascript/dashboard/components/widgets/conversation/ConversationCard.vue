@@ -7,7 +7,6 @@ import InboxName from '../InboxName.vue';
 import TimeAgo from 'dashboard/components/ui/TimeAgo.vue';
 import CardLabels from './conversationCardComponents/CardLabels.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
-import CardMutedIcon from 'dashboard/components-next/Conversation/ConversationCard/CardMutedIcon.vue';
 import UnreadBadge from 'dashboard/components-next/Conversation/ConversationCard/UnreadBadge.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
 import VoiceCallStatus from './VoiceCallStatus.vue';
@@ -160,7 +159,6 @@ watch(
           :priority="chat.priority"
           class="flex-shrink-0 !size-3.5"
         />
-        <CardMutedIcon :muted="isNotificationsMuted" class="flex-shrink-0" />
       </h4>
       <VoiceCallStatus
         v-if="voiceCallData.status"
@@ -174,6 +172,7 @@ watch(
         key="message-preview"
         :message="lastMessageInChat"
         :is-pinned="isPinned"
+        :is-muted="isNotificationsMuted"
         class="my-0 mx-2 leading-6 h-6 flex-1 min-w-0 text-sm"
         :class="messagePreviewClass"
       />

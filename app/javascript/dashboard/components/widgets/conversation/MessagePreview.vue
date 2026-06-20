@@ -2,9 +2,11 @@
 import { MESSAGE_TYPE } from 'widget/helpers/constants';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { ATTACHMENT_ICONS } from 'shared/constants/messages';
+import CardMutedIcon from 'dashboard/components-next/Conversation/ConversationCard/CardMutedIcon.vue';
 
 export default {
   name: 'MessagePreview',
+  components: { CardMutedIcon },
   props: {
     message: {
       type: Object,
@@ -19,6 +21,10 @@ export default {
       default: '',
     },
     isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    isMuted: {
       type: Boolean,
       default: false,
     },
@@ -117,9 +123,10 @@ export default {
     <span v-else class="flex-1 min-w-0 truncate">
       {{ defaultEmptyMessage || $t('CHAT_LIST.NO_CONTENT') }}
     </span>
+    <CardMutedIcon :muted="isMuted" class="flex-shrink-0" />
     <fluent-icon
       v-if="isPinned"
-      size="15"
+      size="20"
       type="filled"
       class="-mt-0.5 text-n-blue-9 flex-shrink-0"
       icon="pin"
