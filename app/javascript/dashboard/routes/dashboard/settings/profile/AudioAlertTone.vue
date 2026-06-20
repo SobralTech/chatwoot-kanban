@@ -17,6 +17,9 @@ const props = defineProps({
         'ping',
         'modern',
         'whatsapp-notification',
+        'big-sur-notification',
+        'calm-notification',
+        'web-whatsapp',
       ].includes(value),
   },
   label: {
@@ -55,6 +58,18 @@ const alertTones = computed(() => [
   {
     value: 'whatsapp-notification',
     label: 'WhatsApp',
+  },
+  {
+    value: 'big-sur-notification',
+    label: 'Big Sur',
+  },
+  {
+    value: 'calm-notification',
+    label: 'Calm',
+  },
+  {
+    value: 'web-whatsapp',
+    label: 'Web WhatsApp',
   },
 ]);
 
