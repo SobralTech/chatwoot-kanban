@@ -1656,10 +1656,44 @@ describe('KanbanView header navigation', () => {
     expect(dropdown.exists()).toBe(true);
     expect(dropdown.text()).toContain('Sales Board');
     expect(dropdown.text()).toContain('Renewals Board');
-    expect(dropdown.text()).not.toContain('KANBAN.OVERVIEW.CREATE_BOARD');
+    expect(dropdown.text()).toContain('KANBAN.OVERVIEW.CREATE_BOARD');
     expect(
-      wrapper.find('[data-testid="kanban-board-dropdown-create"]').exists()
-    ).toBe(false);
+      wrapper.find('[data-testid="kanban-add-board-inline-toggle"]').exists()
+    ).toBe(true);
+  });
+
+  it('shows an inline input and confirm button to create a board from the dropdown', async () => {
+    const wrapper = await mountView();
+
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-add-board-inline-toggle"]')
+      .trigger('click');
+
+    expect(
+      wrapper.find('[data-testid="kanban-add-board-inline-input"]').exists()
+    ).toBe(true);
+
+    await wrapper
+      .find('[data-testid="kanban-add-board-inline-input"]')
+      .setValue('Support Board');
+    KanbanBoardsAPI.create.mockResolvedValueOnce({
+      data: { id: 99, name: 'Support Board' },
+    });
+    await wrapper
+      .find('[data-testid="kanban-board-switcher-dropdown"] form')
+      .trigger('submit');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
+      kanban_board: { name: 'Support Board', position: 2 },
+    });
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(
+      wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
+    ).toBe(true);
   });
 
   it('does not render a create board button in the board header', async () => {
@@ -2050,7 +2084,7 @@ describe('KanbanView header navigation', () => {
     );
   });
 
-  it('does not open the board switcher when only one board is visible', async () => {
+  it('still opens the board switcher to create a board when only one board is visible', async () => {
     const wrapper = await mountView({
       boards: [{ id: 10, name: 'Sales Board' }],
     });
@@ -2063,10 +2097,10 @@ describe('KanbanView header navigation', () => {
       .trigger('click');
     expect(
       wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
-    ).toBe(false);
+    ).toBe(true);
     expect(
-      wrapper.find('[data-testid="kanban-create-board-button"]').exists()
-    ).toBe(false);
+      wrapper.find('[data-testid="kanban-add-board-inline-toggle"]').exists()
+    ).toBe(true);
   });
 
   it('does not render an internal sidebar', async () => {

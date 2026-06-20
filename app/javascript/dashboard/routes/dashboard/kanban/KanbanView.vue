@@ -23,6 +23,7 @@ import { BUS_EVENTS } from 'shared/constants/busEvents';
 import KanbanConversationCard from './KanbanConversationCard.vue';
 import KanbanOpportunityDetailsModal from './KanbanOpportunityDetailsModal.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
+import { useKanbanBoardCreation } from './useKanbanBoardCreation';
 
 const route = useRoute();
 const router = useRouter();
@@ -32,6 +33,14 @@ const store = useStore();
 const agents = useMapGetter('agents/getAgents');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
+const {
+  showCreateBoardDialog: isAddingBoardInline,
+  createBoardError: addBoardInlineError,
+  isCreatingBoard: isAddingBoardInlineSubmitting,
+  openCreateBoardDialog: openAddBoardInline,
+  closeCreateBoardDialog: closeAddBoardInline,
+  createBoard: submitNewBoard,
+} = useKanbanBoardCreation({ boards, t, navigateOnCreate: false });
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
@@ -43,6 +52,8 @@ const hasError = ref(false);
 const selectedInboxIds = ref([]);
 const selectedAssigneeIds = ref([]);
 const isBoardDropdownOpen = ref(false);
+const newBoardName = ref('');
+const newBoardNameInput = ref(null);
 const openStageMenuId = ref(null);
 const editingStageId = ref(null);
 const stageNames = ref({});
@@ -80,7 +91,6 @@ const stageColorOptions = KANBAN_STAGE_COLOR_OPTIONS;
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
 const hasBoards = computed(() => boards.value.length > 0);
-const hasMultipleBoards = computed(() => boards.value.length > 1);
 const isInitialLoading = computed(
   () => isFetchingBoards.value && !selectedBoard.value
 );
@@ -841,10 +851,15 @@ const updateCardPriority = async (card, priorityValue) => {
   }
 };
 
+const closeBoardDropdown = () => {
+  isBoardDropdownOpen.value = false;
+  closeAddBoardInline();
+};
+
 const selectBoard = boardId => {
   if (boardId === activeBoardId.value) return;
 
-  isBoardDropdownOpen.value = false;
+  closeBoardDropdown();
   router.push({
     name: 'kanban_board_show',
     params: {
@@ -853,6 +868,20 @@ const selectBoard = boardId => {
     },
   });
 };
+
+const confirmAddBoardInline = () => {
+  const name = newBoardName.value.trim();
+  if (!name || isAddingBoardInlineSubmitting.value) return;
+  submitNewBoard(name);
+};
+
+watch(isAddingBoardInline, isOpen => {
+  if (isOpen) {
+    nextTick(() => newBoardNameInput.value?.focus());
+    return;
+  }
+  newBoardName.value = '';
+});
 
 const fetchBoards = async () => {
   hasError.value = false;
@@ -971,7 +1000,7 @@ watch(activeBoardId, (boardId, previousBoardId) => {
     selectedAssigneeIds.value = [];
   }
 
-  isBoardDropdownOpen.value = false;
+  closeBoardDropdown();
   showBoard(boardId);
 });
 
@@ -992,17 +1021,14 @@ onUnmounted(() => {
         class="flex min-h-16 flex-wrap items-start justify-between gap-4 border-b border-n-weak px-6 py-3"
       >
         <div class="min-w-0 flex-1">
-          <OnClickOutside @trigger="isBoardDropdownOpen = false">
+          <OnClickOutside @trigger="closeBoardDropdown">
             <div class="relative inline-flex max-w-full flex-col">
               <button
                 type="button"
                 data-testid="kanban-board-switcher"
                 class="inline-flex max-w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xl font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="!hasBoards"
-                @click="
-                  isBoardDropdownOpen =
-                    hasMultipleBoards && !isBoardDropdownOpen
-                "
+                @click="isBoardDropdownOpen = hasBoards && !isBoardDropdownOpen"
               >
                 <span class="truncate">{{ currentBoardName }}</span>
                 <i class="i-lucide-chevron-down size-5 text-n-slate-11" />
@@ -1030,6 +1056,62 @@ onUnmounted(() => {
                     class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
                   />
                 </button>
+                <div class="border-t border-n-weak p-2">
+                  <form
+                    v-if="isAddingBoardInline"
+                    class="flex items-center gap-2"
+                    @submit.prevent="confirmAddBoardInline"
+                  >
+                    <input
+                      ref="newBoardNameInput"
+                      v-model="newBoardName"
+                      type="text"
+                      class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-2 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                      :placeholder="t('KANBAN.ACTIONS.BOARD_NAME_PLACEHOLDER')"
+                      data-testid="kanban-add-board-inline-input"
+                      @keydown.escape.prevent="closeAddBoardInline"
+                    />
+                    <button
+                      type="submit"
+                      class="flex size-9 flex-shrink-0 items-center justify-center rounded-md border border-n-weak bg-n-surface-2 text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="
+                        !newBoardName.trim() || isAddingBoardInlineSubmitting
+                      "
+                      :aria-label="t('KANBAN.ACTIONS.CONFIRM_CREATE_BOARD')"
+                      :title="t('KANBAN.ACTIONS.CONFIRM_CREATE_BOARD')"
+                      data-testid="kanban-add-board-inline-confirm"
+                    >
+                      <i class="i-lucide-check size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      class="flex size-9 flex-shrink-0 items-center justify-center rounded-md border border-n-weak bg-n-surface-2 text-n-slate-12"
+                      :aria-label="t('KANBAN.ACTIONS.CANCEL_CREATE_BOARD')"
+                      :title="t('KANBAN.ACTIONS.CANCEL_CREATE_BOARD')"
+                      data-testid="kanban-add-board-inline-cancel"
+                      @click="closeAddBoardInline"
+                    >
+                      <i class="i-lucide-x size-4" />
+                    </button>
+                  </form>
+                  <button
+                    v-else
+                    type="button"
+                    class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-n-brand hover:bg-n-alpha-1"
+                    data-testid="kanban-add-board-inline-toggle"
+                    @click="openAddBoardInline"
+                  >
+                    <i class="i-lucide-plus size-4" />
+                    {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
+                  </button>
+                  <p
+                    v-if="addBoardInlineError"
+                    class="mt-1 px-2 text-xs text-n-ruby-11"
+                    data-testid="kanban-add-board-inline-error"
+                  >
+                    {{ addBoardInlineError }}
+                  </p>
+                </div>
               </div>
             </div>
           </OnClickOutside>
