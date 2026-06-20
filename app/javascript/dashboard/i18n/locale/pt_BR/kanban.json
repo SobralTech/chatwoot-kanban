@@ -49,6 +49,7 @@
       "EDIT_STAGE": "Editar",
       "SAVE_STAGE": "Salvar",
       "REMOVE_STAGE": "Remover",
+      "STAGE_OPTIONS": "Opções da etapa",
       "CANCEL": "Cancelar",
       "CONFIRM_CREATE_BOARD": "Criar funil",
       "CANCEL_CREATE_BOARD": "Cancelar criação do funil",
@@ -237,6 +238,8 @@
       "INBOX": "Caixa de entrada: {inbox}",
       "ASSIGNEE": "Responsável: {assignee}",
       "PRIORITY": "Prioridade: {priority}",
+      "CHANGE_PRIORITY": "Alterar prioridade",
+      "PRIORITY_UPDATE_ERROR": "Não foi possível atualizar a prioridade do cartão.",
       "LAST_ACTIVITY": "Última atividade: {time}"
     },
     "NOTES": {
