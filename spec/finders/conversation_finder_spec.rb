@@ -219,14 +219,18 @@ describe ConversationFinder do
     context 'with unattended' do
       let(:params) { { status: 'open', assignee_type: 'me', conversation_type: 'unattended' } }
 
-      it 'returns unattended conversations' do
-        create(:conversation, account: account, first_reply_created_at: Time.now.utc, assignee: user_1) # attended_conversation
-        create(:conversation, account: account, first_reply_created_at: nil, assignee: user_1) # unattended_conversation_no_first_reply
-        create(:conversation, account: account, first_reply_created_at: Time.now.utc,
-                              assignee: user_1, waiting_since: Time.now.utc) # unattended_conversation_waiting_since
+      it 'returns conversations with unread incoming messages' do
+        read_conversation = create(:conversation, account: account, inbox: inbox, assignee: user_1, agent_last_seen_at: Time.now.utc)
+        create(:message, conversation: read_conversation, message_type: 'incoming', created_at: 1.day.ago)
+
+        unread_conversation = create(:conversation, account: account, inbox: inbox, assignee: user_1, agent_last_seen_at: 1.day.ago)
+        create(:message, conversation: unread_conversation, message_type: 'incoming', created_at: Time.now.utc)
+
+        never_seen_conversation = create(:conversation, account: account, inbox: inbox, assignee: user_1, agent_last_seen_at: nil)
+        create(:message, conversation: never_seen_conversation, message_type: 'incoming')
 
         result = conversation_finder.perform
-        expect(result[:conversations].length).to be 2
+        expect(result[:conversations]).to contain_exactly(unread_conversation, never_seen_conversation)
       end
     end
   end

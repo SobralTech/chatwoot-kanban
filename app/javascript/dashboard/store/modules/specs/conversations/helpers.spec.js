@@ -162,13 +162,16 @@ describe('#filterByLabel', () => {
 });
 
 describe('#filterByUnattended', () => {
-  it('returns true if conversation type is unattended and has no first reply', () => {
-    expect(filterByUnattended(true, 'unattended', undefined)).toEqual(true);
+  it('returns true if conversation type is unattended and has unread messages', () => {
+    expect(filterByUnattended(true, 'unattended', 3)).toEqual(true);
   });
-  it('returns false if conversation type is not unattended and has no first reply', () => {
+  it('returns false if conversation type is unattended and has no unread messages', () => {
+    expect(filterByUnattended(true, 'unattended', 0)).toEqual(false);
+  });
+  it('returns false if conversation type is not unattended', () => {
     expect(filterByUnattended(false, 'mentions', undefined)).toEqual(false);
   });
-  it('returns true if conversation type is unattended and has first reply', () => {
+  it('returns true if conversation type is not unattended regardless of unread count', () => {
     expect(filterByUnattended(true, 'mentions', 123)).toEqual(true);
   });
 });

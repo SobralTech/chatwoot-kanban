@@ -28,11 +28,10 @@ export const filterByLabel = (shouldFilter, labels, chatLabels) => {
 export const filterByUnattended = (
   shouldFilter,
   conversationType,
-  firstReplyOn,
-  waitingSince
+  unreadCount
 ) => {
   return conversationType === 'unattended'
-    ? (!firstReplyOn || !!waitingSince) && shouldFilter
+    ? !!unreadCount && shouldFilter
     : shouldFilter;
 };
 
@@ -43,8 +42,7 @@ export const applyPageFilters = (conversation, filters) => {
     inbox_id: chatInboxId,
     labels: chatLabels = [],
     meta = {},
-    first_reply_created_at: firstReplyOn,
-    waiting_since: waitingSince,
+    unread_count: unreadCount,
   } = conversation;
   const team = meta.team || {};
   const { id: chatTeamId } = team;
@@ -56,8 +54,7 @@ export const applyPageFilters = (conversation, filters) => {
   shouldFilter = filterByUnattended(
     shouldFilter,
     conversationType,
-    firstReplyOn,
-    waitingSince
+    unreadCount
   );
 
   return shouldFilter;
