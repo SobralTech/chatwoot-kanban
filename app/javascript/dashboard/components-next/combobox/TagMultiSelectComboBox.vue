@@ -40,6 +40,22 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  icon: {
+    type: String,
+    default: '',
+  },
+  summaryMode: {
+    type: Boolean,
+    default: false,
+  },
+  allLabel: {
+    type: String,
+    default: '',
+  },
+  selectedLabel: {
+    type: String,
+    default: '',
+  },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -68,6 +84,16 @@ const selectedTags = computed(() => {
     const option = props.options.find(opt => opt.value === value);
     return option || { value, label: value };
   });
+});
+
+const summaryText = computed(() => {
+  if (selectedTags.value.length === 0) {
+    return props.allLabel || selectPlaceholder.value;
+  }
+  if (selectedTags.value.length === 1) {
+    return selectedTags.value[0].label;
+  }
+  return props.selectedLabel;
 });
 
 const toggleOption = option => {
@@ -123,36 +149,53 @@ defineExpose({
   >
     <OnClickOutside @trigger="open = false">
       <div
-        class="tag-multi-select-trigger flex flex-wrap w-full gap-2 px-3 py-2.5 border rounded-lg cursor-pointer bg-n-alpha-black2 min-h-[42px] transition-all duration-500 ease-in-out"
+        class="tag-multi-select-trigger w-full gap-2 px-3 py-2.5 border rounded-lg cursor-pointer bg-n-alpha-black2 min-h-[42px] transition-all duration-500 ease-in-out"
         :class="{
           'border-n-ruby-8': hasError,
           'border-n-weak dark:border-n-weak hover:border-n-slate-6 dark:hover:border-n-slate-6':
             !hasError && !open,
           'border-n-brand': open,
           'cursor-not-allowed pointer-events-none opacity-50': disabled,
+          'flex items-center': summaryMode,
+          'flex flex-wrap': !summaryMode,
         }"
         @click="toggleDropdown"
       >
-        <div
-          v-for="tag in selectedTags"
-          :key="tag.value"
-          class="flex items-center justify-center max-w-full gap-1 px-2 py-0.5 rounded-lg bg-n-alpha-black1"
-          @click.stop
-        >
+        <template v-if="summaryMode">
+          <span
+            v-if="icon"
+            :class="icon"
+            class="flex-shrink-0 size-4 text-n-slate-11"
+          />
           <span class="flex-grow min-w-0 text-sm truncate text-n-slate-12">
-            {{ tag.label }}
+            {{ summaryText }}
           </span>
           <span
-            class="flex-shrink-0 cursor-pointer i-lucide-x size-3 text-n-slate-11"
-            @click="removeTag(tag.value)"
+            class="flex-shrink-0 i-lucide-chevron-down size-4 text-n-slate-11"
           />
-        </div>
-        <span
-          v-if="selectedTags.length === 0"
-          class="flex items-center text-sm text-n-slate-11"
-        >
-          {{ selectPlaceholder }}
-        </span>
+        </template>
+        <template v-else>
+          <div
+            v-for="tag in selectedTags"
+            :key="tag.value"
+            class="flex items-center justify-center max-w-full gap-1 px-2 py-0.5 rounded-lg bg-n-alpha-black1"
+            @click.stop
+          >
+            <span class="flex-grow min-w-0 text-sm truncate text-n-slate-12">
+              {{ tag.label }}
+            </span>
+            <span
+              class="flex-shrink-0 cursor-pointer i-lucide-x size-3 text-n-slate-11"
+              @click="removeTag(tag.value)"
+            />
+          </div>
+          <span
+            v-if="selectedTags.length === 0"
+            class="flex items-center text-sm text-n-slate-11"
+          >
+            {{ selectPlaceholder }}
+          </span>
+        </template>
       </div>
 
       <ComboBoxDropdown

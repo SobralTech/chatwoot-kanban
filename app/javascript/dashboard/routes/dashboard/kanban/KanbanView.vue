@@ -1036,27 +1036,6 @@ onUnmounted(() => {
         </div>
         <div class="flex flex-wrap items-center justify-end gap-2">
           <template v-if="selectedBoard">
-            <button
-              type="button"
-              data-testid="kanban-create-stage-toggle"
-              class="flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isCreatingStage"
-              @click="createStage"
-            >
-              <i class="i-lucide-plus size-4" />
-              {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
-            </button>
-            <button
-              v-if="isAdmin"
-              type="button"
-              data-testid="kanban-board-settings-button"
-              class="flex size-10 items-center justify-center rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
-              :aria-label="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
-              :title="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
-              @click="openBoardSettings"
-            >
-              <span class="i-lucide-settings size-4" />
-            </button>
             <div
               class="w-48 max-w-full flex-none"
               data-testid="kanban-inbox-filter"
@@ -1064,6 +1043,10 @@ onUnmounted(() => {
               <TagMultiSelectComboBox
                 :model-value="selectedInboxIds"
                 :options="inboxFilterOptions"
+                icon="i-lucide-inbox"
+                summary-mode
+                :all-label="t('KANBAN.SETTINGS.INBOXES.ALL')"
+                :selected-label="t('KANBAN.SETTINGS.INBOXES.SELECTED')"
                 :placeholder="t('KANBAN.SETTINGS.INBOXES.PLACEHOLDER')"
                 :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
                 :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
@@ -1078,6 +1061,10 @@ onUnmounted(() => {
               <TagMultiSelectComboBox
                 :model-value="selectedAssigneeIds"
                 :options="agentFilterOptions"
+                icon="i-lucide-users"
+                summary-mode
+                :all-label="t('KANBAN.SETTINGS.AGENTS.ALL')"
+                :selected-label="t('KANBAN.SETTINGS.AGENTS.SELECTED')"
                 :placeholder="t('KANBAN.FILTERS.AGENTS')"
                 :search-placeholder="t('KANBAN.SETTINGS.AGENTS.SEARCH')"
                 :empty-state="t('KANBAN.SETTINGS.AGENTS.EMPTY')"
@@ -1085,6 +1072,27 @@ onUnmounted(() => {
                 @update:model-value="updateAssigneeFilter"
               />
             </div>
+            <button
+              v-if="isAdmin"
+              type="button"
+              data-testid="kanban-board-settings-button"
+              class="flex size-10 items-center justify-center rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
+              :aria-label="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
+              :title="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
+              @click="openBoardSettings"
+            >
+              <span class="i-lucide-settings size-4" />
+            </button>
+            <button
+              type="button"
+              data-testid="kanban-create-stage-toggle"
+              class="flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="isCreatingStage"
+              @click="createStage"
+            >
+              <i class="i-lucide-plus size-4" />
+              {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
+            </button>
           </template>
         </div>
       </header>

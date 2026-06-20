@@ -1996,14 +1996,20 @@ describe('KanbanView header navigation', () => {
     );
   });
 
-  it('renders board settings before the inbox filter', async () => {
+  it('renders board settings after the agent filter and before the create stage button', async () => {
     const wrapper = await mountView(buildBoardResponse(), 'administrator');
     const settingsButton = wrapper.find(
       '[data-testid="kanban-board-settings-button"]'
     );
-    const inboxFilter = findInboxFilterWrapper(wrapper);
+    const agentFilter = findAgentFilterWrapper(wrapper);
+    const createStageButton = wrapper.find(
+      '[data-testid="kanban-create-stage-toggle"]'
+    );
 
-    expect(settingsButton.element.nextElementSibling).toBe(inboxFilter.element);
+    expect(agentFilter.element.nextElementSibling).toBe(settingsButton.element);
+    expect(settingsButton.element.nextElementSibling).toBe(
+      createStageButton.element
+    );
   });
 
   it('does not show board settings button for agents', async () => {
