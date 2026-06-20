@@ -1132,7 +1132,7 @@ onUnmounted(() => {
       </div>
 
       <div v-else class="flex min-h-0 flex-1 overflow-x-auto p-4">
-        <OnClickOutside @trigger="openStageMenuId = null">
+        <OnClickOutside class="contents" @trigger="openStageMenuId = null">
           <Draggable
             v-model="stageListModel"
             item-key="id"
