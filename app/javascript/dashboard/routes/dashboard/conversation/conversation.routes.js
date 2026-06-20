@@ -210,28 +210,5 @@ export default {
         conversationType: 'unattended',
       }),
     },
-    {
-      path: frontendURL('accounts/:accountId/participating/conversations'),
-      name: 'conversation_participating',
-      meta: {
-        permissions: CONVERSATION_PERMISSIONS,
-      },
-      component: ConversationView,
-      props: () => ({ conversationType: 'participating' }),
-    },
-    {
-      path: frontendURL(
-        'accounts/:accountId/participating/conversations/:conversationId'
-      ),
-      name: 'conversation_through_participating',
-      meta: {
-        permissions: CONVERSATION_PERMISSIONS,
-      },
-      component: ConversationView,
-      props: route => ({
-        conversationId: route.params.conversationId,
-        conversationType: 'participating',
-      }),
-    },
   ],
 };

@@ -51,7 +51,6 @@ import { generateValuesForEditCustomViews } from 'dashboard/helper/customViewsHe
 import { conversationListPageURL } from '../helper/URLHelper';
 import {
   isOnMentionsView,
-  isOnParticipatingView,
   isOnUnattendedView,
 } from '../store/modules/conversations/helpers/actionHelpers';
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
@@ -143,7 +142,6 @@ const advancedFilterTypes = ref(
 const currentUser = useMapGetter('getCurrentUser');
 const chatLists = useMapGetter('getFilteredConversations');
 const allChatList = useMapGetter('getAllStatusChats');
-const participatingChatsList = useMapGetter('getParticipatingChats');
 const chatListLoading = useMapGetter('getChatListLoadingStatus');
 const activeInbox = useMapGetter('getSelectedInbox');
 const conversationStats = useMapGetter('conversationStats/getStats');
@@ -343,11 +341,6 @@ const pageTitle = computed(() => {
   if (props.conversationType === wootConstants.CONVERSATION_TYPE.MENTION) {
     return t('CHAT_LIST.MENTION_HEADING');
   }
-  if (
-    props.conversationType === wootConstants.CONVERSATION_TYPE.PARTICIPATING
-  ) {
-    return t('CONVERSATION_PARTICIPANTS.SIDEBAR_MENU_TITLE');
-  }
   if (props.conversationType === wootConstants.CONVERSATION_TYPE.UNATTENDED) {
     return t('CHAT_LIST.UNATTENDED_HEADING');
   }
@@ -362,13 +355,7 @@ const conversationList = computed(() => {
 
   if (!hasAppliedFiltersOrActiveFolders.value) {
     const filters = conversationFilters.value;
-    if (
-      props.conversationType === wootConstants.CONVERSATION_TYPE.PARTICIPATING
-    ) {
-      localConversationList = [...participatingChatsList.value(filters)];
-    } else {
-      localConversationList = [...allChatList.value(filters)];
-    }
+    localConversationList = [...allChatList.value(filters)];
   } else {
     localConversationList = [...chatLists.value];
   }
@@ -665,8 +652,6 @@ function redirectToConversationList() {
   let conversationType = '';
   if (isOnMentionsView({ route: { name } })) {
     conversationType = wootConstants.CONVERSATION_TYPE.MENTION;
-  } else if (isOnParticipatingView({ route: { name } })) {
-    conversationType = wootConstants.CONVERSATION_TYPE.PARTICIPATING;
   } else if (isOnUnattendedView({ route: { name } })) {
     conversationType = wootConstants.CONVERSATION_TYPE.UNATTENDED;
   }

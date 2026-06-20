@@ -10,7 +10,7 @@ vi.mock('vue-router', async importOriginal => {
     ...actual,
     useRoute: () => ({
       params: {},
-      name: 'conversation_through_participating',
+      name: 'conversation_through_unattended',
     }),
   };
 });

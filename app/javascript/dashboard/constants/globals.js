@@ -14,7 +14,6 @@ export default {
   },
   CONVERSATION_TYPE: {
     MENTION: 'mention',
-    PARTICIPATING: 'participating',
     UNATTENDED: 'unattended',
   },
   SORT_BY_TYPE: {
