@@ -1132,104 +1132,106 @@ onUnmounted(() => {
       </div>
 
       <div v-else class="flex min-h-0 flex-1 overflow-x-auto p-4">
-        <Draggable
-          v-model="stageListModel"
-          item-key="id"
-          class="flex min-h-0 gap-4"
-          handle=".stage-drag-handle"
-          ghost-class="opacity-60"
-          chosen-class="opacity-90"
-          :animation="180"
-          @end="onStageDragEnd"
-        >
-          <template #item="{ element: stage }">
-            <section
-              :data-stage-id="stage.id"
-              class="flex w-80 flex-shrink-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
-            >
-              <header
-                class="stage-drag-handle cursor-grab flex min-h-10 items-center justify-between gap-2 px-3 py-1.5 text-white"
-                :class="getStageHeaderClass(stage)"
+        <OnClickOutside @trigger="openStageMenuId = null">
+          <Draggable
+            v-model="stageListModel"
+            item-key="id"
+            class="flex min-h-0 gap-4"
+            handle=".stage-drag-handle"
+            ghost-class="opacity-60"
+            chosen-class="opacity-90"
+            :animation="180"
+            @end="onStageDragEnd"
+          >
+            <template #item="{ element: stage }">
+              <section
+                :data-stage-id="stage.id"
+                class="flex w-80 flex-shrink-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
               >
-                <form
-                  v-if="editingStageId === stage.id"
-                  class="grid min-w-0 flex-1 gap-2"
-                  @submit.prevent="updateStage(stage)"
+                <header
+                  class="stage-drag-handle cursor-grab flex min-h-10 items-center justify-between gap-2 px-3 py-1.5 text-white"
+                  :class="getStageHeaderClass(stage)"
                 >
-                  <div class="flex min-w-0 gap-2">
-                    <input
-                      :ref="element => setStageNameInput(stage.id, element)"
-                      v-model="stageNames[stage.id]"
-                      type="text"
-                      class="min-w-0 flex-1 rounded-md border border-white/30 bg-white/90 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-white"
-                      :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-                      @keydown.escape.prevent="cancelEditingStage"
-                    />
-                    <button
-                      type="submit"
-                      class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      :disabled="
-                        !String(stageNames[stage.id] || '').trim() ||
-                        !!activeActionKey
-                      "
-                      :aria-label="t('KANBAN.ACTIONS.SAVE_STAGE')"
-                      :title="t('KANBAN.ACTIONS.SAVE_STAGE')"
-                    >
-                      <i class="i-lucide-check size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20"
-                      :aria-label="t('KANBAN.ACTIONS.CANCEL')"
-                      :title="t('KANBAN.ACTIONS.CANCEL')"
-                      @click="cancelEditingStage"
-                    >
-                      <i class="i-lucide-x size-4" />
-                    </button>
-                  </div>
-                  <div
-                    class="flex items-center gap-1.5"
-                    :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
+                  <form
+                    v-if="editingStageId === stage.id"
+                    class="grid min-w-0 flex-1 gap-2"
+                    @submit.prevent="updateStage(stage)"
                   >
-                    <button
-                      v-for="colorOption in stageColorOptions"
-                      :key="colorOption.value"
-                      type="button"
-                      class="size-5 rounded-full border border-white/40 ring-offset-2"
-                      :class="[
-                        colorOption.swatchClass,
-                        stageColors[stage.id] === colorOption.value
-                          ? 'ring-2 ring-white'
-                          : 'hover:ring-2 hover:ring-white/70',
-                      ]"
-                      :aria-label="getSelectStageColorLabel(colorOption)"
-                      @click="stageColors[stage.id] = colorOption.value"
-                    />
-                  </div>
-                </form>
-                <template v-else>
-                  <div class="flex min-w-0 flex-1 items-center gap-2">
-                    <h3 class="truncate text-sm font-medium text-white">
-                      {{ stage.name }}
-                    </h3>
-                    <span
-                      class="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
+                    <div class="flex min-w-0 gap-2">
+                      <input
+                        :ref="element => setStageNameInput(stage.id, element)"
+                        v-model="stageNames[stage.id]"
+                        type="text"
+                        class="min-w-0 flex-1 rounded-md border border-white/30 bg-white/90 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-white"
+                        :placeholder="
+                          t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')
+                        "
+                        @keydown.escape.prevent="cancelEditingStage"
+                      />
+                      <button
+                        type="submit"
+                        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="
+                          !String(stageNames[stage.id] || '').trim() ||
+                          !!activeActionKey
+                        "
+                        :aria-label="t('KANBAN.ACTIONS.SAVE_STAGE')"
+                        :title="t('KANBAN.ACTIONS.SAVE_STAGE')"
+                      >
+                        <i class="i-lucide-check size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20"
+                        :aria-label="t('KANBAN.ACTIONS.CANCEL')"
+                        :title="t('KANBAN.ACTIONS.CANCEL')"
+                        @click="cancelEditingStage"
+                      >
+                        <i class="i-lucide-x size-4" />
+                      </button>
+                    </div>
+                    <div
+                      class="flex items-center gap-1.5"
+                      :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
                     >
-                      {{ stage.cardsCount }}
-                    </span>
-                  </div>
-                  <div class="flex flex-shrink-0 gap-1">
-                    <button
-                      type="button"
-                      class="flex size-8 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      :disabled="!!activeActionKey"
-                      :aria-label="t('KANBAN.ACTIONS.ADD_ITEM')"
-                      :title="t('KANBAN.ACTIONS.ADD_ITEM')"
-                      @click="toggleAddItemPicker(stage)"
-                    >
-                      <i class="i-lucide-plus size-4" />
-                    </button>
-                    <OnClickOutside @trigger="openStageMenuId = null">
+                      <button
+                        v-for="colorOption in stageColorOptions"
+                        :key="colorOption.value"
+                        type="button"
+                        class="size-5 rounded-full border border-white/40 ring-offset-2"
+                        :class="[
+                          colorOption.swatchClass,
+                          stageColors[stage.id] === colorOption.value
+                            ? 'ring-2 ring-white'
+                            : 'hover:ring-2 hover:ring-white/70',
+                        ]"
+                        :aria-label="getSelectStageColorLabel(colorOption)"
+                        @click="stageColors[stage.id] = colorOption.value"
+                      />
+                    </div>
+                  </form>
+                  <template v-else>
+                    <div class="flex min-w-0 flex-1 items-center gap-2">
+                      <h3 class="truncate text-sm font-medium text-white">
+                        {{ stage.name }}
+                      </h3>
+                      <span
+                        class="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
+                      >
+                        {{ stage.cardsCount }}
+                      </span>
+                    </div>
+                    <div class="flex flex-shrink-0 gap-1">
+                      <button
+                        type="button"
+                        class="flex size-8 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="!!activeActionKey"
+                        :aria-label="t('KANBAN.ACTIONS.ADD_ITEM')"
+                        :title="t('KANBAN.ACTIONS.ADD_ITEM')"
+                        @click="toggleAddItemPicker(stage)"
+                      >
+                        <i class="i-lucide-plus size-4" />
+                      </button>
                       <div class="relative">
                         <button
                           type="button"
@@ -1271,85 +1273,87 @@ onUnmounted(() => {
                           </button>
                         </div>
                       </div>
-                    </OnClickOutside>
-                  </div>
-                </template>
-              </header>
-
-              <div
-                class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
-                :class="getStageBodyClass(stage)"
-              >
-                <Draggable
-                  :list="stage.cards"
-                  item-key="id"
-                  class="flex min-h-48 flex-shrink-0 flex-col gap-2 rounded-md"
-                  :title="
-                    hasActiveFilters
-                      ? t('KANBAN.ACTIONS.REORDER_DISABLED_FILTERED')
-                      : undefined
-                  "
-                  :group="{ name: 'kanban-cards' }"
-                  handle=".card-drag-handle"
-                  :filter="cardDragFilter"
-                  :prevent-on-filter="false"
-                  :empty-insert-threshold="5"
-                  :swap-threshold="0.65"
-                  :inverted-swap-threshold="1"
-                  fallback-on-body
-                  force-fallback
-                  :disabled="isCardDragDisabled"
-                  ghost-class="opacity-60"
-                  chosen-class="opacity-90"
-                  :animation="180"
-                  @start="onCardDragStart"
-                  @change="onCardDragChange(stage, $event)"
-                  @end="onCardDragEnd"
-                >
-                  <p
-                    v-if="stage.cards.length === 0"
-                    class="pointer-events-none px-1 py-2 text-sm text-n-slate-10"
-                  >
-                    {{ t('KANBAN.EMPTY_CARDS') }}
-                  </p>
-                  <template #item="{ element: card }">
-                    <KanbanConversationCard
-                      :card="card"
-                      :active-action-key="activeActionKey"
-                      @open-details="openDetails"
-                      @open-conversation="openConversation"
-                      @remove-card="openRemoveCardConfirmation"
-                      @update-priority="updateCardPriority"
-                    />
+                    </div>
                   </template>
-                </Draggable>
+                </header>
 
                 <div
-                  v-if="getStageCardsError(stage.id)"
-                  class="text-sm text-n-ruby-11"
+                  class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
+                  :class="getStageBodyClass(stage)"
                 >
-                  {{ getStageCardsError(stage.id) }}
-                </div>
+                  <Draggable
+                    :list="stage.cards"
+                    item-key="id"
+                    class="flex min-h-48 flex-shrink-0 flex-col gap-2 rounded-md"
+                    :title="
+                      hasActiveFilters
+                        ? t('KANBAN.ACTIONS.REORDER_DISABLED_FILTERED')
+                        : undefined
+                    "
+                    :group="{ name: 'kanban-cards' }"
+                    handle=".card-drag-handle"
+                    :filter="cardDragFilter"
+                    :prevent-on-filter="false"
+                    :empty-insert-threshold="5"
+                    :swap-threshold="0.65"
+                    :inverted-swap-threshold="1"
+                    fallback-on-body
+                    force-fallback
+                    :disabled="isCardDragDisabled"
+                    ghost-class="opacity-60"
+                    chosen-class="opacity-90"
+                    :animation="180"
+                    @start="onCardDragStart"
+                    @change="onCardDragChange(stage, $event)"
+                    @end="onCardDragEnd"
+                  >
+                    <p
+                      v-if="stage.cards.length === 0"
+                      class="pointer-events-none px-1 py-2 text-sm text-n-slate-10"
+                    >
+                      {{ t('KANBAN.EMPTY_CARDS') }}
+                    </p>
+                    <template #item="{ element: card }">
+                      <KanbanConversationCard
+                        :card="card"
+                        :active-action-key="activeActionKey"
+                        @open-details="openDetails"
+                        @open-conversation="openConversation"
+                        @remove-card="openRemoveCardConfirmation"
+                        @update-priority="updateCardPriority"
+                      />
+                    </template>
+                  </Draggable>
 
-                <button
-                  v-if="stage.pagination?.hasMore"
-                  type="button"
-                  data-testid="kanban-load-more-cards"
-                  :data-stage-id="stage.id"
-                  class="no-drag flex w-full items-center justify-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white hover:enabled:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="isStageCardsLoading(stage.id)"
-                  @click="loadMoreStageCards(stage)"
-                >
-                  <i
-                    v-if="isStageCardsLoading(stage.id)"
-                    class="i-lucide-loader-2 size-4 animate-spin"
-                  />
-                  <span v-else>{{ t('KANBAN.ACTIONS.LOAD_MORE_CARDS') }}</span>
-                </button>
-              </div>
-            </section>
-          </template>
-        </Draggable>
+                  <div
+                    v-if="getStageCardsError(stage.id)"
+                    class="text-sm text-n-ruby-11"
+                  >
+                    {{ getStageCardsError(stage.id) }}
+                  </div>
+
+                  <button
+                    v-if="stage.pagination?.hasMore"
+                    type="button"
+                    data-testid="kanban-load-more-cards"
+                    :data-stage-id="stage.id"
+                    class="no-drag flex w-full items-center justify-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white hover:enabled:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="isStageCardsLoading(stage.id)"
+                    @click="loadMoreStageCards(stage)"
+                  >
+                    <i
+                      v-if="isStageCardsLoading(stage.id)"
+                      class="i-lucide-loader-2 size-4 animate-spin"
+                    />
+                    <span v-else>{{
+                      t('KANBAN.ACTIONS.LOAD_MORE_CARDS')
+                    }}</span>
+                  </button>
+                </div>
+              </section>
+            </template>
+          </Draggable>
+        </OnClickOutside>
       </div>
     </section>
 
