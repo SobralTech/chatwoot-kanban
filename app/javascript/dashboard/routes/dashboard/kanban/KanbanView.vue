@@ -1319,6 +1319,7 @@ onUnmounted(() => {
                     <div class="flex flex-shrink-0 gap-1">
                       <button
                         type="button"
+                        data-testid="kanban-add-item-button"
                         class="flex size-8 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
                         :disabled="!!activeActionKey"
                         :aria-label="t('KANBAN.ACTIONS.ADD_ITEM')"

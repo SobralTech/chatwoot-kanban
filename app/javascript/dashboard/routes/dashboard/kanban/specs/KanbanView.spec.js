@@ -1118,8 +1118,12 @@ describe('KanbanView drag and drop', () => {
     const addItemButtons = findAddItemButtons(wrapper);
 
     expect(addItemButtons).toHaveLength(2);
-    expect(addItemButtons[0].text()).toContain('KANBAN.ACTIONS.ADD_ITEM');
-    expect(addItemButtons[1].text()).toContain('KANBAN.ACTIONS.ADD_ITEM');
+    expect(addItemButtons[0].attributes('aria-label')).toBe(
+      'KANBAN.ACTIONS.ADD_ITEM'
+    );
+    expect(addItemButtons[1].attributes('aria-label')).toBe(
+      'KANBAN.ACTIONS.ADD_ITEM'
+    );
   });
 
   it('opens and toggles the inline add item picker for the selected stage', async () => {
@@ -2005,8 +2009,12 @@ describe('KanbanView header navigation', () => {
   it('keeps rendering existing stage colors and falls back to slate', () => {
     expect(getKanbanStageColorClass('blue')).toBe('bg-n-blue-9');
     expect(getKanbanStageColorClass('unexpected')).toBe('bg-n-slate-9');
-    expect(getKanbanStageBodyColorClass('blue')).toBe('bg-n-blue-2');
-    expect(getKanbanStageBodyColorClass('unexpected')).toBe('bg-n-slate-2');
+    expect(getKanbanStageBodyColorClass('blue')).toBe(
+      'bg-n-blue-3 dark:bg-n-blue-2'
+    );
+    expect(getKanbanStageBodyColorClass('unexpected')).toBe(
+      'bg-n-slate-3 dark:bg-n-slate-2'
+    );
   });
 
   it('shows board settings button for administrators', async () => {

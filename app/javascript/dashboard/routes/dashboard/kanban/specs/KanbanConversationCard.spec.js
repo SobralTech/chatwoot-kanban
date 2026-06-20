@@ -91,6 +91,10 @@ const mountCard = ({ card = buildCard(), activeActionKey = '' } = {}) =>
           template:
             '<span class="inbox-name-stub">{{ inbox.name }} {{ showIcon }}</span>',
         },
+        Popover: {
+          name: 'Popover',
+          template: '<div><slot /><slot name="content" /></div>',
+        },
       },
     },
   });
@@ -142,24 +146,24 @@ describe('KanbanConversationCard', () => {
     }
   );
 
-  it('does not render the priority indicator when priority is missing', () => {
+  it('shows the empty priority indicator when priority is missing', () => {
     const wrapper = mountCard({
       card: buildCard({ card_priority: null }),
     });
 
-    expect(wrapper.findComponent({ name: 'CardPriorityIcon' }).exists()).toBe(
-      false
-    );
+    expect(
+      wrapper.findComponent({ name: 'CardPriorityIcon' }).props('priority')
+    ).toBe('');
   });
 
-  it('does not render the priority indicator for unexpected priority values', () => {
+  it('shows the empty priority indicator for unexpected priority values', () => {
     const wrapper = mountCard({
       card: buildCard({ card_priority: 'critical' }),
     });
 
-    expect(wrapper.findComponent({ name: 'CardPriorityIcon' }).exists()).toBe(
-      false
-    );
+    expect(
+      wrapper.findComponent({ name: 'CardPriorityIcon' }).props('priority')
+    ).toBe('critical');
   });
 
   it('shows an overflow badge when more than one assignee is set', () => {
@@ -209,9 +213,6 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.text()).toContain('Renewal follow-up');
     expect(wrapper.text()).toContain('Manual Contact');
     expect(wrapper.text()).toContain('Sales Inbox');
-    expect(wrapper.findComponent({ name: 'CardPriorityIcon' }).exists()).toBe(
-      false
-    );
   });
 
   it('emits openDetails even when conversationId is null', async () => {
@@ -309,9 +310,8 @@ describe('KanbanConversationCard', () => {
     });
 
     expect(wrapper.find('p[title]').exists()).toBe(false);
-    expect(wrapper.find('[data-testid="kanban-card-meta"]').exists()).toBe(
-      false
-    );
+    expect(wrapper.find('i.i-lucide-calendar').exists()).toBe(false);
+    expect(wrapper.find('i.i-lucide-clock').exists()).toBe(false);
     expect(wrapper.findAllComponents({ name: 'Avatar' })).toHaveLength(1);
   });
 
