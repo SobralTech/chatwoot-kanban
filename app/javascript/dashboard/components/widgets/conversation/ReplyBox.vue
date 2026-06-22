@@ -16,7 +16,6 @@ import CopilotReplyBottomPanel from 'dashboard/components/widgets/WootWriter/Cop
 import ArticleSearchPopover from 'dashboard/routes/dashboard/helpcenter/components/ArticleSearch/SearchPopover.vue';
 import CopilotEditorSection from './CopilotEditorSection.vue';
 import ConversationAssistantPanel from './ConversationAssistantPanel.vue';
-import MessageSignatureMissingAlert from './MessageSignatureMissingAlert.vue';
 import ReplyBoxBanner from './ReplyBoxBanner.vue';
 import QuotedEmailPreview from './QuotedEmailPreview.vue';
 import { REPLY_EDITOR_MODES } from 'dashboard/components/widgets/WootWriter/constants';
@@ -64,7 +63,6 @@ export default {
     AttachmentPreview,
     AudioRecorder,
     ReplyBoxBanner,
-    MessageSignatureMissingAlert,
     ReplyBottomPanel,
     ReplyEmailHead,
     ReplyToMessage,
@@ -428,9 +426,6 @@ export default {
     },
     isSignatureEnabledForInbox() {
       return !this.isPrivate && this.sendWithSignature;
-    },
-    isSignatureAvailable() {
-      return !!this.messageSignature;
     },
     sendWithSignature() {
       return this.fetchSignatureFlagFromUISettings(this.channelType);
@@ -1447,15 +1442,6 @@ export default {
             @remove-attachment="removeAttachment"
           />
         </div>
-        <MessageSignatureMissingAlert
-          v-if="
-            !isOnAssistant &&
-            isSignatureEnabledForInbox &&
-            !isSignatureAvailable &&
-            isDefaultEditorMode
-          "
-          class="mb-2"
-        />
       </div>
     </Transition>
 
