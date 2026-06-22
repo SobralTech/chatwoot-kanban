@@ -68,6 +68,33 @@ RSpec.describe 'Conversations API', type: :request do
         expect(body[:data][:meta][:all_count]).to eq(2)
         expect(body[:data][:payload].count).to eq(2)
       end
+
+      it 'returns an old pinned conversation on the first page, ahead of unpinned conversations' do
+        inbox = conversation.inbox
+        inbox.update!(enable_auto_assignment: false)
+        per_page = ENV.fetch('CONVERSATION_RESULTS_PER_PAGE', '25').to_i
+
+        old_pinned_conversation = create(:conversation, account: account, inbox: inbox, last_activity_at: 60.days.ago)
+        create(:conversation_pin, account: account, conversation: old_pinned_conversation, pinned_at: 1.hour.ago)
+
+        # enough recent conversations to push the old pinned conversation off page 1 if pin is ignored
+        per_page.times { |i| create(:conversation, account: account, inbox: inbox, last_activity_at: i.hours.ago) }
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        payload = body[:data][:payload]
+
+        first_item = payload.first
+        expect(first_item[:uuid]).to eq(old_pinned_conversation.uuid)
+        expect(first_item[:account_pinned_at]).to be > 0
+
+        uuids = payload.map { |c| c[:uuid] }
+        expect(uuids.uniq.length).to eq(uuids.length)
+      end
     end
   end
 

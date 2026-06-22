@@ -202,7 +202,12 @@ class ConversationFinder
   end
 
   def conversations
-    @conversations = conversations_base_query
+    # Some upstream filters (e.g. unattended -> with_unread_messages) use a plain
+    # SELECT DISTINCT, which Postgres forbids combining with an ORDER BY on a
+    # joined column (conversation_pins.pinned_at) that isn't in the select list.
+    # Collapsing to an id subquery here gives pinned_first a clean relation to order.
+    @conversations = Conversation.where(id: @conversations.reselect(:id))
+    @conversations = conversations_base_query.pinned_first
 
     sort_by, sort_order = SORT_OPTIONS[params[:sort_by]] || SORT_OPTIONS['last_activity_at_desc']
     @conversations = @conversations.send(sort_by, sort_order)
