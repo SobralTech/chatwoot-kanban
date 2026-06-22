@@ -201,7 +201,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="px-3 pb-3 space-y-3">
+  <div class="flex max-h-[28rem] flex-col px-3 pt-3 pb-3 space-y-3">
     <div v-if="isFetching" class="text-sm text-n-slate-11">
       {{ t('CONVERSATION.ASSISTANT.LOADING') }}
     </div>
@@ -213,7 +213,7 @@ onMounted(() => {
     <div
       v-if="messages.length || isLoading"
       ref="messagesContainer"
-      class="space-y-3 max-h-72 overflow-y-auto"
+      class="min-h-0 flex-1 space-y-3 overflow-y-auto"
     >
       <div v-if="hasMoreMessages" class="flex justify-center">
         <NextButton
@@ -333,7 +333,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <form class="space-y-2" @submit.prevent="askAssistant">
+    <form class="flex-shrink-0 space-y-2" @submit.prevent="askAssistant">
       <textarea
         ref="textareaRef"
         v-model="question"
