@@ -201,12 +201,19 @@ class ConversationFinder
     )
   end
 
-  def conversations
-    # Some upstream filters (e.g. unattended -> with_unread_messages) use a plain
-    # SELECT DISTINCT, which Postgres forbids combining with an ORDER BY on a
-    # joined column (conversation_pins.pinned_at) that isn't in the select list.
-    # Collapsing to an id subquery here gives pinned_first a clean relation to order.
+  # Some upstream filters (e.g. unattended -> with_unread_messages) use a plain
+  # SELECT DISTINCT, which Postgres forbids combining with an ORDER BY on a
+  # joined column (conversation_pins.pinned_at) that isn't in the select list.
+  # Collapsing to an id subquery gives pinned_first a clean relation to order,
+  # but it forces a full table scan, so only pay for it when DISTINCT is present.
+  def drop_distinct_for_ordering
+    return unless @conversations.distinct_value
+
     @conversations = Conversation.where(id: @conversations.reselect(:id))
+  end
+
+  def conversations
+    drop_distinct_for_ordering
     @conversations = conversations_base_query.pinned_first
 
     sort_by, sort_order = SORT_OPTIONS[params[:sort_by]] || SORT_OPTIONS['last_activity_at_desc']

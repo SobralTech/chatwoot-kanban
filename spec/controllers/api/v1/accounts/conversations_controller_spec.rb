@@ -95,6 +95,84 @@ RSpec.describe 'Conversations API', type: :request do
         uuids = payload.map { |c| c[:uuid] }
         expect(uuids.uniq.length).to eq(uuids.length)
       end
+
+      it 'returns a pinned conversation first within the unattended (DISTINCT) filter without raising an ORDER BY error' do
+        agent_1 = create(:user, account: account, role: :agent)
+
+        unattended_conversation = create(:conversation, account: account, agent_last_seen_at: 1.day.ago)
+        create(:message, conversation: unattended_conversation, account: account, created_at: Time.current)
+        pinned_unattended_conversation = create(:conversation, account: account, agent_last_seen_at: 1.day.ago)
+        create(:message, conversation: pinned_unattended_conversation, account: account, created_at: Time.current)
+        create(:conversation_pin, account: account, conversation: pinned_unattended_conversation, pinned_at: 1.hour.ago)
+
+        create(:inbox_member, user: agent_1, inbox: unattended_conversation.inbox)
+        create(:inbox_member, user: agent_1, inbox: pinned_unattended_conversation.inbox)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent_1.create_new_auth_token,
+            params: { conversation_type: 'unattended' },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        payload = body[:data][:payload]
+
+        expect(payload.size).to eq(2)
+        expect(payload.first[:uuid]).to eq(pinned_unattended_conversation.uuid)
+
+        uuids = payload.map { |c| c[:uuid] }
+        expect(uuids.uniq.length).to eq(uuids.length)
+      end
+
+      it 'respects the status filter while keeping a pinned conversation first' do
+        inbox = conversation.inbox
+        inbox.update!(enable_auto_assignment: false)
+
+        old_pinned_open_conversation = create(:conversation, account: account, inbox: inbox, status: 'open', last_activity_at: 60.days.ago)
+        create(:conversation_pin, account: account, conversation: old_pinned_open_conversation, pinned_at: 1.hour.ago)
+        recent_open_conversation = create(:conversation, account: account, inbox: inbox, status: 'open', last_activity_at: 1.hour.ago)
+        resolved_conversation = create(:conversation, account: account, inbox: inbox, status: 'resolved', last_activity_at: 30.minutes.ago)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            params: { status: 'open' },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        payload = body[:data][:payload]
+
+        uuids = payload.map { |c| c[:uuid] }
+        expect(uuids).not_to include(resolved_conversation.uuid)
+        expect(uuids.first).to eq(old_pinned_open_conversation.uuid)
+        expect(uuids).to include(recent_open_conversation.uuid)
+        expect(uuids.uniq.length).to eq(uuids.length)
+      end
+
+      it 'respects the inbox_id filter while keeping a pinned conversation first' do
+        inbox = conversation.inbox
+        inbox.update!(enable_auto_assignment: false)
+        other_inbox = create(:inbox, account: account, enable_auto_assignment: false)
+        create(:inbox_member, user: agent, inbox: other_inbox)
+
+        old_pinned_conversation = create(:conversation, account: account, inbox: inbox, last_activity_at: 60.days.ago)
+        create(:conversation_pin, account: account, conversation: old_pinned_conversation, pinned_at: 1.hour.ago)
+        other_inbox_conversation = create(:conversation, account: account, inbox: other_inbox, last_activity_at: 1.minute.ago)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            params: { inbox_id: inbox.id },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        payload = body[:data][:payload]
+
+        uuids = payload.map { |c| c[:uuid] }
+        expect(uuids).not_to include(other_inbox_conversation.uuid)
+        expect(uuids.first).to eq(old_pinned_conversation.uuid)
+        expect(uuids.uniq.length).to eq(uuids.length)
+      end
     end
   end
 
