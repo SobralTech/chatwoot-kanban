@@ -33,13 +33,10 @@ export const hasMessageFailedWithExternalError = pendingMessage => {
 // actions
 const actions = {
   getConversation: async ({ commit }, conversationId) => {
-    try {
-      const response = await ConversationApi.show(conversationId);
-      commit(types.UPDATE_CONVERSATION, response.data);
-      commit(`contacts/${types.SET_CONTACT_ITEM}`, response.data.meta.sender);
-    } catch (error) {
-      // Ignore error
-    }
+    const response = await ConversationApi.show(conversationId);
+    commit(types.UPSERT_CONVERSATION, response.data);
+    commit(`contacts/${types.SET_CONTACT_ITEM}`, response.data.meta.sender);
+    return response.data;
   },
 
   fetchAllConversations: async ({ commit, state, dispatch }) => {
@@ -211,7 +208,7 @@ const actions = {
       try {
         await dispatch('fetchPreviousMessages', {
           after,
-          before: data.messages[0].id,
+          before: data.messages?.[0]?.id,
           conversationId: data.id,
         });
         commit(types.SET_CHAT_DATA_FETCHED, data.id);

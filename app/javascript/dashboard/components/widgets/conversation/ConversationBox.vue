@@ -26,6 +26,14 @@ export default {
       type: Boolean,
       default: true,
     },
+    isFetchingConversation: {
+      type: Boolean,
+      default: false,
+    },
+    hasConversationFetchError: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ['conversationSearchOpen', 'conversationSearchClose'],
   data() {
@@ -212,6 +220,8 @@ export default {
       <EmptyState
         v-if="!currentChat.id && !isInboxView"
         :is-on-expanded-layout="isOnExpandedLayout"
+        :is-fetching-conversation="isFetchingConversation"
+        :has-conversation-fetch-error="hasConversationFetchError"
       />
       <slot />
     </div>

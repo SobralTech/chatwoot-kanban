@@ -72,6 +72,9 @@ export default {
     return {
       showSearchModal: false,
       isConversationSearchOpen: false,
+      isFetchingConversation: false,
+      conversationFetchError: false,
+      fetchingConversationId: null,
     };
   },
   computed: {
@@ -112,6 +115,7 @@ export default {
   },
   watch: {
     conversationId() {
+      this.conversationFetchError = false;
       this.fetchConversationIfUnavailable();
     },
   },
@@ -149,8 +153,38 @@ export default {
         return;
       }
       const chat = this.findConversation();
-      if (!chat) {
-        this.$store.dispatch('getConversation', this.conversationId);
+      if (chat) {
+        return;
+      }
+      // Avoid firing a duplicate request for the same conversationId
+      // while a previous fetch for it is still in flight.
+      const isFetchingSameConversation =
+        this.isFetchingConversation &&
+        this.fetchingConversationId === this.conversationId;
+      if (isFetchingSameConversation) {
+        return;
+      }
+      this.loadMissingConversation();
+    },
+    async loadMissingConversation() {
+      const { conversationId } = this;
+      this.fetchingConversationId = conversationId;
+      this.isFetchingConversation = true;
+      this.conversationFetchError = false;
+      try {
+        await this.$store.dispatch('getConversation', conversationId);
+        // The route may have changed while the request was in flight.
+        if (this.conversationId === conversationId) {
+          this.setActiveChat();
+        }
+      } catch (error) {
+        if (this.conversationId === conversationId) {
+          this.conversationFetchError = true;
+        }
+      } finally {
+        if (this.fetchingConversationId === conversationId) {
+          this.isFetchingConversation = false;
+        }
       }
     },
     findConversation() {
@@ -247,6 +281,8 @@ export default {
       ref="conversationBox"
       :inbox-id="inboxId"
       :is-on-expanded-layout="isOnExpandedLayout"
+      :is-fetching-conversation="isFetchingConversation"
+      :has-conversation-fetch-error="conversationFetchError"
       @conversation-search-open="openConversationSearch"
       @conversation-search-close="closeConversationSearch"
     >

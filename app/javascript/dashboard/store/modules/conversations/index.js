@@ -313,6 +313,29 @@ export const mutations = {
     }
   },
 
+  // Upserts a conversation fetched individually by id (e.g. direct route
+  // navigation, search results, contact history). Unlike UPDATE_CONVERSATION,
+  // it always adds the conversation when missing, regardless of the
+  // mention/unattended list filter, since the user explicitly requested it.
+  [types.UPSERT_CONVERSATION](_state, conversation) {
+    const { allConversations } = _state;
+    const index = allConversations.findIndex(c => c.id === conversation.id);
+
+    if (index > -1) {
+      const selectedConversation = allConversations[index];
+      if (conversation.updated_at < selectedConversation.updated_at) {
+        return;
+      }
+      const { messages, ...updates } = conversation;
+      allConversations[index] = {
+        ...selectedConversation,
+        ...updates,
+      };
+    } else {
+      _state.allConversations.push(conversation);
+    }
+  },
+
   [types.SET_LIST_LOADING_STATUS](_state) {
     _state.listLoadingStatus = true;
   },
