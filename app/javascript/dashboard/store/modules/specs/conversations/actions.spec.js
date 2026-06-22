@@ -263,13 +263,15 @@ describe('#actions', () => {
   });
 
   describe('#addMessage', () => {
+    const loadedGetters = { getConversationById: () => ({ id: 1 }) };
+
     it('sends correct mutations if message is incoming', () => {
       const message = {
         id: 1,
         message_type: 0,
         conversation_id: 1,
       };
-      actions.addMessage({ commit }, message);
+      actions.addMessage({ commit, dispatch, getters: loadedGetters }, message);
       expect(commit.mock.calls).toEqual([
         [types.ADD_MESSAGE, message],
         [
@@ -285,8 +287,46 @@ describe('#actions', () => {
         message_type: 1,
         conversation_id: 1,
       };
-      actions.addMessage({ commit }, message);
+      actions.addMessage({ commit, dispatch, getters: loadedGetters }, message);
       expect(commit.mock.calls).toEqual([[types.ADD_MESSAGE, message]]);
+    });
+
+    it('does not fetch the conversation when it is already loaded', () => {
+      const localDispatch = vi.fn(() => Promise.resolve());
+      const message = { id: 1, message_type: 0, conversation_id: 1 };
+      actions.addMessage(
+        { commit, dispatch: localDispatch, getters: loadedGetters },
+        message
+      );
+      expect(localDispatch).not.toHaveBeenCalledWith(
+        'getConversation',
+        expect.anything()
+      );
+    });
+
+    it('fetches the conversation once when it is missing from the store', () => {
+      const localDispatch = vi.fn(() => Promise.resolve());
+      const missingGetters = { getConversationById: () => undefined };
+      const message = { id: 1, message_type: 0, conversation_id: 43 };
+      actions.addMessage(
+        { commit, dispatch: localDispatch, getters: missingGetters },
+        message
+      );
+      expect(localDispatch).toHaveBeenCalledWith('getConversation', 43);
+    });
+
+    it('fetches only once for a burst on the same missing conversation', () => {
+      // never resolves, so the id stays in-flight across the burst
+      const localDispatch = vi.fn(() => new Promise(() => {}));
+      const missingGetters = { getConversationById: () => undefined };
+      const ctx = { commit, dispatch: localDispatch, getters: missingGetters };
+      actions.addMessage(ctx, { id: 1, message_type: 0, conversation_id: 44 });
+      actions.addMessage(ctx, { id: 2, message_type: 0, conversation_id: 44 });
+      actions.addMessage(ctx, { id: 3, message_type: 0, conversation_id: 44 });
+      const fetchCalls = localDispatch.mock.calls.filter(
+        ([action]) => action === 'getConversation'
+      );
+      expect(fetchCalls).toHaveLength(1);
     });
   });
 

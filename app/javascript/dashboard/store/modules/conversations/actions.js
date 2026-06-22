@@ -18,6 +18,10 @@ import {
   syncConversationCallVisibility,
 } from 'dashboard/helper/voice';
 
+// Tracks conversation ids currently being fetched after a message arrived for a
+// conversation missing from the store, so a burst of messages triggers a single fetch.
+const inFlightConversationFetches = new Set();
+
 export const hasMessageFailedWithExternalError = pendingMessage => {
   // This helper is used to check if the message has failed with an external error.
   // We have two cases
@@ -330,11 +334,14 @@ const actions = {
     }
   },
 
-  addMessage({ commit, rootGetters }, message) {
+  addMessage({ commit, dispatch, getters, rootGetters }, message) {
+    const { conversation_id: conversationId } = message;
+    const conversationExists = !!getters.getConversationById(conversationId);
+
     commit(types.ADD_MESSAGE, message);
     if (message.message_type === MESSAGE_TYPE.INCOMING) {
       commit(types.SET_CONVERSATION_CAN_REPLY, {
-        conversationId: message.conversation_id,
+        conversationId,
         canReply: true,
       });
       commit(types.ADD_CONVERSATION_ATTACHMENTS, message);
@@ -344,6 +351,19 @@ const actions = {
       rootGetters?.getCurrentUserID,
       rootGetters?.getCurrentUserAvailability
     );
+
+    // The conversation is not in the store yet (e.g. an older conversation that
+    // hasn't been paginated in). ADD_MESSAGE no-ops for it, so fetch and upsert
+    // it once to surface it in the list. UPSERT_CONVERSATION dedupes by id.
+    if (
+      !conversationExists &&
+      !inFlightConversationFetches.has(conversationId)
+    ) {
+      inFlightConversationFetches.add(conversationId);
+      dispatch('getConversation', conversationId).finally(() => {
+        inFlightConversationFetches.delete(conversationId);
+      });
+    }
   },
 
   updateMessage({ commit, rootGetters }, message) {
