@@ -335,8 +335,10 @@ onMounted(() => {
 
     <form class="flex-shrink-0 space-y-2" @submit.prevent="askAssistant">
       <textarea
+        id="assistant-question-input"
         ref="textareaRef"
         v-model="question"
+        name="assistant_question"
         rows="1"
         class="assistant-question-input w-full resize-none rounded-lg border border-n-weak bg-n-solid-1 px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
         :placeholder="t('CONVERSATION.ASSISTANT.PLACEHOLDER')"

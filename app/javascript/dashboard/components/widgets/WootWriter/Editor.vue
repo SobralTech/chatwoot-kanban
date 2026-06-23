@@ -68,6 +68,7 @@ import {
   hasPressedEnterAndNotCmdOrShift,
   hasPressedCommandAndEnter,
   isEscape,
+  isInComposition,
 } from 'shared/helpers/KeyboardHelpers';
 import { createTypingIndicator } from '@chatwoot/utils';
 import { checkFileSizeLimit } from 'shared/helpers/FileHelper';
@@ -734,6 +735,9 @@ function onKeydown(event) {
     collapseSelection(editorView);
     return true;
   }
+  // During IME / Windows OS text-suggestion composition, leave Enter to the
+  // browser/editor so the suggestion is applied natively — never suppress it.
+  if (isInComposition(event)) return false;
   if (isEnterToSendEnabled()) {
     handleLineBreakWhenEnterToSendEnabled(event);
   }

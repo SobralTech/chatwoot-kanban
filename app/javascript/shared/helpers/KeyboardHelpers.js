@@ -27,6 +27,12 @@ export const hasPressedEnterAndNotCmdOrShift = e => {
   return isEnter(e) && !hasPressedMod(e) && !hasPressedShift(e);
 };
 
+// True while an IME / OS text-suggestion composition is in progress. `keyCode === 229`
+// is the legacy signal some browsers send for the composing keydown. Null-safe because
+// some keyboard handlers invoke `action` without an event argument.
+export const isInComposition = event =>
+  Boolean(event?.isComposing || event?.keyCode === 229);
+
 // Detects the platform-aware "send" shortcut: Cmd+Enter on Apple platforms,
 // Ctrl+Enter on Windows/Linux.
 export const hasPressedCommandAndEnter = e => hasPressedMod(e) && isEnter(e);

@@ -6,6 +6,7 @@ import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useTrack } from 'dashboard/composables';
 import keyboardEventListenerMixins from 'shared/mixins/keyboardEventListenerMixins';
+import { isInComposition } from 'shared/helpers/KeyboardHelpers';
 
 import ReplyToMessage from './ReplyToMessage.vue';
 import AttachmentPreview from 'dashboard/components/widgets/AttachmentsPreview.vue';
@@ -735,6 +736,9 @@ export default {
         },
         Enter: {
           action: e => {
+            // Don't send while an IME / Windows OS text-suggestion is being
+            // confirmed — let the browser apply the suggestion instead.
+            if (isInComposition(e)) return;
             if (this.isAValidEvent('enter')) {
               this.onSendReply();
               e.preventDefault();
@@ -743,7 +747,8 @@ export default {
           allowOnFocusedInput: true,
         },
         '$mod+Enter': {
-          action: () => {
+          action: e => {
+            if (isInComposition(e)) return;
             if (this.copilot.isActive.value && this.isFocused) {
               this.onSubmitCopilotReply();
             } else if (this.isAValidEvent('cmd_enter')) {
