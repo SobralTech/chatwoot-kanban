@@ -75,6 +75,42 @@ const suppressNextCardClick = ref(false);
 const isPersistingCardDrag = ref(false);
 const defaultStageColor = DEFAULT_KANBAN_STAGE_COLOR;
 const newStageColor = ref(defaultStageColor);
+const boardScrollContainer = ref(null);
+const pendingScrollToStageId = ref(null);
+
+let dragMouseX = -1;
+let dragPointerReady = false;
+let autoScrollRaf = null;
+const onDragMouseMove = e => {
+  dragMouseX = e.clientX;
+  dragPointerReady = true;
+};
+const runBoardAutoScroll = () => {
+  const el = boardScrollContainer.value;
+  if (el && dragPointerReady) {
+    const { left, right } = el.getBoundingClientRect();
+    const threshold = 100;
+    const speed = 18;
+    if (dragMouseX < left + threshold) {
+      el.scrollLeft -= speed;
+    } else if (dragMouseX > right - threshold) {
+      el.scrollLeft += speed;
+    }
+  }
+  autoScrollRaf = requestAnimationFrame(runBoardAutoScroll);
+};
+const startBoardAutoScroll = () => {
+  dragPointerReady = false;
+  dragMouseX = -1;
+  document.addEventListener('mousemove', onDragMouseMove);
+  autoScrollRaf = requestAnimationFrame(runBoardAutoScroll);
+};
+const stopBoardAutoScroll = () => {
+  document.removeEventListener('mousemove', onDragMouseMove);
+  if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf);
+  autoScrollRaf = null;
+  dragPointerReady = false;
+};
 const cardDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
 const stageCardsPageLimit = 20;
@@ -389,11 +425,6 @@ const loadMoreStageCards = async stage => {
 
 const getStageColorOption = getKanbanStageColorOption;
 
-const getStageHeaderClass = stage =>
-  getStageColorOption(stage.color).headerClass;
-
-const getStageBodyClass = stage => getKanbanStageBodyColorClass(stage.color);
-
 const getStageColorLabel = colorOption => {
   const labels = {
     slate: t('KANBAN.COLORS.SLATE'),
@@ -415,6 +446,11 @@ const getSelectStageColorLabel = colorOption =>
   t('KANBAN.ACTIONS.SELECT_STAGE_COLOR', {
     color: getStageColorLabel(colorOption),
   });
+
+const getEffectiveStageColor = stage =>
+  editingStageId.value === stage.id
+    ? stageColors.value[stage.id] || stage.color
+    : stage.color;
 
 const showBoard = async boardId => {
   if (!boardId) {
@@ -444,7 +480,26 @@ const showBoard = async boardId => {
 const refreshSelectedBoard = async () => {
   if (!selectedBoard.value?.id) return;
 
+  const scrollEl = boardScrollContainer.value;
+  const savedScrollLeft = scrollEl?.scrollLeft ?? 0;
+  const targetStageId = pendingScrollToStageId.value;
+
   await showBoard(selectedBoard.value.id);
+  await nextTick();
+
+  const scrollElAfter = boardScrollContainer.value;
+  if (targetStageId) {
+    pendingScrollToStageId.value = null;
+    scrollElAfter
+      ?.querySelector(`[data-stage-id="${targetStageId}"]`)
+      ?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'start',
+      });
+  } else if (savedScrollLeft > 0 && scrollElAfter) {
+    scrollElAfter.scrollLeft = savedScrollLeft;
+  }
 };
 
 const updateInboxFilter = async inboxIds => {
@@ -533,6 +588,7 @@ const createStage = async () => {
     });
     newStageColor.value = defaultStageColor;
     const createdStage = normalizePayload(response.data);
+    pendingScrollToStageId.value = createdStage.id;
     await refreshSelectedBoard();
     const stageToEdit = findCreatedStage(createdStage, name);
     if (stageToEdit) startEditingStage(stageToEdit);
@@ -733,6 +789,7 @@ const handleRealtimeKanbanEvent = ({ event, data } = {}) => {
 const onCardDragStart = () => {
   isCardDragging.value = true;
   hasCardDragChanged.value = false;
+  startBoardAutoScroll();
 };
 
 const onCardDragChange = async (stage, event) => {
@@ -789,6 +846,7 @@ const onCardDragChange = async (stage, event) => {
 };
 
 const onCardDragEnd = () => {
+  stopBoardAutoScroll();
   if (isCardDragging.value || hasCardDragChanged.value) {
     suppressNextCardClick.value = true;
     window.setTimeout(() => {
@@ -1226,7 +1284,11 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div v-else class="flex min-h-0 flex-1 overflow-x-auto p-4">
+      <div
+        v-else
+        ref="boardScrollContainer"
+        class="flex min-h-0 flex-1 overflow-x-auto p-4"
+      >
         <OnClickOutside class="contents" @trigger="openStageMenuId = null">
           <Draggable
             v-model="stageListModel"
@@ -1245,7 +1307,10 @@ onUnmounted(() => {
               >
                 <header
                   class="stage-drag-handle cursor-grab flex min-h-10 items-center justify-between gap-2 px-3 py-1.5 text-white"
-                  :class="getStageHeaderClass(stage)"
+                  :class="
+                    getStageColorOption(getEffectiveStageColor(stage))
+                      .headerClass
+                  "
                 >
                   <form
                     v-if="editingStageId === stage.id"
@@ -1375,7 +1440,9 @@ onUnmounted(() => {
 
                 <div
                   class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
-                  :class="getStageBodyClass(stage)"
+                  :class="
+                    getKanbanStageBodyColorClass(getEffectiveStageColor(stage))
+                  "
                 >
                   <Draggable
                     :list="stage.cards"
@@ -1398,7 +1465,7 @@ onUnmounted(() => {
                     :disabled="isCardDragDisabled"
                     ghost-class="opacity-60"
                     chosen-class="opacity-90"
-                    :animation="180"
+                    :animation="isCardDragging ? 0 : 180"
                     @start="onCardDragStart"
                     @change="onCardDragChange(stage, $event)"
                     @end="onCardDragEnd"

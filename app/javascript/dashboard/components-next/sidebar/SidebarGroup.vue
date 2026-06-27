@@ -58,7 +58,8 @@ const triggerRect = ref({ top: 0, left: 0, bottom: 0, right: 0 });
 
 const openPopover = () => {
   if (triggerRef.value) {
-    const rect = triggerRef.value.getBoundingClientRect();
+    const el = triggerRef.value.$el ?? triggerRef.value;
+    const rect = el.getBoundingClientRect();
     triggerRect.value = {
       top: rect.top,
       left: rect.left,
@@ -169,12 +170,11 @@ const hasActiveChild = computed(() => {
   return activeChild.value !== undefined;
 });
 
-const handleCollapsedClick = () => {
-  if (hasChildren.value && hasAccessibleChildren.value) {
-    const firstItem = accessibleItems.value[0];
-    router.push(firstItem.to);
-  }
-};
+const collapsedNavigateTo = computed(() => {
+  if (!isCollapsed.value) return null;
+  if (!hasChildren.value) return props.to;
+  return hasAccessibleChildren.value ? accessibleItems.value[0].to : null;
+});
 
 const toggleTrigger = () => {
   if (
@@ -231,9 +231,9 @@ watch(
         @mouseleave="handleMouseLeave"
       >
         <component
-          :is="to && !hasChildren ? 'router-link' : 'button'"
+          :is="collapsedNavigateTo ? 'router-link' : 'button'"
           ref="triggerRef"
-          :to="to && !hasChildren ? to : undefined"
+          :to="collapsedNavigateTo ?? undefined"
           type="button"
           class="flex items-center justify-center size-10 rounded-lg"
           :class="{
@@ -241,7 +241,6 @@ watch(
             'text-n-slate-11 hover:bg-n-alpha-2': !isActive && !hasActiveChild,
           }"
           :title="label"
-          @click="hasChildren ? handleCollapsedClick() : undefined"
         >
           <Icon v-if="icon" :icon="icon" class="size-4" />
         </component>
