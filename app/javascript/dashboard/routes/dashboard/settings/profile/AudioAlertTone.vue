@@ -20,6 +20,8 @@ const props = defineProps({
         'big-sur-notification',
         'calm-notification',
         'web-whatsapp',
+        'og-whatsapp-notification',
+        'discord-notification',
       ].includes(value),
   },
   label: {
@@ -70,6 +72,14 @@ const alertTones = computed(() => [
   {
     value: 'web-whatsapp',
     label: 'Web WhatsApp',
+  },
+  {
+    value: 'og-whatsapp-notification',
+    label: 'OG WhatsApp',
+  },
+  {
+    value: 'discord-notification',
+    label: 'Discord',
   },
 ]);
 
