@@ -61,6 +61,7 @@ class Conversation < ApplicationRecord
   include SortHandler
   include PushDataHelper
   include ConversationMuteHelpers
+  include ConversationNotificationMuteHelpers
 
   validates :account_id, presence: true
   validates :inbox_id, presence: true
@@ -79,6 +80,12 @@ class Conversation < ApplicationRecord
   scope :assigned, -> { where.not(assignee_id: nil) }
   scope :assigned_to, ->(agent) { where(assignee_id: agent.id) }
   scope :unattended, -> { where(first_reply_created_at: nil).or(where.not(waiting_since: nil)) }
+  scope :with_unread_messages, lambda {
+    joins(:messages)
+      .merge(Message.unscoped.incoming.where(private: false))
+      .where('messages.created_at > conversations.agent_last_seen_at OR conversations.agent_last_seen_at IS NULL')
+      .distinct
+  }
   scope :resolvable_not_waiting, lambda { |auto_resolve_after|
     return none if auto_resolve_after.to_i.zero?
 
@@ -115,6 +122,8 @@ class Conversation < ApplicationRecord
   has_many :attachments, through: :messages
   has_many :reporting_events, dependent: :destroy_async
   has_many :kanban_cards, dependent: nil
+  has_many :conversation_pins, dependent: :destroy
+  has_one :account_pin, class_name: 'ConversationPin', dependent: :destroy, inverse_of: :conversation
 
   before_save :ensure_snooze_until_reset
   before_create :determine_conversation_status
@@ -210,6 +219,14 @@ class Conversation < ApplicationRecord
 
   def recent_messages
     messages.chat.last(5)
+  end
+
+  def last_useful_message
+    messages
+      .where(account_id: account_id, private: false)
+      .where.not(message_type: Message.message_types[:activity])
+      .reorder(created_at: :desc)
+      .first
   end
 
   def csat_survey_link

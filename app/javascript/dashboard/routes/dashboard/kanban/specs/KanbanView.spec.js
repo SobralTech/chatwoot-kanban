@@ -9,6 +9,7 @@ import { useAlert } from 'dashboard/composables';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
 import {
   KANBAN_STAGE_COLOR_OPTIONS,
+  getKanbanStageBodyColorClass,
   getKanbanStageColorClass,
 } from 'dashboard/helper/kanbanStageColors';
 import enKanbanMessages from 'dashboard/i18n/locale/en/kanban.json';
@@ -135,6 +136,7 @@ const buildPagination = (overrides = {}) => ({
   limit: 20,
   has_more: false,
   next_cursor: null,
+  total_count: 0,
   ...overrides,
 });
 
@@ -165,8 +167,7 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
           },
         },
       ],
-      cards_count: 1,
-      pagination: buildPagination(),
+      pagination: buildPagination({ total_count: 1 }),
     },
     {
       id: 200,
@@ -174,8 +175,7 @@ const buildBoardResponse = (stageBCards = [], overrides = {}) => ({
       active: true,
       position: 2,
       cards: stageBCards,
-      cards_count: stageBCards.length,
-      pagination: buildPagination(),
+      pagination: buildPagination({ total_count: stageBCards.length }),
     },
   ],
   ...overrides,
@@ -311,6 +311,10 @@ const mountView = async (
               default: 0,
             },
             swapThreshold: {
+              type: Number,
+              default: 1,
+            },
+            invertedSwapThreshold: {
               type: Number,
               default: 1,
             },
@@ -1034,9 +1038,13 @@ describe('KanbanView drag and drop', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    window.chatwootConfig = { hostURL: 'http://localhost:3000' };
+    vi.spyOn(window, 'open').mockImplementation(() => null);
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
+    delete window.chatwootConfig;
     vi.useRealTimers();
   });
 
@@ -1098,8 +1106,9 @@ describe('KanbanView drag and drop', () => {
     expect(
       emptyStageDraggable.find('[data-testid="kanban-add-item-panel"]').exists()
     ).toBe(false);
-    expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(80);
+    expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(5);
     expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
+    expect(emptyStageDraggable.props('invertedSwapThreshold')).toBe(1);
     expect(emptyStageDraggable.props('fallbackOnBody')).toBe(true);
     expect(emptyStageDraggable.props('forceFallback')).toBe(true);
   });
@@ -1109,8 +1118,12 @@ describe('KanbanView drag and drop', () => {
     const addItemButtons = findAddItemButtons(wrapper);
 
     expect(addItemButtons).toHaveLength(2);
-    expect(addItemButtons[0].text()).toContain('KANBAN.ACTIONS.ADD_ITEM');
-    expect(addItemButtons[1].text()).toContain('KANBAN.ACTIONS.ADD_ITEM');
+    expect(addItemButtons[0].attributes('aria-label')).toBe(
+      'KANBAN.ACTIONS.ADD_ITEM'
+    );
+    expect(addItemButtons[1].attributes('aria-label')).toBe(
+      'KANBAN.ACTIONS.ADD_ITEM'
+    );
   });
 
   it('opens and toggles the inline add item picker for the selected stage', async () => {
@@ -1572,7 +1585,7 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
   });
 
-  it('navigates to conversation on modal openConversation event', async () => {
+  it('opens conversation in a new tab on modal openConversation event', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1587,12 +1600,17 @@ describe('KanbanView drag and drop', () => {
     modal.vm.$emit('openConversation', { conversationId: 123 });
     await flushPromises();
 
-    expect(mockPush).toHaveBeenCalledWith({
+    expect(window.open).toHaveBeenCalledWith(
+      'http://localhost:3000/app/accounts/1/conversations/123',
+      '_blank',
+      'noopener,noreferrer'
+    );
+    expect(mockPush).not.toHaveBeenCalledWith({
       path: '/app/accounts/1/conversations/123',
     });
   });
 
-  it('closes modal after navigating to conversation', async () => {
+  it('keeps modal open after opening conversation in a new tab', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1609,7 +1627,7 @@ describe('KanbanView drag and drop', () => {
 
     expect(
       wrapper.findComponent({ name: 'KanbanOpportunityDetailsModal' }).exists()
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 
@@ -1642,10 +1660,44 @@ describe('KanbanView header navigation', () => {
     expect(dropdown.exists()).toBe(true);
     expect(dropdown.text()).toContain('Sales Board');
     expect(dropdown.text()).toContain('Renewals Board');
-    expect(dropdown.text()).not.toContain('KANBAN.OVERVIEW.CREATE_BOARD');
+    expect(dropdown.text()).toContain('KANBAN.OVERVIEW.CREATE_BOARD');
     expect(
-      wrapper.find('[data-testid="kanban-board-dropdown-create"]').exists()
-    ).toBe(false);
+      wrapper.find('[data-testid="kanban-add-board-inline-toggle"]').exists()
+    ).toBe(true);
+  });
+
+  it('shows an inline input and confirm button to create a board from the dropdown', async () => {
+    const wrapper = await mountView();
+
+    await wrapper
+      .find('[data-testid="kanban-board-switcher"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-add-board-inline-toggle"]')
+      .trigger('click');
+
+    expect(
+      wrapper.find('[data-testid="kanban-add-board-inline-input"]').exists()
+    ).toBe(true);
+
+    await wrapper
+      .find('[data-testid="kanban-add-board-inline-input"]')
+      .setValue('Support Board');
+    KanbanBoardsAPI.create.mockResolvedValueOnce({
+      data: { id: 99, name: 'Support Board' },
+    });
+    await wrapper
+      .find('[data-testid="kanban-board-switcher-dropdown"] form')
+      .trigger('submit');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
+      kanban_board: { name: 'Support Board', position: 2 },
+    });
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(
+      wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
+    ).toBe(true);
   });
 
   it('does not render a create board button in the board header', async () => {
@@ -1957,6 +2009,12 @@ describe('KanbanView header navigation', () => {
   it('keeps rendering existing stage colors and falls back to slate', () => {
     expect(getKanbanStageColorClass('blue')).toBe('bg-n-blue-9');
     expect(getKanbanStageColorClass('unexpected')).toBe('bg-n-slate-9');
+    expect(getKanbanStageBodyColorClass('blue')).toBe(
+      'bg-n-blue-3 dark:bg-n-blue-2'
+    );
+    expect(getKanbanStageBodyColorClass('unexpected')).toBe(
+      'bg-n-slate-3 dark:bg-n-slate-2'
+    );
   });
 
   it('shows board settings button for administrators', async () => {
@@ -1980,14 +2038,20 @@ describe('KanbanView header navigation', () => {
     );
   });
 
-  it('renders board settings before the inbox filter', async () => {
+  it('renders board settings after the agent filter and before the create stage button', async () => {
     const wrapper = await mountView(buildBoardResponse(), 'administrator');
     const settingsButton = wrapper.find(
       '[data-testid="kanban-board-settings-button"]'
     );
-    const inboxFilter = findInboxFilterWrapper(wrapper);
+    const agentFilter = findAgentFilterWrapper(wrapper);
+    const createStageButton = wrapper.find(
+      '[data-testid="kanban-create-stage-toggle"]'
+    );
 
-    expect(settingsButton.element.nextElementSibling).toBe(inboxFilter.element);
+    expect(agentFilter.element.nextElementSibling).toBe(settingsButton.element);
+    expect(settingsButton.element.nextElementSibling).toBe(
+      createStageButton.element
+    );
   });
 
   it('does not show board settings button for agents', async () => {
@@ -2028,7 +2092,7 @@ describe('KanbanView header navigation', () => {
     );
   });
 
-  it('does not open the board switcher when only one board is visible', async () => {
+  it('still opens the board switcher to create a board when only one board is visible', async () => {
     const wrapper = await mountView({
       boards: [{ id: 10, name: 'Sales Board' }],
     });
@@ -2041,10 +2105,10 @@ describe('KanbanView header navigation', () => {
       .trigger('click');
     expect(
       wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
-    ).toBe(false);
+    ).toBe(true);
     expect(
-      wrapper.find('[data-testid="kanban-create-board-button"]').exists()
-    ).toBe(false);
+      wrapper.find('[data-testid="kanban-add-board-inline-toggle"]').exists()
+    ).toBe(true);
   });
 
   it('does not render an internal sidebar', async () => {

@@ -31,10 +31,16 @@ class SearchService
   end
 
   def filter_conversations
+    search_sql = <<~SQL.squish
+      cast(conversations.display_id as text) ILIKE :search
+      OR unaccent(contacts.name) ILIKE unaccent(:search)
+      OR unaccent(contacts.email) ILIKE unaccent(:search)
+      OR unaccent(contacts.phone_number) ILIKE unaccent(:search)
+      OR unaccent(contacts.identifier) ILIKE unaccent(:search)
+    SQL
     conversations_query = current_account.conversations.where(inbox_id: accessable_inbox_ids)
                                          .joins('INNER JOIN contacts ON conversations.contact_id = contacts.id')
-                                         .where("cast(conversations.display_id as text) ILIKE :search OR contacts.name ILIKE :search OR contacts.email
-                            ILIKE :search OR contacts.phone_number ILIKE :search OR contacts.identifier ILIKE :search", search: "%#{search_query}%")
+                                         .where(search_sql, search: "%#{search_query}%")
 
     if current_account.feature_enabled?('advanced_search')
       conversations_query = apply_time_filter(conversations_query,
@@ -98,14 +104,16 @@ class SearchService
   def filter_messages_with_like
     base_query = message_base_query
     base_query = apply_message_filters(base_query)
-    base_query.where('messages.content ILIKE :search', search: "%#{search_query}%")
+    base_query.where('unaccent(messages.content) ILIKE unaccent(:search)', search: "%#{search_query}%")
               .reorder('created_at DESC')
               .page(params[:page])
               .per(15)
   end
 
   def message_base_query
-    query = current_account.messages.where('created_at >= ?', 3.months.ago)
+    query = current_account.messages.includes(conversation: :contact)
+                           .where('created_at >= ?', 3.months.ago)
+                           .where.not(message_type: :activity)
     query = query.where(inbox_id: accessable_inbox_ids) unless should_skip_inbox_filtering?
     query
   end
@@ -163,8 +171,8 @@ class SearchService
 
   def filter_contacts
     contacts_query = current_account.contacts.where(
-      "name ILIKE :search OR email ILIKE :search OR phone_number
-      ILIKE :search OR identifier ILIKE :search", search: "%#{search_query}%"
+      "unaccent(name) ILIKE unaccent(:search) OR unaccent(email) ILIKE unaccent(:search) OR unaccent(phone_number)
+      ILIKE unaccent(:search) OR unaccent(identifier) ILIKE unaccent(:search)", search: "%#{search_query}%"
     )
 
     contacts_query = apply_time_filter(contacts_query, 'last_activity_at') if current_account.feature_enabled?('advanced_search')

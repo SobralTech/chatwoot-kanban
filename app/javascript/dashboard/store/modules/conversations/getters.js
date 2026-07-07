@@ -97,26 +97,6 @@ const getters = {
     const hasAppliedFilters = _state.appliedFilters.length !== 0;
     return hasAppliedFilters ? filterQueryGenerator(_state.appliedFilters) : [];
   },
-  getUnAssignedChats: _state => activeFilters => {
-    return _state.allConversations.filter(conversation => {
-      const isUnAssigned = !conversation.meta.assignee;
-      const shouldFilter = applyPageFilters(conversation, activeFilters);
-      return isUnAssigned && shouldFilter;
-    });
-  },
-  getParticipatingChats: (_state, _, __, rootGetters) => activeFilters => {
-    const currentUserId = rootGetters.getCurrentUser?.id;
-    const getWatchers = rootGetters['conversationWatchers/getByConversationId'];
-    return _state.allConversations.filter(conversation => {
-      const watchers = getWatchers(conversation.id);
-      // Watchers are only loaded for the conversation open in the detail
-      // panel. If loaded and current user is not in them, filter it out.
-      if (watchers && !watchers.some(w => w.id === currentUserId)) {
-        return false;
-      }
-      return applyPageFilters(conversation, activeFilters);
-    });
-  },
   getAllStatusChats: (_state, _, __, rootGetters) => activeFilters => {
     const currentUser = rootGetters.getCurrentUser;
     const currentUserId = rootGetters.getCurrentUser.id;

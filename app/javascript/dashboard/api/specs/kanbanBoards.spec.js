@@ -298,6 +298,24 @@ describe('#KanbanBoardsAPI', () => {
       );
     });
 
+    it('#getCardAssignees', () => {
+      kanbanBoards.getCardAssignees(2, 501);
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/assignees'
+      );
+    });
+
+    it('#updateCardAssignees', () => {
+      const assigneeIds = [9, 10];
+      kanbanBoards.updateCardAssignees(2, 501, assigneeIds);
+
+      expect(axiosMock.put).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/assignees',
+        { assignee_ids: assigneeIds }
+      );
+    });
+
     it('#deleteCardById', () => {
       kanbanBoards.deleteCardById(2, 501);
 

@@ -72,6 +72,12 @@ const INBOX_ICON_MAP_LINE = {
 
 const DEFAULT_ICON_LINE = 'i-ri-chat-1-line';
 
+export const isApiWhatsappInbox = (type, name = '') => {
+  return (
+    type === INBOX_TYPES.API && (name || '').toLowerCase().includes('whatsapp')
+  );
+};
+
 export const getInboxSource = (type, phoneNumber, inbox) => {
   switch (type) {
     case INBOX_TYPES.WEB:
@@ -164,11 +170,20 @@ export const getInboxClassByType = (type, phoneNumber) => {
   }
 };
 
-export const getInboxIconByType = (type, medium, variant = 'fill') => {
+export const getInboxIconByType = (
+  type,
+  medium,
+  variant = 'fill',
+  name = ''
+) => {
   const iconMap =
     variant === 'fill' ? INBOX_ICON_MAP_FILL : INBOX_ICON_MAP_LINE;
   const defaultIcon =
     variant === 'fill' ? DEFAULT_ICON_FILL : DEFAULT_ICON_LINE;
+
+  if (isApiWhatsappInbox(type, name)) {
+    return iconMap[INBOX_TYPES.WHATSAPP];
+  }
 
   // Special case for Twilio (whatsapp and sms)
   if (type === INBOX_TYPES.TWILIO && medium === 'whatsapp') {

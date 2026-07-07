@@ -51,7 +51,6 @@ const backButtonUrl = computed(() => {
 
   const conversationTypeMap = {
     conversation_through_mentions: 'mention',
-    conversation_through_participating: 'participating',
     conversation_through_unattended: 'unattended',
   };
   return conversationListPageURL({
@@ -92,10 +91,6 @@ const inbox = computed(() => {
   return store.getters['inboxes/getInbox'](inboxId);
 });
 
-const hasMultipleInboxes = computed(
-  () => store.getters['inboxes/getInboxes'].length > 1
-);
-
 const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
 
 const toggleContactDetails = () => {
@@ -116,14 +111,13 @@ const toggleContactDetails = () => {
 <template>
   <div
     ref="conversationHeader"
-    class="flex flex-col gap-3 items-center justify-between flex-1 w-full min-w-0 xl:flex-row px-3 pt-3 pb-2 h-24 xl:h-12"
+    class="flex flex-row items-center justify-between flex-1 w-full min-w-0 gap-3 px-3 py-2 min-h-12"
   >
-    <div
-      class="flex items-center justify-start w-full xl:w-auto max-w-full min-w-0 xl:flex-1"
-    >
+    <div class="flex items-center justify-start flex-1 min-w-0">
       <BackButton
         v-if="showBackButton"
         :back-url="backButtonUrl"
+        icon-only
         class="ltr:mr-2 rtl:ml-2"
       />
       <div
@@ -145,14 +139,12 @@ const toggleContactDetails = () => {
           rounded-full
         />
         <div
-          class="flex flex-col items-start min-w-0 ml-2 overflow-hidden rtl:ml-0 rtl:mr-2"
+          class="flex flex-col min-w-0 max-w-full gap-0.5 ml-2 overflow-hidden rtl:ml-0 rtl:mr-2"
+          data-testid="conversation-header-contact-name"
         >
-          <div
-            class="flex flex-row items-center max-w-full min-w-0 gap-1 p-0 m-0"
-            data-testid="conversation-header-contact-name"
-          >
+          <div class="flex items-center min-w-0 gap-2">
             <span
-              class="min-w-0 text-sm font-medium leading-tight truncate text-n-slate-12 group-hover:text-n-slate-12"
+              class="min-w-0 flex-1 text-base font-medium leading-tight truncate text-n-slate-12 group-hover:text-n-slate-12"
             >
               {{ currentContact.name }}
             </span>
@@ -163,29 +155,25 @@ const toggleContactDetails = () => {
               class="text-n-amber-10 my-0 mx-0 min-w-[14px] flex-shrink-0"
               icon="warning"
             />
-          </div>
-
-          <div
-            class="flex items-center gap-1 overflow-hidden text-xs conversation--header--actions text-n-slate-11 text-ellipsis whitespace-nowrap"
-          >
             <span
-              class="truncate text-label-small text-n-slate-11 group-hover:text-n-slate-12"
-              data-testid="conversation-header-conversation-id"
+              v-if="isSnoozed"
+              class="flex-shrink-0 text-xs text-n-slate-11"
             >
-              {{ `#${chat.id}` }}
+              {{ headerSeparator }}
             </span>
-            <span v-if="hasMultipleInboxes">{{ headerSeparator }}</span>
-            <InboxName v-if="hasMultipleInboxes" :inbox="inbox" class="!mx-0" />
-            <span v-if="isSnoozed">{{ headerSeparator }}</span>
-            <span v-if="isSnoozed" class="font-medium text-n-amber-10">
+            <span
+              v-if="isSnoozed"
+              class="flex-shrink-0 text-xs font-medium text-n-amber-10"
+            >
               {{ snoozedDisplayText }}
             </span>
           </div>
+          <InboxName :inbox="inbox" class="!mx-0" />
         </div>
       </div>
     </div>
     <div
-      class="flex flex-row items-center justify-start xl:justify-end flex-shrink-0 gap-2 w-full xl:w-auto header-actions-wrap"
+      class="flex flex-row items-center justify-end flex-shrink-0 gap-2 header-actions-wrap"
     >
       <SLACardLabel
         v-if="hasSlaPolicyId"

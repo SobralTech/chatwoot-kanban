@@ -3,9 +3,16 @@ require 'rails_helper'
 describe Notification::PushNotificationService do
   let!(:account) { create(:account) }
   let!(:user) { create(:user, account: account) }
-  let!(:notification) { create(:notification, user: user, account: user.accounts.first) }
+  let!(:notification) { create(:notification, notification_type: 'contact_message', user: user, account: user.accounts.first) }
   let(:fcm_double) { instance_double(FCM) }
   let(:fcm_service_double) { instance_double(Notification::FcmService, fcm_client: fcm_double) }
+
+  before do
+    notification_setting = user.notification_settings.find_by(account_id: account.id)
+    notification_setting.selected_email_flags = [:email_contact_message]
+    notification_setting.selected_push_flags = [:push_contact_message]
+    notification_setting.save!
+  end
 
   describe '#perform' do
     context 'when the push server returns success' do
@@ -26,6 +33,19 @@ describe Notification::PushNotificationService do
           expect(WebPush).to have_received(:payload_send)
           expect(Notification::FcmService).not_to have_received(:new)
           expect(Rails.logger).to have_received(:info).with("Browser push sent to #{user.email} with title #{notification.push_message_title}")
+        end
+      end
+
+      it 'sends a fallback icon when the contact has no avatar' do
+        with_modified_env VAPID_PUBLIC_KEY: 'test' do
+          create(:notification_subscription, user: notification.user)
+
+          described_class.new(notification: notification).perform
+
+          expect(WebPush).to have_received(:payload_send) do |message:, **|
+            payload = JSON.parse(message)
+            expect(payload['icon']).to start_with('data:image/svg+xml;base64,')
+          end
         end
       end
 

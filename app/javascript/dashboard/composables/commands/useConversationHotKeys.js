@@ -36,6 +36,8 @@ import {
   SEND_TRANSCRIPT_ACTION,
   UNMUTE_ACTION,
   MUTE_ACTION,
+  PIN_ACTION,
+  UNPIN_ACTION,
 } from 'dashboard/helper/commandbar/actions';
 import {
   isAConversationRoute,
@@ -330,7 +332,10 @@ export function useConversationHotKeys() {
   const conversationAdditionalActions = computed(() => {
     return prepareActions(
       [
-        currentChat.value.muted ? UNMUTE_ACTION : MUTE_ACTION,
+        currentChat.value.additional_attributes?.notifications_muted
+          ? UNMUTE_ACTION
+          : MUTE_ACTION,
+        currentChat.value.account_pinned_at ? UNPIN_ACTION : PIN_ACTION,
         SEND_TRANSCRIPT_ACTION,
       ],
       t

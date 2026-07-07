@@ -1,8 +1,4 @@
-import {
-  isOnMentionsView,
-  isOnFoldersView,
-  isOnParticipatingView,
-} from '../actionHelpers';
+import { isOnMentionsView, isOnFoldersView } from '../actionHelpers';
 
 describe('#isOnMentionsView', () => {
   it('return valid responses when passing the state', () => {
@@ -26,21 +22,5 @@ describe('#isOnFoldersView', () => {
     expect(isOnFoldersView({ route: { name: 'conversation_messages' } })).toBe(
       false
     );
-  });
-});
-
-describe('#isOnParticipatingView', () => {
-  it('return valid responses when passing the state', () => {
-    expect(
-      isOnParticipatingView({ route: { name: 'conversation_participating' } })
-    ).toBe(true);
-    expect(
-      isOnParticipatingView({
-        route: { name: 'conversation_through_participating' },
-      })
-    ).toBe(true);
-    expect(
-      isOnParticipatingView({ route: { name: 'conversation_messages' } })
-    ).toBe(false);
   });
 });

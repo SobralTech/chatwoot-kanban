@@ -4,13 +4,8 @@ import KanbanConversationCards from '../KanbanConversationCards.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
-import { messageStamp } from 'shared/helpers/timeHelper';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
-
-vi.mock('shared/helpers/timeHelper', () => ({
-  messageStamp: vi.fn(() => 'Jun 7, 2026 6:00 PM'),
-}));
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -20,15 +15,34 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION_SIDEBAR.KANBAN.EMPTY':
           'No opportunities linked to this conversation',
         'CONVERSATION_SIDEBAR.KANBAN.ERROR': 'Failed to load opportunities',
-        'CONVERSATION_SIDEBAR.KANBAN.ADD': 'Add to Kanban',
+        'CONVERSATION_SIDEBAR.KANBAN.ADD': 'Create new card',
         'CONVERSATION_SIDEBAR.KANBAN.CREATE_TITLE': 'Create opportunity',
         'CONVERSATION_SIDEBAR.KANBAN.BOARD': 'Board',
         'CONVERSATION_SIDEBAR.KANBAN.SUBJECT': 'Subject',
         'CONVERSATION_SIDEBAR.KANBAN.STAGE': 'Opportunity stage',
         'CONVERSATION_SIDEBAR.KANBAN.DUE_DATE': 'Due date',
+        'CONVERSATION_SIDEBAR.KANBAN.CHOOSE_DATE': 'Escolha a data',
+        'CONVERSATION_SIDEBAR.KANBAN.CLEAR_DATE': 'Clear due date',
         'CONVERSATION_SIDEBAR.KANBAN.LABELS': 'Labels',
         'CONVERSATION_SIDEBAR.KANBAN.NOT_SET': 'Not set',
         'CONVERSATION_SIDEBAR.KANBAN.NO_LABELS': 'No labels',
+        'CONVERSATION_SIDEBAR.KANBAN.PRIORITY': 'Priority',
+        'CONVERSATION_SIDEBAR.KANBAN.PRIORITY_NONE': 'No priority',
+        'CONVERSATION_SIDEBAR.KANBAN.ASSIGNEES': 'Agents',
+        'CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNEES': 'No agents assigned',
+        'CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNEES_SELECTED':
+          'No agents selected',
+        'CONVERSATION_SIDEBAR.KANBAN.NO_ASSIGNABLE_USERS':
+          'No agents available',
+        'CONVERSATION_SIDEBAR.KANBAN.LOAD_ASSIGNEES_ERROR':
+          'Could not load agents.',
+        'CONVERSATION_SIDEBAR.KANBAN.SAVE_ASSIGNEES_ERROR':
+          'Could not save agents.',
+        'CONVERSATION.PRIORITY.OPTIONS.NONE': 'No priority',
+        'CONVERSATION.PRIORITY.OPTIONS.URGENT': 'Urgent',
+        'CONVERSATION.PRIORITY.OPTIONS.HIGH': 'High',
+        'CONVERSATION.PRIORITY.OPTIONS.MEDIUM': 'Medium',
+        'CONVERSATION.PRIORITY.OPTIONS.LOW': 'Low',
         'CONVERSATION_SIDEBAR.KANBAN.SELECT_BOARD': 'Select a board',
         'CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE': 'Select a stage',
         'CONVERSATION_SIDEBAR.KANBAN.EMPTY_BOARDS':
@@ -40,11 +54,21 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION_SIDEBAR.KANBAN.CREATED': 'Opportunity created',
         'CONVERSATION_SIDEBAR.KANBAN.CANCEL': 'Cancel',
         'CONVERSATION_SIDEBAR.KANBAN.CREATE': 'Create',
-        'CONVERSATION_SIDEBAR.KANBAN.SAVE': 'Save',
         'CONVERSATION_SIDEBAR.KANBAN.SAVING': 'Saving...',
         'CONVERSATION_SIDEBAR.KANBAN.UPDATE_ERROR':
           'Failed to update opportunity',
-        'CONVERSATION_SIDEBAR.KANBAN.UPDATED': 'Opportunity updated',
+        'CONVERSATION_SIDEBAR.KANBAN.NO_RESULTS':
+          'No results found matching your search',
+        'CONVERSATION_SIDEBAR.KANBAN.SEARCH': 'Search',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE': 'Delete opportunity',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_TITLE':
+          'Delete opportunity',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_DESCRIPTION':
+          'Are you sure you want to delete this opportunity? This action cannot be undone.',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_BUTTON': 'Yes, delete',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETED': 'Opportunity deleted',
+        'CONVERSATION_SIDEBAR.KANBAN.DELETE_ERROR':
+          'Failed to delete opportunity',
       };
 
       return translations[key] || key;
@@ -60,6 +84,9 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     createConversationCard: vi.fn(),
     updateCardDetailsById: vi.fn(),
     updateCardLabels: vi.fn(),
+    getCardAssignees: vi.fn(),
+    updateCardAssignees: vi.fn(),
+    deleteCardById: vi.fn(),
   },
 }));
 
@@ -70,6 +97,35 @@ vi.mock('dashboard/composables', () => ({
 vi.mock('dashboard/composables/store', () => ({
   useStore: vi.fn(),
   useMapGetter: vi.fn(),
+}));
+
+vi.mock('shared/components/ui/MultiselectDropdown.vue', () => ({
+  default: {
+    name: 'MultiselectDropdown',
+    props: {
+      options: { type: Array, default: () => [] },
+      selectedItem: { type: Object, default: () => ({}) },
+      hasThumbnail: { type: Boolean, default: true },
+      multiselectorTitle: { type: String, default: '' },
+      multiselectorPlaceholder: { type: String, default: '' },
+      noSearchResult: { type: String, default: '' },
+      inputPlaceholder: { type: String, default: '' },
+    },
+    emits: ['select'],
+    template: `
+      <div data-testid="multiselect-dropdown" :data-title="multiselectorTitle">
+        <button
+          v-for="option in options"
+          :key="option.id"
+          type="button"
+          :data-testid="'select-option-' + multiselectorTitle + '-' + option.id"
+          @click="$emit('select', option)"
+        >
+          {{ option.name }}
+        </button>
+      </div>
+    `,
+  },
 }));
 
 vi.mock('shared/components/ui/label/LabelDropdown.vue', () => ({
@@ -154,6 +210,29 @@ const buildStage = overrides => ({
   ...overrides,
 });
 
+const dueDatePickerStub = {
+  name: 'KanbanDueDatePicker',
+  inheritAttrs: false,
+  props: ['modelValue', 'label', 'placeholder', 'clearLabel'],
+  emits: ['update:modelValue', 'change'],
+  template: `
+    <label>
+      <span class="text-xs font-medium text-n-slate-11">{{ label }}</span>
+      <button type="button" data-testid="kanban-due-date-picker">
+        {{ modelValue || placeholder }}
+      </button>
+      <button
+        type="button"
+        data-testid="kanban-clear-due-date"
+        :aria-label="clearLabel"
+        @click="$emit('update:modelValue', ''); $emit('change', '')"
+      >
+        clear
+      </button>
+    </label>
+  `,
+};
+
 const store = {
   dispatch: vi.fn(),
   getters: {
@@ -161,9 +240,26 @@ const store = {
   },
 };
 
+const popoverStub = {
+  name: 'Popover',
+  props: ['align', 'disableMobileView', 'showContentBorder'],
+  template: `
+    <div>
+      <slot />
+      <slot name="content" />
+    </div>
+  `,
+};
+
 const mountComponent = (props = { conversationId: 456 }) =>
   mount(KanbanConversationCards, {
     props,
+    global: {
+      stubs: {
+        KanbanDueDatePicker: dueDatePickerStub,
+        Popover: popoverStub,
+      },
+    },
   });
 
 const openForm = async wrapper => {
@@ -182,9 +278,16 @@ const emitKanbanRealtimeEvent = payload => {
   emitter.emit(BUS_EVENTS.KANBAN_REALTIME_EVENT, payload);
 };
 
+const waitForAutosave = async () => {
+  await new Promise(resolve => {
+    setTimeout(resolve, 850);
+  });
+  await flushPromises();
+};
+
 const formLabels = wrapper =>
   wrapper
-    .findAll('label span')
+    .findAll('.text-xs.font-medium.text-n-slate-11')
     .map(node => node.text())
     .filter(Boolean);
 
@@ -192,7 +295,6 @@ describe('KanbanConversationCards', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     emitter.all.clear();
-    messageStamp.mockReturnValue('Jun 7, 2026 6:00 PM');
 
     useStore.mockReturnValue(store);
     useMapGetter.mockImplementation(key => {
@@ -227,6 +329,13 @@ describe('KanbanConversationCards', () => {
     KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
       data: { payload: [accountLabels[1]] },
     });
+    KanbanBoardsAPI.getCardAssignees.mockResolvedValue({
+      data: { payload: [], assignable_users: [] },
+    });
+    KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
+      data: { payload: [], assignable_users: [] },
+    });
+    KanbanBoardsAPI.deleteCardById.mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -441,7 +550,7 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
 
     const editLabels = wrapper
-      .findAll('li form > div p.text-xs, li form > label > span.text-xs')
+      .findAll('li form .text-xs.font-medium.text-n-slate-11')
       .map(node => node.text());
 
     expect(editLabels).toEqual([
@@ -450,6 +559,8 @@ describe('KanbanConversationCards', () => {
       'Opportunity stage',
       'Due date',
       'Labels',
+      'Priority',
+      'Agents',
     ]);
   });
 
@@ -466,9 +577,14 @@ describe('KanbanConversationCards', () => {
       'Maria Silva - Sales Inbox'
     );
     expect(wrapper.text()).toContain('New');
-    expect(wrapper.find('select').element.value).toBe('20');
-    expect(wrapper.find('input[type="datetime-local"]').element.value).toBe(
-      '2026-06-07T21:00'
+    const stageDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
+    expect(stageDropdown.props('selectedItem')).toEqual(
+      expect.objectContaining({ id: 20 })
+    );
+    expect(wrapper.find('[data-testid="kanban-due-date-picker"]').text()).toBe(
+      '2026-06-07'
     );
     expect(wrapper.text()).toContain('urgente');
     expect(wrapper.text()).toContain('vendas');
@@ -499,7 +615,9 @@ describe('KanbanConversationCards', () => {
     const wrapper = mountComponent();
     await flushPromises();
 
-    expect(wrapper.find('input[type="datetime-local"]').element.value).toBe('');
+    expect(wrapper.find('[data-testid="kanban-due-date-picker"]').text()).toBe(
+      'Escolha a data'
+    );
     expect(wrapper.findAll('.rounded-md.bg-n-slate-3')).toHaveLength(0);
   });
 
@@ -548,6 +666,8 @@ describe('KanbanConversationCards', () => {
       'Opportunity stage',
       'Due date',
       'Labels',
+      'Priority',
+      'Agents',
     ]);
   });
 
@@ -560,7 +680,12 @@ describe('KanbanConversationCards', () => {
     expect(KanbanBoardsAPI.getBoards).toHaveBeenCalledWith({
       signal: expect.any(AbortSignal),
     });
-    expect(wrapper.find('select').element.value).toBe('10');
+    const boardDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Board');
+    expect(boardDropdown.props('selectedItem')).toEqual(
+      expect.objectContaining({ id: 10 })
+    );
     expect(wrapper.text()).not.toContain('Inactive');
   });
 
@@ -573,7 +698,12 @@ describe('KanbanConversationCards', () => {
     expect(KanbanBoardsAPI.showBoard).toHaveBeenCalledWith(10, {
       signal: expect.any(AbortSignal),
     });
-    expect(wrapper.findAll('select')[1].element.value).toBe('20');
+    const stageDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
+    expect(stageDropdown.props('selectedItem')).toEqual(
+      expect.objectContaining({ id: 20 })
+    );
   });
 
   it('clears the previous stage when board changes', async () => {
@@ -595,9 +725,17 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
     await openForm(wrapper);
 
-    await wrapper.find('select').setValue('11');
+    const boardDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Board');
+    await boardDropdown
+      .find('[data-testid="select-option-Board-11"]')
+      .trigger('click');
 
-    expect(wrapper.findAll('select')[1].element.value).toBe('');
+    const stageDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
+    expect(stageDropdown.props('selectedItem')).toEqual({});
   });
 
   it('prefills the subject and keeps it editable', async () => {
@@ -633,16 +771,17 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
     await openForm(wrapper);
 
-    await wrapper
-      .find('input[type="datetime-local"]')
-      .setValue('2026-06-07T18:00');
+    wrapper
+      .findComponent({ name: 'KanbanDueDatePicker' })
+      .vm.$emit('update:modelValue', '2026-06-07');
+    await nextTick();
     await wrapper.find('form').trigger('submit.prevent');
 
     expect(KanbanBoardsAPI.createConversationCard).toHaveBeenCalledWith(
       456,
       expect.objectContaining({
         card: expect.objectContaining({
-          due_at: new Date('2026-06-07T18:00').toISOString(),
+          due_at: new Date(2026, 5, 7, 12).toISOString(),
         }),
       }),
       { signal: expect.any(AbortSignal) }
@@ -688,8 +827,11 @@ describe('KanbanConversationCards', () => {
           kanban_board_id: 10,
           kanban_stage_id: 20,
           subject: 'Enterprise renewal',
+          starts_at: null,
           due_at: null,
           labels: ['urgente'],
+          priority: null,
+          assignee_ids: [],
         },
       },
       { signal: expect.any(AbortSignal) }
@@ -771,7 +913,12 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.find('input[type="text"]').element.value).toBe(
       'Maria Silva - Sales Inbox'
     );
-    expect(wrapper.find('select').element.value).toBe('20');
+    const stageDropdown = wrapper
+      .findAllComponents({ name: 'MultiselectDropdown' })
+      .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
+    expect(stageDropdown.props('selectedItem')).toEqual(
+      expect.objectContaining({ id: 20 })
+    );
     expect(wrapper.findComponent({ name: 'LabelDropdown' }).exists()).toBe(
       true
     );
@@ -801,16 +948,19 @@ describe('KanbanConversationCards', () => {
     KanbanBoardsAPI.updateCardDetailsById.mockClear();
     await wrapper.find('input[type="text"]').setValue('  Updated renewal  ');
     await flushPromises();
-    await wrapper.find('select').setValue('20');
-    await flushPromises();
-    await wrapper
-      .find('input[type="datetime-local"]')
-      .setValue('2026-06-08T10:30');
+    wrapper
+      .findComponent({ name: 'KanbanDueDatePicker' })
+      .vm.$emit('update:modelValue', '2026-06-08');
+    wrapper
+      .findComponent({ name: 'KanbanDueDatePicker' })
+      .vm.$emit('change', '2026-06-08');
+    await nextTick();
     await flushPromises();
     await wrapper
       .findComponent({ name: 'LabelDropdown' })
       .vm.$emit('remove', 'urgente');
     await flushPromises();
+    await waitForAutosave();
 
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
       10,
@@ -818,8 +968,10 @@ describe('KanbanConversationCards', () => {
       {
         kanban_stage_id: 20,
         subject: 'Updated renewal',
-        due_at: new Date('2026-06-08T10:30').toISOString(),
+        starts_at: null,
+        due_at: new Date(2026, 5, 8, 12).toISOString(),
         labels: ['vendas'],
+        priority: null,
       }
     );
     expect(KanbanBoardsAPI.updateCardLabels).not.toHaveBeenCalled();
@@ -838,6 +990,7 @@ describe('KanbanConversationCards', () => {
     await openEditForm(wrapper);
     await wrapper.find('input[type="text"]').setValue('Custom edit');
     await flushPromises();
+    await waitForAutosave();
 
     expect(wrapper.text()).toContain('Invalid stage');
     expect(wrapper.find('input[type="text"]').element.value).toBe(

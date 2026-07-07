@@ -93,11 +93,16 @@ export const mutations = {
     const [chat] = _state.allConversations.filter(c => c.id === id);
     if (!chat) return;
     chat.messages = data;
+    chat.messageGapBeforeId = null;
   },
 
   [types.MERGE_CONVERSATION_MESSAGE_WINDOW](_state, { id, data }) {
     const chat = getConversationById(_state)(id);
     if (!chat || !data.length) return;
+
+    const existingIds = new Set(chat.messages.map(m => m.id));
+    const windowIds = new Set(data.map(m => m.id));
+    const hasOverlap = data.some(m => existingIds.has(m.id));
 
     const messagesById = new Map(
       chat.messages.map(message => [message.id, message])
@@ -118,6 +123,19 @@ export const mutations = {
       }
     );
 
+    let gapBeforeMessageId = null;
+    if (!hasOverlap && chat.messages.length > 0) {
+      for (let i = 1; i < sortedMessages.length; i += 1) {
+        const prevInWindow = windowIds.has(sortedMessages[i - 1].id);
+        const currInWindow = windowIds.has(sortedMessages[i].id);
+        if (prevInWindow !== currInWindow) {
+          gapBeforeMessageId = sortedMessages[i].id;
+          break;
+        }
+      }
+    }
+
+    chat.messageGapBeforeId = gapBeforeMessageId;
     chat.messages.splice(0, chat.messages.length, ...sortedMessages);
   },
 
@@ -279,7 +297,10 @@ export const mutations = {
       }
 
       const { messages, ...updates } = conversation;
-      allConversations[index] = { ...selectedConversation, ...updates };
+      allConversations[index] = {
+        ...selectedConversation,
+        ...updates,
+      };
       if (_state.selectedChatId === conversation.id) {
         emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
       }
@@ -289,6 +310,29 @@ export const mutations = {
       if (![MENTION, PARTICIPATING].includes(conversationType)) {
         _state.allConversations.push(conversation);
       }
+    }
+  },
+
+  // Upserts a conversation fetched individually by id (e.g. direct route
+  // navigation, search results, contact history). Unlike UPDATE_CONVERSATION,
+  // it always adds the conversation when missing, regardless of the
+  // mention/unattended list filter, since the user explicitly requested it.
+  [types.UPSERT_CONVERSATION](_state, conversation) {
+    const { allConversations } = _state;
+    const index = allConversations.findIndex(c => c.id === conversation.id);
+
+    if (index > -1) {
+      const selectedConversation = allConversations[index];
+      if (conversation.updated_at < selectedConversation.updated_at) {
+        return;
+      }
+      const { messages, ...updates } = conversation;
+      allConversations[index] = {
+        ...selectedConversation,
+        ...updates,
+      };
+    } else {
+      _state.allConversations.push(conversation);
     }
   },
 
@@ -348,6 +392,24 @@ export const mutations = {
     if (!message?.call) return;
 
     message.call = { ...message.call, status: callStatus };
+  },
+
+  [types.UPDATE_CONVERSATION_PIN](_state, { conversationId, pinnedAt }) {
+    const chat = getConversationById(_state)(conversationId);
+    if (!chat) return;
+    chat.account_pinned_at = pinnedAt;
+  },
+
+  [types.UPDATE_CONVERSATION_NOTIFICATIONS_MUTE](
+    _state,
+    { conversationId, muted }
+  ) {
+    const chat = getConversationById(_state)(conversationId);
+    if (!chat) return;
+    chat.additional_attributes = {
+      ...chat.additional_attributes,
+      notifications_muted: muted,
+    };
   },
 
   [types.SET_ACTIVE_INBOX](_state, inboxId) {

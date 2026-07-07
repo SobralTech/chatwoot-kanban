@@ -16,6 +16,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  showAssistant: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const emit = defineEmits(['setMode']);
@@ -91,13 +95,14 @@ const setMode = mode => {
       {{ $t('CONVERSATION.REPLYBOX.PRIVATE_NOTE') }}
     </button>
     <button
+      v-if="showAssistant"
       ref="wootEditorAssistantMode"
       class="flex items-center gap-1 px-2 z-20 h-6"
       :disabled="disabled"
       type="button"
       @click="setMode(REPLY_EDITOR_MODES.ASSISTANT)"
     >
-      <span class="i-ph-sparkle-fill" />
+      <span class="i-woot-openai" />
       {{ $t('CONVERSATION.REPLYBOX.ASSISTANT') }}
     </button>
     <div

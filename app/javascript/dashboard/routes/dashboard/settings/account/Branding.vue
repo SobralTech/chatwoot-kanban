@@ -129,7 +129,7 @@ const removeAsset = async assetName => {
             <input
               :ref="element => (fileInputs[asset.key] = element)"
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/x-icon"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon"
               class="sr-only"
               @change="onFileChange(asset.key, $event)"
             />

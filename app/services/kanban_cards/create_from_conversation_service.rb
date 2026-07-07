@@ -2,7 +2,7 @@ class KanbanCards::CreateFromConversationService
   DUPLICATE_CONVERSATION_ERROR = 'Conversation already has an opportunity with this subject on this board'.freeze
 
   # rubocop:disable Metrics/ParameterLists
-  def initialize(account:, user:, conversation:, kanban_board:, kanban_stage:, subject:, due_at: nil, labels: [])
+  def initialize(account:, user:, conversation:, kanban_board:, kanban_stage:, subject:, due_at: nil, labels: [], priority: nil, assignee_ids: [])
     @account = account
     @user = user
     @conversation = conversation
@@ -11,6 +11,8 @@ class KanbanCards::CreateFromConversationService
     @subject = subject
     @due_at = due_at
     @labels = labels
+    @priority = priority
+    @assignee_ids = assignee_ids
   end
   # rubocop:enable Metrics/ParameterLists
 
@@ -21,7 +23,10 @@ class KanbanCards::CreateFromConversationService
       kanban_stage.lock!
       lock_active_cards!
       shift_active_cards_down!
-      create_card!.tap { |created_card| created_card.update_labels(label_titles) }
+      create_card!.tap do |created_card|
+        created_card.update_labels(label_titles)
+        created_card.update_assignees!(assignee_ids)
+      end
     end
     dispatch_card_created_event(card)
     card
@@ -31,7 +36,7 @@ class KanbanCards::CreateFromConversationService
 
   private
 
-  attr_reader :account, :user, :conversation, :kanban_board, :kanban_stage, :subject, :due_at, :labels
+  attr_reader :account, :user, :conversation, :kanban_board, :kanban_stage, :subject, :due_at, :labels, :priority, :assignee_ids
 
   def validate_scope!
     validate_conversation!
@@ -103,6 +108,7 @@ class KanbanCards::CreateFromConversationService
       origin: 'conversation',
       position: 1,
       due_at: due_at,
+      priority: priority,
       active: true
     }
   end

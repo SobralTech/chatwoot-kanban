@@ -98,31 +98,20 @@
       },
       "AUDIO_NOTIFICATIONS_SECTION": {
         "TITLE": "Alertas de áudio",
-        "NOTE": "Habilitar notificações de áudio no painel para novas mensagens e conversas.",
+        "NOTE": "Habilitar alertas de áudio no painel para novas mensagens de contato e menções em conversas.",
         "PLAY": "Reproduzir áudio",
         "ALERT_TYPES": {
-          "NONE": "Nenhuma",
-          "MINE": "Atribuído",
-          "ALL": "Todos",
-          "ASSIGNED": "Conversas atribuídas a mim",
-          "UNASSIGNED": "Conversas não atribuídas",
-          "NOTME": "Conversas abertas atribuídas a outras pessoas"
+          "CONTACT_MESSAGE": "Um contato enviou uma nova mensagem",
+          "CONVERSATION_MENTION": "Você foi mencionado em uma conversa"
         },
         "ALERT_COMBINATIONS": {
           "NONE": "Você não selecionou nenhuma opção, você não receberá nenhum alerta de áudio.",
-          "ASSIGNED": "Você receberá alertas para conversas atribuídas a você.",
-          "UNASSIGNED": "Você receberá alertas para quaisquer conversas não atribuídas.",
-          "NOTME": "Você receberá alertas para conversas atribuídas a outras pessoas.",
-          "ASSIGNED+UNASSIGNED": "Receberá alertas de conversas atribuídas e de quaisquer conversas não atendidas.",
-          "ASSIGNED+NOTME": "Você receberá alertas para conversas atribuídas a você e a outros, mas não para conversas não atribuídas.",
-          "NOTME+UNASSIGNED": "Você receberá alertas de conversas não atendidas e aquelas atribuídas a outros.",
-          "ASSIGNED+NOTME+UNASSIGNED": "Você receberá alertas para quaisquer conversas não atribuídas."
+          "CONTACT_MESSAGE": "Você receberá alertas de áudio quando um contato enviar uma nova mensagem recebida em uma conversa que você pode acessar.",
+          "CONVERSATION_MENTION": "Você receberá alertas de áudio quando outro agente mencionar você em uma conversa.",
+          "CONTACT_MESSAGE+CONVERSATION_MENTION": "Você receberá alertas de áudio para novas mensagens recebidas de contatos e para menções em conversas."
         },
         "ALERT_TYPE": {
-          "TITLE": "Eventos de alerta para conversas",
-          "NONE": "Nenhuma",
-          "ASSIGNED": "Conversas atribuídas",
-          "ALL_CONVERSATIONS": "Todas as conversas"
+          "TITLE": "Eventos de alerta"
         },
         "DEFAULT_TONE": {
           "TITLE": "Titulo:"
@@ -130,7 +119,7 @@
         "CONDITIONS": {
           "TITLE": "Condições:",
           "CONDITION_ONE": "Enviar alertas de áudio apenas se a janela do navegador não estiver ativa",
-          "CONDITION_TWO": "Enviar alertas a cada 30 segundos até que todas as conversas atribuídas sejam lidas"
+          "CONDITION_TWO": "Enviar alertas a cada 30 segundos até que todas as conversas abertas com mensagens não lidas sejam lidas"
         },
         "SOUND_PERMISSION_ERROR": "A reprodução automática está desativada no seu navegador. Para ouvir alertas automaticamente, habilite a permissão de som nas configurações do seu navegador ou interaja com a página.",
         "READ_MORE": "Saiba mais"
@@ -138,14 +127,9 @@
       "EMAIL_NOTIFICATIONS_SECTION": {
         "TITLE": "Notificações por e-mail",
         "NOTE": "Atualize suas preferências de notificação por e-mail aqui",
-        "CONVERSATION_ASSIGNMENT": "Enviar notificações por email quando uma conversa for atribuída a mim",
-        "CONVERSATION_CREATION": "Enviar notificações por email quando uma nova conversa for criada",
+        "CONTACT_MESSAGE": "Enviar notificações por e-mail quando um contato enviar uma nova mensagem em uma caixa de entrada que você pode acessar",
         "CONVERSATION_MENTION": "Enviar notificações por email quando você for mencionado em uma conversa",
-        "ASSIGNED_CONVERSATION_NEW_MESSAGE": "Envie notificações por e-mail quando uma nova mensagem for criada numa conversa já atribuída",
-        "PARTICIPATING_CONVERSATION_NEW_MESSAGE": "Enviar notificações por email quando uma nova mensagem é criada em uma conversa que você participa",
-        "SLA_MISSED_FIRST_RESPONSE": "Enviar notificações por e-mail quando uma conversa perder a primeira resposta SLA",
-        "SLA_MISSED_NEXT_RESPONSE": "Enviar notificações por e-mail quando uma conversa perder o próximo SLA de resposta",
-        "SLA_MISSED_RESOLUTION": "Enviar notificações por e-mail quando uma conversa perder o SLA de resolução"
+        "CONTACT_MESSAGE_NOTE": "Somente mensagens recebidas de contatos disparam esta notificação"
       },
       "NOTIFICATIONS": {
         "TITLE": "Preferências de notificação",
@@ -153,14 +137,9 @@
         "EMAIL": "E-mail",
         "PUSH": "Notificação ",
         "TYPES": {
-          "CONVERSATION_CREATED": "Uma nova conversa foi criada",
-          "CONVERSATION_ASSIGNED": "Uma conversa foi atribuída a você",
+          "CONTACT_MESSAGE": "Um contato enviou uma nova mensagem",
           "CONVERSATION_MENTION": "Você foi mencionado em uma conversa",
-          "ASSIGNED_CONVERSATION_NEW_MESSAGE": "Uma nova mensagem foi criada e atribuída",
-          "PARTICIPATING_CONVERSATION_NEW_MESSAGE": "Uma nova mensagem foi criada em uma conversa que você participa",
-          "SLA_MISSED_FIRST_RESPONSE": "Uma conversa perde o SLA de primeira resposta",
-          "SLA_MISSED_NEXT_RESPONSE": "Uma conversa perde o SLA da próxima resposta",
-          "SLA_MISSED_RESOLUTION": "Uma conversa perde o SLA de resolução"
+          "CONTACT_MESSAGE_NOTE": "Somente mensagens recebidas de contatos disparam esta notificação"
         },
         "BROWSER_PERMISSION": "Ative notificações push em seu navegador para poder recebê-las"
       },
@@ -171,16 +150,11 @@
       "PUSH_NOTIFICATIONS_SECTION": {
         "TITLE": "Notificações via Push",
         "NOTE": "Atualize suas preferências de notificação Push aqui",
-        "CONVERSATION_ASSIGNMENT": "Enviar notificações push quando uma conversa é atribuída a mim",
-        "CONVERSATION_CREATION": "Enviar notificações push quando uma nova conversa é criada",
+        "CONTACT_MESSAGE": "Enviar notificações push quando um contato enviar uma nova mensagem em uma caixa de entrada que você pode acessar",
         "CONVERSATION_MENTION": "Enviar notificações push quando você for mencionado em uma conversa",
-        "ASSIGNED_CONVERSATION_NEW_MESSAGE": "Envie notificações quando uma nova mensagem for criada numa conversa já atribuída",
-        "PARTICIPATING_CONVERSATION_NEW_MESSAGE": "Enviar notificações push quando uma nova mensagem é criada em uma conversa que você participa",
         "HAS_ENABLED_PUSH": "Você ativou push para este navegador.",
         "REQUEST_PUSH": "Habilitar notificações push",
-        "SLA_MISSED_FIRST_RESPONSE": "Enviar notificações quando uma conversa perder a primeira resposta SLA",
-        "SLA_MISSED_NEXT_RESPONSE": "Enviar notificações quando uma conversa perder a próxima resposta SLA",
-        "SLA_MISSED_RESOLUTION": "Enviar notificações quando uma conversa perder resolução de resolução SLA"
+        "CONTACT_MESSAGE_NOTE": "Somente mensagens recebidas de contatos disparam esta notificação"
       },
       "PROFILE_IMAGE": {
         "LABEL": "Imagem do Perfil"
@@ -332,6 +306,7 @@
     "INTEGRATIONS": "Integrações",
     "PROFILE_SETTINGS": "Configurações do Perfil",
     "ACCOUNT_SETTINGS": "Conta",
+    "BRANDING": "Marca",
     "APPLICATIONS": "Aplicações",
     "LABELS": "Etiquetas",
     "CUSTOM_ATTRIBUTES": "Atributos Personalizados",

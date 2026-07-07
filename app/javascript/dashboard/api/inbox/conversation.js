@@ -96,6 +96,14 @@ class ConversationApi extends ApiClient {
     return axios.post(`${this.url}/${conversationId}/unmute`);
   }
 
+  muteNotifications(conversationId) {
+    return axios.post(`${this.url}/${conversationId}/mute_notifications`);
+  }
+
+  unmuteNotifications(conversationId) {
+    return axios.post(`${this.url}/${conversationId}/unmute_notifications`);
+  }
+
   meta({ inboxId, status, assigneeType, labels, teamId, conversationType }) {
     return axios.get(`${this.url}/meta`, {
       params: {
@@ -135,6 +143,10 @@ class ConversationApi extends ApiClient {
 
   getInboxAssistant(conversationId) {
     return axios.get(`${this.url}/${conversationId}/inbox_assistant`);
+  }
+
+  togglePin({ conversationId }) {
+    return axios.post(`${this.url}/${conversationId}/toggle_pin`);
   }
 
   delete(conversationId) {

@@ -7,7 +7,7 @@ import {
   useTemplateRef,
   inject,
 } from 'vue';
-import { useWindowSize, useElementBounding, useScrollLock } from '@vueuse/core';
+import { useWindowSize, useElementBounding } from '@vueuse/core';
 
 import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
 
@@ -27,7 +27,11 @@ const scrollLockElement = computed(() => {
   return elementToLock.value?.$el;
 });
 
-const isLocked = useScrollLock(scrollLockElement);
+// Lock via pointer-events instead of overflow:hidden so the scrollbar
+// stays visible (no layout shift) while the menu is open.
+const setScrollLocked = locked => {
+  scrollLockElement.value?.classList.toggle('pointer-events-none', locked);
+};
 
 const { width: windowWidth, height: windowHeight } = useWindowSize();
 const { width: menuWidth, height: menuHeight } = useElementBounding(menuRef);
@@ -68,17 +72,17 @@ const position = computed(() => {
 });
 
 onMounted(() => {
-  isLocked.value = true;
+  setScrollLocked(true);
   nextTick(() => menuRef.value?.focus());
 });
 
 const handleClose = () => {
-  isLocked.value = false;
+  setScrollLocked(false);
   emit('close');
 };
 
 onUnmounted(() => {
-  isLocked.value = false;
+  setScrollLocked(false);
 });
 </script>
 

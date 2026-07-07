@@ -30,51 +30,8 @@ class KanbanCards::ImportExistingConversationsService
   attr_reader :account, :kanban_board, :ignore_groups, :summary
 
   def import_batch(batch)
-    reactivated_count = KanbanCard.connection.exec_query(reactivate_sql(batch)).rows.length
     inserted_count = KanbanCard.connection.exec_query(insert_sql(batch)).rows.length
-    summary[:reactivated] += reactivated_count
     summary[:created] += inserted_count
-  end
-
-  def reactivate_sql(batch)
-    now = KanbanCard.connection.quote(Time.current)
-    board_id = KanbanCard.connection.quote(kanban_board.id)
-    stage_id = KanbanCard.connection.quote(default_stage.id)
-
-    <<~SQL.squish
-      #{reactivation_cte_sql(batch, board_id)}
-      UPDATE #{KanbanCard.quoted_table_name}
-      SET #{reactivation_update_sql(stage_id, now)}
-      FROM ranked_cards
-      WHERE #{KanbanCard.quoted_table_name}.id = ranked_cards.id
-      RETURNING #{KanbanCard.quoted_table_name}.id
-    SQL
-  end
-
-  def reactivation_cte_sql(batch, board_id)
-    <<~SQL.squish
-      WITH batch_conversations AS (#{batch.select(:id).to_sql}),
-      ranked_cards AS (
-        SELECT
-          #{KanbanCard.quoted_table_name}.id,
-          (#{max_position_sql}) + ROW_NUMBER() OVER (ORDER BY #{KanbanCard.quoted_table_name}.id) AS next_position
-        FROM #{KanbanCard.quoted_table_name}
-        INNER JOIN batch_conversations ON batch_conversations.id = #{KanbanCard.quoted_table_name}.conversation_id
-        WHERE #{KanbanCard.quoted_table_name}.kanban_board_id = #{board_id}
-          AND #{KanbanCard.quoted_table_name}.origin = 'conversation'
-          AND #{KanbanCard.quoted_table_name}.active = FALSE
-      )
-    SQL
-  end
-
-  def reactivation_update_sql(stage_id, timestamp)
-    [
-      'active = TRUE',
-      "kanban_stage_id = #{stage_id}",
-      'position = ranked_cards.next_position',
-      "stage_entered_at = #{timestamp}",
-      "updated_at = #{timestamp}"
-    ].join(', ')
   end
 
   def insert_sql(batch)
@@ -161,11 +118,10 @@ class KanbanCards::ImportExistingConversationsService
 
   def eligible_conversations
     relation = Conversation
-               .open
                .where(account_id: account.id)
                .where.not(contact_id: nil)
                .where.not(inbox_id: nil)
-               .where("NOT EXISTS (#{active_card_relation.to_sql})")
+               .where("NOT EXISTS (#{existing_card_relation.to_sql})")
                .order(:id)
 
     relation = relation.where(inbox_id: allowed_inbox_ids) if kanban_board.selected_inboxes?
@@ -186,9 +142,8 @@ class KanbanCards::ImportExistingConversationsService
     @allowed_inbox_ids ||= kanban_board.kanban_board_inboxes.pluck(:inbox_id)
   end
 
-  def active_card_relation
+  def existing_card_relation
     KanbanCard.conversation
-              .active
               .where(kanban_board_id: kanban_board.id)
               .where('kanban_cards.conversation_id = conversations.id')
               .select('1')
@@ -199,9 +154,6 @@ class KanbanCards::ImportExistingConversationsService
   end
 
   def summary_hash
-    {
-      created: 0,
-      reactivated: 0
-    }
+    { created: 0 }
   end
 end

@@ -21,25 +21,61 @@ describe('#mutations', () => {
   });
 
   describe('#CONTACT_SEARCH_SET', () => {
-    it('should append new contact records to existing ones', () => {
+    it('should replace existing records on a fresh search (page 1)', () => {
       const state = { contactRecords: [{ id: 1 }] };
-      mutations[types.CONTACT_SEARCH_SET](state, [{ id: 2 }]);
+      mutations[types.CONTACT_SEARCH_SET](state, {
+        records: [{ id: 2 }],
+        page: 1,
+      });
+      expect(state.contactRecords).toEqual([{ id: 2 }]);
+    });
+
+    it('should append new contact records when loading more pages', () => {
+      const state = { contactRecords: [{ id: 1 }] };
+      mutations[types.CONTACT_SEARCH_SET](state, {
+        records: [{ id: 2 }],
+        page: 2,
+      });
       expect(state.contactRecords).toEqual([{ id: 1 }, { id: 2 }]);
     });
   });
 
   describe('#CONVERSATION_SEARCH_SET', () => {
-    it('should append new conversation records to existing ones', () => {
+    it('should replace existing records on a fresh search (page 1)', () => {
       const state = { conversationRecords: [{ id: 1 }] };
-      mutations[types.CONVERSATION_SEARCH_SET](state, [{ id: 2 }]);
+      mutations[types.CONVERSATION_SEARCH_SET](state, {
+        records: [{ id: 2 }],
+        page: 1,
+      });
+      expect(state.conversationRecords).toEqual([{ id: 2 }]);
+    });
+
+    it('should append new conversation records when loading more pages', () => {
+      const state = { conversationRecords: [{ id: 1 }] };
+      mutations[types.CONVERSATION_SEARCH_SET](state, {
+        records: [{ id: 2 }],
+        page: 2,
+      });
       expect(state.conversationRecords).toEqual([{ id: 1 }, { id: 2 }]);
     });
   });
 
   describe('#MESSAGE_SEARCH_SET', () => {
-    it('should append new message records to existing ones', () => {
+    it('should replace existing records on a fresh search (page 1)', () => {
       const state = { messageRecords: [{ id: 1 }] };
-      mutations[types.MESSAGE_SEARCH_SET](state, [{ id: 2 }]);
+      mutations[types.MESSAGE_SEARCH_SET](state, {
+        records: [{ id: 2 }],
+        page: 1,
+      });
+      expect(state.messageRecords).toEqual([{ id: 2 }]);
+    });
+
+    it('should append new message records when loading more pages', () => {
+      const state = { messageRecords: [{ id: 1 }] };
+      mutations[types.MESSAGE_SEARCH_SET](state, {
+        records: [{ id: 2 }],
+        page: 2,
+      });
       expect(state.messageRecords).toEqual([{ id: 1 }, { id: 2 }]);
     });
   });
@@ -102,9 +138,21 @@ describe('#mutations', () => {
   });
 
   describe('#ARTICLE_SEARCH_SET', () => {
-    it('should append new article records to existing ones', () => {
+    it('should replace existing records on a fresh search (page 1)', () => {
       const state = { articleRecords: [{ id: 1 }] };
-      mutations[types.ARTICLE_SEARCH_SET](state, [{ id: 2 }]);
+      mutations[types.ARTICLE_SEARCH_SET](state, {
+        records: [{ id: 2 }],
+        page: 1,
+      });
+      expect(state.articleRecords).toEqual([{ id: 2 }]);
+    });
+
+    it('should append new article records when loading more pages', () => {
+      const state = { articleRecords: [{ id: 1 }] };
+      mutations[types.ARTICLE_SEARCH_SET](state, {
+        records: [{ id: 2 }],
+        page: 2,
+      });
       expect(state.articleRecords).toEqual([{ id: 1 }, { id: 2 }]);
     });
   });

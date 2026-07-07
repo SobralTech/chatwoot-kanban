@@ -240,12 +240,6 @@ describe('KanbanOpportunityPicker', () => {
     expect(selected.text()).toContain('Jane Cooper');
   });
 
-  it('emits close on close button click', async () => {
-    const wrapper = mountPicker();
-    await wrapper.find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]').trigger('click');
-    expect(wrapper.emitted('close')).toBeTruthy();
-  });
-
   it('aborts pending request on unmount', async () => {
     vi.useFakeTimers();
     const signals = [];
@@ -627,28 +621,6 @@ describe('KanbanOpportunityPicker', () => {
       expect(subjectInput(wrapper).element.value).toBe('Bob - Email Inbox');
     });
 
-    it('resets subject when picker closes', async () => {
-      vi.useFakeTimers();
-      ContactAPI.getConversations.mockResolvedValue({
-        data: { payload: [buildConversation()] },
-      });
-      ContactAPI.search.mockResolvedValue({
-        data: { payload: [buildContact()] },
-      });
-      const wrapper = mountPicker();
-
-      await searchAndSelectFirstInbox(wrapper);
-      await subjectInput(wrapper).setValue('Custom opportunity');
-      await wrapper
-        .find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]')
-        .trigger('click');
-      await searchAndSelectFirstInbox(wrapper);
-
-      expect(subjectInput(wrapper).element.value).toBe(
-        'Jane Cooper - Email Inbox'
-      );
-    });
-
     it('does not submit a blank subject', async () => {
       vi.useFakeTimers();
       ContactAPI.getConversations.mockResolvedValue({
@@ -905,26 +877,6 @@ describe('KanbanOpportunityPicker', () => {
 
       expect(conversationSignals[0].aborted).toBe(true);
       expect(conversationSignals[1].aborted).toBe(false);
-    });
-
-    it('resets inbox state when picker closes', async () => {
-      vi.useFakeTimers();
-      const conversationSignals = [];
-      ContactAPI.getConversations.mockImplementation((...args) => {
-        conversationSignals.push(args[1].signal);
-        return new Promise(() => {});
-      });
-      const wrapper = mountPicker();
-
-      await searchAndSelectFirstContact(wrapper, 'Jan');
-      expect(conversationSignals[0].aborted).toBe(false);
-
-      await wrapper
-        .find('[aria-label="KANBAN.ADD_ITEM.CLOSE"]')
-        .trigger('click');
-
-      expect(conversationSignals[0].aborted).toBe(true);
-      expect(wrapper.emitted('close')).toBeTruthy();
     });
 
     it('aborts stale inbox request when contact changes before resolution', async () => {

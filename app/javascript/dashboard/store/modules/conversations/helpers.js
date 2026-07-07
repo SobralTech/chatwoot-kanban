@@ -1,4 +1,5 @@
 import { CONVERSATION_PRIORITY_ORDER } from 'shared/constants/messages';
+import { getLastMessage } from 'dashboard/helper/conversationHelper';
 
 export const findPendingMessageIndex = (chat, message) => {
   const { echo_id: tempMessageId } = message;
@@ -27,11 +28,10 @@ export const filterByLabel = (shouldFilter, labels, chatLabels) => {
 export const filterByUnattended = (
   shouldFilter,
   conversationType,
-  firstReplyOn,
-  waitingSince
+  unreadCount
 ) => {
   return conversationType === 'unattended'
-    ? (!firstReplyOn || !!waitingSince) && shouldFilter
+    ? !!unreadCount && shouldFilter
     : shouldFilter;
 };
 
@@ -42,8 +42,7 @@ export const applyPageFilters = (conversation, filters) => {
     inbox_id: chatInboxId,
     labels: chatLabels = [],
     meta = {},
-    first_reply_created_at: firstReplyOn,
-    waiting_since: waitingSince,
+    unread_count: unreadCount,
   } = conversation;
   const team = meta.team || {};
   const { id: chatTeamId } = team;
@@ -55,8 +54,7 @@ export const applyPageFilters = (conversation, filters) => {
   shouldFilter = filterByUnattended(
     shouldFilter,
     conversationType,
-    firstReplyOn,
-    waitingSince
+    unreadCount
   );
 
   return shouldFilter;
@@ -124,9 +122,19 @@ const sortDescending = (valueA, valueB) => valueB - valueA;
 const getSortOrderFunction = sortOrder =>
   sortOrder === 'asc' ? sortAscending : sortDescending;
 
+const getLastActivityTimestamp = chat => {
+  const lastMessage = Array.isArray(chat.messages)
+    ? getLastMessage(chat)
+    : null;
+  return lastMessage?.created_at || chat.last_activity_at;
+};
+
 const sortConfig = {
   sortOnLastActivityAt: (a, b, sortDirection) =>
-    getSortOrderFunction(sortDirection)(a.last_activity_at, b.last_activity_at),
+    getSortOrderFunction(sortDirection)(
+      getLastActivityTimestamp(a),
+      getLastActivityTimestamp(b)
+    ),
 
   sortOnCreatedAt: (a, b, sortDirection) =>
     getSortOrderFunction(sortDirection)(a.created_at, b.created_at),
@@ -161,7 +169,16 @@ const sortConfig = {
   },
 };
 
+const getPinnedAt = conversation => conversation.account_pinned_at || null;
+
 export const sortComparator = (a, b, sortKey) => {
+  const aPinnedAt = getPinnedAt(a);
+  const bPinnedAt = getPinnedAt(b);
+
+  if (aPinnedAt && !bPinnedAt) return -1;
+  if (!aPinnedAt && bPinnedAt) return 1;
+  if (aPinnedAt && bPinnedAt) return bPinnedAt - aPinnedAt;
+
   const [sortMethod, sortDirection] =
     SORT_OPTIONS[sortKey] || SORT_OPTIONS.last_activity_at_desc;
   return sortConfig[sortMethod](a, b, sortDirection);

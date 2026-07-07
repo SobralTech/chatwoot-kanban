@@ -22,7 +22,6 @@ import inboxMixin, { INBOX_FEATURES } from 'shared/mixins/inboxMixin';
 // utils
 import { emitter } from 'shared/helpers/mitt';
 import { getTypingUsersText } from '../../../helper/commons';
-import { calculateScrollTop } from './helpers/scrollTopCalculationHelper';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import {
   filterDuplicateSourceMessages,
@@ -92,6 +91,7 @@ export default {
       conversationPanel: null,
       hasUserScrolled: false,
       isProgrammaticScroll: false,
+      programmaticScrollTimer: null,
       messageSentSinceOpened: false,
       labelSuggestions: [],
     };
@@ -269,6 +269,7 @@ export default {
   },
 
   created() {
+    this.currentScrollTarget = null;
     emitter.on(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
     // when a message is sent we set the flag to true this hides the label suggestions,
     // until the chat is changed and the flag is reset in the watch for currentChat
@@ -334,20 +335,31 @@ export default {
       this.$store.dispatch('fetchAllAttachments', this.currentChat.id);
     },
     removeBusListeners() {
+      this.currentScrollTarget = null;
       emitter.off(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
     },
     onScrollToMessage({ messageId = '' } = {}) {
-      this.$nextTick(() => {
-        const messageElement = document.getElementById('message' + messageId);
-        if (messageElement) {
-          this.isProgrammaticScroll = true;
-          messageElement.scrollIntoView({ behavior: 'smooth' });
-          this.fetchPreviousMessages();
-        } else {
-          this.scrollToBottom();
-        }
-      });
       this.makeMessagesRead();
+      if (!messageId) {
+        this.$nextTick(() => this.scrollToBottom());
+        return;
+      }
+      const target = String(messageId);
+      this.currentScrollTarget = target;
+      this.scrollToMessageWithRetry(target, 10);
+    },
+    scrollToMessageWithRetry(messageId, attemptsLeft) {
+      if (this.currentScrollTarget !== messageId) return;
+      const el = document.getElementById('message' + messageId);
+      if (el) {
+        this.isProgrammaticScroll = true;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      if (attemptsLeft <= 0) return;
+      requestAnimationFrame(() =>
+        this.scrollToMessageWithRetry(messageId, attemptsLeft - 1)
+      );
     },
     addScrollListener() {
       this.conversationPanel = this.$el.querySelector('.conversation-panel');
@@ -358,39 +370,11 @@ export default {
     },
     removeScrollListener() {
       this.conversationPanel.removeEventListener('scroll', this.handleScroll);
+      clearTimeout(this.programmaticScrollTimer);
     },
     scrollToBottom() {
       this.isProgrammaticScroll = true;
-      let relevantMessages = [];
-
-      // label suggestions are not part of the messages list
-      // so we need to handle them separately
-      let labelSuggestions =
-        this.conversationPanel.querySelector('.label-suggestion');
-
-      // if there are unread messages, scroll to the first unread message
-      if (this.unreadMessageCount > 0) {
-        // capturing only the unread messages
-        relevantMessages =
-          this.conversationPanel.querySelectorAll('.message--unread');
-      } else if (labelSuggestions) {
-        // when scrolling to the bottom, the label suggestions is below the last message
-        // so we scroll there if there are no unread messages
-        // Unread messages always take the highest priority
-        relevantMessages = [labelSuggestions];
-      } else {
-        // if there are no unread messages or label suggestion, scroll to the last message
-        // capturing last message from the messages list
-        relevantMessages = Array.from(
-          this.conversationPanel.querySelectorAll('.message--read')
-        ).slice(-1);
-      }
-
-      this.conversationPanel.scrollTop = calculateScrollTop(
-        this.conversationPanel.scrollHeight,
-        this.$el.scrollHeight,
-        relevantMessages
-      );
+      this.conversationPanel.scrollTop = this.conversationPanel.scrollHeight;
     },
     setScrollParams() {
       this.heightBeforeLoad = this.conversationPanel.scrollHeight;
@@ -430,14 +414,20 @@ export default {
 
     handleScroll(e) {
       if (this.isProgrammaticScroll) {
-        // Reset the flag
-        this.isProgrammaticScroll = false;
         this.hasUserScrolled = false;
+        // A smooth scrollIntoView fires scroll events for the duration of its
+        // animation. Only clear the flag once those events go quiet, so the
+        // in-flight animation isn't mistaken for a user scroll and doesn't
+        // race with a previous-messages fetch adjusting scrollTop mid-animation.
+        clearTimeout(this.programmaticScrollTimer);
+        this.programmaticScrollTimer = setTimeout(() => {
+          this.isProgrammaticScroll = false;
+        }, 150);
       } else {
         this.hasUserScrolled = true;
+        this.fetchPreviousMessages(e.target.scrollTop);
       }
       emitter.emit(BUS_EVENTS.ON_MESSAGE_LIST_SCROLL);
-      this.fetchPreviousMessages(e.target.scrollTop);
     },
 
     makeMessagesRead() {
@@ -541,6 +531,7 @@ export default {
       <ResizableEditorWrapper
         ref="resizableEditorWrapperRef"
         :container-height="Math.max(0, containerHeight - topBannerHeight)"
+        :is-an-email-channel="isAnEmailChannel"
       >
         <ReplyBox @toggle-editor-size="toggleReplyEditorSize" />
       </ResizableEditorWrapper>

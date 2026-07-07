@@ -19,6 +19,14 @@ if stable_card
   json.description card.description
   json.starts_at card.starts_at&.iso8601
   json.due_at card.due_at&.iso8601
+  json.priority card.priority if card.respond_to?(:priority)
+  if card.respond_to?(:assignees)
+    json.assignees card.assignees do |assignee_user|
+      json.id assignee_user.id
+      json.name assignee_user.name
+      json.avatar_url assignee_user.avatar_url
+    end
+  end
 end
 json.active card.active if card.respond_to?(:active)
 if card.respond_to?(:origin)

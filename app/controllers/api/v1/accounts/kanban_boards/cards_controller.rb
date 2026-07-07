@@ -68,7 +68,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def card_params
-    params.require(:card).permit(:kanban_stage_id, :position, :subject, :description, :starts_at, :due_at, labels: [])
+    params.require(:card).permit(:kanban_stage_id, :position, :subject, :description, :starts_at, :due_at, :priority, labels: [])
   end
 
   def manual_card_params
@@ -106,11 +106,12 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def reorder_kanban_card
     source_stage_id = @kanban_card.kanban_stage_id
+    target_stage = target_card_stage_for_reorder
 
     KanbanCard.transaction do
       @kanban_card.reorder_to_position!(
-        kanban_stage: target_card_stage_for_reorder,
-        position: params.dig(:card, :position) || @kanban_card.position
+        kanban_stage: target_stage,
+        position: params.dig(:card, :position) || next_card_position(target_stage)
       )
     end
 
@@ -137,7 +138,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def stable_card_update_params
-    card_params.slice(:subject, :description, :starts_at, :due_at)
+    card_params.slice(:subject, :description, :starts_at, :due_at, :priority)
   end
 
   def labels_param_present?

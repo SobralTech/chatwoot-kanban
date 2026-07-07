@@ -69,6 +69,18 @@ describe('#Inbox Helpers', () => {
         expect(getInboxIconByType(INBOX_TYPES.API)).toBe('i-ri-cloudy-fill');
       });
 
+      it('returns WhatsApp icon for API inbox with WhatsApp in the name', () => {
+        expect(
+          getInboxIconByType(INBOX_TYPES.API, null, 'fill', 'Sales WhatsApp')
+        ).toBe('i-ri-whatsapp-fill');
+      });
+
+      it('does not return WhatsApp icon for non-API inbox with WhatsApp in the name', () => {
+        expect(
+          getInboxIconByType(INBOX_TYPES.WEB, null, 'fill', 'Sales WhatsApp')
+        ).toBe('i-ri-global-fill');
+      });
+
       it('returns correct icon for Email', () => {
         expect(getInboxIconByType(INBOX_TYPES.EMAIL)).toBe('i-ri-mail-fill');
       });
@@ -107,6 +119,12 @@ describe('#Inbox Helpers', () => {
         expect(getInboxIconByType(INBOX_TYPES.FB, null, 'line')).toBe(
           'i-woot-messenger'
         );
+      });
+
+      it('returns WhatsApp line icon for API inbox with WhatsApp in the name', () => {
+        expect(
+          getInboxIconByType(INBOX_TYPES.API, null, 'line', 'Sales WhatsApp')
+        ).toBe('i-woot-whatsapp');
       });
 
       it('returns correct line icon for TikTok', () => {

@@ -105,3 +105,6 @@ CLAUDE.local.md
 local/
 Procfile.worktree
 .antigravitycli/
+
+# Local project docs/notes (not for upstream sync)
+DOC uazapi/

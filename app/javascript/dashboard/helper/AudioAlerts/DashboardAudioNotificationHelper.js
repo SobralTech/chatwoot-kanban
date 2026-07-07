@@ -1,15 +1,8 @@
-import { MESSAGE_TYPE } from 'shared/constants/messages';
 import { showBadgeOnFavicon } from './faviconHelper';
 import { initFaviconSwitcher } from './faviconHelper';
 
-import { EVENT_TYPES } from 'dashboard/routes/dashboard/settings/profile/constants.js';
 import GlobalStore from 'dashboard/store';
 import AudioNotificationStore from './AudioNotificationStore';
-import {
-  isConversationAssignedToMe,
-  isConversationUnassigned,
-  isMessageFromCurrentUser,
-} from './AudioMessageHelper';
 import WindowVisibilityHelper from './WindowVisibilityHelper';
 import { useAlert } from 'dashboard/composables';
 
@@ -17,7 +10,33 @@ const NOTIFICATION_TIME = 30000;
 const ALERT_DURATION = 10000;
 const ALERT_PATH_PREFIX = '/audio/dashboard/';
 const DEFAULT_TONE = 'ding';
-const DEFAULT_ALERT_TYPE = ['none'];
+const DEFAULT_ALERT_TYPE = 'none';
+const AUDIO_NOTIFICATION_TYPES = ['contact_message', 'conversation_mention'];
+const LEGACY_AUDIO_ALERT_TYPES = [
+  'all',
+  'assigned',
+  'mine',
+  'notme',
+  'unassigned',
+  'true',
+];
+
+const selectedAudioAlertTypes = audioAlertType => {
+  const values = Array(audioAlertType).flatMap(value =>
+    value.toString().split('+')
+  );
+  const normalizedValues = values.flatMap(value => {
+    if (!value || value === 'none' || value === 'false') return [];
+    if (LEGACY_AUDIO_ALERT_TYPES.includes(value)) return ['contact_message'];
+    if (AUDIO_NOTIFICATION_TYPES.includes(value)) return [value];
+
+    return [];
+  });
+
+  return normalizedValues.length
+    ? [...new Set(normalizedValues)]
+    : [DEFAULT_ALERT_TYPE];
+};
 
 export class DashboardAudioNotificationHelper {
   constructor(store) {
@@ -27,7 +46,7 @@ export class DashboardAudioNotificationHelper {
     this.store = new AudioNotificationStore(store);
 
     this.notificationConfig = {
-      audioAlertType: DEFAULT_ALERT_TYPE,
+      audioAlertType: [DEFAULT_ALERT_TYPE],
       playAlertOnlyWhenHidden: true,
       alertIfUnreadConversationExist: false,
     };
@@ -55,9 +74,9 @@ export class DashboardAudioNotificationHelper {
     } catch (error) {
       if (
         error.name === 'NotAllowedError' &&
-        !this.hasSentSoundPermissionsRequest
+        !this.audioConfig.hasSentSoundPermissionsRequest
       ) {
-        this.hasSentSoundPermissionsRequest = true;
+        this.audioConfig.hasSentSoundPermissionsRequest = true;
         useAlert(
           'PROFILE_SETTINGS.FORM.AUDIO_NOTIFICATIONS_SECTION.SOUND_PERMISSION_ERROR',
           { usei18n: true, duration: ALERT_DURATION }
@@ -75,7 +94,7 @@ export class DashboardAudioNotificationHelper {
   }) => {
     this.notificationConfig = {
       ...this.notificationConfig,
-      audioAlertType: audioAlertType.split('+').filter(Boolean),
+      audioAlertType: selectedAudioAlertTypes(audioAlertType),
       playAlertOnlyWhenHidden: !alwaysPlayAudioAlert,
       alertIfUnreadConversationExist: alertIfUnreadConversationExist,
     };
@@ -88,7 +107,7 @@ export class DashboardAudioNotificationHelper {
       tone: audioAlertTone,
     };
 
-    if (previousAudioTone !== audioAlertTone) {
+    if (!this.audioConfig.audio || previousAudioTone !== audioAlertTone) {
       this.intializeAudio();
     }
 
@@ -130,79 +149,29 @@ export class DashboardAudioNotificationHelper {
     const { audioAlertType, alertIfUnreadConversationExist } =
       this.notificationConfig;
 
-    //  Audio alert is disabled dismiss the timer
-    if (audioAlertType.includes('none')) return;
-
-    // If unread conversation flag is disabled, dismiss the timer
+    if (!audioAlertType.includes('contact_message')) return;
     if (!alertIfUnreadConversationExist) return;
 
     this.resetRecurringTimer();
   };
 
-  shouldNotifyOnMessage = message => {
+  shouldNotifyOnNotification = notification => {
     const { audioAlertType } = this.notificationConfig;
     if (audioAlertType.includes('none')) return false;
-    if (audioAlertType.includes('all')) return true;
 
-    const assignedToMe = isConversationAssignedToMe(
-      message,
-      this.currentUser.id
-    );
-    const isUnassigned = isConversationUnassigned(message);
-
-    const shouldPlayAudio = [];
-
-    if (
-      audioAlertType.includes(EVENT_TYPES.ASSIGNED) ||
-      audioAlertType.includes('mine')
-    ) {
-      shouldPlayAudio.push(assignedToMe);
-    }
-    if (audioAlertType.includes(EVENT_TYPES.UNASSIGNED)) {
-      shouldPlayAudio.push(isUnassigned);
-    }
-    if (audioAlertType.includes(EVENT_TYPES.NOTME)) {
-      shouldPlayAudio.push(!isUnassigned && !assignedToMe);
-    }
-
-    return shouldPlayAudio.some(Boolean);
+    return audioAlertType.includes(notification.notification_type);
   };
 
-  onNewMessage = message => {
-    // If the user does not have the permission to view the conversation, then dismiss the alert
-    // FIX ME: There shouldn't be a new message if the user has no access to the conversation.
-    if (!this.store.hasConversationPermission(this.currentUser)) {
-      return;
-    }
-
-    // If the conversation status is pending, then dismiss the alert
-    // This case is common for all audio event types
-    if (this.store.isMessageFromPendingConversation(message)) {
-      return;
-    }
-
-    // If the message is sent by the current user then dismiss the alert
-    if (isMessageFromCurrentUser(message, this.currentUser.id)) {
-      return;
-    }
-
-    if (!this.shouldNotifyOnMessage(message)) {
-      return;
-    }
-
-    // If the message type is not incoming or private, then dismiss the alert
-    const { message_type: messageType, private: isPrivate } = message;
-    if (messageType !== MESSAGE_TYPE.INCOMING && !isPrivate) {
+  onNotificationCreated = notification => {
+    if (!this.currentUser || !this.shouldNotifyOnNotification(notification)) {
       return;
     }
 
     if (WindowVisibilityHelper.isWindowVisible()) {
-      // If the user looking at the conversation, then dismiss the alert
-      if (this.store.isMessageFromCurrentConversation(message)) {
+      if (this.store.isNotificationFromCurrentConversation(notification)) {
         return;
       }
 
-      // If the user has disabled alerts when active on the dashboard, the dismiss the alert
       if (this.notificationConfig.playAlertOnlyWhenHidden) {
         return;
       }
@@ -210,7 +179,10 @@ export class DashboardAudioNotificationHelper {
 
     this.playAudioAlert();
     showBadgeOnFavicon();
-    this.playAudioEvery30Seconds();
+
+    if (notification.notification_type === 'contact_message') {
+      this.playAudioEvery30Seconds();
+    }
   };
 }
 

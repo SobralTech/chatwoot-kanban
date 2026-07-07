@@ -6,7 +6,6 @@ import { createPendingMessage } from 'dashboard/helper/commons';
 import {
   buildConversationList,
   isOnMentionsView,
-  isOnParticipatingView,
   isOnUnattendedView,
   isOnFoldersView,
 } from './helpers/actionHelpers';
@@ -18,6 +17,10 @@ import {
   handleVoiceCallUpdated,
   syncConversationCallVisibility,
 } from 'dashboard/helper/voice';
+
+// Tracks conversation ids currently being fetched after a message arrived for a
+// conversation missing from the store, so a burst of messages triggers a single fetch.
+const inFlightConversationFetches = new Set();
 
 export const hasMessageFailedWithExternalError = pendingMessage => {
   // This helper is used to check if the message has failed with an external error.
@@ -34,13 +37,10 @@ export const hasMessageFailedWithExternalError = pendingMessage => {
 // actions
 const actions = {
   getConversation: async ({ commit }, conversationId) => {
-    try {
-      const response = await ConversationApi.show(conversationId);
-      commit(types.UPDATE_CONVERSATION, response.data);
-      commit(`contacts/${types.SET_CONTACT_ITEM}`, response.data.meta.sender);
-    } catch (error) {
-      // Ignore error
-    }
+    const response = await ConversationApi.show(conversationId);
+    commit(types.UPSERT_CONVERSATION, response.data);
+    commit(`contacts/${types.SET_CONTACT_ITEM}`, response.data.meta.sender);
+    return response.data;
   },
 
   fetchAllConversations: async ({ commit, state, dispatch }) => {
@@ -212,7 +212,7 @@ const actions = {
       try {
         await dispatch('fetchPreviousMessages', {
           after,
-          before: data.messages[0].id,
+          before: data.messages?.[0]?.id,
           conversationId: data.id,
         });
         commit(types.SET_CHAT_DATA_FETCHED, data.id);
@@ -334,11 +334,14 @@ const actions = {
     }
   },
 
-  addMessage({ commit, rootGetters }, message) {
+  addMessage({ commit, dispatch, getters, rootGetters }, message) {
+    const { conversation_id: conversationId } = message;
+    const conversationExists = !!getters.getConversationById(conversationId);
+
     commit(types.ADD_MESSAGE, message);
     if (message.message_type === MESSAGE_TYPE.INCOMING) {
       commit(types.SET_CONVERSATION_CAN_REPLY, {
-        conversationId: message.conversation_id,
+        conversationId,
         canReply: true,
       });
       commit(types.ADD_CONVERSATION_ATTACHMENTS, message);
@@ -348,6 +351,19 @@ const actions = {
       rootGetters?.getCurrentUserID,
       rootGetters?.getCurrentUserAvailability
     );
+
+    // The conversation is not in the store yet (e.g. an older conversation that
+    // hasn't been paginated in). ADD_MESSAGE no-ops for it, so fetch and upsert
+    // it once to surface it in the list. UPSERT_CONVERSATION dedupes by id.
+    if (
+      !conversationExists &&
+      !inFlightConversationFetches.has(conversationId)
+    ) {
+      inFlightConversationFetches.add(conversationId);
+      dispatch('getConversation', conversationId).finally(() => {
+        inFlightConversationFetches.delete(conversationId);
+      });
+    }
   },
 
   updateMessage({ commit, rootGetters }, message) {
@@ -396,7 +412,6 @@ const actions = {
       !hasAppliedFilters &&
       !isOnFoldersView(rootState) &&
       !isOnMentionsView(rootState) &&
-      !isOnParticipatingView(rootState) &&
       !isOnUnattendedView(rootState) &&
       isMatchingInboxFilter
     ) {
@@ -482,6 +497,36 @@ const actions = {
     }
   },
 
+  toggleConversationNotificationsMute: async (
+    { commit, getters },
+    { conversationId }
+  ) => {
+    const conversation = getters.getConversationById(conversationId);
+    if (!conversation) return;
+
+    const isMuted = !!conversation.additional_attributes?.notifications_muted;
+
+    // optimistic update
+    commit(types.UPDATE_CONVERSATION_NOTIFICATIONS_MUTE, {
+      conversationId,
+      muted: !isMuted,
+    });
+
+    try {
+      if (isMuted) {
+        await ConversationApi.unmuteNotifications(conversationId);
+      } else {
+        await ConversationApi.muteNotifications(conversationId);
+      }
+    } catch (error) {
+      // revert on failure
+      commit(types.UPDATE_CONVERSATION_NOTIFICATIONS_MUTE, {
+        conversationId,
+        muted: isMuted,
+      });
+    }
+  },
+
   sendEmailTranscript: async (_, { conversationId, email }) => {
     await ConversationApi.sendEmailTranscript({ conversationId, email });
   },
@@ -543,6 +588,29 @@ const actions = {
 
   setContextMenuChatId({ commit }, chatId) {
     commit(types.SET_CONTEXT_MENU_CHAT_ID, chatId);
+  },
+
+  toggleConversationPin: async ({ commit, getters }, { conversationId }) => {
+    const conversation = getters.getConversationById(conversationId);
+    if (!conversation) return;
+
+    const isPinned = !!conversation.account_pinned_at;
+
+    // optimistic update
+    commit(types.UPDATE_CONVERSATION_PIN, {
+      conversationId,
+      pinnedAt: isPinned ? null : Math.floor(Date.now() / 1000),
+    });
+
+    try {
+      await ConversationApi.togglePin({ conversationId });
+    } catch (error) {
+      // revert on failure
+      commit(types.UPDATE_CONVERSATION_PIN, {
+        conversationId,
+        pinnedAt: isPinned ? Math.floor(Date.now() / 1000) : null,
+      });
+    }
   },
 
   getInboxCaptainAssistantById: async ({ commit }, conversationId) => {

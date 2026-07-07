@@ -146,6 +146,8 @@ Rails.application.routes.draw do
               patch 'cards/by_id/:id/reorder', to: 'cards#reorder'
               get 'cards/by_id/:id/labels', to: 'cards/labels#index'
               put 'cards/by_id/:id/labels', to: 'cards/labels#update'
+              get 'cards/by_id/:id/assignees', to: 'cards/assignees#index'
+              put 'cards/by_id/:id/assignees', to: 'cards/assignees#update'
             end
           end
           namespace :channels do
@@ -184,9 +186,12 @@ Rails.application.routes.draw do
             member do
               post :mute
               post :unmute
+              post :mute_notifications
+              post :unmute_notifications
               post :transcript
               post :toggle_status
               post :toggle_priority
+              post :toggle_pin
               post :toggle_typing_status
               post :update_last_seen
               post :unread
@@ -434,7 +439,7 @@ Rails.application.routes.draw do
             end
           end
 
-          resource :branding, controller: 'branding', only: [:show, :update] do
+          resource :branding, controller: 'branding', only: [:update] do
             delete ':asset_name', action: :destroy, on: :member
           end
 

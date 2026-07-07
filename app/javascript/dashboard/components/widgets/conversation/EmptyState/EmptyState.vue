@@ -15,6 +15,14 @@ export default {
       type: Boolean,
       default: false,
     },
+    isFetchingConversation: {
+      type: Boolean,
+      default: false,
+    },
+    hasConversationFetchError: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup() {
     const { isAdmin } = useAdmin();
@@ -67,23 +75,24 @@ export default {
 <template>
   <div :class="emptyClassName">
     <woot-loading-state
-      v-if="uiFlags.isFetching || loadingChatList"
+      v-if="isFetchingConversation"
+      :message="$t('CONVERSATION.LOADING_CONVERSATIONS')"
+    />
+    <EmptyStateMessage
+      v-else-if="hasConversationFetchError"
+      :message="$t('CONVERSATION.404')"
+    />
+    <woot-loading-state
+      v-else-if="uiFlags.isFetching || loadingChatList"
       :message="loadingIndicatorMessage"
     />
     <!-- No inboxes attached -->
-    <div
-      v-if="!inboxesList.length && !uiFlags.isFetching && !loadingChatList"
-      class="clearfix mx-auto"
-    >
+    <div v-else-if="!inboxesList.length" class="clearfix mx-auto">
       <OnboardingView v-if="isAdmin" />
       <EmptyStateMessage v-else :message="$t('CONVERSATION.NO_INBOX_AGENT')" />
     </div>
     <!-- Show empty state images if not loading -->
-
-    <div
-      v-else-if="!uiFlags.isFetching && !loadingChatList"
-      class="flex flex-col items-center justify-center h-full"
-    >
+    <div v-else class="flex flex-col items-center justify-center h-full">
       <!-- No conversations available -->
       <EmptyStateMessage
         v-if="!allConversations.length"

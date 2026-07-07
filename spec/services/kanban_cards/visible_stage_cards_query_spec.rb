@@ -32,12 +32,12 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.has_more).to be(true)
     end
 
-    it 'clamps limit to 50' do
+    it 'uses the given limit as-is' do
       cards = create_visible_cards(51)
 
-      result = query(limit: 100).call
+      result = query(limit: 30).call
 
-      expect(result.cards).to eq(cards.first(50))
+      expect(result.cards).to eq(cards.first(30))
       expect(result.has_more).to be(true)
     end
 
@@ -241,13 +241,13 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect { query(cursor: { after_id: card.id }).call }.to raise_error(described_class::RefreshRequiredError)
     end
 
-    it 'keeps total_count based on all visible cards' do
+    it 'omits total_count on cursor-paginated pages to avoid recounting the whole stage' do
       cards = create_visible_cards(3)
 
       result = query(limit: 1, cursor: { after_id: cards.first.id }).call
 
       expect(result.cards).to eq([cards.second])
-      expect(result.total_count).to eq(3)
+      expect(result.total_count).to be_nil
     end
 
     it 'keeps query count bounded with 30 cards' do

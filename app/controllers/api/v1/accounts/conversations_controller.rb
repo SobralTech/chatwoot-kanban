@@ -1,4 +1,4 @@
-class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseController # rubocop:disable Metrics/ClassLength
   include Events::Types
   include DateRangeHelper
   include HmacConcern
@@ -68,6 +68,16 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
     head :ok
   end
 
+  def mute_notifications
+    @conversation.mute_notifications!
+    head :ok
+  end
+
+  def unmute_notifications
+    @conversation.unmute_notifications!
+    head :ok
+  end
+
   def transcript
     render json: { error: 'email param missing' }, status: :unprocessable_entity and return if params[:email].blank?
     return render_payment_required('Email transcript is not available on your plan') unless @conversation.account.email_transcript_enabled?
@@ -103,6 +113,13 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
 
   def toggle_priority
     @conversation.toggle_priority(params[:priority])
+    head :ok
+  end
+
+  def toggle_pin
+    existing_pin = @conversation.account_pin
+    existing_pin ? existing_pin.destroy : create_pin
+    broadcast_pin_update
     head :ok
   end
 
@@ -234,6 +251,23 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
 
   def assignee?
     @conversation.assignee_id? && Current.user == @conversation.assignee
+  end
+
+  def create_pin
+    @conversation.conversation_pins.create!(
+      account: current_account,
+      user: Current.user,
+      pinned_at: Time.zone.now
+    )
+  end
+
+  def broadcast_pin_update
+    Rails.configuration.dispatcher.dispatch(
+      CONVERSATION_UPDATED,
+      Time.zone.now,
+      conversation: @conversation,
+      changed_attributes: {}
+    )
   end
 end
 

@@ -66,6 +66,32 @@ body {
     scrollbar-width: none; /* Firefox */
   }
 
+  .conversations-list {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background-color: transparent;
+      border-radius: 9999px;
+    }
+
+    &:hover {
+      scrollbar-color: rgb(var(--blue-9)) transparent;
+
+      &::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background-color: rgb(var(--blue-9));
+      }
+    }
+  }
+
   /**
    * ============================================================================
    * TYPOGRAPHY UTILITIES

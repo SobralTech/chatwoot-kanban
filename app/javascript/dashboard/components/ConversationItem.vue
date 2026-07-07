@@ -14,7 +14,6 @@ const props = defineProps({
   label: { type: String, default: '' },
   conversationType: { type: String, default: '' },
   foldersId: { type: [String, Number], default: 0 },
-  showAssignee: { type: Boolean, default: false },
   showExpanded: { type: Boolean, default: false },
 });
 
@@ -28,7 +27,6 @@ const assignTeam = inject('assignTeam');
 const assignLabels = inject('assignLabels');
 const removeLabels = inject('removeLabels');
 const updateConversationStatus = inject('updateConversationStatus');
-const toggleContextMenu = inject('toggleContextMenu');
 const markAsUnread = inject('markAsUnread');
 const markAsRead = inject('markAsRead');
 const assignPriority = inject('assignPriority');
@@ -43,9 +41,6 @@ const contextMenu = ref({ x: null, y: null });
 watch(
   () => props.source.id,
   () => {
-    if (showContextMenu.value) {
-      toggleContextMenu(false);
-    }
     showContextMenu.value = false;
     contextMenu.value = { x: null, y: null };
   }
@@ -57,7 +52,6 @@ const activeInbox = useMapGetter('getSelectedInbox');
 const accountId = useMapGetter('getCurrentAccountId');
 
 const chatMetadata = computed(() => props.source.meta || {});
-const assignee = computed(() => chatMetadata.value.assignee || {});
 const senderId = computed(() => chatMetadata.value.sender?.id);
 
 const currentContact = computed(() =>
@@ -75,9 +69,6 @@ const showInboxName = computed(
   () => !activeInbox.value && inboxesList.value.length > 1
 );
 const isInboxView = computed(() => !!activeInbox.value);
-const showAssigneeForExpandedCard = computed(
-  () => props.showExpanded || props.showAssignee
-);
 
 const conversationPath = computed(() =>
   frontendURL(
@@ -121,14 +112,12 @@ const onExpandedSelect = checked => {
 
 const openContextMenu = e => {
   e.preventDefault();
-  toggleContextMenu(true);
   contextMenu.value.x = e.pageX || e.clientX;
   contextMenu.value.y = e.pageY || e.clientY;
   showContextMenu.value = true;
 };
 
 const closeContextMenu = () => {
-  toggleContextMenu(false);
   showContextMenu.value = false;
   contextMenu.value.x = null;
   contextMenu.value.y = null;
@@ -176,6 +165,18 @@ const onDeleteConversation = () => {
   deleteConversation(props.source.id);
   closeContextMenu();
 };
+
+const onTogglePin = ({ chatId }) => {
+  store.dispatch('toggleConversationPin', { conversationId: chatId });
+  closeContextMenu();
+};
+
+const onToggleNotificationsMute = ({ chatId }) => {
+  store.dispatch('toggleConversationNotificationsMute', {
+    conversationId: chatId,
+  });
+  closeContextMenu();
+};
 </script>
 
 <template>
@@ -184,11 +185,9 @@ const onDeleteConversation = () => {
     v-if="showExpanded"
     :chat="source"
     :current-contact="currentContact"
-    :assignee="assignee"
     :inbox="inbox"
     :selected="isConversationSelected(source.id)"
     :is-active-chat="isActiveChat"
-    :show-assignee="showAssigneeForExpandedCard"
     :show-inbox-name="showInboxName"
     :is-inbox-view="isInboxView"
     @select-conversation="onExpandedSelect"
@@ -202,11 +201,9 @@ const onDeleteConversation = () => {
     v-else
     :chat="source"
     :current-contact="currentContact"
-    :assignee="assignee"
     :inbox="inbox"
     :selected="isConversationSelected(source.id)"
     :is-active-chat="isActiveChat"
-    :show-assignee="showAssignee"
     :show-inbox-name="showInboxName"
     @click="onCardClick"
     @contextmenu="openContextMenu"
@@ -229,6 +226,10 @@ const onDeleteConversation = () => {
       :has-unread-messages="source.unread_count > 0"
       :conversation-labels="source.labels"
       :conversation-url="conversationPath"
+      :is-pinned="!!source.account_pinned_at"
+      :is-notifications-muted="
+        !!source.additional_attributes?.notifications_muted
+      "
       @update-conversation="onUpdateConversation"
       @assign-agent="onAssignAgent"
       @assign-label="onAssignLabel"
@@ -238,6 +239,8 @@ const onDeleteConversation = () => {
       @mark-as-read="onMarkAsRead"
       @assign-priority="onAssignPriority"
       @delete-conversation="onDeleteConversation"
+      @toggle-pin="onTogglePin"
+      @toggle-notifications-mute="onToggleNotificationsMute"
       @close="closeContextMenu"
     />
   </ContextMenu>

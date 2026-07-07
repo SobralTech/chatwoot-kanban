@@ -1,29 +1,19 @@
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { isToday, isYesterday, fromUnixTime } from 'date-fns';
 import { frontendURL } from 'dashboard/helper/URLHelper.js';
-import { dynamicTime } from 'shared/helpers/timeHelper';
-import { getInboxIconByType } from 'dashboard/helper/inbox';
-import { useInbox } from 'dashboard/composables/useInbox';
-import { ATTACHMENT_TYPES } from 'dashboard/components-next/message/constants.js';
+import { messageStamp, dateFormat } from 'shared/helpers/timeHelper';
+import { MESSAGE_TYPE } from 'shared/constants/messages';
 
 import CardLayout from 'dashboard/components-next/CardLayout.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
-import FileChip from 'next/message/chips/File.vue';
-import AudioChip from 'next/message/chips/Audio.vue';
-import TranscribedText from './TranscribedText.vue';
 
 const props = defineProps({
   id: {
     type: Number,
     default: 0,
-  },
-  inboxId: {
-    type: Number,
-    default: 0,
-  },
-  isPrivate: {
-    type: Boolean,
-    default: false,
   },
   accountId: {
     type: [String, Number],
@@ -37,13 +27,21 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
-  attachments: {
-    type: Array,
-    default: () => [],
+  contactName: {
+    type: String,
+    default: '',
+  },
+  contactThumbnail: {
+    type: String,
+    default: '',
+  },
+  messageType: {
+    type: Number,
+    default: undefined,
   },
 });
 
-const { inbox } = useInbox(props.inboxId);
+const { t } = useI18n();
 
 const navigateTo = computed(() => {
   const params = {};
@@ -56,113 +54,61 @@ const navigateTo = computed(() => {
   );
 });
 
-const createdAtTime = computed(() => {
+const messageDateLabel = computed(() => {
   if (!props.createdAt) return '';
-  return dynamicTime(props.createdAt);
+  const time = fromUnixTime(props.createdAt);
+  if (isToday(time)) return messageStamp(props.createdAt, 'HH:mm');
+  if (isYesterday(time)) {
+    return `${t('SEARCH.YESTERDAY')}, ${messageStamp(props.createdAt, 'HH:mm')}`;
+  }
+  return dateFormat(props.createdAt, 'dd/MM/yyyy');
 });
 
-const inboxName = computed(() => inbox.value?.name);
-
-const inboxIcon = computed(() => {
-  if (!inbox.value) return null;
-  const { channelType, medium } = inbox.value;
-  return getInboxIconByType(channelType, medium);
-});
-
-const fileAttachments = computed(() => {
-  return props.attachments.filter(
-    attachment => attachment.fileType !== ATTACHMENT_TYPES.AUDIO
-  );
-});
-
-const audioAttachments = computed(() => {
-  return props.attachments.filter(
-    attachment => attachment.fileType === ATTACHMENT_TYPES.AUDIO
+const isOutgoingMessage = computed(() => {
+  return (
+    props.messageType !== undefined &&
+    props.messageType !== MESSAGE_TYPE.INCOMING
   );
 });
 </script>
 
 <template>
-  <router-link :to="navigateTo">
+  <router-link :to="navigateTo" class="block w-full min-w-0">
     <CardLayout
       layout="col"
-      class="[&>div]:justify-start [&>div]:gap-2 [&>div]:px-4 [&>div]:py-3 [&>div]:items-start hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
+      class="[&>div]:px-3 [&>div]:py-2.5 [&>div]:gap-2 hover:bg-n-slate-2 dark:hover:bg-n-solid-3"
     >
-      <div
-        class="flex items-center min-w-0 justify-between gap-2 w-full h-7 mb-1"
-      >
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-1.5 flex-shrink-0">
-            <Icon
-              icon="i-lucide-hash"
-              class="flex-shrink-0 text-n-slate-11 size-4"
-            />
-            <span class="text-n-slate-12 text-sm leading-4">
-              {{ id }}
-            </span>
-          </div>
-          <div v-if="inboxName" class="w-px h-3 bg-n-strong" />
-          <div v-if="inboxName" class="flex items-center gap-1.5 flex-shrink-0">
-            <div
-              v-if="inboxIcon"
-              class="flex items-center justify-center flex-shrink-0 rounded-full bg-n-alpha-2 size-4"
-            >
-              <Icon
-                :icon="inboxIcon"
-                class="flex-shrink-0 text-n-slate-11 size-2.5"
-              />
-            </div>
-            <span class="text-sm leading-4 text-n-slate-12">
-              {{ inboxName }}
-            </span>
-          </div>
-          <div v-if="isPrivate" class="w-px h-3 bg-n-strong" />
-          <div
-            v-if="isPrivate"
-            class="flex items-center text-n-amber-11 gap-1.5 flex-shrink-0"
-          >
-            <Icon icon="i-lucide-lock-keyhole" class="flex-shrink-0 size-3.5" />
-            <span class="text-sm leading-4">
-              {{ $t('SEARCH.PRIVATE') }}
-            </span>
-          </div>
-        </div>
-        <span
-          v-if="createdAtTime"
-          class="text-sm font-normal min-w-0 truncate text-n-slate-11"
-        >
-          {{ createdAtTime }}
-        </span>
-      </div>
-      <slot />
-      <div v-if="audioAttachments.length" class="mt-1.5 space-y-4 w-full">
-        <div
-          v-for="attachment in audioAttachments"
-          :key="attachment.id"
-          class="w-full"
-        >
-          <AudioChip
-            class="bg-n-alpha-2 dark:bg-n-alpha-2 text-n-slate-12"
-            :attachment="attachment"
-            :show-transcribed-text="false"
-            @click.prevent
-          />
-          <div v-if="attachment.transcribedText" class="pt-2">
-            <TranscribedText :text="attachment.transcribedText" />
-          </div>
-        </div>
-      </div>
-      <div
-        v-if="fileAttachments.length"
-        class="flex gap-2 flex-wrap items-center mt-1.5"
-      >
-        <FileChip
-          v-for="attachment in fileAttachments"
-          :key="attachment.id"
-          :attachment="attachment"
-          class="!h-8"
-          @click.stop
+      <div class="flex items-center gap-2.5 min-w-0 w-full">
+        <Avatar
+          :name="contactName"
+          :src="contactThumbnail"
+          :size="28"
+          rounded-full
+          class="flex-shrink-0"
         />
+        <div class="min-w-0 flex flex-col gap-2 flex-1">
+          <div class="flex items-start justify-between gap-3 min-w-0 w-full">
+            <h5
+              class="m-0 text-sm font-medium truncate min-w-0 text-n-slate-12 flex-1"
+            >
+              {{ contactName }}
+            </h5>
+            <span
+              v-if="messageDateLabel"
+              class="text-xs leading-4 flex-shrink-0 text-n-slate-11 whitespace-nowrap"
+            >
+              {{ messageDateLabel }}
+            </span>
+          </div>
+          <div class="flex items-center gap-1.5 min-w-0 w-full text-sm">
+            <Icon
+              v-if="isOutgoingMessage"
+              icon="i-lucide-check-check"
+              class="size-3.5 flex-shrink-0 text-n-slate-11"
+            />
+            <slot />
+          </div>
+        </div>
       </div>
     </CardLayout>
   </router-link>

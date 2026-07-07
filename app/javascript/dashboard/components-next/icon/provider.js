@@ -1,4 +1,8 @@
-import { INBOX_TYPES, TWILIO_CHANNEL_MEDIUM } from 'dashboard/helper/inbox';
+import {
+  INBOX_TYPES,
+  TWILIO_CHANNEL_MEDIUM,
+  isApiWhatsappInbox,
+} from 'dashboard/helper/inbox';
 import { computed } from 'vue';
 
 export function useChannelIcon(inbox) {
@@ -26,7 +30,7 @@ export function useChannelIcon(inbox) {
     const inboxDetails = inbox.value || inbox;
     const type = inboxDetails.channel_type || inboxDetails.channelType;
     const inboxName = inboxDetails.name || '';
-    let icon = inboxName.toLowerCase().includes('whatsapp')
+    let icon = isApiWhatsappInbox(type, inboxName)
       ? 'i-woot-whatsapp'
       : channelTypeIconMap[type];
 

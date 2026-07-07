@@ -70,22 +70,36 @@ describe('#actions', () => {
         ],
       ]);
 
-      expect(dispatch).toHaveBeenCalledWith('contactSearch', { q: 'test' });
+      expect(dispatch).toHaveBeenCalledWith('contactSearch', {
+        q: 'test',
+        searchId: expect.any(Number),
+      });
       expect(dispatch).toHaveBeenCalledWith('conversationSearch', {
         q: 'test',
+        searchId: expect.any(Number),
       });
-      expect(dispatch).toHaveBeenCalledWith('messageSearch', { q: 'test' });
-      expect(dispatch).toHaveBeenCalledWith('articleSearch', { q: 'test' });
+      expect(dispatch).toHaveBeenCalledWith('messageSearch', {
+        q: 'test',
+        searchId: expect.any(Number),
+      });
+      expect(dispatch).toHaveBeenCalledWith('articleSearch', {
+        q: 'test',
+        searchId: expect.any(Number),
+      });
     });
 
     it('should pass filters to all search actions including articleSearch', async () => {
       const payload = { q: 'test', since: 1700000000, until: 1732000000 };
       await actions.fullSearch({ commit, dispatch }, payload);
 
-      expect(dispatch).toHaveBeenCalledWith('contactSearch', payload);
-      expect(dispatch).toHaveBeenCalledWith('conversationSearch', payload);
-      expect(dispatch).toHaveBeenCalledWith('messageSearch', payload);
-      expect(dispatch).toHaveBeenCalledWith('articleSearch', payload);
+      const expectedPayload = { ...payload, searchId: expect.any(Number) };
+      expect(dispatch).toHaveBeenCalledWith('contactSearch', expectedPayload);
+      expect(dispatch).toHaveBeenCalledWith(
+        'conversationSearch',
+        expectedPayload
+      );
+      expect(dispatch).toHaveBeenCalledWith('messageSearch', expectedPayload);
+      expect(dispatch).toHaveBeenCalledWith('articleSearch', expectedPayload);
     });
   });
 
@@ -98,7 +112,7 @@ describe('#actions', () => {
       await actions.contactSearch({ commit }, { q: 'test', page: 1 });
       expect(commit.mock.calls).toEqual([
         [types.CONTACT_SEARCH_SET_UI_FLAG, { isFetching: true }],
-        [types.CONTACT_SEARCH_SET, [{ id: 1 }]],
+        [types.CONTACT_SEARCH_SET, { records: [{ id: 1 }], page: 1 }],
         [types.CONTACT_SEARCH_SET_UI_FLAG, { isFetching: false }],
       ]);
     });
@@ -122,7 +136,7 @@ describe('#actions', () => {
       await actions.conversationSearch({ commit }, { q: 'test', page: 1 });
       expect(commit.mock.calls).toEqual([
         [types.CONVERSATION_SEARCH_SET_UI_FLAG, { isFetching: true }],
-        [types.CONVERSATION_SEARCH_SET, [{ id: 1 }]],
+        [types.CONVERSATION_SEARCH_SET, { records: [{ id: 1 }], page: 1 }],
         [types.CONVERSATION_SEARCH_SET_UI_FLAG, { isFetching: false }],
       ]);
     });
@@ -146,7 +160,7 @@ describe('#actions', () => {
       await actions.messageSearch({ commit }, { q: 'test', page: 1 });
       expect(commit.mock.calls).toEqual([
         [types.MESSAGE_SEARCH_SET_UI_FLAG, { isFetching: true }],
-        [types.MESSAGE_SEARCH_SET, [{ id: 1 }]],
+        [types.MESSAGE_SEARCH_SET, { records: [{ id: 1 }], page: 1 }],
         [types.MESSAGE_SEARCH_SET_UI_FLAG, { isFetching: false }],
       ]);
     });
@@ -170,7 +184,7 @@ describe('#actions', () => {
       await actions.articleSearch({ commit }, { q: 'test', page: 1 });
       expect(commit.mock.calls).toEqual([
         [types.ARTICLE_SEARCH_SET_UI_FLAG, { isFetching: true }],
-        [types.ARTICLE_SEARCH_SET, [{ id: 1 }]],
+        [types.ARTICLE_SEARCH_SET, { records: [{ id: 1 }], page: 1 }],
         [types.ARTICLE_SEARCH_SET_UI_FLAG, { isFetching: false }],
       ]);
     });
@@ -186,7 +200,7 @@ describe('#actions', () => {
       );
       expect(commit.mock.calls).toEqual([
         [types.ARTICLE_SEARCH_SET_UI_FLAG, { isFetching: true }],
-        [types.ARTICLE_SEARCH_SET, [{ id: 1 }]],
+        [types.ARTICLE_SEARCH_SET, { records: [{ id: 1 }], page: 1 }],
         [types.ARTICLE_SEARCH_SET_UI_FLAG, { isFetching: false }],
       ]);
     });

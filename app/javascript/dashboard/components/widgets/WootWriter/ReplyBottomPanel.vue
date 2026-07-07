@@ -11,10 +11,12 @@ import VideoCallButton from '../VideoCallButton.vue';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
 import { mapGetters } from 'vuex';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import CopilotTrigger from './CopilotTrigger.vue';
+import { CHAR_LENGTH_WARNING } from './constants';
 
 export default {
   name: 'ReplyBottomPanel',
-  components: { NextButton, FileUpload, VideoCallButton },
+  components: { NextButton, FileUpload, VideoCallButton, CopilotTrigger },
   mixins: [inboxMixin],
   props: {
     isNote: {
@@ -49,10 +51,6 @@ export default {
       default: false,
     },
     onFileUpload: {
-      type: Function,
-      default: () => {},
-    },
-    toggleEmojiPicker: {
       type: Function,
       default: () => {},
     },
@@ -96,7 +94,6 @@ export default {
       type: Number,
       required: true,
     },
-    // eslint-disable-next-line vue/no-unused-properties
     message: {
       type: String,
       default: '',
@@ -125,12 +122,29 @@ export default {
       type: Boolean,
       default: false,
     },
+    singleLine: {
+      type: Boolean,
+      default: false,
+    },
+    copilotDisabled: {
+      type: Boolean,
+      default: false,
+    },
+    isMessageLengthReachingThreshold: {
+      type: Boolean,
+      default: false,
+    },
+    charactersRemaining: {
+      type: Number,
+      default: 0,
+    },
   },
   emits: [
     'toggleInsertArticle',
     'selectWhatsappTemplate',
     'selectContentTemplate',
     'toggleQuotedReply',
+    'executeCopilotAction',
   ],
   setup(props) {
     const { setSignatureFlagForInbox, fetchSignatureFlagFromUISettings } =
@@ -174,14 +188,22 @@ export default {
     wrapClass() {
       return {
         'is-note-mode': this.isNote,
+        'is-single-line': this.singleLine,
       };
+    },
+    charLengthClass() {
+      return this.charactersRemaining < 0 ? 'text-n-ruby-9' : 'text-n-slate-11';
+    },
+    characterLengthWarning() {
+      return this.charactersRemaining < 0
+        ? `${-this.charactersRemaining} ${CHAR_LENGTH_WARNING.NEGATIVE}`
+        : `${this.charactersRemaining} ${CHAR_LENGTH_WARNING.UNDER_50}`;
     },
     showAttachButton() {
       if (this.isEditorDisabled) return false;
       return this.showFileUpload || this.isNote;
     },
-    showAudioRecorderButton() {
-      if (this.isEditorDisabled) return false;
+    audioRecorderEligible() {
       if (this.isALineChannel || this.isATiktokChannel) {
         return false;
       }
@@ -197,6 +219,23 @@ export default {
         ) && this.showAudioRecorder
         // !isSafari
       );
+    },
+    hasContent() {
+      return !!this.message && !!this.message.trim().replace(/\n/g, '').length;
+    },
+    // While idle, the mic/send slot below covers starting a recording.
+    // This left-side button only re-appears once recording is in progress,
+    // acting as the stop control.
+    showAudioRecorderButton() {
+      if (this.isEditorDisabled) return false;
+      if (!this.isRecordingAudio) return false;
+      return this.audioRecorderEligible;
+    },
+    showMicToggleButton() {
+      if (this.isEditorDisabled) return false;
+      if (this.isRecordingAudio) return false;
+      if (this.hasContent) return false;
+      return this.audioRecorderEligible;
     },
     showAudioPlayStopButton() {
       if (this.isEditorDisabled) return false;
@@ -236,9 +275,15 @@ export default {
           return 'i-ph-stop';
       }
     },
+    isCapturingAudio() {
+      return this.audioRecorderPlayStopIcon === 'i-ph-stop';
+    },
     showMessageSignatureButton() {
       if (this.isEditorDisabled) return false;
-      return !this.isOnPrivateNote;
+      return !this.isOnPrivateNote && this.isAnEmailChannel;
+    },
+    shouldUseLargeActionIcons() {
+      return this.singleLine && !this.isAnEmailChannel;
     },
     sendWithSignature() {
       // channelType is sourced from inboxMixin
@@ -276,17 +321,11 @@ export default {
 </script>
 
 <template>
-  <div class="flex justify-between p-3" :class="wrapClass">
+  <div
+    class="flex p-3"
+    :class="[wrapClass, singleLine ? 'items-center gap-2' : 'justify-between']"
+  >
     <div class="left-wrap">
-      <NextButton
-        v-if="!isEditorDisabled"
-        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_EMOJI_ICON')"
-        icon="i-ph-smiley-sticker"
-        slate
-        faded
-        sm
-        @click="toggleEmojiPicker"
-      />
       <FileUpload
         v-if="showAttachButton"
         ref="uploadRef"
@@ -307,28 +346,25 @@ export default {
           v-if="showAttachButton"
           v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_ATTACH_ICON')"
           icon="i-ph-paperclip"
-          slate
-          faded
-          sm
+          :slate="!shouldUseLargeActionIcons"
+          :faded="!shouldUseLargeActionIcons"
+          :color="shouldUseLargeActionIcons ? 'slate' : null"
+          :variant="shouldUseLargeActionIcons ? 'link' : null"
+          :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
+          :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
         />
       </FileUpload>
-      <NextButton
-        v-if="showAudioRecorderButton"
-        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"
-        :icon="!isRecordingAudio ? 'i-ph-microphone' : 'i-ph-microphone-slash'"
-        slate
-        faded
-        sm
-        @click="toggleAudioRecorder"
-      />
-      <NextButton
-        v-if="showAudioPlayStopButton"
-        :icon="audioRecorderPlayStopIcon"
-        slate
-        faded
-        sm
-        :label="recordingAudioDurationText"
-        @click="toggleAudioRecorderPlayPause"
+      <CopilotTrigger
+        v-if="singleLine"
+        :conversation-id="conversationId"
+        :disabled="copilotDisabled"
+        :is-editor-disabled="isEditorDisabled"
+        :editor-content="message"
+        :has-content="hasContent"
+        :large-icon-only="shouldUseLargeActionIcons"
+        @execute-copilot-action="
+          (action, data) => $emit('executeCopilotAction', action, data)
+        "
       />
       <NextButton
         v-if="showMessageSignatureButton"
@@ -340,7 +376,7 @@ export default {
         @click="toggleMessageSignature"
       />
       <NextButton
-        v-if="showQuotedReplyToggle"
+        v-if="!singleLine && showQuotedReplyToggle"
         v-tooltip.top-end="quotedReplyToggleTooltip"
         icon="i-ph-quotes"
         :variant="quotedReplyEnabled ? 'solid' : 'faded'"
@@ -350,7 +386,7 @@ export default {
         @click="$emit('toggleQuotedReply')"
       />
       <NextButton
-        v-if="enableWhatsAppTemplates"
+        v-if="!singleLine && enableWhatsAppTemplates"
         v-tooltip.top-end="$t('CONVERSATION.FOOTER.WHATSAPP_TEMPLATES')"
         icon="i-ph-whatsapp-logo"
         slate
@@ -359,7 +395,7 @@ export default {
         @click="$emit('selectWhatsappTemplate')"
       />
       <NextButton
-        v-if="enableContentTemplates"
+        v-if="!singleLine && enableContentTemplates"
         v-tooltip.top-end="'Content Templates'"
         icon="i-ph-whatsapp-logo"
         slate
@@ -369,6 +405,7 @@ export default {
       />
       <VideoCallButton
         v-if="
+          !singleLine &&
           (isAWebWidgetInbox || isAPIInbox) &&
           !isOnPrivateNote &&
           !isEditorDisabled
@@ -387,7 +424,7 @@ export default {
         </div>
       </transition>
       <NextButton
-        v-if="enableInsertArticleInReply"
+        v-if="!singleLine && enableInsertArticleInReply"
         v-tooltip.top-end="$t('HELP_CENTER.ARTICLE_SEARCH.OPEN_ARTICLE_SEARCH')"
         icon="i-ph-article-ny-times"
         slate
@@ -396,14 +433,55 @@ export default {
         @click="toggleInsertArticle"
       />
     </div>
+    <slot />
+    <div
+      v-if="singleLine && isMessageLengthReachingThreshold"
+      class="text-xs whitespace-nowrap"
+    >
+      <span :class="charLengthClass">{{ characterLengthWarning }}</span>
+    </div>
     <div class="right-wrap">
       <NextButton
-        :label="sendButtonText"
-        type="submit"
+        v-if="showAudioRecorderButton"
+        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.CANCEL_AUDIO_RECORDING')"
+        icon="i-ph-trash"
+        slate
+        faded
         sm
+        class="hover:!text-n-ruby-9 hover:!bg-n-ruby-3"
+        @click="toggleAudioRecorder"
+      />
+      <NextButton
+        v-if="showAudioPlayStopButton"
+        :icon="audioRecorderPlayStopIcon"
+        :color="isCapturingAudio ? 'ruby' : 'slate'"
+        :variant="isCapturingAudio ? 'solid' : 'faded'"
+        sm
+        :label="recordingAudioDurationText"
+        @click="toggleAudioRecorderPlayPause"
+      />
+      <NextButton
+        v-if="showMicToggleButton"
+        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"
+        icon="i-ph-microphone"
+        :variant="shouldUseLargeActionIcons ? 'link' : null"
+        :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
+        :color="isNote ? 'amber' : 'blue'"
+        :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
+        @click="toggleAudioRecorder"
+      />
+      <NextButton
+        v-else
+        v-tooltip.top-end="singleLine ? sendButtonText : undefined"
+        :icon="singleLine ? 'i-ph-paper-plane-right-fill' : undefined"
+        :label="singleLine ? undefined : sendButtonText"
+        :variant="shouldUseLargeActionIcons ? 'link' : null"
+        type="submit"
+        :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
         :color="isNote ? 'amber' : 'blue'"
         :disabled="isSendDisabled"
         class="flex-shrink-0"
+        :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
         @click="onSend"
       />
     </div>
@@ -412,11 +490,25 @@ export default {
 
 <style lang="scss" scoped>
 .left-wrap {
-  @apply items-center flex gap-2;
+  @apply items-center flex gap-2 flex-shrink-0;
 }
 
 .right-wrap {
-  @apply flex;
+  @apply flex items-center gap-2 flex-shrink-0;
+}
+
+.compact-action-button {
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  padding: 0 !important;
+  font-size: 1.25rem !important;
+  background-color: transparent !important;
+
+  &:hover:enabled,
+  &:focus-visible:enabled,
+  &:active:enabled {
+    background-color: transparent !important;
+  }
 }
 
 :deep(.file-uploads) {
@@ -427,5 +519,9 @@ export default {
   &:hover button {
     @apply enabled:bg-n-slate-9/20;
   }
+}
+
+:deep(.file-uploads:hover .compact-action-button) {
+  @apply enabled:!bg-transparent;
 }
 </style>

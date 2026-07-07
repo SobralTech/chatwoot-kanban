@@ -1,5 +1,14 @@
 <script setup>
-import { ref, unref, provide, computed, watch, onMounted } from 'vue';
+import {
+  ref,
+  unref,
+  provide,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+} from 'vue';
+import { useEventListener, useDebounceFn } from '@vueuse/core';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -9,10 +18,12 @@ import {
 
 import ChatListHeader from './ChatListHeader.vue';
 import ConversationList from './ConversationList.vue';
+import SearchResultConversationsList from 'dashboard/modules/search/components/SearchResultConversationsList.vue';
+import SearchResultContactsList from 'dashboard/modules/search/components/SearchResultContactsList.vue';
+import SearchResultMessagesList from 'dashboard/modules/search/components/SearchResultMessagesList.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import ConversationFilter from 'next/filter/ConversationFilter.vue';
 import SaveCustomView from 'next/filter/SaveCustomView.vue';
-import ChatTypeTabs from './widgets/ChatTypeTabs.vue';
 import DeleteCustomViews from 'dashboard/routes/dashboard/customviews/DeleteCustomViews.vue';
 import ConversationBulkActions from './widgets/conversation/conversationBulkActions/Index.vue';
 import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
@@ -31,8 +42,6 @@ import {
 import { useEmitter } from 'dashboard/composables/emitter';
 import { useConversationRequiredAttributes } from 'dashboard/composables/useConversationRequiredAttributes';
 
-import { emitter } from 'shared/helpers/mitt';
-
 import wootConstants from 'dashboard/constants/globals';
 import advancedFilterOptions from './widgets/conversation/advancedFilterItems';
 import filterQueryGenerator from '../helper/filterQueryGenerator.js';
@@ -42,16 +51,10 @@ import { generateValuesForEditCustomViews } from 'dashboard/helper/customViewsHe
 import { conversationListPageURL } from '../helper/URLHelper';
 import {
   isOnMentionsView,
-  isOnParticipatingView,
   isOnUnattendedView,
 } from '../store/modules/conversations/helpers/actionHelpers';
-import {
-  getUserPermissions,
-  filterItemsByPermission,
-} from 'dashboard/helper/permissionsHelper.js';
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
 import { CONVERSATION_EVENTS } from '../helper/AnalyticsHelper/events';
-import { ASSIGNEE_TYPE_TAB_PERMISSIONS } from 'dashboard/constants/permissions.js';
 
 const props = defineProps({
   conversationInbox: { type: [String, Number], default: 0 },
@@ -64,15 +67,61 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['conversationLoad']);
-const { uiSettings } = useUISettings();
+const { uiSettings, updateUISettings } = useUISettings();
 const { t } = useI18n();
+
+const CONVERSATION_LIST_DEFAULT_WIDTH = 340;
+const CONVERSATION_LIST_MIN_WIDTH = 260;
+const CONVERSATION_LIST_MAX_WIDTH = 600;
+
+const isWideScreenOnLoad =
+  window.innerWidth >= wootConstants.SMALL_SCREEN_BREAKPOINT;
+
+const listWidth = ref(
+  isWideScreenOnLoad
+    ? CONVERSATION_LIST_MIN_WIDTH
+    : uiSettings.value.conversation_list_width ||
+        CONVERSATION_LIST_DEFAULT_WIDTH
+);
+const isResizingList = ref(false);
+const resizeStartX = ref(0);
+const resizeStartWidth = ref(0);
+
+const onListResizeStart = event => {
+  isResizingList.value = true;
+  resizeStartX.value = event.clientX;
+  resizeStartWidth.value = listWidth.value;
+  Object.assign(document.body.style, {
+    cursor: 'col-resize',
+    userSelect: 'none',
+  });
+  event.preventDefault();
+};
+
+const onListResizeMove = event => {
+  if (!isResizingList.value) return;
+  const delta = event.clientX - resizeStartX.value;
+  listWidth.value = Math.max(
+    CONVERSATION_LIST_MIN_WIDTH,
+    Math.min(CONVERSATION_LIST_MAX_WIDTH, resizeStartWidth.value + delta)
+  );
+};
+
+const onListResizeEnd = () => {
+  if (!isResizingList.value) return;
+  isResizingList.value = false;
+  Object.assign(document.body.style, { cursor: '', userSelect: '' });
+  updateUISettings({ conversation_list_width: listWidth.value });
+};
+
+useEventListener(document, 'mousemove', onListResizeMove);
+useEventListener(document, 'mouseup', onListResizeEnd);
 const router = useRouter();
 const route = useRoute();
 const store = useStore();
 
 const resolveAttributesModalRef = ref(null);
 
-const activeAssigneeTab = ref(wootConstants.ASSIGNEE_TYPE.ME);
 const activeStatus = ref(wootConstants.STATUS_TYPE.OPEN);
 const activeSortBy = ref(wootConstants.SORT_BY_TYPE.LAST_ACTIVITY_AT_DESC);
 const showAdvancedFilters = ref(false);
@@ -92,10 +141,7 @@ const advancedFilterTypes = ref(
 
 const currentUser = useMapGetter('getCurrentUser');
 const chatLists = useMapGetter('getFilteredConversations');
-const mineChatsList = useMapGetter('getMineChats');
 const allChatList = useMapGetter('getAllStatusChats');
-const unAssignedChatsList = useMapGetter('getUnAssignedChats');
-const participatingChatsList = useMapGetter('getParticipatingChats');
 const chatListLoading = useMapGetter('getChatListLoadingStatus');
 const activeInbox = useMapGetter('getSelectedInbox');
 const conversationStats = useMapGetter('conversationStats/getStats');
@@ -106,10 +152,55 @@ const teamsList = useMapGetter('teams/getTeams');
 const inboxesList = useMapGetter('inboxes/getInboxes');
 const campaigns = useMapGetter('campaigns/getAllCampaigns');
 const labels = useMapGetter('labels/getLabels');
-const currentAccountId = useMapGetter('getCurrentAccountId');
 // We can't useFunctionGetter here since it needs to be called on setup?
 const getTeamFn = useMapGetter('teams/getTeam');
 const getConversationById = useMapGetter('getConversationById');
+
+const conversationSearchRecords = useMapGetter(
+  'conversationSearch/getConversationRecords'
+);
+const contactSearchRecords = useMapGetter(
+  'conversationSearch/getContactRecords'
+);
+const messageSearchRecords = useMapGetter(
+  'conversationSearch/getMessageRecords'
+);
+const searchUIFlags = useMapGetter('conversationSearch/getUIFlags');
+
+const searchQuery = ref('');
+const isSearching = computed(() => searchQuery.value.length > 0);
+
+const searchConversations = computed(() =>
+  conversationSearchRecords.value.map(r => ({
+    ...useCamelCase(r, { deep: true }),
+    type: 'conversation',
+  }))
+);
+const searchContacts = computed(() =>
+  contactSearchRecords.value.map(r => ({
+    ...useCamelCase(r, { deep: true }),
+    type: 'contact',
+  }))
+);
+const searchMessages = computed(() =>
+  messageSearchRecords.value.map(r => ({
+    ...useCamelCase(r, { deep: true }),
+    type: 'message',
+  }))
+);
+
+const debouncedSearch = useDebounceFn(q => {
+  if (!q) {
+    store.dispatch('conversationSearch/clearSearchResults');
+    return;
+  }
+  store.dispatch('conversationSearch/fullSearch', { q, page: 1 });
+}, 300);
+
+function onSearchQueryChange(q) {
+  searchQuery.value = q;
+  debouncedSearch(q);
+}
 
 const {
   selectedConversations,
@@ -168,39 +259,16 @@ const currentUserDetails = computed(() => {
   return { id, name };
 });
 
-const userPermissions = computed(() => {
-  return getUserPermissions(currentUser.value, currentAccountId.value);
-});
-
-const assigneeTabItems = computed(() => {
-  return filterItemsByPermission(
-    ASSIGNEE_TYPE_TAB_PERMISSIONS,
-    userPermissions.value,
-    item => item.permissions
-  ).map(({ key, count: countKey }) => ({
-    key,
-    name: t(`CHAT_LIST.ASSIGNEE_TYPE_TABS.${key}`),
-    count: conversationStats.value[countKey] || 0,
-  }));
-});
-
-const showAssigneeInConversationCard = computed(() => {
-  return (
-    hasAppliedFiltersOrActiveFolders.value ||
-    activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ALL
-  );
-});
-
 const currentPageFilterKey = computed(() => {
   return hasAppliedFiltersOrActiveFolders.value
     ? 'appliedFilters'
-    : activeAssigneeTab.value;
+    : wootConstants.ASSIGNEE_TYPE.ALL;
 });
 
 const inbox = useFunctionGetter('inboxes/getInbox', activeInbox);
 const currentPage = useFunctionGetter(
   'conversationPage/getCurrentPageFilter',
-  activeAssigneeTab
+  computed(() => wootConstants.ASSIGNEE_TYPE.ALL)
 );
 const currentFiltersPage = useFunctionGetter(
   'conversationPage/getCurrentPageFilter',
@@ -216,15 +284,9 @@ const conversationCustomAttributes = useFunctionGetter(
   'conversation_attribute'
 );
 
-const activeAssigneeTabCount = computed(() => {
-  const count = assigneeTabItems.value.find(
-    item => item.key === activeAssigneeTab.value
-  ).count;
-  return count;
-});
-
 const conversationListPagination = computed(() => {
   const conversationsPerPage = 25;
+  const allCount = conversationStats.value.allCount || 0;
   const hasChatsOnView =
     chatsOnView.value &&
     Array.isArray(chatsOnView.value) &&
@@ -233,8 +295,8 @@ const conversationListPagination = computed(() => {
     !hasAppliedFiltersOrActiveFolders.value && hasChatsOnView;
   const isUnderPerPage =
     chatsOnView.value.length < conversationsPerPage &&
-    activeAssigneeTabCount.value < conversationsPerPage &&
-    activeAssigneeTabCount.value > chatsOnView.value.length;
+    allCount < conversationsPerPage &&
+    allCount > chatsOnView.value.length;
 
   if (isNoFiltersOrFoldersAndChatListNotEmpty && isUnderPerPage) {
     return 1;
@@ -246,7 +308,7 @@ const conversationListPagination = computed(() => {
 const conversationFilters = computed(() => {
   return {
     inboxId: props.conversationInbox ? props.conversationInbox : undefined,
-    assigneeType: activeAssigneeTab.value,
+    assigneeType: wootConstants.ASSIGNEE_TYPE.ALL,
     status: activeStatus.value,
     sortBy: activeSortBy.value,
     page: conversationListPagination.value,
@@ -279,11 +341,6 @@ const pageTitle = computed(() => {
   if (props.conversationType === wootConstants.CONVERSATION_TYPE.MENTION) {
     return t('CHAT_LIST.MENTION_HEADING');
   }
-  if (
-    props.conversationType === wootConstants.CONVERSATION_TYPE.PARTICIPATING
-  ) {
-    return t('CONVERSATION_PARTICIPANTS.SIDEBAR_MENU_TITLE');
-  }
   if (props.conversationType === wootConstants.CONVERSATION_TYPE.UNATTENDED) {
     return t('CHAT_LIST.UNATTENDED_HEADING');
   }
@@ -293,36 +350,12 @@ const pageTitle = computed(() => {
   return t('CHAT_LIST.TAB_HEADING');
 });
 
-function filterByAssigneeTab(conversations) {
-  if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ME) {
-    return conversations.filter(
-      c => c.meta?.assignee?.id === currentUser.value?.id
-    );
-  }
-  if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.UNASSIGNED) {
-    return conversations.filter(c => !c.meta?.assignee);
-  }
-  return [...conversations];
-}
-
 const conversationList = computed(() => {
   let localConversationList = [];
 
   if (!hasAppliedFiltersOrActiveFolders.value) {
     const filters = conversationFilters.value;
-    if (
-      props.conversationType === wootConstants.CONVERSATION_TYPE.PARTICIPATING
-    ) {
-      localConversationList = filterByAssigneeTab(
-        participatingChatsList.value(filters)
-      );
-    } else if (activeAssigneeTab.value === 'me') {
-      localConversationList = [...mineChatsList.value(filters)];
-    } else if (activeAssigneeTab.value === 'unassigned') {
-      localConversationList = [...unAssignedChatsList.value(filters)];
-    } else {
-      localConversationList = [...allChatList.value(filters)];
-    }
+    localConversationList = [...allChatList.value(filters)];
   } else {
     localConversationList = [...chatLists.value];
   }
@@ -473,7 +506,7 @@ function initializeExistingFilterToModal() {
   const statusFilter = initializeStatusAndAssigneeFilterToModal(
     activeStatus.value,
     currentUserDetails.value,
-    activeAssigneeTab.value
+    wootConstants.ASSIGNEE_TYPE.ALL
   );
   // TODO: Remove the usage of useCamelCase after migrating useFilter to camelcase
   if (statusFilter) {
@@ -583,17 +616,6 @@ function loadMoreConversations() {
   }
 }
 
-function updateAssigneeTab(selectedTab) {
-  if (activeAssigneeTab.value !== selectedTab) {
-    resetBulkActions();
-    emitter.emit('clearSearchInput');
-    activeAssigneeTab.value = selectedTab;
-    if (!currentPage.value) {
-      fetchConversations();
-    }
-  }
-}
-
 function onBasicFilterChange(value, type) {
   if (type === 'status') {
     activeStatus.value = value;
@@ -630,8 +652,6 @@ function redirectToConversationList() {
   let conversationType = '';
   if (isOnMentionsView({ route: { name } })) {
     conversationType = wootConstants.CONVERSATION_TYPE.MENTION;
-  } else if (isOnParticipatingView({ route: { name } })) {
-    conversationType = wootConstants.CONVERSATION_TYPE.PARTICIPATING;
   } else if (isOnUnattendedView({ route: { name } })) {
     conversationType = wootConstants.CONVERSATION_TYPE.UNATTENDED;
   }
@@ -785,6 +805,10 @@ useEmitter('fetch_conversation_stats', () => {
   store.dispatch('conversationStats/get', conversationFilters.value);
 });
 
+onUnmounted(() => {
+  store.dispatch('conversationSearch/clearSearchResults');
+});
+
 onMounted(() => {
   store.dispatch('setChatListFilters', conversationFilters.value);
   setFiltersFromUISettings();
@@ -867,23 +891,25 @@ watch(conversationFilters, (newVal, oldVal) => {
     class="flex flex-col flex-shrink-0 conversations-list-wrap bg-n-surface-1 relative"
     :class="[
       { hidden: !showConversationList },
-      isOnExpandedLayout ? 'basis-full' : 'w-[340px] 2xl:w-[412px]',
+      isOnExpandedLayout ? 'basis-full' : '',
     ]"
+    :style="isOnExpandedLayout ? undefined : { width: `${listWidth}px` }"
   >
     <slot />
     <ChatListHeader
       :page-title="pageTitle"
       :has-applied-filters="hasAppliedFilters"
       :has-active-folders="hasActiveFolders"
-      :active-status="activeStatus"
       :is-on-expanded-layout="isOnExpandedLayout"
       :conversation-stats="conversationStats"
       :is-list-loading="chatListLoading && !conversationList.length"
+      :search-query="searchQuery"
       @add-folders="onClickOpenAddFoldersModal"
       @delete-folders="onClickOpenDeleteFoldersModal"
       @filters-modal="onToggleAdvanceFiltersModal"
       @reset-filters="resetAndFetchData"
       @basic-filter-change="onBasicFilterChange"
+      @update:search-query="onSearchQueryChange"
     />
 
     <TeleportWithDirection
@@ -907,21 +933,14 @@ watch(conversationFilters, (newVal, oldVal) => {
       @close="onCloseDeleteFoldersModal"
     />
 
-    <ChatTypeTabs
-      v-if="!hasAppliedFiltersOrActiveFolders"
-      :items="assigneeTabItems"
-      :active-tab="activeAssigneeTab"
-      is-compact
-      @chat-tab-change="updateAssigneeTab"
-    />
-
     <p
-      v-if="!chatListLoading && !conversationList.length"
+      v-if="!chatListLoading && !conversationList.length && !isSearching"
       class="flex overflow-auto justify-center items-center p-4"
     >
       {{ $t('CHAT_LIST.LIST.404') }}
     </p>
     <ConversationBulkActions
+      v-if="!isSearching"
       :conversations="selectedConversations"
       :all-conversations-selected="allConversationsSelected"
       :selected-inboxes="uniqueInboxes"
@@ -931,7 +950,27 @@ watch(conversationFilters, (newVal, oldVal) => {
       :class="isOnExpandedLayout && 'sm:!w-[24rem] !w-full'"
       @select-all-conversations="toggleSelectAll"
     />
+    <div v-if="isSearching" class="flex-grow overflow-y-auto">
+      <div class="px-3 pt-2">
+        <SearchResultConversationsList
+          :conversations="searchConversations"
+          :query="searchQuery"
+          :is-fetching="searchUIFlags.conversation?.isFetching"
+        />
+        <SearchResultContactsList
+          :contacts="searchContacts"
+          :query="searchQuery"
+          :is-fetching="searchUIFlags.contact?.isFetching"
+        />
+        <SearchResultMessagesList
+          :messages="searchMessages"
+          :query="searchQuery"
+          :is-fetching="searchUIFlags.message?.isFetching"
+        />
+      </div>
+    </div>
     <ConversationList
+      v-else
       :conversation-list="conversationList"
       :is-loading="chatListLoading"
       :show-end-of-list-message="showEndOfListMessage"
@@ -939,7 +978,6 @@ watch(conversationFilters, (newVal, oldVal) => {
       :team-id="teamId"
       :folders-id="foldersId"
       :conversation-type="conversationType"
-      :show-assignee="showAssigneeInConversationCard"
       :is-on-expanded-layout="isOnExpandedLayout"
       @load-more="loadMoreConversations"
     />
@@ -973,5 +1011,15 @@ watch(conversationFilters, (newVal, oldVal) => {
       ref="resolveAttributesModalRef"
       @submit="handleResolveWithAttributes"
     />
+    <div
+      v-if="!isOnExpandedLayout"
+      class="absolute top-0 ltr:right-0 rtl:left-0 h-full w-1 cursor-col-resize z-40 group"
+      @mousedown="onListResizeStart"
+    >
+      <div
+        class="absolute top-0 h-full w-px ltr:right-0 rtl:left-0 bg-transparent group-hover:bg-n-brand transition-colors"
+        :class="{ 'bg-n-brand': isResizingList }"
+      />
+    </div>
   </div>
 </template>

@@ -1,5 +1,4 @@
 <script setup>
-import { useI18n } from 'vue-i18n';
 import { useMapGetter } from 'dashboard/composables/store.js';
 
 import SearchResultMessageItem from './SearchResultMessageItem.vue';
@@ -24,15 +23,8 @@ defineProps({
     default: true,
   },
 });
-const { t } = useI18n();
 
 const accountId = useMapGetter('getCurrentAccountId');
-
-const getName = message => {
-  return message && message.sender && message.sender.name
-    ? message.sender.name
-    : t('SEARCH.BOT_LABEL');
-};
 </script>
 
 <template>
@@ -48,17 +40,13 @@ const getName = message => {
         <SearchResultMessageItem
           :id="message.conversationId"
           :account-id="accountId"
-          :inbox-id="message.inboxId"
           :created-at="message.createdAt"
           :message-id="message.id"
-          :is-private="message.private"
-          :attachments="message.attachments"
+          :contact-name="message.conversation?.contact?.name"
+          :contact-thumbnail="message.conversation?.contact?.thumbnail"
+          :message-type="message.messageType"
         >
-          <MessageContent
-            :author="getName(message)"
-            :message="message"
-            :search-term="query"
-          />
+          <MessageContent :message="message" :search-term="query" />
         </SearchResultMessageItem>
       </li>
     </ul>

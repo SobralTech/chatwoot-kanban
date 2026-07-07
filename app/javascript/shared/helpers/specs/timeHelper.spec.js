@@ -40,7 +40,7 @@ describe('#messageTimestamp', () => {
 describe('#dynamicTime', () => {
   it('returns correct value', () => {
     Date.now = vi.fn(() => new Date(Date.UTC(2023, 1, 14)).valueOf());
-    expect(dynamicTime(1612971343)).toEqual('about 2 years ago');
+    expect(dynamicTime(1612971343)).toEqual('há cerca de 2 anos');
   });
 });
 
@@ -54,43 +54,40 @@ describe('#dateFormat', () => {
 describe('#shortTimestamp', () => {
   // Test cases when withAgo is false or not provided
   it('returns correct value without ago', () => {
-    expect(shortTimestamp('in less than a minute')).toEqual('now');
-    expect(shortTimestamp('less than a minute ago')).toEqual('now');
-    expect(shortTimestamp('1 minute ago')).toEqual('1m');
-    expect(shortTimestamp('12 minutes ago')).toEqual('12m');
-    expect(shortTimestamp('a minute ago')).toEqual('1m');
-    expect(shortTimestamp('an hour ago')).toEqual('1h');
-    expect(shortTimestamp('1 hour ago')).toEqual('1h');
-    expect(shortTimestamp('2 hours ago')).toEqual('2h');
-    expect(shortTimestamp('1 day ago')).toEqual('1d');
-    expect(shortTimestamp('a day ago')).toEqual('1d');
-    expect(shortTimestamp('3 days ago')).toEqual('3d');
-    expect(shortTimestamp('a month ago')).toEqual('1mo');
-    expect(shortTimestamp('1 month ago')).toEqual('1mo');
-    expect(shortTimestamp('2 months ago')).toEqual('2mo');
-    expect(shortTimestamp('a year ago')).toEqual('1y');
-    expect(shortTimestamp('1 year ago')).toEqual('1y');
-    expect(shortTimestamp('4 years ago')).toEqual('4y');
+    expect(shortTimestamp('em menos de um minuto')).toEqual('agora');
+    expect(shortTimestamp('há menos de um minuto')).toEqual('agora');
+    expect(shortTimestamp('há meio minuto')).toEqual('agora');
+    expect(shortTimestamp('há 1 minuto')).toEqual('1m');
+    expect(shortTimestamp('há 12 minutos')).toEqual('12m');
+    expect(shortTimestamp('há cerca de 1 hora')).toEqual('1h');
+    expect(shortTimestamp('há 1 hora')).toEqual('1h');
+    expect(shortTimestamp('há 2 horas')).toEqual('2h');
+    expect(shortTimestamp('há 1 dia')).toEqual('1d');
+    expect(shortTimestamp('há 3 dias')).toEqual('3d');
+    expect(shortTimestamp('há cerca de 1 mês')).toEqual('1mo');
+    expect(shortTimestamp('há 1 mês')).toEqual('1mo');
+    expect(shortTimestamp('há 2 meses')).toEqual('2mo');
+    expect(shortTimestamp('há cerca de 1 ano')).toEqual('1y');
+    expect(shortTimestamp('há 1 ano')).toEqual('1y');
+    expect(shortTimestamp('há 4 anos')).toEqual('4y');
   });
 
   // Test cases when withAgo is true
   it('returns correct value with ago', () => {
-    expect(shortTimestamp('less than a minute ago', true)).toEqual('now');
-    expect(shortTimestamp('1 minute ago', true)).toEqual('1m ago');
-    expect(shortTimestamp('12 minutes ago', true)).toEqual('12m ago');
-    expect(shortTimestamp('a minute ago', true)).toEqual('1m ago');
-    expect(shortTimestamp('an hour ago', true)).toEqual('1h ago');
-    expect(shortTimestamp('1 hour ago', true)).toEqual('1h ago');
-    expect(shortTimestamp('2 hours ago', true)).toEqual('2h ago');
-    expect(shortTimestamp('1 day ago', true)).toEqual('1d ago');
-    expect(shortTimestamp('a day ago', true)).toEqual('1d ago');
-    expect(shortTimestamp('3 days ago', true)).toEqual('3d ago');
-    expect(shortTimestamp('a month ago', true)).toEqual('1mo ago');
-    expect(shortTimestamp('1 month ago', true)).toEqual('1mo ago');
-    expect(shortTimestamp('2 months ago', true)).toEqual('2mo ago');
-    expect(shortTimestamp('a year ago', true)).toEqual('1y ago');
-    expect(shortTimestamp('1 year ago', true)).toEqual('1y ago');
-    expect(shortTimestamp('4 years ago', true)).toEqual('4y ago');
+    expect(shortTimestamp('há menos de um minuto', true)).toEqual('agora');
+    expect(shortTimestamp('há 1 minuto', true)).toEqual('1m atrás');
+    expect(shortTimestamp('há 12 minutos', true)).toEqual('12m atrás');
+    expect(shortTimestamp('há cerca de 1 hora', true)).toEqual('1h atrás');
+    expect(shortTimestamp('há 1 hora', true)).toEqual('1h atrás');
+    expect(shortTimestamp('há 2 horas', true)).toEqual('2h atrás');
+    expect(shortTimestamp('há 1 dia', true)).toEqual('1d atrás');
+    expect(shortTimestamp('há 3 dias', true)).toEqual('3d atrás');
+    expect(shortTimestamp('há cerca de 1 mês', true)).toEqual('1mo atrás');
+    expect(shortTimestamp('há 1 mês', true)).toEqual('1mo atrás');
+    expect(shortTimestamp('há 2 meses', true)).toEqual('2mo atrás');
+    expect(shortTimestamp('há cerca de 1 ano', true)).toEqual('1y atrás');
+    expect(shortTimestamp('há 1 ano', true)).toEqual('1y atrás');
+    expect(shortTimestamp('há 4 anos', true)).toEqual('4y atrás');
   });
 });
 

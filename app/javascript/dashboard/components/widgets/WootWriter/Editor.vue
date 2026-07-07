@@ -68,6 +68,7 @@ import {
   hasPressedEnterAndNotCmdOrShift,
   hasPressedCommandAndEnter,
   isEscape,
+  isInComposition,
 } from 'shared/helpers/KeyboardHelpers';
 import { createTypingIndicator } from '@chatwoot/utils';
 import { checkFileSizeLimit } from 'shared/helpers/FileHelper';
@@ -734,6 +735,9 @@ function onKeydown(event) {
     collapseSelection(editorView);
     return true;
   }
+  // During IME / Windows OS text-suggestion composition, leave Enter to the
+  // browser/editor so the suggestion is applied natively — never suppress it.
+  if (isInComposition(event)) return false;
   if (isEnterToSendEnabled()) {
     handleLineBreakWhenEnterToSendEnabled(event);
   }
@@ -1041,6 +1045,13 @@ useEmitter(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, insertContentIntoEditor);
     transition:
       min-height var(--editor-height-transition, 180ms ease),
       max-height var(--editor-height-transition, 180ms ease);
+  }
+
+  // Non-email channels: no manual resize, box grows with content
+  // between the min and max bounds instead of locking to a fixed height.
+  &.is-auto-grow .ProseMirror-woot-style {
+    min-height: var(--editor-min-allowed, 1.875rem);
+    max-height: var(--editor-max-allowed, 7.5rem);
   }
 }
 

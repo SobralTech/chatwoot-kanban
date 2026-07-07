@@ -68,6 +68,111 @@ RSpec.describe 'Conversations API', type: :request do
         expect(body[:data][:meta][:all_count]).to eq(2)
         expect(body[:data][:payload].count).to eq(2)
       end
+
+      it 'returns an old pinned conversation on the first page, ahead of unpinned conversations' do
+        inbox = conversation.inbox
+        inbox.update!(enable_auto_assignment: false)
+        per_page = ENV.fetch('CONVERSATION_RESULTS_PER_PAGE', '25').to_i
+
+        old_pinned_conversation = create(:conversation, account: account, inbox: inbox, last_activity_at: 60.days.ago)
+        create(:conversation_pin, account: account, conversation: old_pinned_conversation, pinned_at: 1.hour.ago)
+
+        # enough recent conversations to push the old pinned conversation off page 1 if pin is ignored
+        per_page.times { |i| create(:conversation, account: account, inbox: inbox, last_activity_at: i.hours.ago) }
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        payload = body[:data][:payload]
+
+        first_item = payload.first
+        expect(first_item[:uuid]).to eq(old_pinned_conversation.uuid)
+        expect(first_item[:account_pinned_at]).to be > 0
+
+        uuids = payload.map { |c| c[:uuid] }
+        expect(uuids.uniq.length).to eq(uuids.length)
+      end
+
+      it 'returns a pinned conversation first within the unattended (DISTINCT) filter without raising an ORDER BY error' do
+        agent_1 = create(:user, account: account, role: :agent)
+
+        unattended_conversation = create(:conversation, account: account, agent_last_seen_at: 1.day.ago)
+        create(:message, conversation: unattended_conversation, account: account, created_at: Time.current)
+        pinned_unattended_conversation = create(:conversation, account: account, agent_last_seen_at: 1.day.ago)
+        create(:message, conversation: pinned_unattended_conversation, account: account, created_at: Time.current)
+        create(:conversation_pin, account: account, conversation: pinned_unattended_conversation, pinned_at: 1.hour.ago)
+
+        create(:inbox_member, user: agent_1, inbox: unattended_conversation.inbox)
+        create(:inbox_member, user: agent_1, inbox: pinned_unattended_conversation.inbox)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent_1.create_new_auth_token,
+            params: { conversation_type: 'unattended' },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        payload = body[:data][:payload]
+
+        expect(payload.size).to eq(2)
+        expect(payload.first[:uuid]).to eq(pinned_unattended_conversation.uuid)
+
+        uuids = payload.map { |c| c[:uuid] }
+        expect(uuids.uniq.length).to eq(uuids.length)
+      end
+
+      it 'respects the status filter while keeping a pinned conversation first' do
+        inbox = conversation.inbox
+        inbox.update!(enable_auto_assignment: false)
+
+        old_pinned_open_conversation = create(:conversation, account: account, inbox: inbox, status: 'open', last_activity_at: 60.days.ago)
+        create(:conversation_pin, account: account, conversation: old_pinned_open_conversation, pinned_at: 1.hour.ago)
+        recent_open_conversation = create(:conversation, account: account, inbox: inbox, status: 'open', last_activity_at: 1.hour.ago)
+        resolved_conversation = create(:conversation, account: account, inbox: inbox, status: 'resolved', last_activity_at: 30.minutes.ago)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            params: { status: 'open' },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        payload = body[:data][:payload]
+
+        uuids = payload.map { |c| c[:uuid] }
+        expect(uuids).not_to include(resolved_conversation.uuid)
+        expect(uuids.first).to eq(old_pinned_open_conversation.uuid)
+        expect(uuids).to include(recent_open_conversation.uuid)
+        expect(uuids.uniq.length).to eq(uuids.length)
+      end
+
+      it 'respects the inbox_id filter while keeping a pinned conversation first' do
+        inbox = conversation.inbox
+        inbox.update!(enable_auto_assignment: false)
+        other_inbox = create(:inbox, account: account, enable_auto_assignment: false)
+        create(:inbox_member, user: agent, inbox: other_inbox)
+
+        old_pinned_conversation = create(:conversation, account: account, inbox: inbox, last_activity_at: 60.days.ago)
+        create(:conversation_pin, account: account, conversation: old_pinned_conversation, pinned_at: 1.hour.ago)
+        other_inbox_conversation = create(:conversation, account: account, inbox: other_inbox, last_activity_at: 1.minute.ago)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            params: { inbox_id: inbox.id },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        payload = body[:data][:payload]
+
+        uuids = payload.map { |c| c[:uuid] }
+        expect(uuids).not_to include(other_inbox_conversation.uuid)
+        expect(uuids.first).to eq(old_pinned_conversation.uuid)
+        expect(uuids.uniq.length).to eq(uuids.length)
+      end
     end
   end
 
@@ -1215,6 +1320,57 @@ RSpec.describe 'Conversations API', type: :request do
         end.to have_enqueued_job(DeleteObjectJob).with(other_conversation, administrator, anything)
 
         expect(response).to have_http_status(:ok)
+      end
+    end
+  end
+
+  describe 'POST /api/v1/accounts/{account.id}/conversations/:id/toggle_pin' do
+    let(:conversation) { create(:conversation, account: account) }
+    let(:agent) { create(:user, account: account, role: :agent) }
+
+    context 'when it is an unauthenticated user' do
+      it 'returns unauthorized' do
+        post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin"
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
+    context 'when it is an authenticated user' do
+      before do
+        create(:inbox_member, user: agent, inbox: conversation.inbox)
+      end
+
+      it 'creates a pin when none exists' do
+        post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(conversation.reload.account_pin).to be_present
+      end
+
+      it 'destroys an existing pin (toggle off)' do
+        create(:conversation_pin, conversation: conversation, account: account, user: agent)
+
+        post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(conversation.reload.account_pin).to be_nil
+      end
+
+      it 'broadcasts a conversation updated event when toggling a pin' do
+        expect(Rails.configuration.dispatcher).to receive(:dispatch).with(
+          Events::Types::CONVERSATION_UPDATED,
+          anything,
+          hash_including(conversation: conversation)
+        )
+
+        post "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/toggle_pin",
+             headers: agent.create_new_auth_token,
+             as: :json
       end
     end
   end

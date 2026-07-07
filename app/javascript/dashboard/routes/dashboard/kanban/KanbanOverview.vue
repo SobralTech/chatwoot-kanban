@@ -61,7 +61,8 @@ const inboxIcon = inbox =>
   getInboxIconByType(
     inbox.channel_type || inbox.channelType,
     inbox.medium,
-    'line'
+    'line',
+    inbox.name
   );
 
 const retryFetch = () => {
@@ -80,7 +81,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="flex h-full min-h-0 w-full bg-n-surface-1 text-n-slate-12">
+  <main
+    class="flex h-full min-h-0 w-full overflow-y-auto no-scrollbar bg-n-surface-1 text-n-slate-12"
+  >
     <div
       class="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8 lg:px-10"
     >

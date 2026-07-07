@@ -11,6 +11,7 @@
 #  normalized_subject :string
 #  origin             :string           not null
 #  position           :integer          default(0), not null
+#  priority           :integer
 #  stage_entered_at   :datetime         not null
 #  starts_at          :datetime
 #  subject            :string
@@ -46,10 +47,15 @@ class KanbanCard < ApplicationRecord
   belongs_to :inbox
   belongs_to :conversation, optional: true
 
+  has_many :kanban_card_assignees, dependent: :destroy
+  has_many :assignees, through: :kanban_card_assignees, source: :user
+
   enum :origin, {
     conversation: 'conversation',
     manual: 'manual'
   }
+
+  enum :priority, { low: 0, medium: 1, high: 2, urgent: 3 }
 
   before_validation :normalize_subject
   before_validation :normalize_blank_description
@@ -70,7 +76,7 @@ class KanbanCard < ApplicationRecord
   validates :conversation_id,
             uniqueness: {
               scope: [:kanban_board_id, :inbox_id, :normalized_subject],
-              conditions: -> { where(origin: 'conversation').where.not(normalized_subject: nil) }
+              conditions: -> { where(active: true, origin: 'conversation').where.not(normalized_subject: nil) }
             },
             if: :validate_conversation_uniqueness?
   validate :due_at_after_starts_at
@@ -110,6 +116,17 @@ class KanbanCard < ApplicationRecord
     end
   end
 
+  def update_assignees!(user_ids)
+    target_ids = Array(user_ids).filter_map(&:presence).map(&:to_i).uniq
+
+    self.class.transaction do
+      kanban_card_assignees.where.not(user_id: target_ids).destroy_all
+      (target_ids - kanban_card_assignees.pluck(:user_id)).each do |user_id|
+        kanban_card_assignees.create!(account: account, user_id: user_id)
+      end
+    end
+  end
+
   def deactivate_and_normalize!
     self.class.transaction do
       stage = kanban_stage
@@ -117,9 +134,8 @@ class KanbanCard < ApplicationRecord
       self.class.lock_reorder_stages!([stage.id])
       self.class.lock_active_cards_for_stages!(kanban_board, [stage.id])
 
-      self.class.where(id: id).update_all(active: false, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+      destroy!
       self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: stage)
-      reload
     end
   end
 

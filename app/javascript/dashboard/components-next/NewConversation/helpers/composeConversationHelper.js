@@ -40,7 +40,7 @@ const transformInbox = ({
   ...rest
 }) => ({
   id,
-  icon: getInboxIconByType(channelType, medium, 'line'),
+  icon: getInboxIconByType(channelType, medium, 'line', name),
   label: generateLabelForContactableInboxesList({
     name,
     email,

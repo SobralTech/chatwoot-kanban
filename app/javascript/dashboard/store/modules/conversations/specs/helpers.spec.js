@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyRoleFilter } from '../helpers';
+import { applyRoleFilter, sortComparator } from '../helpers';
 
 describe('Conversation Helpers', () => {
   describe('#applyRoleFilter', () => {
@@ -272,5 +272,47 @@ describe('Conversation Helpers', () => {
         ).toBe(true);
       });
     });
+  });
+});
+
+describe('#sortComparator', () => {
+  const base = { last_activity_at: 1000, waiting_since: 0 };
+
+  const conv = (overrides = {}) => ({ ...base, ...overrides });
+
+  it('floats a pinned conversation above an unpinned one', () => {
+    const pinned = conv({ account_pinned_at: 1700000000 });
+    const unpinned = conv({ account_pinned_at: null });
+    expect(sortComparator(pinned, unpinned, 'last_activity_at_desc')).toBe(-1);
+    expect(sortComparator(unpinned, pinned, 'last_activity_at_desc')).toBe(1);
+  });
+
+  it('sorts two pinned conversations by most recently pinned first', () => {
+    const first = conv({ account_pinned_at: 1700002000 });
+    const second = conv({ account_pinned_at: 1700001000 });
+    expect(sortComparator(first, second, 'last_activity_at_desc')).toBeLessThan(
+      0
+    );
+    expect(
+      sortComparator(second, first, 'last_activity_at_desc')
+    ).toBeGreaterThan(0);
+  });
+
+  it('falls back to sort key for two unpinned conversations', () => {
+    const newer = conv({
+      last_activity_at: 2000,
+      account_pinned_at: null,
+    });
+    const older = conv({
+      last_activity_at: 1000,
+      account_pinned_at: null,
+    });
+    // last_activity_at_desc: newer should come first (negative result)
+    expect(sortComparator(newer, older, 'last_activity_at_desc')).toBeLessThan(
+      0
+    );
+    expect(
+      sortComparator(older, newer, 'last_activity_at_desc')
+    ).toBeGreaterThan(0);
   });
 });

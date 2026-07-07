@@ -6,7 +6,7 @@ import { useAlert } from 'dashboard/composables';
 import { useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
-export function useKanbanBoardCreation({ boards, t }) {
+export function useKanbanBoardCreation({ boards, t, navigateOnCreate = true }) {
   const route = useRoute();
   const router = useRouter();
   const store = useStore();
@@ -42,13 +42,15 @@ export function useKanbanBoardCreation({ boards, t }) {
       const board = camelcaseKeys(response.data || {}, { deep: true });
       showCreateBoardDialog.value = false;
       await store.dispatch('kanbanBoards/refreshBoards');
-      router.push({
-        name: 'kanban_board_show',
-        params: {
-          accountId: route.params.accountId,
-          boardId: board.id,
-        },
-      });
+      if (navigateOnCreate) {
+        router.push({
+          name: 'kanban_board_show',
+          params: {
+            accountId: route.params.accountId,
+            boardId: board.id,
+          },
+        });
+      }
       useAlert(t('KANBAN.ACTIONS.CREATE_BOARD_SUCCESS'));
     } catch (error) {
       createBoardError.value =

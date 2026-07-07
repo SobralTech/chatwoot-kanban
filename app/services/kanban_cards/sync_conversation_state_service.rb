@@ -16,7 +16,7 @@ class KanbanCards::SyncConversationStateService
   end
 
   def deactivate!
-    mirrored_card&.update!(active: false)
+    mirrored_card&.deactivate_and_normalize!
   end
 
   private
@@ -26,7 +26,6 @@ class KanbanCards::SyncConversationStateService
   def mirrored_card
     KanbanCard.conversation
               .where(kanban_board_id: state.kanban_board_id, conversation_id: state.conversation_id)
-              .order(active: :desc, id: :asc)
               .first
   end
 

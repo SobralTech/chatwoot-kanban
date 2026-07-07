@@ -1,7 +1,7 @@
 class ConversationAssistant::ResponsesClient
   REQUEST_TIMEOUT_SECONDS = 30
 
-  pattr_initialize [:api_key!, :api_base!, :model!, :messages!]
+  pattr_initialize [:api_key!, :api_base!, :model!, :messages!, { web_search: false }]
 
   def perform
     response = connection.post(responses_api_path) do |request|
@@ -32,8 +32,6 @@ class ConversationAssistant::ResponsesClient
     {
       model: model,
       input: messages.map { |message| responses_message(message) },
-      tools: [{ type: 'web_search', search_context_size: 'low' }],
-      tool_choice: 'auto',
       max_output_tokens: 900,
       text: {
         format: {
@@ -43,7 +41,13 @@ class ConversationAssistant::ResponsesClient
           schema: response_schema
         }
       }
-    }
+    }.merge(web_search_tools)
+  end
+
+  def web_search_tools
+    return {} unless web_search
+
+    { tools: [{ type: 'web_search', search_context_size: 'low' }], tool_choice: 'auto' }
   end
 
   def responses_message(message)

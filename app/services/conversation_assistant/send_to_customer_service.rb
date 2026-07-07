@@ -1,9 +1,10 @@
 class ConversationAssistant::SendToCustomerService
   pattr_initialize [:assistant_message!, :user!]
 
+  class ValidationError < StandardError; end
+
   def perform
-    raise StandardError, 'Assistant response is not ready' unless assistant_message.completed? || assistant_message.sent_to_customer?
-    raise StandardError, 'Suggested reply is blank' if assistant_message.suggested_reply.blank?
+    validate!
 
     message = Messages::MessageBuilder.new(
       user,
@@ -21,5 +22,15 @@ class ConversationAssistant::SendToCustomerService
     )
 
     message
+  end
+
+  private
+
+  def validate!
+    unless assistant_message.completed? || assistant_message.sent_to_customer?
+      raise ValidationError, I18n.t('errors.conversation_assistant.not_ready')
+    end
+    raise ValidationError, I18n.t('errors.conversation_assistant.suggested_reply_blank') if assistant_message.suggested_reply.blank?
+    raise ValidationError, I18n.t('errors.conversation_assistant.outside_messaging_window') unless assistant_message.conversation.can_reply?
   end
 end

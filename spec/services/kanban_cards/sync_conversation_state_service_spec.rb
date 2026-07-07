@@ -131,12 +131,12 @@ RSpec.describe KanbanCards::SyncConversationStateService do
   end
 
   describe '#deactivate!' do
-    it 'soft-deletes the mirrored card' do
+    it 'destroys the mirrored card' do
       card = described_class.new(state).sync!
 
       described_class.new(state).deactivate!
 
-      expect(card.reload).not_to be_active
+      expect { card.reload }.to raise_error(ActiveRecord::RecordNotFound)
     end
 
     it 'is safe when the mirrored card does not exist' do

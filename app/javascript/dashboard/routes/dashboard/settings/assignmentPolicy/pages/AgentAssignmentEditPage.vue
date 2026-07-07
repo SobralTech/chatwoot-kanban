@@ -84,7 +84,7 @@ const buildInboxList = allInboxes =>
     id,
     email,
     phoneNumber,
-    icon: getInboxIconByType(channelType, medium, 'line'),
+    icon: getInboxIconByType(channelType, medium, 'line', name),
   })) || [];
 
 const policyInboxes = computed(() =>

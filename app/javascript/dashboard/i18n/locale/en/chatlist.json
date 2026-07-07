@@ -42,16 +42,6 @@
       "STATUS": "Status",
       "ORDER_BY": "Order by"
     },
-    "CHAT_TIME_STAMP": {
-      "CREATED": {
-        "LATEST": "Created",
-        "OLDEST": "Created at:"
-      },
-      "LAST_ACTIVITY": {
-        "NOT_ACTIVE": "Last activity:",
-        "ACTIVE": "Last activity"
-      }
-    },
     "SORT_ORDER_ITEMS": {
       "last_activity_at_asc": {
         "TEXT": "Last activity: Oldest first"

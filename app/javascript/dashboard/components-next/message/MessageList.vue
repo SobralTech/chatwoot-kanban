@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Message from './Message.vue';
 import { MESSAGE_TYPES } from './constants.js';
 import { useCamelCase } from 'dashboard/composables/useTransformKeys';
@@ -57,6 +58,7 @@ const allMessages = computed(() => {
 });
 
 const currentChat = useMapGetter('getSelectedChat');
+const { t } = useI18n();
 
 // Cache for fetched reply messages to avoid duplicate API calls
 const fetchedReplyMessages = reactive(new Map());
@@ -132,6 +134,18 @@ const shouldGroupWithNext = (index, searchList) => {
 };
 
 /**
+ * Determines if a message should be grouped with the previous message
+ * @param {Number} index - Index of the current message
+ * @param {Array} searchList - Array of messages to check
+ * @returns {Boolean} - Whether the message should be grouped with previous
+ */
+const shouldGroupWithPrevious = (index, searchList) => {
+  if (index === 0) return false;
+
+  return shouldGroupWithNext(index - 1, searchList);
+};
+
+/**
  * Gets the message that was replied to
  * @param {Object} parentMessage - The message containing the reply reference
  * @returns {Object|null} - The message being replied to, or null if not found
@@ -178,11 +192,22 @@ const getInReplyToMessage = parentMessage => {
         v-if="firstUnreadId && message.id === firstUnreadId"
         name="unreadBadge"
       />
+      <li
+        v-if="currentChat?.messageGapBeforeId === message.id"
+        class="list-none flex items-center gap-3 my-3 px-2"
+      >
+        <div class="h-px flex-1 bg-n-weak" />
+        <span class="shrink-0 text-xs text-n-slate-10">
+          {{ t('CONVERSATION.MESSAGES_GAP') }}
+        </span>
+        <div class="h-px flex-1 bg-n-weak" />
+      </li>
       <Message
         v-bind="message"
         :is-email-inbox="isAnEmailChannel"
         :in-reply-to="getInReplyToMessage(message)"
         :group-with-next="shouldGroupWithNext(index, allMessages)"
+        :group-with-previous="shouldGroupWithPrevious(index, allMessages)"
         :inbox-supports-reply-to="inboxSupportsReplyTo"
         :current-user-id="currentUserId"
         :conversation-search-query="conversationSearchQuery"

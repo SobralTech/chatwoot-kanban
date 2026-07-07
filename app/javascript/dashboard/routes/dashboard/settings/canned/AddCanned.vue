@@ -6,6 +6,8 @@ import { useAlert } from 'dashboard/composables';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Modal from '../../../../components/Modal.vue';
 import WootMessageEditor from 'dashboard/components/widgets/WootWriter/Editor.vue';
+import AudioRecorder from 'dashboard/components/widgets/WootWriter/AudioRecorder.vue';
+import { AUDIO_FORMATS } from 'shared/constants/messages';
 
 export default {
   name: 'AddCanned',
@@ -13,6 +15,7 @@ export default {
     NextButton,
     Modal,
     WootMessageEditor,
+    AudioRecorder,
   },
   props: {
     responseContent: {
@@ -33,6 +36,7 @@ export default {
       content: this.responseContent || '',
       mode: 'insert',
       steps: [{ step_type: 'text', content: '', file: null }],
+      audioRecordFormat: AUDIO_FORMATS.MP3,
       addCanned: {
         showLoading: false,
         message: '',
@@ -69,6 +73,9 @@ export default {
       );
     },
   },
+  created() {
+    this.stepRecorders = {};
+  },
   methods: {
     resetForm() {
       this.shortCode = '';
@@ -81,21 +88,49 @@ export default {
     addStep(stepType = 'text') {
       this.steps.push({ step_type: stepType, content: '', file: null });
     },
+    addRecordingStep() {
+      this.steps.push({
+        step_type: 'audio',
+        content: '',
+        file: null,
+        isRecording: true,
+      });
+    },
     removeStep(index) {
       if (this.steps.length === 1) return;
+      delete this.stepRecorders[index];
       this.steps.splice(index, 1);
     },
-    onStepTypeChange(step) {
+    stepTypeGroup(step) {
+      return step.step_type === 'text' ? 'text' : 'media';
+    },
+    onStepTypeGroupChange(event, step) {
+      step.step_type = event.target.value === 'text' ? 'text' : 'image';
       step.content = '';
       step.file = null;
       step.file_name = '';
       step.file_blob_id = '';
+      step.isRecording = false;
     },
     onStepFileChange(event, step) {
       const [file] = event.target.files;
+      if (!file) return;
       step.file = file;
-      step.file_name = file?.name || '';
+      step.file_name = file.name || '';
       step.file_blob_id = '';
+      step.step_type = file.type.startsWith('audio/') ? 'audio' : 'image';
+    },
+    setRecorderRef(el, index) {
+      if (el) this.stepRecorders[index] = el;
+    },
+    stopRecording(index) {
+      this.stepRecorders[index]?.stopRecording();
+    },
+    onStepRecordFinish(file, step) {
+      step.file = file.file;
+      step.file_name = file.name;
+      step.file_blob_id = '';
+      step.isRecording = false;
     },
     payload() {
       const firstTextStep = this.steps.find(step => step.step_type === 'text');
@@ -208,15 +243,15 @@ export default {
                 @click.prevent="removeStep(index)"
               />
             </div>
-            <select v-model="step.step_type" @change="onStepTypeChange(step)">
+            <select
+              :value="stepTypeGroup(step)"
+              @change="onStepTypeGroupChange($event, step)"
+            >
               <option value="text">
                 {{ $t('CANNED_MGMT.ADD.FORM.STEPS.TEXT') }}
               </option>
-              <option value="image">
-                {{ $t('CANNED_MGMT.ADD.FORM.STEPS.IMAGE') }}
-              </option>
-              <option value="audio">
-                {{ $t('CANNED_MGMT.ADD.FORM.STEPS.AUDIO') }}
+              <option value="media">
+                {{ $t('CANNED_MGMT.ADD.FORM.STEPS.ATTACHMENT') }}
               </option>
             </select>
             <textarea
@@ -225,10 +260,28 @@ export default {
               rows="3"
               :placeholder="$t('CANNED_MGMT.ADD.FORM.STEPS.TEXT_PLACEHOLDER')"
             />
+            <div
+              v-else-if="step.step_type === 'audio' && step.isRecording"
+              class="flex flex-col gap-2"
+            >
+              <AudioRecorder
+                :ref="el => setRecorderRef(el, index)"
+                :audio-record-format="audioRecordFormat"
+                @finish-record="file => onStepRecordFinish(file, step)"
+              />
+              <NextButton
+                faded
+                slate
+                sm
+                type="button"
+                :label="$t('CANNED_MGMT.ADD.FORM.STEPS.STOP_RECORDING')"
+                @click.prevent="stopRecording(index)"
+              />
+            </div>
             <input
               v-else
               type="file"
-              :accept="step.step_type === 'image' ? 'image/*' : 'audio/*'"
+              accept="image/*,audio/*"
               @change="onStepFileChange($event, step)"
             />
             <span v-if="step.file_name" class="text-xs text-n-slate-11">
@@ -247,15 +300,15 @@ export default {
               faded
               slate
               type="button"
-              :label="$t('CANNED_MGMT.ADD.FORM.STEPS.ADD_IMAGE')"
+              :label="$t('CANNED_MGMT.ADD.FORM.STEPS.ADD_ATTACHMENT')"
               @click.prevent="addStep('image')"
             />
             <NextButton
               faded
               slate
               type="button"
-              :label="$t('CANNED_MGMT.ADD.FORM.STEPS.ADD_AUDIO')"
-              @click.prevent="addStep('audio')"
+              :label="$t('CANNED_MGMT.ADD.FORM.STEPS.RECORD_AUDIO')"
+              @click.prevent="addRecordingStep"
             />
           </div>
         </div>

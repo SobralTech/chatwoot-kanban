@@ -28,6 +28,14 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  showInboxAsHeader: {
+    type: Boolean,
+    default: false,
+  },
+  hideAssignee: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const router = useRouter();
@@ -48,8 +56,8 @@ const inbox = computed(() => props.stateInbox);
 const inboxName = computed(() => inbox.value?.name);
 
 const inboxIcon = computed(() => {
-  const { channelType, medium } = inbox.value;
-  return getInboxIconByType(channelType, medium);
+  const { channelType, medium, name } = inbox.value;
+  return getInboxIconByType(channelType, medium, 'fill', name);
 });
 
 const lastActivityAt = computed(() => {
@@ -91,20 +99,28 @@ const onCardClick = e => {
     @click="onCardClick"
   >
     <Avatar
+      v-if="!showInboxAsHeader"
       :name="currentContactName"
       :src="currentContactThumbnail"
       :size="24"
       :status="currentContactStatus"
       rounded-full
     />
+    <div
+      v-else
+      class="flex items-center justify-center flex-shrink-0 rounded-full bg-n-alpha-2 size-6"
+    >
+      <Icon :icon="inboxIcon" class="flex-shrink-0 text-n-slate-11 size-3" />
+    </div>
     <div class="flex flex-col w-full gap-1 min-w-0">
       <div class="flex items-center justify-between h-6 gap-2">
         <h4 class="text-base font-medium truncate text-n-slate-12">
-          {{ currentContactName }}
+          {{ showInboxAsHeader ? inboxName : currentContactName }}
         </h4>
         <div class="flex items-center gap-2">
           <CardPriorityIcon :priority="conversation.priority || null" />
           <div
+            v-if="!showInboxAsHeader"
             v-tooltip.left="inboxName"
             class="flex items-center justify-center flex-shrink-0 rounded-full bg-n-alpha-2 size-5"
           >
@@ -121,12 +137,14 @@ const onCardClick = e => {
       <CardMessagePreview
         v-show="showMessagePreviewWithoutMeta"
         :conversation="conversation"
+        :hide-assignee="hideAssignee"
       />
       <CardMessagePreviewWithMeta
         v-show="!showMessagePreviewWithoutMeta"
         ref="cardMessagePreviewWithMetaRef"
         :conversation="conversation"
         :account-labels="accountLabels"
+        :hide-assignee="hideAssignee"
       />
     </div>
   </div>

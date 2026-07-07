@@ -37,6 +37,11 @@ export const getters = {
   },
 };
 
+// Tracks the most recently dispatched fullSearch call so that a slow
+// response from an older, superseded search can be discarded instead of
+// being merged into the results of a newer one.
+let latestSearchId = 0;
+
 export const actions = {
   async get({ commit }, { q }) {
     commit(types.SEARCH_CONVERSATIONS_SET, []);
@@ -62,16 +67,18 @@ export const actions = {
     if (!q && !Object.keys(filters).length) {
       return;
     }
+    latestSearchId += 1;
+    const searchId = latestSearchId;
     commit(types.FULL_SEARCH_SET_UI_FLAG, {
       isFetching: true,
       isSearchCompleted: false,
     });
     try {
       await Promise.all([
-        dispatch('contactSearch', { q, ...filters }),
-        dispatch('conversationSearch', { q, ...filters }),
-        dispatch('messageSearch', { q, ...filters }),
-        dispatch('articleSearch', { q, ...filters }),
+        dispatch('contactSearch', { q, ...filters, searchId }),
+        dispatch('conversationSearch', { q, ...filters, searchId }),
+        dispatch('messageSearch', { q, ...filters, searchId }),
+        dispatch('articleSearch', { q, ...filters, searchId }),
       ]);
     } catch (error) {
       // Ignore error
@@ -83,11 +90,17 @@ export const actions = {
     }
   },
   async contactSearch({ commit }, payload) {
-    const { page = 1, ...searchParams } = payload;
+    const { page = 1, searchId, ...searchParams } = payload;
     commit(types.CONTACT_SEARCH_SET_UI_FLAG, { isFetching: true });
     try {
       const { data } = await SearchAPI.contacts({ ...searchParams, page });
-      commit(types.CONTACT_SEARCH_SET, data.payload.contacts);
+      if (searchId !== undefined && searchId !== latestSearchId) {
+        return;
+      }
+      commit(types.CONTACT_SEARCH_SET, {
+        records: data.payload.contacts,
+        page,
+      });
     } catch (error) {
       // Ignore error
     } finally {
@@ -95,11 +108,17 @@ export const actions = {
     }
   },
   async conversationSearch({ commit }, payload) {
-    const { page = 1, ...searchParams } = payload;
+    const { page = 1, searchId, ...searchParams } = payload;
     commit(types.CONVERSATION_SEARCH_SET_UI_FLAG, { isFetching: true });
     try {
       const { data } = await SearchAPI.conversations({ ...searchParams, page });
-      commit(types.CONVERSATION_SEARCH_SET, data.payload.conversations);
+      if (searchId !== undefined && searchId !== latestSearchId) {
+        return;
+      }
+      commit(types.CONVERSATION_SEARCH_SET, {
+        records: data.payload.conversations,
+        page,
+      });
     } catch (error) {
       // Ignore error
     } finally {
@@ -107,11 +126,17 @@ export const actions = {
     }
   },
   async messageSearch({ commit }, payload) {
-    const { page = 1, ...searchParams } = payload;
+    const { page = 1, searchId, ...searchParams } = payload;
     commit(types.MESSAGE_SEARCH_SET_UI_FLAG, { isFetching: true });
     try {
       const { data } = await SearchAPI.messages({ ...searchParams, page });
-      commit(types.MESSAGE_SEARCH_SET, data.payload.messages);
+      if (searchId !== undefined && searchId !== latestSearchId) {
+        return;
+      }
+      commit(types.MESSAGE_SEARCH_SET, {
+        records: data.payload.messages,
+        page,
+      });
     } catch (error) {
       // Ignore error
     } finally {
@@ -119,11 +144,17 @@ export const actions = {
     }
   },
   async articleSearch({ commit }, payload) {
-    const { page = 1, ...searchParams } = payload;
+    const { page = 1, searchId, ...searchParams } = payload;
     commit(types.ARTICLE_SEARCH_SET_UI_FLAG, { isFetching: true });
     try {
       const { data } = await SearchAPI.articles({ ...searchParams, page });
-      commit(types.ARTICLE_SEARCH_SET, data.payload.articles);
+      if (searchId !== undefined && searchId !== latestSearchId) {
+        return;
+      }
+      commit(types.ARTICLE_SEARCH_SET, {
+        records: data.payload.articles,
+        page,
+      });
     } catch (error) {
       // Ignore error
     } finally {
@@ -139,17 +170,21 @@ export const mutations = {
   [types.SEARCH_CONVERSATIONS_SET](state, records) {
     state.records = records;
   },
-  [types.CONTACT_SEARCH_SET](state, records) {
-    state.contactRecords = [...state.contactRecords, ...records];
+  [types.CONTACT_SEARCH_SET](state, { records, page }) {
+    state.contactRecords =
+      page > 1 ? [...state.contactRecords, ...records] : records;
   },
-  [types.CONVERSATION_SEARCH_SET](state, records) {
-    state.conversationRecords = [...state.conversationRecords, ...records];
+  [types.CONVERSATION_SEARCH_SET](state, { records, page }) {
+    state.conversationRecords =
+      page > 1 ? [...state.conversationRecords, ...records] : records;
   },
-  [types.MESSAGE_SEARCH_SET](state, records) {
-    state.messageRecords = [...state.messageRecords, ...records];
+  [types.MESSAGE_SEARCH_SET](state, { records, page }) {
+    state.messageRecords =
+      page > 1 ? [...state.messageRecords, ...records] : records;
   },
-  [types.ARTICLE_SEARCH_SET](state, records) {
-    state.articleRecords = [...state.articleRecords, ...records];
+  [types.ARTICLE_SEARCH_SET](state, { records, page }) {
+    state.articleRecords =
+      page > 1 ? [...state.articleRecords, ...records] : records;
   },
   [types.SEARCH_CONVERSATIONS_SET_UI_FLAG](state, uiFlags) {
     state.uiFlags = { ...state.uiFlags, ...uiFlags };

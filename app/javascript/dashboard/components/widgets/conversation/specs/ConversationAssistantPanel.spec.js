@@ -1,4 +1,5 @@
 import { mount, flushPromises } from '@vue/test-utils';
+import { createStore } from 'vuex';
 import ConversationAssistantPanel from '../ConversationAssistantPanel.vue';
 import AssistantMessagesAPI from 'dashboard/api/inbox/assistantMessages';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -21,6 +22,14 @@ vi.mock('dashboard/composables', () => ({
   useAlert: vi.fn(),
 }));
 
+vi.mock('dashboard/composables/useAccount', () => ({
+  useAccount: () => ({
+    currentAccount: {
+      value: { conversation_assistant_question_max_length: 2000 },
+    },
+  }),
+}));
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: key => key }),
 }));
@@ -35,10 +44,20 @@ describe('ConversationAssistantPanel', () => {
     status: 'completed',
   };
 
-  const createWrapper = () =>
-    mount(ConversationAssistantPanel, {
+  const createWrapper = () => {
+    const store = createStore({
+      getters: {
+        'draftMessages/get': () => () => '',
+      },
+      actions: {
+        'draftMessages/set': vi.fn(),
+      },
+    });
+
+    return mount(ConversationAssistantPanel, {
       props: { conversationId: 12 },
       global: {
+        plugins: [store],
         stubs: {
           NextButton: {
             props: ['label', 'disabled', 'isLoading'],
@@ -51,9 +70,15 @@ describe('ConversationAssistantPanel', () => {
         },
       },
     });
+  };
 
   beforeEach(() => {
-    AssistantMessagesAPI.get.mockResolvedValue({ data: [assistantMessage] });
+    AssistantMessagesAPI.get.mockResolvedValue({
+      data: {
+        payload: [assistantMessage],
+        meta: { current_page: 1, total_pages: 1 },
+      },
+    });
     AssistantMessagesAPI.create.mockResolvedValue({
       data: { ...assistantMessage, id: 2, question: 'Nova pergunta' },
     });
@@ -173,7 +198,10 @@ describe('ConversationAssistantPanel', () => {
 
   it('does not render sources section when sources are empty', async () => {
     AssistantMessagesAPI.get.mockResolvedValue({
-      data: [{ ...assistantMessage, sources: [] }],
+      data: {
+        payload: [{ ...assistantMessage, sources: [] }],
+        meta: { current_page: 1, total_pages: 1 },
+      },
     });
     const wrapper = createWrapper();
     await flushPromises();

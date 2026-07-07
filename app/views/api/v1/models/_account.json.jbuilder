@@ -22,6 +22,8 @@ if resource.custom_attributes.present?
 end
 json.domain @account.domain
 json.features @account.enabled_features
+json.conversation_assistant_available ConversationAssistant::AskService.available?(@account)
+json.conversation_assistant_question_max_length ConversationAssistantMessage::QUESTION_MAX_LENGTH
 json.id @account.id
 json.locale @account.locale
 json.name @account.name

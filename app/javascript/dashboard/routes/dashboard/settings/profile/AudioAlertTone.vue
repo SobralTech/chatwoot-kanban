@@ -9,7 +9,20 @@ const props = defineProps({
     type: String,
     required: true,
     validator: value =>
-      ['ding', 'bell', 'chime', 'magic', 'ping'].includes(value),
+      [
+        'ding',
+        'bell',
+        'chime',
+        'magic',
+        'ping',
+        'modern',
+        'whatsapp-notification',
+        'big-sur-notification',
+        'calm-notification',
+        'web-whatsapp',
+        'og-whatsapp-notification',
+        'discord-notification',
+      ].includes(value),
   },
   label: {
     type: String,
@@ -39,6 +52,34 @@ const alertTones = computed(() => [
   {
     value: 'ping',
     label: 'Ping',
+  },
+  {
+    value: 'modern',
+    label: 'Modern',
+  },
+  {
+    value: 'whatsapp-notification',
+    label: 'WhatsApp',
+  },
+  {
+    value: 'big-sur-notification',
+    label: 'Big Sur',
+  },
+  {
+    value: 'calm-notification',
+    label: 'Calm',
+  },
+  {
+    value: 'web-whatsapp',
+    label: 'Web WhatsApp',
+  },
+  {
+    value: 'og-whatsapp-notification',
+    label: 'OG WhatsApp',
+  },
+  {
+    value: 'discord-notification',
+    label: 'Discord',
   },
 ]);
 

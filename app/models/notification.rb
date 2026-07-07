@@ -43,8 +43,11 @@ class Notification < ApplicationRecord
     participating_conversation_new_message: 5,
     sla_missed_first_response: 6,
     sla_missed_next_response: 7,
-    sla_missed_resolution: 8
+    sla_missed_resolution: 8,
+    contact_message: 9
   }.freeze
+
+  ENABLED_NOTIFICATION_TYPES = %w[contact_message conversation_mention].freeze
 
   enum notification_type: NOTIFICATION_TYPES
 
@@ -54,6 +57,10 @@ class Notification < ApplicationRecord
   after_update_commit :dispatch_update_event
 
   PRIMARY_ACTORS = ['Conversation'].freeze
+
+  def self.enabled_notification_type?(notification_type)
+    ENABLED_NOTIFICATION_TYPES.include?(notification_type.to_s)
+  end
 
   def push_event_data
     # Secondary actor could be nil for cases like system assigning conversation
@@ -93,6 +100,7 @@ class Notification < ApplicationRecord
       'assigned_conversation_new_message' => 'notifications.notification_title.assigned_conversation_new_message',
       'participating_conversation_new_message' => 'notifications.notification_title.assigned_conversation_new_message',
       'conversation_mention' => 'notifications.notification_title.conversation_mention',
+      'contact_message' => 'notifications.notification_title.contact_message',
       'sla_missed_first_response' => 'notifications.notification_title.sla_missed_first_response',
       'sla_missed_next_response' => 'notifications.notification_title.sla_missed_next_response',
       'sla_missed_resolution' => 'notifications.notification_title.sla_missed_resolution'
@@ -101,10 +109,13 @@ class Notification < ApplicationRecord
     i18n_key = notification_title_map[notification_type]
     return '' unless i18n_key
 
-    if notification_type == 'conversation_creation'
+    if notification_type == 'contact_message'
+      I18n.t(i18n_key, contact_name: contact_name, inbox_name: conversation.inbox.name)
+    elsif notification_type == 'conversation_mention'
+      I18n.t(i18n_key, agent_name: sender_name(secondary_actor), contact_name: contact_name)
+    elsif notification_type == 'conversation_creation'
       I18n.t(i18n_key, display_id: conversation.display_id, inbox_name: primary_actor.inbox.name)
-    elsif %w[conversation_assignment assigned_conversation_new_message participating_conversation_new_message
-             conversation_mention].include?(notification_type)
+    elsif %w[conversation_assignment assigned_conversation_new_message participating_conversation_new_message].include?(notification_type)
       I18n.t(i18n_key, display_id: conversation.display_id)
     else
       I18n.t(i18n_key, display_id: primary_actor.display_id)
@@ -114,6 +125,8 @@ class Notification < ApplicationRecord
 
   def push_message_body
     case notification_type
+    when 'contact_message', 'conversation_mention'
+      content_preview(secondary_actor)
     when 'conversation_creation', 'sla_missed_first_response'
       message_body(conversation.messages.first)
     when 'assigned_conversation_new_message', 'participating_conversation_new_message', 'conversation_mention'
@@ -137,8 +150,28 @@ class Notification < ApplicationRecord
     "#{sender_name}: #{content}"
   end
 
+  def content_preview(actor)
+    return I18n.t('notifications.no_content') if actor.blank?
+
+    content = actor.try(:content)
+    return transform_user_mention_content(content.truncate_words(10)) if content.present?
+
+    attachment_preview(actor)
+  end
+
   def sender_name(actor)
     actor.try(:sender)&.name || ''
+  end
+
+  def contact_name
+    conversation.contact.name
+  end
+
+  def attachment_preview(actor)
+    return I18n.t('notifications.no_content') if actor.try(:attachments).blank?
+    return I18n.t('notifications.audio_message') if actor.attachments.any?(&:audio?)
+
+    I18n.t('notifications.attachment_message')
   end
 
   def message_content(actor)
@@ -200,8 +233,7 @@ class Notification < ApplicationRecord
   def primary_actor_data
     {
       primary_actor: primary_actor&.push_event_data,
-      # TODO: Rename push_message_title to push_message_body
-      push_message_title: push_message_body,
+      push_message_title: push_message_title,
       push_message_body: push_message_body
     }
   end

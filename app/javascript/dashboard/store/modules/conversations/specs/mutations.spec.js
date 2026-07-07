@@ -131,4 +131,78 @@ describe('#mutations', () => {
       });
     });
   });
+
+  describe('#UPSERT_CONVERSATION', () => {
+    it('adds a conversation that is not present in allConversations, regardless of conversationFilters', () => {
+      const state = {
+        allConversations: [{ id: 1 }, { id: 2 }],
+        conversationFilters: { conversationType: undefined },
+      };
+      mutations[types.UPSERT_CONVERSATION](state, {
+        id: 33,
+        updated_at: 1700000000,
+      });
+      expect(state.allConversations.map(c => c.id)).toEqual([1, 2, 33]);
+    });
+
+    it('replaces the existing conversation when it is already present', () => {
+      const state = {
+        allConversations: [{ id: 33, status: 'open', updated_at: 1000 }],
+        conversationFilters: {},
+      };
+      mutations[types.UPSERT_CONVERSATION](state, {
+        id: 33,
+        status: 'resolved',
+        updated_at: 2000,
+        messages: [{ id: 1 }],
+      });
+      expect(state.allConversations[0].status).toBe('resolved');
+    });
+
+    it('ignores out of order updates for an existing conversation', () => {
+      const state = {
+        allConversations: [{ id: 33, status: 'open', updated_at: 2000 }],
+        conversationFilters: {},
+      };
+      mutations[types.UPSERT_CONVERSATION](state, {
+        id: 33,
+        status: 'resolved',
+        updated_at: 1000,
+      });
+      expect(state.allConversations[0].status).toBe('open');
+    });
+  });
+
+  describe('#UPDATE_CONVERSATION_PIN', () => {
+    it('sets account_pinned_at', () => {
+      const state = {
+        allConversations: [{ id: 1, account_pinned_at: null }],
+      };
+      mutations[types.UPDATE_CONVERSATION_PIN](state, {
+        conversationId: 1,
+        pinnedAt: 1700000000,
+      });
+      expect(state.allConversations[0].account_pinned_at).toBe(1700000000);
+    });
+
+    it('sets pinnedAt to null when unpinning', () => {
+      const state = {
+        allConversations: [{ id: 1, account_pinned_at: 1700000000 }],
+      };
+      mutations[types.UPDATE_CONVERSATION_PIN](state, {
+        conversationId: 1,
+        pinnedAt: null,
+      });
+      expect(state.allConversations[0].account_pinned_at).toBeNull();
+    });
+
+    it('does nothing if conversation is not found', () => {
+      const state = { allConversations: [{ id: 2, account_pinned_at: null }] };
+      mutations[types.UPDATE_CONVERSATION_PIN](state, {
+        conversationId: 999,
+        pinnedAt: 1700000000,
+      });
+      expect(state.allConversations[0].account_pinned_at).toBeNull();
+    });
+  });
 });

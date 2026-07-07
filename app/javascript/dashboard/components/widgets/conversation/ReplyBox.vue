@@ -1,10 +1,12 @@
 <script>
-import { defineAsyncComponent, useTemplateRef } from 'vue';
+import { useTemplateRef } from 'vue';
 import { mapGetters } from 'vuex';
 import { useAlert } from 'dashboard/composables';
 import { useUISettings } from 'dashboard/composables/useUISettings';
+import { useAccount } from 'dashboard/composables/useAccount';
 import { useTrack } from 'dashboard/composables';
 import keyboardEventListenerMixins from 'shared/mixins/keyboardEventListenerMixins';
+import { isInComposition } from 'shared/helpers/KeyboardHelpers';
 
 import ReplyToMessage from './ReplyToMessage.vue';
 import AttachmentPreview from 'dashboard/components/widgets/AttachmentsPreview.vue';
@@ -15,7 +17,6 @@ import CopilotReplyBottomPanel from 'dashboard/components/widgets/WootWriter/Cop
 import ArticleSearchPopover from 'dashboard/routes/dashboard/helpcenter/components/ArticleSearch/SearchPopover.vue';
 import CopilotEditorSection from './CopilotEditorSection.vue';
 import ConversationAssistantPanel from './ConversationAssistantPanel.vue';
-import MessageSignatureMissingAlert from './MessageSignatureMissingAlert.vue';
 import ReplyBoxBanner from './ReplyBoxBanner.vue';
 import QuotedEmailPreview from './QuotedEmailPreview.vue';
 import { REPLY_EDITOR_MODES } from 'dashboard/components/widgets/WootWriter/constants';
@@ -33,7 +34,6 @@ import ContentTemplates from './ContentTemplates/ContentTemplatesModal.vue';
 import { MESSAGE_MAX_LENGTH } from 'shared/helpers/MessageTypeHelper';
 import inboxMixin, { INBOX_FEATURES } from 'shared/mixins/inboxMixin';
 import { trimContent, debounce, getRecipients } from '@chatwoot/utils';
-import wootConstants from 'dashboard/constants/globals';
 import {
   extractQuotedEmailText,
   buildQuotedEmailHeader,
@@ -57,9 +57,6 @@ import { isFileTypeAllowedForChannel } from 'shared/helpers/FileHelper';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { emitter } from 'shared/helpers/mitt';
-const EmojiInput = defineAsyncComponent(
-  () => import('shared/components/emoji/EmojiInput.vue')
-);
 
 export default {
   components: {
@@ -67,8 +64,6 @@ export default {
     AttachmentPreview,
     AudioRecorder,
     ReplyBoxBanner,
-    EmojiInput,
-    MessageSignatureMissingAlert,
     ReplyBottomPanel,
     ReplyEmailHead,
     ReplyToMessage,
@@ -96,6 +91,7 @@ export default {
     const messageEditor = useTemplateRef('messageEditor');
     const copilot = useCopilotReply();
     const shortcutKey = useKbd(['$mod', '+', 'enter']);
+    const { currentAccount } = useAccount();
 
     return {
       uiSettings,
@@ -107,6 +103,7 @@ export default {
       messageEditor,
       copilot,
       shortcutKey,
+      currentAccount,
     };
   },
   data() {
@@ -114,7 +111,6 @@ export default {
       message: '',
       inReplyTo: {},
       isFocused: false,
-      showEmojiPicker: false,
       attachedFiles: [],
       isRecordingAudio: false,
       recordingAudioState: '',
@@ -217,6 +213,9 @@ export default {
           return this.$t('CONVERSATION.FOOTER.MESSAGING_RESTRICTED_API');
         }
         return this.$t('CONVERSATION.FOOTER.MESSAGING_RESTRICTED');
+      }
+      if (!this.isAnEmailChannel) {
+        return this.$t('CONVERSATION.FOOTER.SIMPLE_MSG_INPUT');
       }
       return this.isPrivate
         ? this.$t('CONVERSATION.FOOTER.PRIVATE_MSG_INPUT')
@@ -321,11 +320,80 @@ export default {
         'is-focused': this.isFocused || this.hasAttachments,
       };
     },
+    replyTopPanelProps() {
+      return {
+        mode: this.replyType,
+        conversationId: this.conversationId,
+        isReplyRestricted: this.isReplyRestricted,
+        showAssistant: this.isAssistantAvailable,
+        isAnEmailChannel: this.isAnEmailChannel,
+        disabled:
+          (this.copilot.isActive.value &&
+            this.copilot.isButtonDisabled.value) ||
+          this.showAudioRecorderEditor,
+        isEditorDisabled: this.isEditorDisabled,
+        isMessageLengthReachingThreshold: this.isMessageLengthReachingThreshold,
+        charactersRemaining: this.charactersRemaining,
+        editorContent: this.message,
+        hasContent: this.hasMeaningfulEditorContent,
+      };
+    },
+    replyTopPanelListeners() {
+      return {
+        setReplyMode: this.setReplyMode,
+        toggleEditorSize: this.toggleEditorSize,
+        toggleCopilot: this.copilot.toggleEditor,
+        executeCopilotAction: this.executeCopilotAction,
+      };
+    },
+    isSingleLineLayout() {
+      return (
+        !this.isAnEmailChannel &&
+        this.isDefaultEditorMode &&
+        !this.isOnAssistant
+      );
+    },
+    messageEditorProps() {
+      return {
+        conversationId: this.conversationId,
+        editorId: this.editorStateId,
+        class: this.isSingleLineLayout
+          ? 'input popover-prosemirror-menu flex-1 min-w-0'
+          : 'input popover-prosemirror-menu',
+        isPrivate: this.isOnPrivateNote,
+        placeholder: this.messagePlaceHolder,
+        updateSelectionWith: this.updateEditorSelectionWith,
+        minHeight: 4,
+        disabled: this.isEditorDisabled,
+        enableVariables: true,
+        variables: this.messageVariables,
+        signature: this.messageSignature,
+        allowSignature: this.isAnEmailChannel,
+        channelType: this.channelType,
+        medium: this.inbox.medium,
+      };
+    },
+    messageEditorListeners() {
+      return {
+        typingOff: this.onTypingOff,
+        typingOn: this.onTypingOn,
+        focus: this.onFocus,
+        blur: this.onBlur,
+        toggleUserMention: this.toggleUserMention,
+        toggleCannedMenu: this.toggleCannedMenu,
+        toggleVariablesMenu: this.toggleVariablesMenu,
+        clearSelection: this.clearEditorSelection,
+        executeCopilotAction: this.executeCopilotAction,
+        sendCannedResponse: this.sendCannedResponse,
+      };
+    },
     hasAttachments() {
       return this.attachedFiles.length;
     },
     showAudioRecorder() {
-      return !this.isOnPrivateNote && this.showFileUpload;
+      return (
+        !this.isOnPrivateNote && this.showFileUpload && !this.isAnEmailChannel
+      );
     },
     showAudioRecorderEditor() {
       return this.showAudioRecorder && this.isRecordingAudio;
@@ -336,13 +404,8 @@ export default {
     isOnAssistant() {
       return this.replyType === REPLY_EDITOR_MODES.ASSISTANT;
     },
-    isOnExpandedLayout() {
-      const {
-        LAYOUT_TYPES: { CONDENSED },
-      } = wootConstants;
-      const { conversation_display_type: conversationDisplayType = CONDENSED } =
-        this.uiSettings;
-      return conversationDisplayType !== CONDENSED;
+    isAssistantAvailable() {
+      return !!this.currentAccount?.conversation_assistant_available;
     },
     isMessageEmpty() {
       if (!this.message) {
@@ -364,9 +427,6 @@ export default {
     },
     isSignatureEnabledForInbox() {
       return !this.isPrivate && this.sendWithSignature;
-    },
-    isSignatureAvailable() {
-      return !!this.messageSignature;
     },
     sendWithSignature() {
       return this.fetchSignatureFlagFromUISettings(this.channelType);
@@ -666,12 +726,6 @@ export default {
     },
     getKeyboardEvents() {
       return {
-        Escape: {
-          action: () => {
-            this.hideEmojiPicker();
-          },
-          allowOnFocusedInput: true,
-        },
         '$mod+KeyK': {
           action: e => {
             e.preventDefault();
@@ -682,6 +736,9 @@ export default {
         },
         Enter: {
           action: e => {
+            // Don't send while an IME / Windows OS text-suggestion is being
+            // confirmed — let the browser apply the suggestion instead.
+            if (isInComposition(e)) return;
             if (this.isAValidEvent('enter')) {
               this.onSendReply();
               e.preventDefault();
@@ -690,7 +747,8 @@ export default {
           allowOnFocusedInput: true,
         },
         '$mod+Enter': {
-          action: () => {
+          action: e => {
+            if (isInComposition(e)) return;
             if (this.copilot.isActive.value && this.isFocused) {
               this.onSubmitCopilotReply();
             } else if (this.isAValidEvent('cmd_enter')) {
@@ -823,7 +881,6 @@ export default {
         }
 
         this.clearMessage();
-        this.hideEmojiPicker();
       }
     },
     sendMessageAsMultipleMessages(message, copilotAcceptedMessage = '') {
@@ -973,7 +1030,7 @@ export default {
     insertAssistantReply(content) {
       this.setReplyMode(REPLY_EDITOR_MODES.REPLY);
       this.$nextTick(() => {
-        this.message = content;
+        this.message = this.message ? `${this.message}\n\n${content}` : content;
         this.onFocus();
       });
     },
@@ -1006,9 +1063,6 @@ export default {
       this.toEmails = '';
     },
 
-    toggleEmojiPicker() {
-      this.showEmojiPicker = !this.showEmojiPicker;
-    },
     toggleAudioRecorder() {
       this.isRecordingAudio = !this.isRecordingAudio;
       if (!this.isRecordingAudio) {
@@ -1021,11 +1075,6 @@ export default {
         this.$refs.audioRecorderInput.stopRecording();
       } else {
         this.$refs.audioRecorderInput.playPause();
-      }
-    },
-    hideEmojiPicker() {
-      if (this.showEmojiPicker) {
-        this.toggleEmojiPicker();
       }
     },
     onTypingOn() {
@@ -1276,24 +1325,27 @@ export default {
 
 <template>
   <ReplyBoxBanner :message="message" :is-on-private-note="isOnPrivateNote" />
+  <ReplyTopPanel
+    v-if="!isAnEmailChannel"
+    class="mx-2 mb-2"
+    v-bind="replyTopPanelProps"
+    v-on="replyTopPanelListeners"
+  />
+  <div
+    v-if="!isAnEmailChannel && !isOnAssistant && hasAttachments"
+    class="mx-2 mb-2"
+    @paste="onPaste"
+  >
+    <AttachmentPreview
+      :attachments="attachedFiles"
+      @remove-attachment="removeAttachment"
+    />
+  </div>
   <div ref="replyEditor" class="reply-box" :class="replyBoxClass">
     <ReplyTopPanel
-      :mode="replyType"
-      :conversation-id="conversationId"
-      :is-reply-restricted="isReplyRestricted"
-      :disabled="
-        (copilot.isActive.value && copilot.isButtonDisabled.value) ||
-        showAudioRecorderEditor
-      "
-      :is-editor-disabled="isEditorDisabled"
-      :is-message-length-reaching-threshold="isMessageLengthReachingThreshold"
-      :characters-remaining="charactersRemaining"
-      :editor-content="message"
-      :has-content="hasMeaningfulEditorContent"
-      @set-reply-mode="setReplyMode"
-      @toggle-editor-size="toggleEditorSize"
-      @toggle-copilot="copilot.toggleEditor"
-      @execute-copilot-action="executeCopilotAction"
+      v-if="isAnEmailChannel"
+      v-bind="replyTopPanelProps"
+      v-on="replyTopPanelListeners"
     />
     <ArticleSearchPopover
       v-if="showArticleSearchPopover && connectedPortalSlug"
@@ -1311,7 +1363,11 @@ export default {
       leave-to-class="opacity-0 translate-y-2 scale-[0.98]"
     >
       <div
-        :key="isOnAssistant ? 'assistant' : copilot.editorTransitionKey.value"
+        :key="
+          isOnAssistant
+            ? `assistant-${conversationId}`
+            : copilot.editorTransitionKey.value
+        "
         class="reply-box__top"
       >
         <ConversationAssistantPanel
@@ -1324,14 +1380,6 @@ export default {
           v-if="!isOnAssistant && shouldShowReplyToMessage"
           :message="inReplyTo"
           @dismiss="resetReplyToMessage"
-        />
-        <EmojiInput
-          v-if="!isOnAssistant && showEmojiPicker"
-          v-on-clickaway="hideEmojiPicker"
-          :class="{
-            'emoji-dialog--expanded': isOnExpandedLayout,
-          }"
-          :on-click="addIntoEditor"
         />
         <ReplyEmailHead
           v-if="!isOnAssistant && showReplyHead && isDefaultEditorMode"
@@ -1364,33 +1412,13 @@ export default {
           @send="copilot.sendFollowUp"
         />
         <WootMessageEditor
-          v-else-if="!isOnAssistant && !showAudioRecorderEditor"
+          v-else-if="
+            !isOnAssistant && !showAudioRecorderEditor && isAnEmailChannel
+          "
           ref="messageEditor"
           v-model="message"
-          :conversation-id="conversationId"
-          :editor-id="editorStateId"
-          class="input popover-prosemirror-menu"
-          :is-private="isOnPrivateNote"
-          :placeholder="messagePlaceHolder"
-          :update-selection-with="updateEditorSelectionWith"
-          :min-height="4"
-          :disabled="isEditorDisabled"
-          enable-variables
-          :variables="messageVariables"
-          :signature="messageSignature"
-          allow-signature
-          :channel-type="channelType"
-          :medium="inbox.medium"
-          @typing-off="onTypingOff"
-          @typing-on="onTypingOn"
-          @focus="onFocus"
-          @blur="onBlur"
-          @toggle-user-mention="toggleUserMention"
-          @toggle-canned-menu="toggleCannedMenu"
-          @toggle-variables-menu="toggleVariablesMenu"
-          @clear-selection="clearEditorSelection"
-          @execute-copilot-action="executeCopilotAction"
-          @send-canned-response="sendCannedResponse"
+          v-bind="messageEditorProps"
+          v-on="messageEditorListeners"
         />
 
         <QuotedEmailPreview
@@ -1404,7 +1432,12 @@ export default {
         />
 
         <div
-          v-if="!isOnAssistant && hasAttachments && isDefaultEditorMode"
+          v-if="
+            isAnEmailChannel &&
+            !isOnAssistant &&
+            hasAttachments &&
+            isDefaultEditorMode
+          "
           class="bg-transparent py-0 mb-2"
           @paste="onPaste"
         >
@@ -1414,15 +1447,6 @@ export default {
             @remove-attachment="removeAttachment"
           />
         </div>
-        <MessageSignatureMissingAlert
-          v-if="
-            !isOnAssistant &&
-            isSignatureEnabledForInbox &&
-            !isSignatureAvailable &&
-            isDefaultEditorMode
-          "
-          class="mb-2"
-        />
       </div>
     </Transition>
 
@@ -1462,21 +1486,35 @@ export default {
         :recording-audio-state="recordingAudioState"
         :send-button-text="replyButtonLabel"
         :show-audio-recorder="showAudioRecorder"
-        :show-emoji-picker="showEmojiPicker"
         :show-file-upload="showFileUpload"
         :show-quoted-reply-toggle="shouldShowQuotedReplyToggle"
         :quoted-reply-enabled="quotedReplyPreference"
         :toggle-audio-recorder-play-pause="toggleAudioRecorderPlayPause"
         :toggle-audio-recorder="toggleAudioRecorder"
-        :toggle-emoji-picker="toggleEmojiPicker"
         :message="message"
         :portal-slug="connectedPortalSlug"
         :new-conversation-modal-active="newConversationModalActive"
+        :single-line="isSingleLineLayout"
+        :copilot-disabled="
+          (copilot.isActive.value && copilot.isButtonDisabled.value) ||
+          showAudioRecorderEditor
+        "
+        :is-message-length-reaching-threshold="isMessageLengthReachingThreshold"
+        :characters-remaining="charactersRemaining"
         @select-whatsapp-template="openWhatsappTemplateModal"
         @select-content-template="openContentTemplateModal"
         @toggle-insert-article="toggleInsertArticle"
         @toggle-quoted-reply="toggleQuotedReply"
-      />
+        @execute-copilot-action="executeCopilotAction"
+      >
+        <WootMessageEditor
+          v-if="isSingleLineLayout"
+          ref="messageEditor"
+          v-model="message"
+          v-bind="messageEditorProps"
+          v-on="messageEditorListeners"
+        />
+      </ReplyBottomPanel>
     </Transition>
 
     <WhatsappTemplates
@@ -1516,7 +1554,7 @@ export default {
   }
 
   &.is-assistant {
-    @apply bg-n-iris-2 dark:border-n-iris-3/20 border-n-iris-8/20;
+    @apply bg-n-blue-2 dark:border-n-blue-3/20 border-n-blue-8/20;
   }
 }
 
@@ -1526,23 +1564,5 @@ export default {
 
 .reply-box__top {
   @apply relative py-0 px-3 -mt-px;
-}
-
-.emoji-dialog {
-  @apply top-[unset] -bottom-10 ltr:-left-80 ltr:right-[unset] rtl:left-[unset] rtl:-right-80;
-
-  &::before {
-    filter: drop-shadow(0px 4px 4px rgba(0, 0, 0, 0.08));
-    @apply ltr:-right-4 bottom-2 rtl:-left-4 ltr:rotate-[270deg] rtl:rotate-[90deg];
-  }
-}
-
-.emoji-dialog--expanded {
-  @apply left-[unset] bottom-0 absolute z-[100];
-
-  &::before {
-    transform: rotate(0deg);
-    @apply ltr:left-1 rtl:right-1 -bottom-2;
-  }
 }
 </style>

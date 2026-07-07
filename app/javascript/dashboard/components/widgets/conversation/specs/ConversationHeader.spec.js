@@ -10,7 +10,7 @@ vi.mock('vue-router', async importOriginal => {
     ...actual,
     useRoute: () => ({
       params: {},
-      name: 'conversation_through_participating',
+      name: 'conversation_through_unattended',
     }),
   };
 });
@@ -255,9 +255,7 @@ describe('ConversationHeader', () => {
     await wrapper
       .get('[data-testid="conversation-header-contact-name"]')
       .trigger('click');
-    await wrapper
-      .get('[data-testid="conversation-header-conversation-id"]')
-      .trigger('click');
+    await wrapper.get('[data-testid="inbox-name"]').trigger('click');
     await wrapper.get('[data-testid="contact-avatar"]').trigger('click');
 
     expect(updateUISettings).toHaveBeenCalledTimes(3);

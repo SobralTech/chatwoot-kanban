@@ -19,7 +19,9 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
       kanban_stage: @kanban_stage,
       subject: card_params[:subject],
       due_at: card_params[:due_at],
-      labels: card_params[:labels]
+      labels: card_params[:labels],
+      priority: card_params[:priority],
+      assignee_ids: card_params[:assignee_ids]
     ).perform!
 
     render :create, status: :created
@@ -54,12 +56,12 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
               .joins(:kanban_board, :kanban_stage)
               .merge(KanbanBoard.active)
               .merge(KanbanStage.active)
-              .includes(:kanban_board, :kanban_stage, :contact, :inbox, :labels)
+              .includes(:kanban_board, :kanban_stage, :contact, :inbox, :labels, :assignees)
               .order('kanban_boards.position ASC, kanban_stages.position ASC, kanban_cards.position ASC, kanban_cards.id ASC')
   end
 
   def card_params
-    params.require(:card).permit(:kanban_board_id, :kanban_stage_id, :subject, :due_at, labels: [])
+    params.require(:card).permit(:kanban_board_id, :kanban_stage_id, :subject, :due_at, :priority, labels: [], assignee_ids: [])
   end
 
   def linked_label_titles

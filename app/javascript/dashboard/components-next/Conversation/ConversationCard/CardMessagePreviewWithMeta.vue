@@ -16,6 +16,10 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  hideAssignee: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const { t } = useI18n();
@@ -96,7 +100,7 @@ defineExpose({
         />
       </div>
       <Avatar
-        v-if="assignee.name"
+        v-if="assignee.name && !hideAssignee"
         :name="assignee.name"
         :src="assignee.thumbnail"
         :size="20"

@@ -44,12 +44,12 @@
           "LABEL": "Messages",
           "ITEM": "Message {number}",
           "TEXT": "Text",
-          "IMAGE": "Image",
-          "AUDIO": "Audio",
+          "ATTACHMENT": "Attachment",
           "TEXT_PLACEHOLDER": "Write the message to send.",
           "ADD_TEXT": "Add text",
-          "ADD_IMAGE": "Add image",
-          "ADD_AUDIO": "Add audio",
+          "ADD_ATTACHMENT": "Attach file",
+          "RECORD_AUDIO": "Record audio",
+          "STOP_RECORDING": "Stop recording",
           "REMOVE": "Remove"
         },
         "SUBMIT": "Submit"
@@ -82,12 +82,12 @@
           "LABEL": "Messages",
           "ITEM": "Message {number}",
           "TEXT": "Text",
-          "IMAGE": "Image",
-          "AUDIO": "Audio",
+          "ATTACHMENT": "Attachment",
           "TEXT_PLACEHOLDER": "Write the message to send.",
           "ADD_TEXT": "Add text",
-          "ADD_IMAGE": "Add image",
-          "ADD_AUDIO": "Add audio",
+          "ADD_ATTACHMENT": "Attach file",
+          "RECORD_AUDIO": "Record audio",
+          "STOP_RECORDING": "Stop recording",
           "REMOVE": "Remove"
         },
         "SUBMIT": "Submit"

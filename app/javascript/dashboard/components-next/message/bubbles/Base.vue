@@ -15,9 +15,14 @@ const props = defineProps({
   hideMeta: { type: Boolean, default: false },
 });
 
-const { variant, orientation, inReplyTo, shouldGroupWithNext } =
+const { variant, orientation, inReplyTo, shouldGroupWithNext, isOwnMessage } =
   useMessageContext();
 const { t } = useI18n();
+
+// Other agents' bubbles use a deeper step on the same blue scale so they
+// read darker in light mode and lighter in dark mode than the current
+// user's own messages (which keep the default n-solid-blue).
+const otherAgentBubbleClass = 'bg-n-blue-6 text-n-slate-12';
 
 const varaintBaseMap = {
   [MESSAGE_VARIANTS.AGENT]: 'bg-n-solid-blue text-n-slate-12',
@@ -35,10 +40,17 @@ const varaintBaseMap = {
 
 const orientationMap = {
   [ORIENTATION.LEFT]:
-    'left-bubble rounded-xl ltr:rounded-bl-sm rtl:rounded-br-sm',
+    'left-bubble rounded-xl ltr:rounded-tl-sm rtl:rounded-tr-sm',
   [ORIENTATION.RIGHT]:
-    'right-bubble rounded-xl ltr:rounded-br-sm rtl:rounded-bl-sm',
+    'right-bubble rounded-xl ltr:rounded-tr-sm rtl:rounded-tl-sm',
   [ORIENTATION.CENTER]: 'rounded-md',
+};
+
+// When this bubble is followed immediately by another bubble from the same
+// group, flatten the bottom corner so the stack reads as one continuous shape.
+const groupedCornerMap = {
+  [ORIENTATION.LEFT]: 'ltr:rounded-bl-sm rtl:rounded-br-sm',
+  [ORIENTATION.RIGHT]: 'ltr:rounded-br-sm rtl:rounded-bl-sm',
 };
 
 const flexOrientationClass = computed(() => {
@@ -52,10 +64,17 @@ const flexOrientationClass = computed(() => {
 });
 
 const messageClass = computed(() => {
-  const classToApply = [varaintBaseMap[variant.value]];
+  const classToApply = [
+    variant.value === MESSAGE_VARIANTS.AGENT && !isOwnMessage.value
+      ? otherAgentBubbleClass
+      : varaintBaseMap[variant.value],
+  ];
 
   if (variant.value !== MESSAGE_VARIANTS.ACTIVITY) {
     classToApply.push(orientationMap[orientation.value]);
+    if (shouldGroupWithNext.value) {
+      classToApply.push(groupedCornerMap[orientation.value]);
+    }
   } else {
     classToApply.push('rounded-lg');
   }

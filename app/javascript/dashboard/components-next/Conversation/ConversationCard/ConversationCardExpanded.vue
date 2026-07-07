@@ -5,8 +5,8 @@ import CardAvatar from './CardAvatar.vue';
 import CardContent from './CardContent.vue';
 import CardLabels from './CardLabelsV5.vue';
 import CardPriorityIcon from './CardPriorityIcon.vue';
+import CardMutedIcon from './CardMutedIcon.vue';
 import InboxName from 'dashboard/components-next/Conversation/InboxName.vue';
-import Avatar from 'next/avatar/Avatar.vue';
 import TimeAgo from 'dashboard/components/ui/TimeAgo.vue';
 import SLACardLabel from 'dashboard/components-next/Conversation/Sla/SLACardLabel.vue';
 import CardStatusIcon from './CardStatusIcon.vue';
@@ -16,11 +16,9 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 const props = defineProps({
   chat: { type: Object, required: true },
   currentContact: { type: Object, required: true },
-  assignee: { type: Object, default: () => ({}) },
   inbox: { type: Object, default: () => ({}) },
   selected: { type: Boolean, default: false },
   isActiveChat: { type: Boolean, default: false },
-  showAssignee: { type: Boolean, default: false },
   showInboxName: { type: Boolean, default: false },
   isInboxView: { type: Boolean, default: false },
 });
@@ -47,6 +45,12 @@ const voiceCallData = computed(() => {
 });
 
 const unreadCount = computed(() => props.chat.unread_count);
+
+const isPinned = computed(() => !!props.chat.account_pinned_at);
+
+const isNotificationsMuted = computed(
+  () => !!props.chat.additional_attributes?.notifications_muted
+);
 
 const slaCardLabel = useTemplateRef('slaCardLabel');
 
@@ -93,27 +97,17 @@ const selectedModel = computed({
       </div>
 
       <div class="w-4 flex items-center justify-center flex-shrink-0">
-        <Avatar
-          v-if="showAssignee && assignee.name"
-          v-tooltip.top="{
-            content: assignee.name,
-            delay: { show: 500, hide: 0 },
-          }"
-          :name="assignee.name"
-          :src="assignee.thumbnail"
-          :size="14"
-          :status="assignee.availability_status"
-          hide-offline-status
-        />
-        <Icon
-          v-else
-          icon="i-woot-empty-assignee"
-          class="size-4 text-n-slate-7"
-        />
+        <CardStatusIcon :status="chat.status" show-empty />
       </div>
 
       <div class="w-4 flex items-center justify-center flex-shrink-0">
-        <CardStatusIcon :status="chat.status" show-empty />
+        <fluent-icon
+          v-if="isPinned"
+          icon="pin"
+          type="filled"
+          size="17"
+          class="text-n-blue-9"
+        />
       </div>
 
       <div class="w-px h-3 bg-n-slate-6 flex-shrink-0" />
@@ -151,9 +145,10 @@ const selectedModel = computed({
       />
 
       <h4
-        class="text-heading-3 my-0 capitalize truncate text-n-slate-12 font-medium w-32 flex-shrink-0"
+        class="text-heading-3 my-0 capitalize truncate text-n-slate-12 font-medium w-32 flex-shrink-0 flex items-center gap-1"
       >
-        {{ currentContact.name }}
+        <span class="truncate">{{ currentContact.name }}</span>
+        <CardMutedIcon :muted="isNotificationsMuted" class="flex-shrink-0" />
       </h4>
 
       <CardContent
@@ -182,9 +177,11 @@ const selectedModel = computed({
       <div class="flex-shrink-0 w-[4.375rem] text-end">
         <TimeAgo
           :conversation-id="chat.id"
-          :last-activity-timestamp="chat.timestamp"
-          :created-at-timestamp="chat.created_at"
-          class="font-440 !text-xs text-n-slate-11"
+          :last-activity-timestamp="
+            lastMessageInChat?.created_at || chat.timestamp
+          "
+          class="font-440 !text-xs"
+          :class="unreadCount > 0 ? '!text-n-blue-9' : 'text-n-slate-11'"
         />
       </div>
     </div>

@@ -149,6 +149,16 @@ const badgeStyles = computed(() => {
   };
 });
 
+const inboxBadgeStyles = computed(() => {
+  const badgeSize = Math.max(props.size * 0.55, 14); // 55% of avatar size, minimum 14px
+  return {
+    width: `${badgeSize}px`,
+    height: `${badgeSize}px`,
+    top: `${props.size - badgeSize / 1.1}px`,
+    left: `${props.size - badgeSize / 1.1}px`,
+  };
+});
+
 const iconStyles = computed(() => ({
   fontSize: `${props.size / 1.6}px`,
 }));
@@ -200,21 +210,21 @@ watch(
     class="relative inline-flex group/avatar z-0 flex-shrink-0 align-middle"
     :style="containerStyles"
   >
-    <!-- Status Badge -->
+    <!-- Inbox / Status Badge -->
     <slot name="badge" :size="size">
       <div
-        v-if="status && STATUS_CLASSES[status]"
-        class="absolute z-20 border rounded-full border-n-slate-3"
-        :style="badgeStyles"
-        :class="STATUS_CLASSES[status]"
-      />
-      <div
-        v-if="inbox && !(status && STATUS_CLASSES[status])"
-        :style="badgeStyles"
+        v-if="inbox"
+        :style="inboxBadgeStyles"
         class="absolute z-20 flex items-center justify-center rounded-full bg-n-solid-1 border border-transparent flex-shrink-0"
       >
         <ChannelIcon :inbox="inbox" class="w-full h-full text-n-slate-11" />
       </div>
+      <div
+        v-else-if="status && STATUS_CLASSES[status]"
+        class="absolute z-20 border rounded-full border-n-slate-3"
+        :style="badgeStyles"
+        :class="STATUS_CLASSES[status]"
+      />
     </slot>
 
     <!-- Delete Avatar Button -->

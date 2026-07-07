@@ -88,6 +88,24 @@ RSpec.describe AgentNotifications::ConversationNotificationsMailer do
     end
   end
 
+  describe 'contact_message' do
+    let(:message) { create(:message, conversation: conversation, account: account) }
+    let(:mail) { described_class.with(account: account).contact_message(conversation, agent, message).deliver_now }
+
+    it 'renders the subject' do
+      expect(mail.subject).to eq("#{conversation.contact.name} - #{conversation.inbox.name}")
+    end
+
+    it 'renders the receiver email' do
+      expect(mail.to).to eq([agent.email])
+    end
+
+    it 'will not send email if agent is online' do
+      OnlineStatusTracker.update_presence(conversation.account.id, 'User', agent.id)
+      expect(mail).to be_nil
+    end
+  end
+
   describe 'participating_conversation_new_message' do
     let(:message) { create(:message, conversation: conversation, account: account) }
     let(:mail) { described_class.with(account: account).participating_conversation_new_message(conversation, agent, message).deliver_now }

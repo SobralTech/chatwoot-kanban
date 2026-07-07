@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref, onMounted, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
 import { useSidebarContext } from './provider';
 import { useMapGetter } from 'dashboard/composables/store';
 import Icon from 'next/icon/Icon.vue';
@@ -16,7 +15,6 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'mouseenter', 'mouseleave']);
 
-const router = useRouter();
 const { isAllowed, sidebarWidth } = useSidebarContext();
 
 const expandedSubGroup = ref(null);
@@ -27,11 +25,6 @@ const skipTransition = ref(true);
 
 const toggleSubGroup = name => {
   expandedSubGroup.value = expandedSubGroup.value === name ? null : name;
-};
-
-const navigateAndClose = to => {
-  router.push(to);
-  emit('close');
 };
 
 const isActive = child => props.activeChild?.name === child.name;
@@ -151,14 +144,15 @@ onMounted(async () => {
                     :key="subChild.name"
                     class="py-0.5"
                   >
-                    <button
+                    <router-link
+                      :to="subChild.to"
                       class="flex items-center gap-2 px-2 py-1.5 w-full rounded-lg text-sm text-left rtl:text-right transition-colors duration-150 ease-out"
                       :class="{
                         'text-n-slate-12 bg-n-alpha-2': isActive(subChild),
                         'text-n-slate-11 hover:bg-n-alpha-2':
                           !isActive(subChild),
                       }"
-                      @click="navigateAndClose(subChild.to)"
+                      @click="emit('close')"
                     >
                       <component
                         :is="renderIcon(subChild.icon).component"
@@ -168,20 +162,21 @@ onMounted(async () => {
                       />
                       <span class="flex-1 truncate">{{ subChild.label }}</span>
                       <SidebarUnreadBadge :count="subChild.badgeCount" />
-                    </button>
+                    </router-link>
                   </li>
                 </ul>
               </Transition>
             </li>
             <!-- Direct child item -->
             <li v-else class="py-0.5">
-              <button
+              <router-link
+                :to="child.to"
                 class="flex items-center gap-2 px-2 py-1.5 w-full rounded-lg text-sm text-left rtl:text-right transition-colors duration-150 ease-out"
                 :class="{
                   'text-n-slate-12 bg-n-alpha-2': isActive(child),
                   'text-n-slate-11 hover:bg-n-alpha-2': !isActive(child),
                 }"
-                @click="navigateAndClose(child.to)"
+                @click="emit('close')"
               >
                 <component
                   :is="renderIcon(child.icon).component"
@@ -191,7 +186,7 @@ onMounted(async () => {
                 />
                 <span class="flex-1 truncate">{{ child.label }}</span>
                 <SidebarUnreadBadge :count="child.badgeCount" />
-              </button>
+              </router-link>
             </li>
           </template>
         </ul>

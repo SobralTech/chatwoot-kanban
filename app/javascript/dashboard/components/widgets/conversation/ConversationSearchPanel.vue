@@ -1,10 +1,12 @@
 <script>
 import { mapGetters } from 'vuex';
-import { format, fromUnixTime, isSameYear, isToday } from 'date-fns';
+import { fromUnixTime, isSameYear, isToday, isYesterday } from 'date-fns';
 import MessageApi from 'dashboard/api/inbox/message';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import { highlightSearchTerm } from 'shared/helpers/highlightSearchTerm.js';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 export default {
   components: {
@@ -37,6 +39,10 @@ export default {
       return this.conversationSearchResults[
         this.activeConversationSearchResultIndex
       ]?.id;
+    },
+    currentLocale() {
+      const locale = this.$i18n?.locale || this.$root?.$i18n?.locale || 'en';
+      return locale.replace(/_/g, '-');
     },
     hasMoreConversationSearchResults() {
       return !!this.conversationSearchMeta.has_more;
@@ -127,11 +133,7 @@ export default {
         }
         this.conversationSearchResults = data.payload || [];
         this.conversationSearchMeta = data.meta || {};
-        if (this.conversationSearchResults.length) {
-          await this.selectConversationSearchResult(0);
-        } else {
-          this.activeConversationSearchResultIndex = -1;
-        }
+        this.activeConversationSearchResultIndex = -1;
       } catch (error) {
         if (!this.isLatestConversationSearchRequest(requestId, trimmedQuery)) {
           return;
@@ -217,6 +219,7 @@ export default {
       if (this.isConversationSearchResultLoaded(result.id)) {
         this.abortConversationSearchNavigationRequest();
         this.isLoadingConversationSearchResult = false;
+        emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId: result.id });
         return;
       }
 
@@ -305,14 +308,7 @@ export default {
           return;
         }
 
-        await new Promise(resolve => {
-          this.$nextTick(() => {
-            document
-              .getElementById(`message${messageId}`)
-              ?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
-            resolve();
-          });
-        });
+        emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId });
       } catch (error) {
         if (
           this.isAbortError(error) ||
@@ -365,9 +361,32 @@ export default {
       if (!message.created_at) return '';
 
       const date = fromUnixTime(Number(message.created_at));
-      if (isToday(date)) return format(date, 'h:mm a');
-      if (isSameYear(date, new Date())) return format(date, 'MMM d');
-      return format(date, 'MMM d, yyyy');
+      const time = new Intl.DateTimeFormat(this.currentLocale, {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+      if (isToday(date)) return `${this.getRelativeDayLabel(0)}, ${time}`;
+      if (isYesterday(date)) return `${this.getRelativeDayLabel(-1)}, ${time}`;
+
+      const dateFormatOptions = {
+        day: 'numeric',
+        month: 'long',
+      };
+      if (!isSameYear(date, new Date())) {
+        dateFormatOptions.year = 'numeric';
+      }
+
+      const formattedDate = new Intl.DateTimeFormat(
+        this.currentLocale,
+        dateFormatOptions
+      ).format(date);
+      return `${formattedDate}, ${time}`;
+    },
+    getRelativeDayLabel(dayOffset) {
+      const label = new Intl.RelativeTimeFormat(this.currentLocale, {
+        numeric: 'auto',
+      }).format(dayOffset, 'day');
+      return label.charAt(0).toUpperCase() + label.slice(1);
     },
     hasAttachments(message = {}) {
       return !!message.attachments?.length;
@@ -424,7 +443,7 @@ export default {
         <input
           ref="conversationSearchInput"
           :value="conversationSearchQuery"
-          type="search"
+          type="text"
           class="reset-base block w-full h-9 mb-0 rounded-lg border border-n-weak bg-n-surface-1 py-1 pl-12 pr-12 text-sm text-n-slate-12 placeholder:text-n-slate-10 focus:border-n-brand focus:outline-none focus:ring-1 focus:ring-n-brand rtl:pl-12 rtl:pr-10"
           :placeholder="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
           :aria-label="$t('CONVERSATION.SEARCH.SEARCH_IN_CONVERSATION')"
@@ -515,7 +534,7 @@ export default {
               />
               <span
                 v-dompurify-html="getHighlightedContent(result)"
-                class="line-clamp-2 break-words [&_.conversation-search-panel-highlight]:bg-n-amber-5 [&_.conversation-search-panel-highlight]:text-n-slate-12 [&_.conversation-search-panel-highlight]:rounded-sm [&_.conversation-search-panel-highlight]:px-0.5"
+                class="line-clamp-2 break-words [&_.conversation-search-panel-highlight]:text-n-blue-11 [&_.conversation-search-panel-highlight]:font-semibold"
               />
             </div>
           </button>

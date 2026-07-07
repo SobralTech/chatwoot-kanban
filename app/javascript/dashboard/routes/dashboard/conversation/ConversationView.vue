@@ -1,5 +1,6 @@
 <script>
 import { mapGetters } from 'vuex';
+import { useWindowSize } from '@vueuse/core';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAccount } from 'dashboard/composables/useAccount';
 import ChatList from '../../../components/ChatList.vue';
@@ -58,17 +59,22 @@ export default {
   setup() {
     const { uiSettings, updateUISettings } = useUISettings();
     const { accountId } = useAccount();
+    const { width: windowWidth } = useWindowSize();
 
     return {
       uiSettings,
       updateUISettings,
       accountId,
+      windowWidth,
     };
   },
   data() {
     return {
       showSearchModal: false,
       isConversationSearchOpen: false,
+      isFetchingConversation: false,
+      conversationFetchError: false,
+      fetchingConversationId: null,
     };
   },
   computed: {
@@ -83,6 +89,9 @@ export default {
       return this.conversationId ? true : !this.isOnExpandedLayout;
     },
     isOnExpandedLayout() {
+      if (this.windowWidth >= wootConstants.SMALL_SCREEN_BREAKPOINT) {
+        return false;
+      }
       const {
         LAYOUT_TYPES: { CONDENSED },
       } = wootConstants;
@@ -106,6 +115,7 @@ export default {
   },
   watch: {
     conversationId() {
+      this.conversationFetchError = false;
       this.fetchConversationIfUnavailable();
     },
   },
@@ -138,28 +148,43 @@ export default {
       this.$store.dispatch('setActiveInbox', this.inboxId);
       this.setActiveChat();
     },
-    toggleConversationLayout() {
-      const { LAYOUT_TYPES } = wootConstants;
-      const {
-        conversation_display_type:
-          conversationDisplayType = LAYOUT_TYPES.CONDENSED,
-      } = this.uiSettings;
-      const newViewType =
-        conversationDisplayType === LAYOUT_TYPES.CONDENSED
-          ? LAYOUT_TYPES.EXPANDED
-          : LAYOUT_TYPES.CONDENSED;
-      this.updateUISettings({
-        conversation_display_type: newViewType,
-        previously_used_conversation_display_type: newViewType,
-      });
-    },
     fetchConversationIfUnavailable() {
       if (!this.conversationId) {
         return;
       }
       const chat = this.findConversation();
-      if (!chat) {
-        this.$store.dispatch('getConversation', this.conversationId);
+      if (chat) {
+        return;
+      }
+      // Avoid firing a duplicate request for the same conversationId
+      // while a previous fetch for it is still in flight.
+      const isFetchingSameConversation =
+        this.isFetchingConversation &&
+        this.fetchingConversationId === this.conversationId;
+      if (isFetchingSameConversation) {
+        return;
+      }
+      this.loadMissingConversation();
+    },
+    async loadMissingConversation() {
+      const { conversationId } = this;
+      this.fetchingConversationId = conversationId;
+      this.isFetchingConversation = true;
+      this.conversationFetchError = false;
+      try {
+        await this.$store.dispatch('getConversation', conversationId);
+        // The route may have changed while the request was in flight.
+        if (this.conversationId === conversationId) {
+          this.setActiveChat();
+        }
+      } catch (error) {
+        if (this.conversationId === conversationId) {
+          this.conversationFetchError = true;
+        }
+      } finally {
+        if (this.fetchingConversationId === conversationId) {
+          this.isFetchingConversation = false;
+        }
       }
     },
     findConversation() {
@@ -170,26 +195,52 @@ export default {
     setActiveChat() {
       if (this.conversationId) {
         const selectedConversation = this.findConversation();
-        // If conversation doesn't exist or selected conversation is same as the active
-        // conversation, don't set active conversation.
-        if (
-          !selectedConversation ||
-          selectedConversation.id === this.currentChat.id
-        ) {
+        if (!selectedConversation) {
           return;
         }
         const { messageId } = this.$route.query;
+        // Conversation is already active: just scroll to the requested
+        // message instead of skipping navigation entirely.
+        if (selectedConversation.id === this.currentChat.id) {
+          this.scrollToSearchedMessage(messageId, selectedConversation.id);
+          return;
+        }
         this.$store
           .dispatch('setActiveChat', {
             data: selectedConversation,
             after: messageId,
           })
           .then(() => {
-            emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId });
+            this.scrollToSearchedMessage(messageId, selectedConversation.id);
           });
       } else {
         this.$store.dispatch('clearSelectedState');
       }
+    },
+    async scrollToSearchedMessage(messageId, conversationId) {
+      if (!messageId) {
+        emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
+        return;
+      }
+      // The message linked from search may live outside the window of
+      // messages already loaded for this conversation, so fetch the
+      // window around it before attempting to scroll.
+      const isMessageLoaded = this.currentChat.messages?.some(
+        message => Number(message.id) === Number(messageId)
+      );
+      if (!isMessageLoaded) {
+        try {
+          await this.$store.dispatch('mergeConversationMessageWindow', {
+            conversationId,
+            around: messageId,
+            before_limit: 20,
+            after_limit: 20,
+          });
+        } catch (error) {
+          return;
+        }
+      }
+      emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId });
     },
     onSearch() {
       this.showSearchModal = true;
@@ -230,6 +281,8 @@ export default {
       ref="conversationBox"
       :inbox-id="inboxId"
       :is-on-expanded-layout="isOnExpandedLayout"
+      :is-fetching-conversation="isFetchingConversation"
+      :has-conversation-fetch-error="conversationFetchError"
       @conversation-search-open="openConversationSearch"
       @conversation-search-close="closeConversationSearch"
     >

@@ -6,6 +6,13 @@ module SortHandler
       order(last_activity_at: sort_direction)
     end
 
+    # Pinned conversations (conversation_pins, joined via account_pin) must always sort
+    # ahead of unpinned ones, regardless of the chosen sort_by, so an old pinned
+    # conversation isn't stranded on a later page.
+    def pinned_first
+      left_joins(:account_pin).order(generate_sql_query('conversation_pins.pinned_at DESC NULLS LAST'))
+    end
+
     def sort_on_created_at(sort_direction = :asc)
       order(created_at: sort_direction)
     end

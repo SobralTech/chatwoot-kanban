@@ -7,12 +7,10 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     KanbanStage.transaction do
       KanbanStage.normalize_positions_for_board!(@kanban_board)
 
-      @kanban_board.kanban_stages.active.ordered.to_a.reverse_each do |stage|
-        stage.update!(position: stage.position + 1)
-      end
+      next_position = @kanban_board.kanban_stages.active.count + 1
 
       @kanban_stage = @kanban_board.kanban_stages.create!(
-        kanban_stage_params.except(:position).merge(account: Current.account, position: 1)
+        kanban_stage_params.except(:position).merge(account: Current.account, position: next_position)
       )
 
       KanbanStage.normalize_positions_for_board!(@kanban_board)

@@ -2,11 +2,16 @@ class ConversationAssistant::AskService
   include Integrations::LlmInstrumentation
   include Llm::ExceptionTrackable
 
-  MEMORY_LIMIT = 10
+  MEMORY_LIMIT = 4
   MODEL = 'gpt-4.1-mini'.freeze
   MAX_SOURCES = 5
 
   pattr_initialize [:account!, :conversation!, :user!, :question!]
+
+  def self.available?(account)
+    account.hooks.find_by(app_id: 'openai', status: 'enabled')&.settings&.dig('api_key').present? ||
+      InstallationConfig.find_by(name: 'CAPTAIN_OPEN_AI_API_KEY')&.value.present?
+  end
 
   def perform
     assistant_message = build_log
@@ -28,9 +33,7 @@ class ConversationAssistant::AskService
       status: :failed,
       model: MODEL,
       internal_note: response[:error],
-      usage: response[:usage] || {},
-      web_search_used: false,
-      sources: []
+      usage: response[:usage] || {}
     )
   end
 
@@ -86,7 +89,8 @@ class ConversationAssistant::AskService
       api_key: credential[:api_key],
       api_base: api_base,
       model: MODEL,
-      messages: messages
+      messages: messages,
+      web_search: ConversationAssistant::WebSearchDetector.required?(question)
     ).perform
   rescue StandardError => e
     capture_llm_exception(e, credential: credential)
@@ -135,7 +139,6 @@ class ConversationAssistant::AskService
   def memory_scope
     ConversationAssistantMessage.completed
                                 .where(conversation_id: conversation.id, user_id: user.id)
-                                .where.not(id: nil)
                                 .order(created_at: :desc)
                                 .limit(MEMORY_LIMIT)
                                 .reverse

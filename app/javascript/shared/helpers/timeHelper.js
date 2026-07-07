@@ -1,10 +1,14 @@
 import {
   format,
   isSameYear,
+  isToday,
+  isYesterday,
   fromUnixTime,
   formatDistanceToNow,
   differenceInDays,
+  differenceInCalendarDays,
 } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 /**
  * Formats a Unix timestamp into a human-readable time format.
@@ -28,9 +32,36 @@ export const messageTimestamp = (time, dateFormat = 'MMM d, yyyy') => {
   const now = new Date();
   const messageDate = format(messageTime, dateFormat);
   if (!isSameYear(messageTime, now)) {
-    return format(messageTime, 'LLL d y, h:mm a');
+    return format(messageTime, 'LLL d y, HH:mm');
   }
   return messageDate;
+};
+
+export const humanTimestamp = time => {
+  const messageTime = fromUnixTime(time);
+  const timeStr = format(messageTime, 'HH:mm');
+  if (isToday(messageTime)) return `Hoje, ${timeStr}`;
+  if (isYesterday(messageTime)) return `Ontem, ${timeStr}`;
+  const now = new Date();
+  if (isSameYear(messageTime, now)) {
+    return format(messageTime, `d 'de' MMMM, HH:mm`, { locale: ptBR });
+  }
+  return format(messageTime, `d 'de' MMMM 'de' yyyy, HH:mm`, { locale: ptBR });
+};
+
+/**
+ * Formats a Unix timestamp as: time if today, "Ontem" if yesterday,
+ * weekday name within the last week, or a full date otherwise.
+ * @param {number} time - Unix timestamp.
+ * @returns {string} Formatted timestamp string.
+ */
+export const relativeDayTimestamp = time => {
+  const date = fromUnixTime(time);
+  if (isToday(date)) return format(date, 'HH:mm');
+  if (isYesterday(date)) return 'Ontem';
+  const daysAgo = differenceInCalendarDays(new Date(), date);
+  if (daysAgo <= 6) return format(date, 'EEEE', { locale: ptBR });
+  return format(date, 'dd/MM/yyyy');
 };
 
 /**
@@ -40,7 +71,7 @@ export const messageTimestamp = (time, dateFormat = 'MMM d, yyyy') => {
  */
 export const dynamicTime = time => {
   const unixTime = fromUnixTime(time);
-  return formatDistanceToNow(unixTime, { addSuffix: true });
+  return formatDistanceToNow(unixTime, { addSuffix: true, locale: ptBR });
 };
 
 /**
@@ -61,36 +92,40 @@ export const dateFormat = (time, df = 'MMM d, yyyy') => {
  * @returns {string} Shortened time description.
  */
 export const shortTimestamp = (time, withAgo = false) => {
-  // This function takes a time string and converts it to a short time string
-  // with the following format: 1m, 1h, 1d, 1mo, 1y
-  // The function also takes an optional boolean parameter withAgo
-  // which will add the word "ago" to the end of the time string
-  const suffix = withAgo ? ' ago' : '';
+  // This function takes a pt-BR relative time string (from dynamicTime) and
+  // converts it to a short time string with the following format:
+  // 1m, 1h, 1d, 1mo, 1y. The optional withAgo parameter appends "atrás".
+  const suffix = withAgo ? ' atrás' : '';
   const timeMappings = {
-    'less than a minute ago': 'now',
-    'in less than a minute': 'now',
-    'a minute ago': `1m${suffix}`,
-    'an hour ago': `1h${suffix}`,
-    'a day ago': `1d${suffix}`,
-    'a month ago': `1mo${suffix}`,
-    'a year ago': `1y${suffix}`,
+    'há menos de um minuto': 'agora',
+    'em menos de um minuto': 'agora',
+    'há meio minuto': 'agora',
+    'há 1 minuto': `1m${suffix}`,
+    'há cerca de 1 hora': `1h${suffix}`,
+    'há 1 hora': `1h${suffix}`,
+    'há 1 dia': `1d${suffix}`,
+    'há cerca de 1 mês': `1mo${suffix}`,
+    'há 1 mês': `1mo${suffix}`,
+    'há cerca de 1 ano': `1y${suffix}`,
+    'há 1 ano': `1y${suffix}`,
   };
   // Check if the time string is one of the specific cases
   if (timeMappings[time]) {
     return timeMappings[time];
   }
   const convertToShortTime = time
-    .replace(/about|over|almost|/g, '')
-    .replace(' minute ago', `m${suffix}`)
-    .replace(' minutes ago', `m${suffix}`)
-    .replace(' hour ago', `h${suffix}`)
-    .replace(' hours ago', `h${suffix}`)
-    .replace(' day ago', `d${suffix}`)
-    .replace(' days ago', `d${suffix}`)
-    .replace(' month ago', `mo${suffix}`)
-    .replace(' months ago', `mo${suffix}`)
-    .replace(' year ago', `y${suffix}`)
-    .replace(' years ago', `y${suffix}`);
+    .replace(/^há |^em /, '')
+    .replace(/cerca de |mais de |quase /g, '')
+    .replace(' minutos', `m${suffix}`)
+    .replace(' minuto', `m${suffix}`)
+    .replace(' horas', `h${suffix}`)
+    .replace(' hora', `h${suffix}`)
+    .replace(' dias', `d${suffix}`)
+    .replace(' dia', `d${suffix}`)
+    .replace(' meses', `mo${suffix}`)
+    .replace(' mês', `mo${suffix}`)
+    .replace(' anos', `y${suffix}`)
+    .replace(' ano', `y${suffix}`);
   return convertToShortTime;
 };
 

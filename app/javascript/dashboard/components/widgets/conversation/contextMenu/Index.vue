@@ -24,6 +24,8 @@ const MENU = {
   DELETE: 'delete',
   OPEN_NEW_TAB: 'open-new-tab',
   COPY_LINK: 'copy-link',
+  PIN: 'pin',
+  MUTE_NOTIFICATIONS: 'mute-notifications',
 };
 
 export default {
@@ -65,6 +67,14 @@ export default {
       type: Array,
       default: () => [],
     },
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    isNotificationsMuted: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: [
     'updateConversation',
@@ -76,6 +86,8 @@ export default {
     'assignLabel',
     'removeLabel',
     'deleteConversation',
+    'togglePin',
+    'toggleNotificationsMute',
     'close',
   ],
   setup() {
@@ -239,6 +251,14 @@ export default {
     deleteConversation() {
       this.$emit('deleteConversation', this.chatId);
     },
+    togglePin() {
+      this.$emit('togglePin', { chatId: this.chatId });
+      this.$emit('close');
+    },
+    toggleNotificationsMute() {
+      this.$emit('toggleNotificationsMute', { chatId: this.chatId });
+      this.$emit('close');
+    },
     openInNewTab() {
       if (!this.conversationUrl) return;
 
@@ -381,7 +401,33 @@ export default {
       </MenuItemWithSubmenu>
       <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
     </template>
+    <template v-if="isAllowed([MENU.PIN])">
+      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
+      <MenuItem
+        :option="{
+          icon: isPinned ? 'pin-dismiss' : 'pin',
+          label: isPinned
+            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_CONVERSATION')
+            : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_CONVERSATION'),
+        }"
+        variant="icon"
+        @click.stop="togglePin"
+      />
+    </template>
+    <template v-if="isAllowed([MENU.MUTE_NOTIFICATIONS])">
+      <MenuItem
+        :option="{
+          icon: isNotificationsMuted ? 'speaker-1' : 'speaker-mute',
+          label: isNotificationsMuted
+            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNMUTE_NOTIFICATIONS')
+            : $t('CONVERSATION.CARD_CONTEXT_MENU.MUTE_NOTIFICATIONS'),
+        }"
+        variant="icon"
+        @click.stop="toggleNotificationsMute"
+      />
+    </template>
     <template v-if="isAllowed([MENU.OPEN_NEW_TAB, MENU.COPY_LINK])">
+      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
       <MenuItem
         v-if="isAllowed([MENU.OPEN_NEW_TAB])"
         :option="openInNewTabOption"

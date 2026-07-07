@@ -12,15 +12,15 @@ describe NotificationBuilder do
     before do
       create(:inbox_member, user: user, inbox: inbox)
       notification_setting = user.notification_settings.find_by(account_id: account.id)
-      notification_setting.selected_email_flags = [:email_conversation_creation]
-      notification_setting.selected_push_flags = [:push_conversation_creation]
+      notification_setting.selected_email_flags = [:email_contact_message]
+      notification_setting.selected_push_flags = [:push_contact_message]
       notification_setting.save!
     end
 
     it 'creates a notification' do
       expect do
         described_class.new(
-          notification_type: 'conversation_creation',
+          notification_type: 'contact_message',
           user: user,
           account: account,
           primary_actor: primary_actor
@@ -34,7 +34,7 @@ describe NotificationBuilder do
       end
       expect(
         described_class.new(
-          notification_type: 'conversation_creation',
+          notification_type: 'contact_message',
           user: user,
           account: account,
           primary_actor: primary_actor
@@ -42,7 +42,7 @@ describe NotificationBuilder do
       ).to be_nil
     end
 
-    it 'will not create a conversation_creation notification if user is not subscribed to it' do
+    it 'will not create a contact_message notification if user is not subscribed to it' do
       notification_setting = user.notification_settings.find_by(account_id: account.id)
       notification_setting.selected_email_flags = []
       notification_setting.selected_push_flags = []
@@ -50,12 +50,46 @@ describe NotificationBuilder do
 
       expect(
         described_class.new(
-          notification_type: 'conversation_creation',
+          notification_type: 'contact_message',
           user: user,
           account: account,
           primary_actor: primary_actor
         ).perform
       ).to be_nil
+    end
+
+    it 'creates a contact_message notification when audio contact_message is enabled' do
+      notification_setting = user.notification_settings.find_by(account_id: account.id)
+      notification_setting.selected_email_flags = []
+      notification_setting.selected_push_flags = []
+      notification_setting.save!
+      user.update!(ui_settings: user.ui_settings.merge('enable_audio_alerts' => 'contact_message'))
+
+      expect do
+        described_class.new(
+          notification_type: 'contact_message',
+          user: user,
+          account: account,
+          primary_actor: primary_actor
+        ).perform
+      end.to change { user.notifications.count }.by(1)
+    end
+
+    it 'creates a contact_message notification when legacy audio alerts are enabled' do
+      notification_setting = user.notification_settings.find_by(account_id: account.id)
+      notification_setting.selected_email_flags = []
+      notification_setting.selected_push_flags = []
+      notification_setting.save!
+      user.update!(ui_settings: user.ui_settings.merge('enable_audio_alerts' => 'assigned+unassigned'))
+
+      expect do
+        described_class.new(
+          notification_type: 'contact_message',
+          user: user,
+          account: account,
+          primary_actor: primary_actor
+        ).perform
+      end.to change { user.notifications.count }.by(1)
     end
 
     it 'will create a conversation_mention notification even though user is not subscribed to it' do
@@ -79,7 +113,7 @@ describe NotificationBuilder do
 
       expect do
         described_class.new(
-          notification_type: 'conversation_creation',
+          notification_type: 'contact_message',
           user: user,
           account: account,
           primary_actor: primary_actor
@@ -106,7 +140,7 @@ describe NotificationBuilder do
       it 'does not create a notification for an agent without inbox or team access' do
         expect do
           described_class.new(
-            notification_type: 'conversation_creation',
+            notification_type: 'contact_message',
             user: outsider,
             account: account,
             primary_actor: primary_actor
@@ -117,13 +151,13 @@ describe NotificationBuilder do
       it 'still creates a notification for administrators regardless of inbox membership' do
         admin = create(:user, account: account, role: :administrator)
         admin_setting = admin.notification_settings.find_by(account_id: account.id)
-        admin_setting.selected_email_flags = [:email_conversation_creation]
-        admin_setting.selected_push_flags = [:push_conversation_creation]
+        admin_setting.selected_email_flags = [:email_contact_message]
+        admin_setting.selected_push_flags = [:push_contact_message]
         admin_setting.save!
 
         expect do
           described_class.new(
-            notification_type: 'conversation_creation',
+            notification_type: 'contact_message',
             user: admin,
             account: account,
             primary_actor: primary_actor
@@ -136,7 +170,7 @@ describe NotificationBuilder do
 
         expect do
           described_class.new(
-            notification_type: 'conversation_creation',
+            notification_type: 'contact_message',
             user: unrelated_user,
             account: account,
             primary_actor: primary_actor
