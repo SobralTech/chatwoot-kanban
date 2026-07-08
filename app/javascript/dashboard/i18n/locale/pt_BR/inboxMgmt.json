@@ -1012,7 +1012,12 @@
         "PLACE_HOLDER": "Senha"
       },
       "ENABLE_SSL": "Habilitar o SSL",
-      "AUTH_MECHANISM": "Autenticação"
+      "AUTH_MECHANISM": "Autenticação",
+      "FOLDERS": {
+        "LABEL": "Pastas/marcadores para sincronizar",
+        "PLACE_HOLDER": "INBOX, Chatwoot",
+        "HELP_TEXT": "Lista separada por vírgulas de pastas IMAP ou marcadores do Gmail para sincronizar. Deixe em branco para sincronizar apenas a INBOX (padrão)."
+      }
     },
     "MICROSOFT": {
       "TITLE": "Microsoft",

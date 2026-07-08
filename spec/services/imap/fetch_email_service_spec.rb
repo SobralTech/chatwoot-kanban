@@ -8,6 +8,7 @@ RSpec.describe Imap::FetchEmailService do
   let(:imap) { instance_double(Net::IMAP) }
   let(:eml_content_with_message_id) { Rails.root.join('spec/fixtures/files/only_text.eml').read }
   let(:eml_content_without_message_id) { eml_content_with_message_id.sub(/^Message-ID:.*\n/, '') }
+  let(:eml_content_with_other_message_id) { eml_content_with_message_id.sub(/^Message-ID:.*$/, 'Message-ID: <other-message-id@example.com>') }
 
   describe '#perform' do
     before do
@@ -144,6 +145,102 @@ RSpec.describe Imap::FetchEmailService do
           expect(imap).to have_received(:fetch).with(empty_message_id_seq_nums, 'BODY.PEEK[HEADER]')
           expect(imap).to have_received(:fetch).with([valid_message_seq_num], 'BODY.PEEK[HEADER]')
           expect(imap).to have_received(:fetch).with(valid_message_seq_num, 'RFC822')
+        end
+      end
+    end
+
+    context 'when imap_folders is configured' do
+      let(:custom_folder_email) { create_inbound_email_from_fixture('only_text.eml') }
+      let(:custom_folder_header) { Net::IMAP::FetchData.new(1, 'BODY[HEADER]' => eml_content_with_message_id) }
+      let(:custom_folder_fetch_mail) { Net::IMAP::FetchData.new(1, 'RFC822' => eml_content_with_message_id) }
+
+      before do
+        allow(imap).to receive(:logout)
+      end
+
+      it 'falls back to INBOX when imap_folders is blank' do
+        travel_to '26.10.2020 10:00'.to_datetime do
+          allow(imap).to receive(:search).with(%w[SINCE 25-Oct-2020]).and_return([])
+
+          described_class.new(channel: imap_email_channel).perform
+
+          expect(imap).to have_received(:select).with('INBOX').once
+        end
+      end
+
+      it 'selects only the configured single folder' do
+        imap_email_channel.update!(imap_folders: ['Chatwoot'])
+
+        travel_to '26.10.2020 10:00'.to_datetime do
+          allow(imap).to receive(:select).with('Chatwoot')
+          allow(imap).to receive(:search).with(%w[SINCE 25-Oct-2020]).and_return([])
+
+          described_class.new(channel: imap_email_channel).perform
+
+          expect(imap).to have_received(:select).with('Chatwoot')
+          expect(imap).not_to have_received(:select).with('INBOX')
+        end
+      end
+
+      it 'selects multiple configured folders and concatenates their results' do
+        imap_email_channel.update!(imap_folders: %w[INBOX Chatwoot])
+        other_folder_header = Net::IMAP::FetchData.new(1, 'BODY[HEADER]' => eml_content_with_other_message_id)
+        other_folder_fetch_mail = Net::IMAP::FetchData.new(1, 'RFC822' => eml_content_with_other_message_id)
+
+        travel_to '26.10.2020 10:00'.to_datetime do
+          allow(imap).to receive(:select).with('INBOX')
+          allow(imap).to receive(:select).with('Chatwoot')
+          allow(imap).to receive(:search).with(%w[SINCE 25-Oct-2020]).and_return([1])
+          # Sequential values: first call (INBOX) returns the first message, second call (Chatwoot) returns the second.
+          allow(imap).to receive(:fetch).with([1], 'BODY.PEEK[HEADER]').and_return([custom_folder_header], [other_folder_header])
+          allow(imap).to receive(:fetch).with(1, 'RFC822').and_return([custom_folder_fetch_mail], [other_folder_fetch_mail])
+
+          result = described_class.new(channel: imap_email_channel).perform
+
+          expect(imap).to have_received(:select).with('INBOX')
+          expect(imap).to have_received(:select).with('Chatwoot')
+          expect(result.length).to eq 2
+          expect(result.map(&:message_id)).to contain_exactly(custom_folder_email.message_id, 'other-message-id@example.com')
+        end
+      end
+
+      it 'does not return the same message twice when it exists in more than one folder' do
+        imap_email_channel.update!(imap_folders: %w[INBOX Chatwoot])
+
+        travel_to '26.10.2020 10:00'.to_datetime do
+          allow(imap).to receive(:select).with('INBOX')
+          allow(imap).to receive(:select).with('Chatwoot')
+          allow(imap).to receive(:search).with(%w[SINCE 25-Oct-2020]).and_return([1])
+          allow(imap).to receive(:fetch).with([1], 'BODY.PEEK[HEADER]').and_return([custom_folder_header])
+          allow(imap).to receive(:fetch).with(1, 'RFC822').and_return([custom_folder_fetch_mail])
+
+          result = described_class.new(channel: imap_email_channel).perform
+
+          expect(result.length).to eq 1
+          expect(result[0].message_id).to eq custom_folder_email.message_id
+        end
+      end
+
+      it 'logs and skips a folder that fails to select, while still processing the remaining folders' do
+        imap_email_channel.update!(imap_folders: %w[DoesNotExist Chatwoot])
+        no_response_error = Net::IMAP::NoResponseError.new(
+          Struct.new(:data).new(Struct.new(:text).new('no such mailbox'))
+        )
+
+        travel_to '26.10.2020 10:00'.to_datetime do
+          allow(imap).to receive(:select).with('DoesNotExist').and_raise(no_response_error)
+          allow(imap).to receive(:select).with('Chatwoot')
+          allow(imap).to receive(:search).with(%w[SINCE 25-Oct-2020]).and_return([1])
+          allow(imap).to receive(:fetch).with([1], 'BODY.PEEK[HEADER]').and_return([custom_folder_header])
+          allow(imap).to receive(:fetch).with(1, 'RFC822').and_return([custom_folder_fetch_mail])
+
+          result = described_class.new(channel: imap_email_channel).perform
+
+          expect(result.length).to eq 1
+          expect(result[0].message_id).to eq custom_folder_email.message_id
+          expect(logger).to have_received(:error).with(
+            "[IMAP::FETCH_EMAIL_SERVICE] Failed to select folder 'DoesNotExist' for #{imap_email_channel.email}: no such mailbox"
+          )
         end
       end
     end
