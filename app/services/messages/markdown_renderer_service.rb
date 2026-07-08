@@ -1,6 +1,6 @@
 class Messages::MarkdownRendererService
   CHANNEL_RENDERERS = {
-    'Channel::Email' => :render_html,
+    'Channel::Email' => :render_email_html,
     'Channel::WebWidget' => :render_html,
     'Channel::Telegram' => :render_telegram_html,
     'Channel::Whatsapp' => :render_whatsapp,
@@ -42,6 +42,12 @@ class Messages::MarkdownRendererService
 
   def render_html
     markdown_renderer = BaseMarkdownRenderer.new
+    doc = CommonMarker.render_doc(@content, :DEFAULT, [:strikethrough])
+    markdown_renderer.render(doc)
+  end
+
+  def render_email_html
+    markdown_renderer = EmailMarkdownRenderer.new
     doc = CommonMarker.render_doc(@content, :DEFAULT, [:strikethrough])
     markdown_renderer.render(doc)
   end

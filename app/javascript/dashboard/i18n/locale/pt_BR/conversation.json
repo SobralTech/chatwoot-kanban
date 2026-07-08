@@ -270,7 +270,8 @@
         "DISABLE_TOOLTIP": "Não incluir o encadeamento de e-mails citado",
         "REMOVE_PREVIEW": "Remover o encadeamento de e-mails citado",
         "COLLAPSE": "Recolher a prévia",
-        "EXPAND": "Expandir a prévia"
+        "EXPAND": "Expandir a prévia",
+        "HEADER": "Em {date} às {time}, {contact} escreveu:"
       }
     },
     "ASSISTANT": {

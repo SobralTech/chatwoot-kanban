@@ -283,7 +283,8 @@
         "DISABLE_TOOLTIP": "Don't include quoted email thread",
         "REMOVE_PREVIEW": "Remove quoted email thread",
         "COLLAPSE": "Collapse preview",
-        "EXPAND": "Expand preview"
+        "EXPAND": "Expand preview",
+        "HEADER": "On {date} at {time} {contact} wrote:"
       }
     },
     "ASSISTANT": {

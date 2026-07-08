@@ -49,6 +49,8 @@ import {
   appendSignature,
   removeSignature,
   getEffectiveChannelType,
+  findSignatureIndex,
+  extractTrailingSignatureBlock,
 } from 'dashboard/helper/editorHelper';
 import { useCopilotReply } from 'dashboard/composables/useCopilotReply';
 import { useKbd } from 'dashboard/composables/utils/useKbd';
@@ -428,6 +430,9 @@ export default {
     isSignatureEnabledForInbox() {
       return !this.isPrivate && this.sendWithSignature;
     },
+    isSignatureAvailable() {
+      return !!this.messageSignature;
+    },
     sendWithSignature() {
       return this.fetchSignatureFlagFromUISettings(this.channelType);
     },
@@ -655,14 +660,41 @@ export default {
         return message;
       }
 
+      const effectiveChannelType = getEffectiveChannelType(
+        this.channelType,
+        this.inbox?.medium || ''
+      );
+      const isSignatureActive =
+        this.isSignatureEnabledForInbox && this.isSignatureAvailable;
+      const { base, signatureBlock, isCanonical } = isSignatureActive
+        ? extractTrailingSignatureBlock(
+            message,
+            this.messageSignature,
+            effectiveChannelType
+          )
+        : { base: message, signatureBlock: null, isCanonical: false };
+
       const quotedText = this.quotedEmailText || '';
       const header = buildQuotedEmailHeader(
         this.lastEmailWithQuotedContent,
         this.currentContact,
-        this.inbox
+        this.inbox,
+        { t: this.$t, locale: this.$i18n.locale }
       );
+      const withQuote = appendQuotedTextToMessage(base, quotedText, header);
 
-      return appendQuotedTextToMessage(message, quotedText, header);
+      if (isCanonical) {
+        return appendSignature(
+          withQuote,
+          this.messageSignature,
+          effectiveChannelType
+        );
+      }
+      if (signatureBlock) {
+        const separator = withQuote.endsWith('\n') ? '\n' : '\n\n';
+        return `${withQuote}${separator}${signatureBlock}`;
+      }
+      return withQuote;
     },
     resetRecorderAndClearAttachments() {
       // Reset audio recorder UI state
@@ -711,9 +743,62 @@ export default {
         this.inbox?.medium || ''
       );
 
-      return this.sendWithSignature
-        ? appendSignature(message, this.messageSignature, effectiveChannelType)
-        : removeSignature(message, this.messageSignature, effectiveChannelType);
+      if (!this.isAnEmailChannel) {
+        // Unchanged for every other channel — the signature/quote
+        // interaction below only applies to the email quoted-reply flow.
+        return this.sendWithSignature
+          ? appendSignature(
+              message,
+              this.messageSignature,
+              effectiveChannelType
+            )
+          : removeSignature(
+              message,
+              this.messageSignature,
+              effectiveChannelType
+            );
+      }
+
+      // Channel::Email only, from here down.
+      if (!this.sendWithSignature) {
+        // Preference explicitly off: strip a genuine canonical signature if
+        // one is present, but never treat a coincidental trailing '--' as a
+        // signature to remove.
+        const hasCanonicalSignature =
+          findSignatureIndex(
+            message,
+            this.messageSignature,
+            effectiveChannelType
+          ) > -1;
+        return hasCanonicalSignature
+          ? removeSignature(
+              message,
+              this.messageSignature,
+              effectiveChannelType
+            )
+          : message;
+      }
+
+      const isSignatureActive =
+        this.isSignatureEnabledForInbox && this.isSignatureAvailable;
+      if (!isSignatureActive) {
+        // sendWithSignature is true, but there's no signature configured (or
+        // the inbox-level check fails) — nothing to classify, nothing to add.
+        return message;
+      }
+
+      const { base, signatureBlock, isCanonical } =
+        extractTrailingSignatureBlock(
+          message,
+          this.messageSignature,
+          effectiveChannelType
+        );
+      const hasRecognizedTail =
+        isCanonical || !!signatureBlock || base !== message;
+
+      return hasRecognizedTail
+        ? message
+        : appendSignature(message, this.messageSignature, effectiveChannelType);
     },
     removeFromDraft() {
       if (this.conversationIdByRoute) {

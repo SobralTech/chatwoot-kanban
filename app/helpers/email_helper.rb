@@ -7,7 +7,10 @@ module EmailHelper
   def render_email_html(content)
     return '' if content.blank?
 
-    ChatwootMarkdownRenderer.new(content).render_message(hardbreaks: true).to_s
+    ChatwootMarkdownRenderer.new(content).render_message(
+      hardbreaks: true,
+      renderer_class: EmailMarkdownRenderer
+    ).to_s
   end
 
   # Raise a standard error if any email address is invalid
