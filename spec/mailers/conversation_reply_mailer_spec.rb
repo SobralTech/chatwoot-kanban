@@ -230,6 +230,84 @@ RSpec.describe ConversationReplyMailer do
       end
     end
 
+    context 'with RFC parent resolution' do
+      let(:conversation) { create(:conversation, assignee: agent, inbox: email_channel.inbox, account: account).reload }
+
+      context 'when replying to an incoming message (default behaviour)' do
+        let(:incoming_message) do
+          create(:message, conversation: conversation, account: account, message_type: 'incoming',
+                           source_id: '<incoming-a0@example.com>',
+                           content_attributes: { 'email' => { 'message_id' => 'incoming-a0@example.com' } })
+        end
+        let(:reply_message) { create(:message, conversation: conversation, account: account, message_type: 'outgoing', content: 'Reply') }
+        let(:mail) { described_class.email_reply(reply_message).deliver_now }
+
+        before { incoming_message }
+
+        it 'threads to the last incoming message' do
+          expect(mail.in_reply_to).to eq('incoming-a0@example.com')
+        end
+      end
+
+      context 'when an outgoing message replies to a previous outgoing message' do
+        let(:incoming_message) do
+          create(:message, conversation: conversation, account: account, message_type: 'incoming',
+                           source_id: '<incoming-b0@example.com>',
+                           content_attributes: { 'email' => { 'message_id' => 'incoming-b0@example.com' } })
+        end
+        let(:first_outgoing) do
+          create(:message, conversation: conversation, account: account, message_type: 'outgoing',
+                           source_id: '<outgoing-b1@example.com>', content: 'First outgoing',
+                           content_attributes: { 'in_reply_to' => incoming_message.id, 'in_reply_to_external_id' => incoming_message.source_id })
+        end
+        let(:second_outgoing) do
+          create(:message, conversation: conversation, account: account, message_type: 'outgoing', content: 'Second outgoing',
+                           content_attributes: { 'in_reply_to' => first_outgoing.id, 'in_reply_to_external_id' => first_outgoing.source_id })
+        end
+        let(:mail) { described_class.email_reply(second_outgoing).deliver_now }
+
+        before do
+          incoming_message
+          first_outgoing
+        end
+
+        it 'threads to the replied outgoing message, not the last incoming' do
+          expect(mail.in_reply_to).to eq('outgoing-b1@example.com')
+        end
+
+        it 'reconstructs the references chain up to the incoming root' do
+          expect(mail.references).to eq(['incoming-b0@example.com', 'outgoing-b1@example.com'])
+        end
+
+        it 'keeps the custom Message-ID scheme' do
+          expect(mail.message_id).to eq("conversation/#{conversation.uuid}/messages/#{second_outgoing.id}@#{conversation.account.domain}")
+        end
+      end
+
+      context 'when the replied message has no source_id' do
+        let(:incoming_message) do
+          create(:message, conversation: conversation, account: account, message_type: 'incoming',
+                           source_id: '<incoming-c0@example.com>',
+                           content_attributes: { 'email' => { 'message_id' => 'incoming-c0@example.com' } })
+        end
+        let(:draft_without_source) { create(:message, conversation: conversation, account: account, message_type: 'outgoing', content: 'Draft') }
+        let(:reply_message) do
+          create(:message, conversation: conversation, account: account, message_type: 'outgoing', content: 'Reply',
+                           content_attributes: { 'in_reply_to' => draft_without_source.id })
+        end
+        let(:mail) { described_class.email_reply(reply_message).deliver_now }
+
+        before do
+          incoming_message
+          draft_without_source
+        end
+
+        it 'falls back to the last incoming message id' do
+          expect(mail.in_reply_to).to eq('incoming-c0@example.com')
+        end
+      end
+    end
+
     context 'with email reply' do
       let(:conversation) { create(:conversation, assignee: agent, inbox: email_channel.inbox, account: account).reload }
       let(:message) { create(:message, conversation: conversation, account: account, message_type: 'outgoing', content: 'Outgoing Message 2') }

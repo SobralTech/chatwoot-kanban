@@ -43,6 +43,28 @@ const EMAIL_WITH_FOLLOW_UP_CONTENT = `
 <p>Regards,</p>
 `;
 
+// Real Chatwoot outgoing structure: body, PT-BR "Em ... escreveu:" header as a
+// sibling of the blockquote, then the quoted blockquote.
+const PT_BR_QUOTE_NO_SIGNATURE = `
+<p>Segunda resposta do agente.</p>
+<p>Em qui., 9 de jul. de 2026 às 15:01, sobraltec <a href="mailto:sobraltec82@gmail.com">sobraltec82@gmail.com</a> escreveu:</p>
+<blockquote style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex;">
+  <p>Primeira resposta do agente.</p>
+  <p>Mensagem inicial do cliente.</p>
+</blockquote>
+`;
+
+const PT_BR_QUOTE_WITH_SIGNATURE = `
+<p>Segunda resposta do agente.</p>
+<p>Em qui., 9 de jul. de 2026 às 15:01, sobraltec <a href="mailto:sobraltec82@gmail.com">sobraltec82@gmail.com</a> escreveu:</p>
+<blockquote style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex;">
+  <p>Primeira resposta do agente.</p>
+  <p>Mensagem inicial do cliente.</p>
+</blockquote>
+<p>--</p>
+<p>Equipe Sobraltec</p>
+`;
+
 describe('EmailQuoteExtractor', () => {
   it('removes blockquote-based quotes from the email body', () => {
     const cleanedHtml = EmailQuoteExtractor.extractQuotes(SAMPLE_EMAIL_HTML);
@@ -95,6 +117,45 @@ describe('EmailQuoteExtractor', () => {
 
   it('detects quotes for trailing blockquotes even when signatures follow text', () => {
     expect(EmailQuoteExtractor.hasQuotes(EMAIL_WITH_SIGNATURE)).toBe(true);
+  });
+
+  describe('PT-BR "Em ... escreveu:" quotes', () => {
+    it('detects quotes without a trailing signature', () => {
+      expect(EmailQuoteExtractor.hasQuotes(PT_BR_QUOTE_NO_SIGNATURE)).toBe(
+        true
+      );
+    });
+
+    it('detects quotes when a signature follows the blockquote', () => {
+      expect(EmailQuoteExtractor.hasQuotes(PT_BR_QUOTE_WITH_SIGNATURE)).toBe(
+        true
+      );
+    });
+
+    it('removes header and blockquote without a signature', () => {
+      const cleanedHtml = EmailQuoteExtractor.extractQuotes(
+        PT_BR_QUOTE_NO_SIGNATURE
+      );
+      const container = document.createElement('div');
+      container.innerHTML = cleanedHtml;
+
+      expect(container.querySelector('blockquote')).toBeNull();
+      expect(container.textContent).not.toContain('escreveu:');
+      expect(container.textContent).toContain('Segunda resposta do agente.');
+    });
+
+    it('removes header and blockquote while preserving a trailing signature', () => {
+      const cleanedHtml = EmailQuoteExtractor.extractQuotes(
+        PT_BR_QUOTE_WITH_SIGNATURE
+      );
+      const container = document.createElement('div');
+      container.innerHTML = cleanedHtml;
+
+      expect(container.querySelector('blockquote')).toBeNull();
+      expect(container.textContent).not.toContain('escreveu:');
+      expect(container.textContent).toContain('Segunda resposta do agente.');
+      expect(container.textContent).toContain('Equipe Sobraltec');
+    });
   });
 
   describe('HTML sanitization', () => {

@@ -72,12 +72,37 @@ module ReferencesHeaderBuilder
 
   # Extracts References header from a message's content_attributes
   #
+  # Inbound messages carry the full References chain under email.references.
+  # Outgoing messages do not, so when that key is absent we rebuild the chain
+  # from the message's in_reply_to relation (parent source_ids), keeping the
+  # thread coherent for outgoing -> outgoing replies.
+  #
   # @param message [Message] The message to extract References from
   # @return [Array<String>] Array of properly formatted message IDs with angle brackets
   def extract_references_from_message(message)
-    return [] unless message.content_attributes&.dig('email', 'references')
+    stored = message.content_attributes&.dig('email', 'references')
+    return normalize_references(stored) if stored.present?
 
-    references = message.content_attributes['email']['references']
+    reconstruct_references_from_reply_chain(message)
+  end
+
+  # Rebuilds the References chain by walking up the in_reply_to relation and
+  # collecting each parent's source_id in thread order.
+  #
+  # @param message [Message] The message whose ancestry is reconstructed
+  # @return [Array<String>] Array of parent message IDs with angle brackets
+  def reconstruct_references_from_reply_chain(message, seen = [])
+    return [] if seen.include?(message.id)
+
+    parent_source_id = message.content_attributes&.dig('in_reply_to_external_id')
+    return [] if parent_source_id.blank?
+
+    parent = message.conversation.messages.find_by(id: message.content_attributes['in_reply_to'])
+    ancestry = parent ? reconstruct_references_from_reply_chain(parent, seen + [message.id]) : []
+    ancestry + normalize_references(parent_source_id)
+  end
+
+  def normalize_references(references)
     Array.wrap(references).map do |ref|
       ref.start_with?('<') ? ref : "<#{ref}>"
     end
