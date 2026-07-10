@@ -40,8 +40,15 @@ class ConversationFinder
   def perform
     set_up
 
-    mine_count, unassigned_count, all_count, = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
+    count_base = @conversations
+    apply_all_conversations_inbox_visibility
+    list_base = @conversations
+
+    base_count = count_base.count
+    unassigned_count = count_base.unassigned.count
+    assigned_count = base_count - unassigned_count
+    all_count = all_conversations_view? ? list_base.count : base_count
+    mine_count = count_base.assigned_to(current_user).count
 
     filter_by_assignee_type
 
@@ -59,8 +66,15 @@ class ConversationFinder
   def perform_meta_only
     set_up
 
-    mine_count, unassigned_count, all_count, = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
+    count_base = @conversations
+    apply_all_conversations_inbox_visibility
+    list_base = @conversations
+
+    base_count = count_base.count
+    unassigned_count = count_base.unassigned.count
+    assigned_count = base_count - unassigned_count
+    all_count = all_conversations_view? ? list_base.count : base_count
+    mine_count = count_base.assigned_to(current_user).count
 
     {
       count: {
@@ -183,12 +197,14 @@ class ConversationFinder
     @conversations = @conversations.where(contact_inboxes: { source_id: params[:source_id] })
   end
 
-  def set_count_for_all_conversations
-    [
-      @conversations.assigned_to(current_user).count,
-      @conversations.unassigned.count,
-      @conversations.count
-    ]
+  def all_conversations_view?
+    params[:conversation_view] == 'all' && params[:inbox_id].blank?
+  end
+
+  def apply_all_conversations_inbox_visibility
+    return unless all_conversations_view?
+
+    @conversations = @conversations.joins(:inbox).where(inboxes: { show_in_all_conversations: true })
   end
 
   def current_page

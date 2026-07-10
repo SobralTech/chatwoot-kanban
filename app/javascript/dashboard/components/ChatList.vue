@@ -305,6 +305,35 @@ const conversationListPagination = computed(() => {
   return currentPage.value + 1;
 });
 
+const isAllConversationsView = computed(() => {
+  return (
+    route.name === 'home' &&
+    currentPageFilterKey.value === wootConstants.ASSIGNEE_TYPE.ALL &&
+    !hasAppliedFiltersOrActiveFolders.value &&
+    !isSearching.value &&
+    !searchQuery.value &&
+    !props.conversationInbox &&
+    !props.teamId &&
+    !props.label &&
+    !props.conversationType &&
+    !props.foldersId
+  );
+});
+
+const visibleInAllConversationInboxIds = computed(() => {
+  return new Set(
+    inboxesList.value
+      .filter(inboxItem => inboxItem.show_in_all_conversations !== false)
+      .map(inboxItem => Number(inboxItem.id))
+  );
+});
+
+const isVisibleInAllConversations = conversation => {
+  return visibleInAllConversationInboxIds.value.has(
+    Number(conversation.inbox_id)
+  );
+};
+
 const conversationFilters = computed(() => {
   return {
     inboxId: props.conversationInbox ? props.conversationInbox : undefined,
@@ -315,6 +344,7 @@ const conversationFilters = computed(() => {
     labels: props.label ? [props.label] : undefined,
     teamId: props.teamId || undefined,
     conversationType: props.conversationType || undefined,
+    conversationView: isAllConversationsView.value ? 'all' : undefined,
   };
 });
 
@@ -358,6 +388,12 @@ const conversationList = computed(() => {
     localConversationList = [...allChatList.value(filters)];
   } else {
     localConversationList = [...chatLists.value];
+  }
+
+  if (isAllConversationsView.value) {
+    localConversationList = localConversationList.filter(
+      isVisibleInAllConversations
+    );
   }
 
   if (activeFolder.value) {
@@ -807,6 +843,7 @@ useEmitter('fetch_conversation_stats', () => {
 
 onUnmounted(() => {
   store.dispatch('conversationSearch/clearSearchResults');
+  store.dispatch('updateChatListFilters', { conversationView: undefined });
 });
 
 onMounted(() => {

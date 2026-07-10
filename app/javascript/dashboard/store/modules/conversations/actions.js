@@ -34,11 +34,36 @@ export const hasMessageFailedWithExternalError = pendingMessage => {
   return status === MESSAGE_STATUS.FAILED && externalError !== '';
 };
 
+const shouldSkipAllConversationsUpsert = (state, rootGetters, conversation) => {
+  if (state?.conversationFilters?.conversationView !== 'all') return false;
+
+  const conversationInboxVisibility =
+    conversation.inbox_show_in_all_conversations ??
+    conversation.inbox?.show_in_all_conversations;
+  if (conversationInboxVisibility !== undefined) {
+    return conversationInboxVisibility === false;
+  }
+
+  const inbox = rootGetters?.['inboxes/getInbox']?.(conversation.inbox_id);
+  return inbox?.show_in_all_conversations === false;
+};
+
 // actions
 const actions = {
-  getConversation: async ({ commit }, conversationId) => {
+  getConversation: async (
+    { commit, state, rootGetters },
+    conversationIdOrPayload
+  ) => {
+    const conversationId =
+      conversationIdOrPayload?.conversationId || conversationIdOrPayload;
+    const forceUpsert = conversationIdOrPayload?.forceUpsert || false;
     const response = await ConversationApi.show(conversationId);
-    commit(types.UPSERT_CONVERSATION, response.data);
+    if (
+      forceUpsert ||
+      !shouldSkipAllConversationsUpsert(state, rootGetters, response.data)
+    ) {
+      commit(types.UPSERT_CONVERSATION, response.data);
+    }
     commit(`contacts/${types.SET_CONTACT_ITEM}`, response.data.meta.sender);
     return response.data;
   },

@@ -42,14 +42,90 @@ describe('ActionCableConnector - Copilot Tests', () => {
     store = {
       $store: {
         dispatch: mockDispatch,
+        state: {
+          conversations: {
+            conversationFilters: {},
+          },
+        },
         getters: {
           getCurrentAccountId: 1,
           'accounts/isFeatureEnabledonAccount': vi.fn(() => true),
+          getChatListFilters: {},
+          getSelectedChat: null,
+          'inboxes/getInboxes': [],
         },
       },
     };
 
     actionCable = ActionCableConnector.init(store.$store, 'test-token');
+  });
+
+  describe('all conversations inbox visibility', () => {
+    beforeEach(() => {
+      store.$store.getters.getChatListFilters = { conversationView: 'all' };
+      store.$store.getters['inboxes/getInboxes'] = [
+        { id: 1, show_in_all_conversations: true },
+        { id: 2, show_in_all_conversations: false },
+      ];
+    });
+
+    it('does not insert hidden inbox realtime conversations but refreshes stats', () => {
+      const conversation = { id: 10, inbox_id: 2 };
+
+      actionCable.onConversationCreated(conversation);
+
+      expect(mockDispatch).not.toHaveBeenCalledWith(
+        'addConversation',
+        conversation
+      );
+      expect(emitter.emit).toHaveBeenCalledWith('fetch_conversation_stats');
+    });
+
+    it('does not update hidden inbox realtime conversations but refreshes stats', () => {
+      const conversation = { id: 10, inbox_id: 2 };
+
+      actionCable.onConversationUpdated(conversation);
+
+      expect(mockDispatch).not.toHaveBeenCalledWith(
+        'updateConversation',
+        conversation
+      );
+      expect(emitter.emit).toHaveBeenCalledWith('fetch_conversation_stats');
+    });
+
+    it('resets pagination and refetches All once when eligible inboxes change', async () => {
+      let inboxes = [{ id: 1, show_in_all_conversations: true }];
+      store.$store.getters['inboxes/getInboxes'] = inboxes;
+      mockDispatch.mockImplementation(action => {
+        if (action === 'inboxes/revalidate') {
+          inboxes = [
+            { id: 1, show_in_all_conversations: true },
+            { id: 2, show_in_all_conversations: true },
+          ];
+          store.$store.getters['inboxes/getInboxes'] = inboxes;
+        }
+        return Promise.resolve();
+      });
+
+      await actionCable.onCacheInvalidate({ cache_keys: {} });
+
+      expect(mockDispatch).toHaveBeenCalledWith('conversationPage/reset');
+      expect(mockDispatch).toHaveBeenCalledWith('updateChatListFilters', {
+        page: 1,
+        conversationView: 'all',
+      });
+      expect(
+        mockDispatch.mock.calls.filter(
+          ([action]) => action === 'fetchAllConversations'
+        )
+      ).toHaveLength(1);
+    });
+
+    it('does not consider the app on All after ChatList clears all-view state', () => {
+      store.$store.getters.getChatListFilters = { conversationView: undefined };
+
+      expect(actionCable.isOnAllConversationsView()).toBe(false);
+    });
   });
 
   afterEach(() => {

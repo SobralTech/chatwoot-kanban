@@ -58,21 +58,25 @@ describe('#hasMessageFailedWithExternalError', () => {
 describe('#actions', () => {
   describe('#getConversation', () => {
     it('sends correct actions if API is success', async () => {
+      commit.mockClear();
       axios.get.mockResolvedValue({
         data: { id: 1, meta: { sender: { id: 1, name: 'Contact 1' } } },
       });
       await actions.getConversation({ commit }, 1);
       expect(commit.mock.calls).toEqual([
         [
-          types.UPDATE_CONVERSATION,
+          types.UPSERT_CONVERSATION,
           { id: 1, meta: { sender: { id: 1, name: 'Contact 1' } } },
         ],
         ['contacts/SET_CONTACT_ITEM', { id: 1, name: 'Contact 1' }],
       ]);
     });
     it('sends correct actions if API is error', async () => {
+      commit.mockClear();
       axios.get.mockRejectedValue({ message: 'Incorrect header' });
-      await actions.getConversation({ commit });
+      await expect(actions.getConversation({ commit })).rejects.toEqual({
+        message: 'Incorrect header',
+      });
       expect(commit.mock.calls).toEqual([]);
     });
   });
@@ -83,8 +87,11 @@ describe('#actions', () => {
       expect(commit.mock.calls).toEqual([[types.MUTE_CONVERSATION]]);
     });
     it('sends correct actions if API is error', async () => {
+      commit.mockClear();
       axios.get.mockRejectedValue({ message: 'Incorrect header' });
-      await actions.getConversation({ commit });
+      await expect(actions.getConversation({ commit })).rejects.toEqual({
+        message: 'Incorrect header',
+      });
       expect(commit.mock.calls).toEqual([]);
     });
   });

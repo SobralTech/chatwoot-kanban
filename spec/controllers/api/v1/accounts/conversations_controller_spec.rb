@@ -173,6 +173,53 @@ RSpec.describe 'Conversations API', type: :request do
         expect(uuids.first).to eq(old_pinned_conversation.uuid)
         expect(uuids.uniq.length).to eq(uuids.length)
       end
+
+      it 'excludes hidden inbox conversations from all conversations view' do
+        hidden_inbox = create(:inbox, account: account, show_in_all_conversations: false)
+        create(:inbox_member, user: agent, inbox: hidden_inbox)
+        hidden_conversation = create(:conversation, account: account, inbox: hidden_inbox)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            params: { conversation_view: 'all' },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        uuids = JSON.parse(response.body, symbolize_names: true)[:data][:payload].map { |payload| payload[:uuid] }
+        expect(uuids).to include(conversation.uuid)
+        expect(uuids).not_to include(hidden_conversation.uuid)
+      end
+
+      it 'does not show a pinned hidden inbox conversation in all conversations view' do
+        hidden_inbox = create(:inbox, account: account, show_in_all_conversations: false)
+        create(:inbox_member, user: agent, inbox: hidden_inbox)
+        hidden_conversation = create(:conversation, account: account, inbox: hidden_inbox, last_activity_at: 60.days.ago)
+        create(:conversation_pin, account: account, conversation: hidden_conversation, pinned_at: 1.hour.ago)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            params: { conversation_view: 'all' },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        uuids = JSON.parse(response.body, symbolize_names: true)[:data][:payload].map { |payload| payload[:uuid] }
+        expect(uuids).not_to include(hidden_conversation.uuid)
+      end
+
+      it 'shows hidden inbox conversations when inbox_id is explicit' do
+        hidden_inbox = create(:inbox, account: account, show_in_all_conversations: false)
+        create(:inbox_member, user: agent, inbox: hidden_inbox)
+        hidden_conversation = create(:conversation, account: account, inbox: hidden_inbox)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            params: { conversation_view: 'all', inbox_id: hidden_inbox.id },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        uuids = JSON.parse(response.body, symbolize_names: true)[:data][:payload].map { |payload| payload[:uuid] }
+        expect(uuids).to include(hidden_conversation.uuid)
+      end
     end
   end
 
@@ -202,6 +249,24 @@ RSpec.describe 'Conversations API', type: :request do
         body = JSON.parse(response.body, symbolize_names: true)
         expect(body[:meta].keys).to include(:all_count, :mine_count, :assigned_count, :unassigned_count)
         expect(body[:meta][:all_count]).to eq(1)
+      end
+
+      it 'excludes hidden inboxes only from all_count in all conversations view' do
+        hidden_inbox = create(:inbox, account: account, show_in_all_conversations: false)
+        create(:inbox_member, user: agent, inbox: hidden_inbox)
+        create(:conversation, account: account, inbox: hidden_inbox, assignee: agent)
+
+        get "/api/v1/accounts/#{account.id}/conversations/meta",
+            headers: agent.create_new_auth_token,
+            params: { conversation_view: 'all' },
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        body = JSON.parse(response.body, symbolize_names: true)
+        expect(body[:meta][:all_count]).to eq(1)
+        expect(body[:meta][:mine_count]).to eq(1)
+        expect(body[:meta][:unassigned_count]).to eq(1)
+        expect(body[:meta][:assigned_count]).to eq(1)
       end
     end
   end
@@ -417,6 +482,18 @@ RSpec.describe 'Conversations API', type: :request do
 
       it 'shows the conversation if you are an agent with access to inbox' do
         create(:inbox_member, user: agent, inbox: conversation.inbox)
+        get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(JSON.parse(response.body, symbolize_names: true)[:id]).to eq(conversation.display_id)
+      end
+
+      it 'allows direct access to a hidden inbox conversation' do
+        conversation.inbox.update!(show_in_all_conversations: false)
+        create(:inbox_member, user: agent, inbox: conversation.inbox)
+
         get "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}",
             headers: agent.create_new_auth_token,
             as: :json

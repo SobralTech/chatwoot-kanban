@@ -121,6 +121,11 @@ class ActionCableConnector extends BaseActionCableConnector {
   };
 
   onConversationCreated = data => {
+    if (this.shouldSkipAllConversationsRealtime(data)) {
+      this.fetchConversationStats();
+      return;
+    }
+
     this.app.$store.dispatch('addConversation', data);
     this.fetchConversationStats();
   };
@@ -137,6 +142,14 @@ class ActionCableConnector extends BaseActionCableConnector {
       conversation: { last_activity_at: lastActivityAt },
       conversation_id: conversationId,
     } = data;
+    if (this.shouldSkipAllConversationsRealtime(data.conversation)) {
+      const selectedChat = this.app.$store.getters.getSelectedChat;
+      if (selectedChat?.id === conversationId) {
+        this.app.$store.dispatch('addMessage', data);
+      }
+      return;
+    }
+
     this.app.$store.dispatch('addMessage', data);
     this.app.$store.dispatch('updateConversationLastActivity', {
       lastActivityAt,
@@ -153,6 +166,15 @@ class ActionCableConnector extends BaseActionCableConnector {
   };
 
   onConversationUpdated = data => {
+    if (this.shouldSkipAllConversationsRealtime(data)) {
+      const selectedChat = this.app.$store.getters.getSelectedChat;
+      if (selectedChat?.id === data.id) {
+        this.app.$store.dispatch('updateConversation', data);
+      }
+      this.fetchConversationStats();
+      return;
+    }
+
     this.app.$store.dispatch('updateConversation', data);
     this.fetchConversationStats();
   };
@@ -292,11 +314,66 @@ class ActionCableConnector extends BaseActionCableConnector {
     this.app.$store.dispatch('accounts/get', { silent: true });
   };
 
-  onCacheInvalidate = data => {
+  eligibleAllConversationInboxIds = () => {
+    const inboxes = this.app.$store.getters['inboxes/getInboxes'] || [];
+    return new Set(
+      inboxes
+        .filter(inbox => inbox.show_in_all_conversations !== false)
+        .map(inbox => Number(inbox.id))
+    );
+  };
+
+  isOnAllConversationsView = () => {
+    const filters = this.app.$store.getters.getChatListFilters || {};
+    return filters.conversationView === 'all';
+  };
+
+  // eslint-disable-next-line class-methods-use-this
+  haveEligibleInboxIdsChanged = (oldIds, newIds) => {
+    if (oldIds.size !== newIds.size) return true;
+    return [...oldIds].some(id => !newIds.has(id));
+  };
+
+  shouldSkipAllConversationsRealtime = conversation => {
+    if (!this.isOnAllConversationsView()) return false;
+
+    const inboxId = conversation?.inbox_id || conversation?.inboxId;
+    if (!inboxId) return false;
+
+    return !this.eligibleAllConversationInboxIds().has(Number(inboxId));
+  };
+
+  onCacheInvalidate = async data => {
     const keys = data.cache_keys;
+    const eligibleInboxIds = this.eligibleAllConversationInboxIds();
+
     this.app.$store.dispatch('labels/revalidate', { newKey: keys.label });
-    this.app.$store.dispatch('inboxes/revalidate', { newKey: keys.inbox });
+    await this.app.$store.dispatch('inboxes/revalidate', {
+      newKey: keys.inbox,
+    });
     this.app.$store.dispatch('teams/revalidate', { newKey: keys.team });
+
+    const newEligibleInboxIds = this.eligibleAllConversationInboxIds();
+    if (
+      this.isOnAllConversationsView() &&
+      this.haveEligibleInboxIdsChanged(eligibleInboxIds, newEligibleInboxIds)
+    ) {
+      const selectedChat = this.app.$store.getters.getSelectedChat;
+      this.app.$store.dispatch('conversationPage/reset');
+      this.app.$store.dispatch('updateChatListFilters', {
+        page: 1,
+        conversationView: 'all',
+      });
+      this.app.$store.dispatch('emptyAllConversations');
+      await this.app.$store.dispatch('fetchAllConversations');
+      if (selectedChat?.id) {
+        this.app.$store.dispatch('getConversation', {
+          conversationId: selectedChat.id,
+          forceUpsert: true,
+        });
+      }
+      this.fetchConversationStats();
+    }
   };
 
   onVoiceCallIncoming = data => {
