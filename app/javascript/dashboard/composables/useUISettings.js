@@ -1,10 +1,18 @@
 import { computed } from 'vue';
 import { useStore, useStoreGetters } from 'dashboard/composables/store';
 
+// Kanban and Conversation actions are always pinned to the first two
+// positions of the conversation sidebar, in this order, and cannot be
+// reordered by the user.
+export const PINNED_CONVERSATION_SIDEBAR_ITEMS = Object.freeze([
+  'kanban',
+  'conversation_actions',
+]);
+
 export const DEFAULT_CONVERSATION_SIDEBAR_ITEMS_ORDER = Object.freeze([
+  { name: 'kanban' },
   { name: 'conversation_actions' },
   { name: 'macros' },
-  { name: 'kanban' },
   { name: 'conversation_info' },
   { name: 'contact_attributes' },
   { name: 'contact_notes' },
@@ -14,6 +22,22 @@ export const DEFAULT_CONVERSATION_SIDEBAR_ITEMS_ORDER = Object.freeze([
   { name: 'linear_issues' },
   { name: 'shopify_orders' },
 ]);
+
+/**
+ * Ensures the pinned sidebar items always appear first, in a fixed order,
+ * regardless of what was previously persisted for a user.
+ * @param {Array} itemsOrder - List of sidebar item order entries.
+ * @returns {Array} Reordered list with pinned items first.
+ */
+const pinSidebarItemsOrder = itemsOrder => {
+  const pinned = PINNED_CONVERSATION_SIDEBAR_ITEMS.map(name =>
+    itemsOrder.find(item => item.name === name)
+  ).filter(Boolean);
+  const rest = itemsOrder.filter(
+    item => !PINNED_CONVERSATION_SIDEBAR_ITEMS.includes(item.name)
+  );
+  return [...pinned, ...rest];
+};
 
 export const DEFAULT_CONTACT_SIDEBAR_ITEMS_ORDER = Object.freeze([
   { name: 'contact_attributes' },
@@ -40,7 +64,9 @@ const useConversationSidebarItemsOrder = uiSettings => {
     const { conversation_sidebar_items_order: itemsOrder } = uiSettings.value;
     // If the sidebar order is not set, use the default order.
     if (!itemsOrder) {
-      return [...DEFAULT_CONVERSATION_SIDEBAR_ITEMS_ORDER];
+      return pinSidebarItemsOrder([
+        ...DEFAULT_CONVERSATION_SIDEBAR_ITEMS_ORDER,
+      ]);
     }
     // Create a copy of itemsOrder to avoid mutating the original store object.
     const itemsOrderCopy = [...itemsOrder];
@@ -50,7 +76,8 @@ const useConversationSidebarItemsOrder = uiSettings => {
         itemsOrderCopy.push(item);
       }
     });
-    return itemsOrderCopy;
+    // Normalize legacy saved preferences so pinned items are always first.
+    return pinSidebarItemsOrder(itemsOrderCopy);
   });
 };
 
