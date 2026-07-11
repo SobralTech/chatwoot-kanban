@@ -119,7 +119,19 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
   def toggle_pin
     existing_pin = @conversation.account_pin
     existing_pin ? existing_pin.destroy : create_pin
-    broadcast_pin_update
+    broadcast_conversation_update
+    head :ok
+  end
+
+  def archive
+    @conversation.archive!
+    broadcast_conversation_update
+    head :ok
+  end
+
+  def unarchive
+    @conversation.unarchive!
+    broadcast_conversation_update
     head :ok
   end
 
@@ -261,7 +273,7 @@ class Api::V1::Accounts::ConversationsController < Api::V1::Accounts::BaseContro
     )
   end
 
-  def broadcast_pin_update
+  def broadcast_conversation_update
     Rails.configuration.dispatcher.dispatch(
       CONVERSATION_UPDATED,
       Time.zone.now,

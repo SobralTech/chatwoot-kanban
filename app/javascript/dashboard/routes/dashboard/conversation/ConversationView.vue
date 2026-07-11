@@ -12,6 +12,7 @@ import { emitter } from 'shared/helpers/mitt';
 import SidepanelSwitch from 'dashboard/components-next/Conversation/SidepanelSwitch.vue';
 import ConversationSidebar from 'dashboard/components/widgets/conversation/ConversationSidebar.vue';
 import ConversationSearchPanel from 'dashboard/components/widgets/conversation/ConversationSearchPanel.vue';
+import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 
 export default {
   components: {
@@ -118,6 +119,14 @@ export default {
       this.conversationFetchError = false;
       this.fetchConversationIfUnavailable();
     },
+    // Keeps the URL in sync when the currently open conversation's archived
+    // state changes for any reason: another agent archiving/unarchiving it
+    // (via the CONVERSATION_UPDATED websocket event updating currentChat
+    // reactively), or the conversation already being archived when opened
+    // through a stale/generic link.
+    'currentChat.archived_at': function handleArchivedStateChange(archivedAt) {
+      this.syncRouteWithArchivedState(archivedAt);
+    },
   },
 
   created() {
@@ -191,6 +200,34 @@ export default {
       const conversationId = parseInt(this.conversationId, 10);
       const [chat] = this.chatList.filter(c => c.id === conversationId);
       return chat;
+    },
+    syncRouteWithArchivedState(archivedAt) {
+      if (!this.conversationId) {
+        return;
+      }
+      // Ignore stale updates while currentChat hasn't caught up with the
+      // conversationId the route just changed to.
+      if (Number(this.currentChat.id) !== Number(this.conversationId)) {
+        return;
+      }
+
+      const isArchived = !!archivedAt;
+      const isOnArchivedRoute =
+        this.$route.name === 'conversation_through_archived';
+
+      if (isArchived && !isOnArchivedRoute) {
+        this.$router.replace({
+          name: 'conversation_through_archived',
+          params: { conversationId: this.conversationId },
+        });
+      } else if (!isArchived && isOnArchivedRoute) {
+        this.$router.replace(
+          conversationListPageURL({
+            accountId: this.accountId,
+            conversationType: wootConstants.CONVERSATION_TYPE.ARCHIVED,
+          })
+        );
+      }
     },
     setActiveChat() {
       if (this.conversationId) {

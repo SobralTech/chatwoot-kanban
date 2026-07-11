@@ -210,5 +210,28 @@ export default {
         conversationType: 'unattended',
       }),
     },
+    {
+      path: frontendURL('accounts/:accountId/archived/conversations'),
+      name: 'conversation_archived',
+      meta: {
+        permissions: CONVERSATION_PERMISSIONS,
+      },
+      component: ConversationView,
+      props: () => ({ conversationType: 'archived' }),
+    },
+    {
+      path: frontendURL(
+        'accounts/:accountId/archived/conversations/:conversationId'
+      ),
+      name: 'conversation_through_archived',
+      meta: {
+        permissions: CONVERSATION_PERMISSIONS,
+      },
+      component: ConversationView,
+      props: route => ({
+        conversationId: route.params.conversationId,
+        conversationType: 'archived',
+      }),
+    },
   ],
 };

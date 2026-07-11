@@ -51,19 +51,24 @@ const createStoreMock = currentChat =>
     },
   });
 
-const mountView = () => {
-  const currentChat = { id: 1, inbox_id: 2 };
+const mountView = ({
+  currentChat = { id: 1, inbox_id: 2 },
+  routeName = 'inbox_conversation',
+  conversationId = 1,
+} = {}) => {
   const store = createStoreMock(currentChat);
+  const router = { replace: vi.fn(), push: vi.fn() };
 
   const wrapper = shallowMount(ConversationView, {
     props: {
-      conversationId: 1,
+      conversationId,
       inboxId: 2,
     },
     global: {
       plugins: [store],
       mocks: {
-        $route: { query: {} },
+        $route: { query: {}, name: routeName },
+        $router: router,
       },
       stubs: {
         ChatList: {
@@ -111,7 +116,7 @@ const mountView = () => {
     },
   });
 
-  return wrapper;
+  return { wrapper, router, currentChat };
 };
 
 describe('ConversationView', () => {
@@ -123,7 +128,7 @@ describe('ConversationView', () => {
   });
 
   it('renders search panel beside conversation box and replaces profile sidebar', async () => {
-    const wrapper = mountView();
+    const { wrapper } = mountView();
 
     expect(wrapper.find('[data-testid="conversation-sidebar"]').exists()).toBe(
       true
@@ -149,7 +154,7 @@ describe('ConversationView', () => {
   });
 
   it('forwards search panel close and state events to ConversationBox', async () => {
-    const wrapper = mountView();
+    const { wrapper } = mountView();
 
     await wrapper
       .find('[data-testid="open-conversation-search"]')
@@ -169,5 +174,64 @@ describe('ConversationView', () => {
     expect(
       wrapper.find('[data-testid="conversation-search-panel"]').exists()
     ).toBe(false);
+  });
+
+  describe('syncRouteWithArchivedState', () => {
+    it('redirects to the archived route when the open conversation gets archived elsewhere', () => {
+      // Covers both a live archive from another agent and opening an
+      // already-archived conversation through a generic/old URL: both
+      // surface as currentChat.archived_at becoming truthy while we're not
+      // already on the archived route.
+      const { wrapper, router } = mountView({
+        currentChat: { id: 1, inbox_id: 2 },
+        routeName: 'inbox_conversation',
+        conversationId: 1,
+      });
+
+      wrapper.vm.syncRouteWithArchivedState(1752230400);
+
+      expect(router.replace).toHaveBeenCalledWith({
+        name: 'conversation_through_archived',
+        params: { conversationId: 1 },
+      });
+    });
+
+    it('redirects back to the archived list when the open conversation gets unarchived elsewhere', () => {
+      const { wrapper, router } = mountView({
+        currentChat: { id: 1, inbox_id: 2 },
+        routeName: 'conversation_through_archived',
+        conversationId: 1,
+      });
+
+      wrapper.vm.syncRouteWithArchivedState(null);
+
+      expect(router.replace).toHaveBeenCalledWith(
+        '/app/accounts/1/archived/conversations'
+      );
+    });
+
+    it('does not redirect when already on the matching route', () => {
+      const { wrapper, router } = mountView({
+        currentChat: { id: 1, inbox_id: 2 },
+        routeName: 'conversation_through_archived',
+        conversationId: 1,
+      });
+
+      wrapper.vm.syncRouteWithArchivedState(1752230400);
+
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
+    it('ignores stale updates for a conversation other than the one on-screen', () => {
+      const { wrapper, router } = mountView({
+        currentChat: { id: 99, inbox_id: 2 },
+        routeName: 'inbox_conversation',
+        conversationId: 1,
+      });
+
+      wrapper.vm.syncRouteWithArchivedState(1752230400);
+
+      expect(router.replace).not.toHaveBeenCalled();
+    });
   });
 });

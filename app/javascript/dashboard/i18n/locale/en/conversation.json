@@ -212,6 +212,8 @@
       "MUTE_NOTIFICATIONS_SUCCESS": "Notifications muted for this conversation",
       "UNMUTE_NOTIFICATIONS_SUCCESS": "Notifications unmuted for this conversation",
       "NOTIFICATIONS_MUTED": "Notifications muted for this conversation",
+      "ARCHIVE_CONVERSATION": "Archive conversation",
+      "UNARCHIVE_CONVERSATION": "Unarchive conversation",
       "OPEN_IN_NEW_TAB": "Open in new tab",
       "COPY_LINK": "Copy conversation link",
       "COPY_LINK_SUCCESS": "Conversation link copied to clipboard",

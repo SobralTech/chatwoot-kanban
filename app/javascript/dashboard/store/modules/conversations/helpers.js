@@ -35,6 +35,17 @@ export const filterByUnattended = (
     : shouldFilter;
 };
 
+export const filterByArchived = (
+  shouldFilter,
+  conversationType,
+  archivedAt
+) => {
+  const isArchived = !!archivedAt;
+  return conversationType === 'archived'
+    ? isArchived && shouldFilter
+    : !isArchived && shouldFilter;
+};
+
 export const applyPageFilters = (conversation, filters) => {
   const { inboxId, status, labels = [], teamId, conversationType } = filters;
   const {
@@ -43,6 +54,7 @@ export const applyPageFilters = (conversation, filters) => {
     labels: chatLabels = [],
     meta = {},
     unread_count: unreadCount,
+    archived_at: archivedAt,
   } = conversation;
   const team = meta.team || {};
   const { id: chatTeamId } = team;
@@ -56,6 +68,7 @@ export const applyPageFilters = (conversation, filters) => {
     conversationType,
     unreadCount
   );
+  shouldFilter = filterByArchived(shouldFilter, conversationType, archivedAt);
 
   return shouldFilter;
 };

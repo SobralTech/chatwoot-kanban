@@ -1,4 +1,4 @@
-class ConversationFinder
+class ConversationFinder # rubocop:disable Metrics/ClassLength
   attr_reader :current_user, :current_account, :params
 
   DEFAULT_STATUS = 'open'.freeze
@@ -133,7 +133,14 @@ class ConversationFinder
       current_user,
       current_account
     ).perform
-    filter_by_conversation_type if params[:conversation_type]
+
+    if params[:conversation_type] == 'archived'
+      @conversations = @conversations.archived
+    else
+      @conversations = @conversations.not_archived
+      filter_by_conversation_type if params[:conversation_type]
+    end
+
     @conversations
   end
 

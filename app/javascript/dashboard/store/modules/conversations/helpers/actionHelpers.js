@@ -30,6 +30,14 @@ export const isOnUnattendedView = ({ route: { name: routeName } }) => {
   return UNATTENDED_ROUTES.includes(routeName);
 };
 
+export const isOnArchivedView = ({ route: { name: routeName } }) => {
+  const ARCHIVED_ROUTES = [
+    'conversation_archived',
+    'conversation_through_archived',
+  ];
+  return ARCHIVED_ROUTES.includes(routeName);
+};
+
 export const isOnFoldersView = ({ route: { name: routeName } }) => {
   const FOLDER_ROUTES = [
     'folder_conversations',

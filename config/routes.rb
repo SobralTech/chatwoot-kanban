@@ -191,6 +191,8 @@ Rails.application.routes.draw do
               post :unmute
               post :mute_notifications
               post :unmute_notifications
+              post :archive
+              post :unarchive
               post :transcript
               post :toggle_status
               post :toggle_priority

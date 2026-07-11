@@ -39,6 +39,7 @@ class SearchService
       OR unaccent(contacts.identifier) ILIKE unaccent(:search)
     SQL
     conversations_query = visible_conversations(current_account.conversations.where(inbox_id: accessable_inbox_ids))
+                          .not_archived
                           .joins('INNER JOIN contacts ON conversations.contact_id = contacts.id')
                           .where(search_sql, search: "%#{search_query}%")
 

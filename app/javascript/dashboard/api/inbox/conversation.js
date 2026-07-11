@@ -106,6 +106,14 @@ class ConversationApi extends ApiClient {
     return axios.post(`${this.url}/${conversationId}/unmute_notifications`);
   }
 
+  archive(conversationId) {
+    return axios.post(`${this.url}/${conversationId}/archive`);
+  }
+
+  unarchive(conversationId) {
+    return axios.post(`${this.url}/${conversationId}/unarchive`);
+  }
+
   meta({
     inboxId,
     status,

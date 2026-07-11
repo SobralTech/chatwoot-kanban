@@ -560,6 +560,38 @@ const actions = {
     }
   },
 
+  archiveConversation: async ({ commit }, conversationId) => {
+    commit(types.UPDATE_CONVERSATION_ARCHIVE, {
+      conversationId,
+      archivedAt: Math.floor(Date.now() / 1000),
+    });
+
+    try {
+      await ConversationApi.archive(conversationId);
+    } catch (error) {
+      commit(types.UPDATE_CONVERSATION_ARCHIVE, {
+        conversationId,
+        archivedAt: null,
+      });
+    }
+  },
+
+  unarchiveConversation: async ({ commit }, conversationId) => {
+    commit(types.UPDATE_CONVERSATION_ARCHIVE, {
+      conversationId,
+      archivedAt: null,
+    });
+
+    try {
+      await ConversationApi.unarchive(conversationId);
+    } catch (error) {
+      commit(types.UPDATE_CONVERSATION_ARCHIVE, {
+        conversationId,
+        archivedAt: Math.floor(Date.now() / 1000),
+      });
+    }
+  },
+
   toggleConversationNotificationsMute: async (
     { commit, getters },
     { conversationId }

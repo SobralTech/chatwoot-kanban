@@ -32,7 +32,7 @@ class Conversations::FilterService < FilterService
       conversations,
       @user,
       @account
-    ).perform
+    ).perform.not_archived
   end
 
   def current_page

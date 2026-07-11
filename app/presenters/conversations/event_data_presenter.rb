@@ -54,7 +54,8 @@ class Conversations::EventDataPresenter < SimpleDelegator
       timestamp: last_activity_at.to_i,
       created_at: created_at.to_i,
       updated_at: updated_at.to_f,
-      account_pinned_at: account_pin&.pinned_at&.to_i
+      account_pinned_at: account_pin&.pinned_at&.to_i,
+      archived_at: archived_at&.to_i
     }
   end
 end

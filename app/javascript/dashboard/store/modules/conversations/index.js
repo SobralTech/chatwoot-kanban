@@ -419,6 +419,12 @@ export const mutations = {
     };
   },
 
+  [types.UPDATE_CONVERSATION_ARCHIVE](_state, { conversationId, archivedAt }) {
+    const chat = getConversationById(_state)(conversationId);
+    if (!chat) return;
+    chat.archived_at = archivedAt;
+  },
+
   [types.SET_ACTIVE_INBOX](_state, inboxId) {
     _state.currentInbox = inboxId ? parseInt(inboxId, 10) : null;
   },

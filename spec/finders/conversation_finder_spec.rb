@@ -233,5 +233,49 @@ describe ConversationFinder do
         expect(result[:conversations]).to contain_exactly(unread_conversation, never_seen_conversation)
       end
     end
+
+    context 'with archived conversations' do
+      let!(:archived_conversation_1) { create(:conversation, account: account, inbox: inbox, assignee: user_1, archived_at: Time.current) }
+      let!(:archived_conversation_2) do
+        create(:conversation, account: account, inbox: inbox, assignee: user_1, status: 'resolved', archived_at: Time.current)
+      end
+
+      it 'excludes archived conversations from the default (open) view' do
+        result = described_class.new(user_1, { status: 'open', assignee_type: 'me' }).perform
+        expect(result[:conversations].map(&:id)).not_to include(archived_conversation_1.id, archived_conversation_2.id)
+      end
+
+      it 'excludes archived conversations from status all' do
+        result = described_class.new(user_1, { status: 'all', assignee_type: 'me' }).perform
+        expect(result[:conversations].map(&:id)).not_to include(archived_conversation_1.id, archived_conversation_2.id)
+      end
+
+      it 'excludes archived conversations from mentions' do
+        create(:mention, conversation: archived_conversation_1, user: user_1, account: account)
+        result = described_class.new(user_1, { conversation_type: 'mention' }).perform
+        expect(result[:conversations].map(&:id)).not_to include(archived_conversation_1.id)
+      end
+
+      it 'excludes archived conversations from unattended' do
+        create(:message, conversation: archived_conversation_1, message_type: 'incoming')
+        result = described_class.new(user_1, { conversation_type: 'unattended' }).perform
+        expect(result[:conversations].map(&:id)).not_to include(archived_conversation_1.id)
+      end
+
+      it 'does not count archived conversations in the counters' do
+        result = described_class.new(user_1, { assignee_type: 'assigned' }).perform
+        expect(result[:count]).to eq({
+                                       mine_count: 2,
+                                       assigned_count: 3,
+                                       unassigned_count: 1,
+                                       all_count: 4
+                                     })
+      end
+
+      it 'returns only archived conversations when conversation_type is archived' do
+        result = described_class.new(user_1, { conversation_type: 'archived', status: 'all' }).perform
+        expect(result[:conversations].map(&:id)).to contain_exactly(archived_conversation_1.id, archived_conversation_2.id)
+      end
+    end
   end
 end

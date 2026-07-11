@@ -199,6 +199,8 @@
       "MUTE_NOTIFICATIONS_SUCCESS": "Notificações silenciadas para esta conversa",
       "UNMUTE_NOTIFICATIONS_SUCCESS": "Notificações reativadas para esta conversa",
       "NOTIFICATIONS_MUTED": "Notificações silenciadas para esta conversa",
+      "ARCHIVE_CONVERSATION": "Arquivar conversa",
+      "UNARCHIVE_CONVERSATION": "Desarquivar conversa",
       "OPEN_IN_NEW_TAB": "Abrir em nova aba",
       "COPY_LINK": "Copiar link da conversa",
       "COPY_LINK_SUCCESS": "Link da conversa copiado",

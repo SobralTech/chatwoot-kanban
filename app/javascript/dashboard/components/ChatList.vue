@@ -52,6 +52,7 @@ import { conversationListPageURL } from '../helper/URLHelper';
 import {
   isOnMentionsView,
   isOnUnattendedView,
+  isOnArchivedView,
 } from '../store/modules/conversations/helpers/actionHelpers';
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
 import { CONVERSATION_EVENTS } from '../helper/AnalyticsHelper/events';
@@ -122,7 +123,11 @@ const store = useStore();
 
 const resolveAttributesModalRef = ref(null);
 
-const activeStatus = ref(wootConstants.STATUS_TYPE.OPEN);
+const activeStatus = ref(
+  props.conversationType === wootConstants.CONVERSATION_TYPE.ARCHIVED
+    ? wootConstants.STATUS_TYPE.ALL
+    : wootConstants.STATUS_TYPE.OPEN
+);
 const activeSortBy = ref(wootConstants.SORT_BY_TYPE.LAST_ACTIVITY_AT_DESC);
 const showAdvancedFilters = ref(false);
 // chatsOnView is to store the chats that are currently visible on the screen,
@@ -373,6 +378,9 @@ const pageTitle = computed(() => {
   }
   if (props.conversationType === wootConstants.CONVERSATION_TYPE.UNATTENDED) {
     return t('CHAT_LIST.UNATTENDED_HEADING');
+  }
+  if (props.conversationType === wootConstants.CONVERSATION_TYPE.ARCHIVED) {
+    return t('CHAT_LIST.ARCHIVED_HEADING');
   }
   if (hasActiveFolders.value) {
     return activeFolder.value.name;
@@ -690,6 +698,8 @@ function redirectToConversationList() {
     conversationType = wootConstants.CONVERSATION_TYPE.MENTION;
   } else if (isOnUnattendedView({ route: { name } })) {
     conversationType = wootConstants.CONVERSATION_TYPE.UNATTENDED;
+  } else if (isOnArchivedView({ route: { name } })) {
+    conversationType = wootConstants.CONVERSATION_TYPE.ARCHIVED;
   }
   router.push(
     conversationListPageURL({
@@ -737,6 +747,25 @@ async function markAsRead(conversationId) {
     await store.dispatch('markMessagesRead', {
       id: conversationId,
     });
+  } catch (error) {
+    // Ignore error
+  }
+}
+
+async function toggleArchive(conversationId, isArchived, isActiveChat = false) {
+  try {
+    if (isArchived) {
+      await store.dispatch('unarchiveConversation', conversationId);
+      if (isActiveChat) redirectToConversationList();
+    } else {
+      await store.dispatch('archiveConversation', conversationId);
+      if (isActiveChat) {
+        router.push({
+          name: 'conversation_through_archived',
+          params: { conversationId },
+        });
+      }
+    }
   } catch (error) {
     // Ignore error
   }
@@ -889,6 +918,7 @@ provide('markAsRead', markAsRead);
 provide('assignPriority', assignPriority);
 provide('isConversationSelected', isConversationSelected);
 provide('deleteConversation', handleDelete);
+provide('toggleArchive', toggleArchive);
 
 watch(activeTeam, () => resetAndFetchData());
 

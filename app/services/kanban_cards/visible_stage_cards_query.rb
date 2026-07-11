@@ -65,6 +65,7 @@ class KanbanCards::VisibleStageCardsQuery
                        .left_outer_joins(:conversation)
                        .where(account_id: account.id, kanban_board_id: kanban_board.id, kanban_stage_id: kanban_stage.id)
                        .where(visibility_condition)
+                       .where(not_archived_condition)
                        .then { |scope| filtered_inbox_ids.nil? ? scope : scope.where(inbox_id: filtered_inbox_ids) }
                        .then { |scope| filtered_assignee_ids.nil? ? scope : scope.where(conversations: { assignee_id: filtered_assignee_ids }) }
   end
@@ -176,6 +177,10 @@ class KanbanCards::VisibleStageCardsQuery
 
   def manual_card_condition
     card_table[:conversation_id].eq(nil)
+  end
+
+  def not_archived_condition
+    card_table[:conversation_id].eq(nil).or(conversation_table[:archived_at].eq(nil))
   end
 
   def or_condition(conditions)

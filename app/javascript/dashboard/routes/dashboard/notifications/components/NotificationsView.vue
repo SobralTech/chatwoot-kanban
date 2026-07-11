@@ -31,7 +31,7 @@ export default {
       const {
         primary_actor_id: primaryActorId,
         primary_actor_type: primaryActorType,
-        primary_actor: { id: conversationId },
+        primary_actor: { id: conversationId, archived_at: archivedAt },
         notification_type: notificationType,
       } = notification;
 
@@ -45,9 +45,10 @@ export default {
         unreadCount: this.meta.unreadCount,
       });
 
-      this.$router.push(
-        `/app/accounts/${this.accountId}/conversations/${conversationId}`
-      );
+      const path = archivedAt
+        ? `/app/accounts/${this.accountId}/archived/conversations/${conversationId}`
+        : `/app/accounts/${this.accountId}/conversations/${conversationId}`;
+      this.$router.push(path);
     },
     onMarkAllDoneClick() {
       useTrack(ACCOUNT_EVENTS.MARK_AS_READ_NOTIFICATIONS);
