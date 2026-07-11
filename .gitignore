@@ -108,3 +108,4 @@ Procfile.worktree
 
 # Local project docs/notes (not for upstream sync)
 DOC uazapi/
+.slim/
