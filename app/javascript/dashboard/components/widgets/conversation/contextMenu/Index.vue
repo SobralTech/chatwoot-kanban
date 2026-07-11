@@ -355,7 +355,7 @@ export default {
     <template v-if="isAllowed([MENU.ARCHIVE])">
       <MenuItem
         :option="{
-          icon: isArchived ? 'archive-arrow-back' : 'archive',
+          icon: isArchived ? 'mail-inbox' : 'archive',
           label: isArchived
             ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNARCHIVE_CONVERSATION')
             : $t('CONVERSATION.CARD_CONTEXT_MENU.ARCHIVE_CONVERSATION'),
