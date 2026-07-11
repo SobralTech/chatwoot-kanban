@@ -3,10 +3,18 @@ import ActionCableConnector from '../actionCable';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 
+const { mockUseAlert } = vi.hoisted(() => ({
+  mockUseAlert: vi.fn(),
+}));
+
 vi.mock('shared/helpers/mitt', () => ({
   emitter: {
     emit: vi.fn(),
   },
+}));
+
+vi.mock('dashboard/composables', () => ({
+  useAlert: mockUseAlert,
 }));
 
 vi.mock('dashboard/composables/useImpersonation', () => ({
@@ -248,6 +256,52 @@ describe('ActionCableConnector - Copilot Tests', () => {
 
       vi.advanceTimersByTime(4000);
       expect(mockDispatch).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('conversation access revoked event handlers', () => {
+    it('registers the conversation.access_revoked event handler', () => {
+      expect(Object.keys(actionCable.events)).toContain(
+        'conversation.access_revoked'
+      );
+      expect(actionCable.events['conversation.access_revoked']).toBe(
+        actionCable.onConversationAccessRevoked
+      );
+    });
+
+    it('removes the conversation when access is revoked', () => {
+      const payload = { account_id: 1, id: 42 };
+      store.$store.getters.getSelectedChat = { id: 99 };
+
+      actionCable.onReceived({
+        event: 'conversation.access_revoked',
+        data: payload,
+      });
+
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'handleConversationAccessRevoked',
+        payload
+      );
+      expect(mockUseAlert).not.toHaveBeenCalled();
+    });
+
+    it('shows unavailable alert when the revoked conversation is open', () => {
+      const payload = { account_id: 1, id: 42 };
+      store.$store.getters.getSelectedChat = { id: 42 };
+
+      actionCable.onReceived({
+        event: 'conversation.access_revoked',
+        data: payload,
+      });
+
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'handleConversationAccessRevoked',
+        payload
+      );
+      expect(mockUseAlert).toHaveBeenCalledWith(
+        'CONVERSATION.ACCESS_CONTROL.CONVERSATION_UNAVAILABLE',
+        { usei18n: true }
+      );
     });
   });
 

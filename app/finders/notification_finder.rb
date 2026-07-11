@@ -32,12 +32,25 @@ class NotificationFinder
 
   def set_up
     find_all_notifications
+    filter_hidden_conversation_notifications
     filter_snoozed_notifications
     filter_read_notifications
   end
 
   def find_all_notifications
     @notifications = current_user.notifications.where(account_id: @current_account.id)
+  end
+
+  def filter_hidden_conversation_notifications
+    visible_conversation_ids = Conversations::PermissionFilterService.new(
+      @current_account.conversations,
+      current_user,
+      @current_account
+    ).perform.select(:id)
+
+    visible_notifications = @notifications.where(primary_actor_type: 'Conversation', primary_actor_id: visible_conversation_ids)
+
+    @notifications = @notifications.where.not(primary_actor_type: 'Conversation').or(visible_notifications)
   end
 
   def filter_snoozed_notifications

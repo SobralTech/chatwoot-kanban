@@ -66,11 +66,11 @@ class Reports::RawDataSource < Reports::DataSource
   def count_scope
     case metric.to_s
     when 'conversations_count'
-      scope.conversations.where(account_id: account.id, created_at: range)
+      visible_conversation_scope(scope.conversations.where(account_id: account.id, created_at: range))
     when 'incoming_messages_count'
-      scope.messages.where(account_id: account.id, created_at: range).incoming.unscope(:order)
+      visible_message_scope(scope.messages.where(account_id: account.id, created_at: range).incoming.unscope(:order))
     when 'outgoing_messages_count'
-      scope.messages.where(account_id: account.id, created_at: range).outgoing.unscope(:order)
+      visible_message_scope(scope.messages.where(account_id: account.id, created_at: range).outgoing.unscope(:order))
     else
       reporting_event_count_scope
     end
@@ -82,6 +82,7 @@ class Reports::RawDataSource < Reports::DataSource
       account_id: account.id,
       created_at: range
     )
+    events = visible_reporting_event_scope(events)
 
     return events.where.not(conversation_id: bot_handoff_conversation_ids_subquery) if raw_count_strategy == :exclude_bot_handoffs
     return events unless raw_count_strategy == :distinct_conversation
@@ -98,17 +99,16 @@ class Reports::RawDataSource < Reports::DataSource
   end
 
   def summary_scope
-    scope = account.reporting_events.where(created_at: range)
+    scope = visible_reporting_event_scope(account.reporting_events.where(created_at: range))
     return scope.joins(:conversation) if dimension_type == 'team'
 
     scope
   end
 
   def summary_conversation_counts
-    account.conversations
-           .where(created_at: range)
-           .group(summary_conversation_group_by_key)
-           .count
+    visible_conversation_scope(account.conversations.where(created_at: range))
+      .group(summary_conversation_group_by_key)
+      .count
   end
 
   def merge_summary_results(metric_results, conversation_counts)
@@ -161,5 +161,27 @@ class Reports::RawDataSource < Reports::DataSource
 
   def average_value_key
     use_business_hours? ? :value_in_business_hours : :value
+  end
+
+  def visible_conversation_scope(conversation_scope)
+    return conversation_scope if Current.user.blank? || Current.account_user&.administrator?
+
+    Conversations::PermissionFilterService.new(conversation_scope, Current.user, account).perform
+  end
+
+  def visible_conversation_ids
+    @visible_conversation_ids ||= visible_conversation_scope(account.conversations).select(:id)
+  end
+
+  def visible_message_scope(message_scope)
+    return message_scope if Current.user.blank? || Current.account_user&.administrator?
+
+    message_scope.where(conversation_id: visible_conversation_ids)
+  end
+
+  def visible_reporting_event_scope(event_scope)
+    return event_scope if Current.user.blank? || Current.account_user&.administrator?
+
+    event_scope.where(conversation_id: visible_conversation_ids)
   end
 end

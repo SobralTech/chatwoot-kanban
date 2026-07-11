@@ -683,6 +683,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_10_120000) do
     t.index ["phone_number", "account_id"], name: "index_contacts_on_phone_number_and_account_id"
   end
 
+  create_table "conversation_access_users", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id"], name: "idx_conversation_access_users_account_user"
+    t.index ["conversation_id", "user_id"], name: "idx_conversation_access_users_unique", unique: true
+    t.index ["user_id", "conversation_id"], name: "idx_conversation_access_users_user_conversation"
+    t.index ["user_id"], name: "index_conversation_access_users_on_user_id"
+  end
+
   create_table "conversation_assistant_messages", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "conversation_id", null: false
@@ -975,8 +987,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_10_120000) do
     t.string "business_name"
     t.jsonb "csat_config", default: {}, null: false
     t.boolean "show_in_all_conversations", default: true, null: false
-    t.index ["account_id"], name: "index_inboxes_on_account_id"
     t.index ["account_id", "show_in_all_conversations"], name: "index_inboxes_on_account_id_and_show_in_all_conversations"
+    t.index ["account_id"], name: "index_inboxes_on_account_id"
     t.index ["channel_id", "channel_type"], name: "index_inboxes_on_channel_id_and_channel_type"
     t.index ["portal_id"], name: "index_inboxes_on_portal_id"
   end
@@ -1492,6 +1504,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_10_120000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "canned_response_steps", "canned_responses"
+  add_foreign_key "conversation_access_users", "accounts"
+  add_foreign_key "conversation_access_users", "conversations"
+  add_foreign_key "conversation_access_users", "users"
   add_foreign_key "conversation_assistant_messages", "accounts"
   add_foreign_key "conversation_assistant_messages", "conversations"
   add_foreign_key "conversation_assistant_messages", "messages", column: "sent_message_id"

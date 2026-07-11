@@ -4,6 +4,7 @@ import DashboardAudioNotificationHelper from './AudioAlerts/DashboardAudioNotifi
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { emitter } from 'shared/helpers/mitt';
 import { useImpersonation } from 'dashboard/composables/useImpersonation';
+import { useAlert } from 'dashboard/composables';
 import { useCallsStore } from 'dashboard/stores/calls';
 import {
   applyOutboundAnswer,
@@ -56,6 +57,7 @@ class ActionCableConnector extends BaseActionCableConnector {
       'notification.updated': this.onNotificationUpdated,
       'conversation.read': this.onConversationRead,
       'conversation.updated': this.onConversationUpdated,
+      'conversation.access_revoked': this.onConversationAccessRevoked,
       'conversation.unread_count_changed':
         this.onConversationUnreadCountChanged,
       'account.cache_invalidated': this.onCacheInvalidate,
@@ -177,6 +179,20 @@ class ActionCableConnector extends BaseActionCableConnector {
 
     this.app.$store.dispatch('updateConversation', data);
     this.fetchConversationStats();
+  };
+
+  onConversationAccessRevoked = data => {
+    const selectedChat = this.app.$store.getters.getSelectedChat;
+    this.app.$store.dispatch('handleConversationAccessRevoked', data);
+
+    if (
+      selectedChat?.id === data?.id ||
+      selectedChat?.id === data?.conversation_id
+    ) {
+      useAlert('CONVERSATION.ACCESS_CONTROL.CONVERSATION_UNAVAILABLE', {
+        usei18n: true,
+      });
+    }
   };
 
   onConversationUnreadCountChanged = () => {

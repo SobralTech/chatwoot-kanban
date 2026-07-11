@@ -30,7 +30,8 @@ describe ActionCableListener do
           agent.pubsub_token, admin.pubsub_token, conversation.contact_inbox.pubsub_token
         ),
         'message.created',
-        message.push_event_data.merge(account_id: account.id)
+        message.push_event_data.merge(account_id: account.id),
+        conversation.id
       )
       listener.message_created(event)
     end
@@ -48,7 +49,8 @@ describe ActionCableListener do
           agent.pubsub_token, admin.pubsub_token, conversation.contact_inbox.pubsub_token, verified_contact_inbox.pubsub_token
         ),
         'message.created',
-        message.push_event_data.merge(account_id: account.id)
+        message.push_event_data.merge(account_id: account.id),
+        conversation.id
       )
       listener.message_created(event)
     end
@@ -68,7 +70,8 @@ describe ActionCableListener do
         'conversation.typing_on', { conversation: conversation.push_event_data,
                                     user: agent.push_event_data,
                                     account_id: account.id,
-                                    is_private: false }
+                                    is_private: false },
+        nil
       )
       listener.conversation_typing_on(event)
     end
@@ -88,7 +91,8 @@ describe ActionCableListener do
         'conversation.typing_on', { conversation: conversation.push_event_data,
                                     user: conversation.contact.push_event_data,
                                     account_id: account.id,
-                                    is_private: false }
+                                    is_private: false },
+        nil
       )
       listener.conversation_typing_on(event)
     end
@@ -108,7 +112,8 @@ describe ActionCableListener do
         'conversation.typing_on', { conversation: conversation.push_event_data,
                                     user: agent_bot.push_event_data,
                                     account_id: account.id,
-                                    is_private: false }
+                                    is_private: false },
+        nil
       )
       listener.conversation_typing_on(event)
     end
@@ -128,7 +133,8 @@ describe ActionCableListener do
         'conversation.typing_off', { conversation: conversation.push_event_data,
                                      user: agent.push_event_data,
                                      account_id: account.id,
-                                     is_private: false }
+                                     is_private: false },
+        nil
       )
       listener.conversation_typing_off(event)
     end
@@ -144,7 +150,8 @@ describe ActionCableListener do
       expect(ActionCableBroadcastJob).to receive(:perform_later).with(
         ["account_#{account.id}"],
         'contact.deleted',
-        contact_data
+        contact_data,
+        nil
       )
       listener.contact_deleted(event)
     end
@@ -171,9 +178,10 @@ describe ActionCableListener do
           notification: {
             id: notification.id
           },
-          unread_count: 1,
-          count: 1
-        }
+          unread_count: 0,
+          count: 0
+        },
+        nil
       )
 
       listener.notification_deleted(event)
@@ -192,9 +200,10 @@ describe ActionCableListener do
         {
           account_id: notification.account_id,
           notification: notification.push_event_data,
-          unread_count: 1,
-          count: 1
-        }
+          unread_count: 0,
+          count: 0
+        },
+        nil
       )
 
       listener.notification_updated(event)
@@ -213,9 +222,10 @@ describe ActionCableListener do
       expect(conversation.inbox.reload.inbox_members.count).to eq(1)
 
       expect(ActionCableBroadcastJob).to receive(:perform_later).with(
-        [agent.pubsub_token, admin.pubsub_token, conversation.contact_inbox.pubsub_token],
+        a_collection_containing_exactly(agent.pubsub_token, admin.pubsub_token, conversation.contact_inbox.pubsub_token),
         'conversation.updated',
-        conversation.push_event_data.merge(account_id: account.id)
+        conversation.push_event_data.merge(account_id: account.id),
+        conversation.id
       )
       listener.conversation_updated(event)
     end
@@ -224,9 +234,10 @@ describe ActionCableListener do
       expect(conversation.reload.push_event_data[:labels]).to eq(conversation.labels.pluck(:name))
 
       expect(ActionCableBroadcastJob).to receive(:perform_later).with(
-        [agent.pubsub_token, admin.pubsub_token, conversation.contact_inbox.pubsub_token],
+        a_collection_containing_exactly(agent.pubsub_token, admin.pubsub_token, conversation.contact_inbox.pubsub_token),
         'conversation.updated',
-        conversation.push_event_data.merge(account_id: account.id)
+        conversation.push_event_data.merge(account_id: account.id),
+        conversation.id
       )
       listener.conversation_updated(event)
     end
@@ -249,7 +260,8 @@ describe ActionCableListener do
         'conversation.unread_count_changed',
         {
           account_id: account.id
-        }
+        },
+        nil
       )
 
       listener.conversation_unread_count_changed(event)
@@ -289,10 +301,27 @@ describe ActionCableListener do
         'conversation.unread_count_changed',
         {
           account_id: account.id
-        }
+        },
+        nil
       )
 
       listener.conversation_unread_count_changed(event)
+    end
+  end
+
+  describe '#conversation_access_revoked' do
+    let(:event_name) { :'conversation.access_revoked' }
+    let(:event) { Events::Base.new(event_name, Time.zone.now, conversation: conversation, tokens: [agent.pubsub_token]) }
+
+    it 'enqueues a compact payload for revoked users' do
+      expect(ActionCableBroadcastJob).to receive(:perform_later).with(
+        [agent.pubsub_token],
+        'conversation.access_revoked',
+        { account_id: account.id, id: conversation.display_id },
+        nil
+      )
+
+      listener.conversation_access_revoked(event)
     end
   end
 

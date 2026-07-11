@@ -160,6 +160,20 @@ class ConversationApi extends ApiClient {
     return axios.post(`${this.url}/${conversationId}/toggle_pin`);
   }
 
+  getAccessUsers(conversationId) {
+    return axios.get(`${this.url}/${conversationId}/access_users`);
+  }
+
+  getEligibleAccessUsers(conversationId) {
+    return axios.get(`${this.url}/${conversationId}/access_users/eligible`);
+  }
+
+  updateAccessUsers({ conversationId, userIds }) {
+    return axios.put(`${this.url}/${conversationId}/access_users`, {
+      user_ids: userIds,
+    });
+  }
+
   delete(conversationId) {
     return axios.delete(`${this.url}/${conversationId}`);
   }

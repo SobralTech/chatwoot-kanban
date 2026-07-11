@@ -570,7 +570,10 @@ describe('#deleteMessage', () => {
         data: { id: 1 },
       });
       await actions.deleteConversation({ commit, dispatch }, 1);
-      expect(commit.mock.calls).toEqual([[types.DELETE_CONVERSATION, 1]]);
+      expect(commit.mock.calls).toEqual([
+        [types.DELETE_CONVERSATION, 1],
+        ['conversationMetadata/CLEAR_CONVERSATION_METADATA', 1, { root: true }],
+      ]);
       expect(dispatch.mock.calls).toEqual([
         ['conversationStats/get', {}, { root: true }],
       ]);
@@ -583,6 +586,63 @@ describe('#deleteMessage', () => {
       ).rejects.toThrow(Error);
       expect(commit.mock.calls).toEqual([]);
       expect(dispatch.mock.calls).toEqual([]);
+    });
+  });
+
+  describe('#handleConversationAccessRevoked', () => {
+    beforeEach(() => {
+      commit.mockClear();
+      dispatch.mockClear();
+    });
+
+    it('removes the conversation and clears related local state', async () => {
+      await actions.handleConversationAccessRevoked(
+        { commit, dispatch, state: { selectedChatId: null } },
+        { id: 1 }
+      );
+
+      expect(commit.mock.calls).toEqual([
+        [types.DELETE_CONVERSATION, 1],
+        ['conversationMetadata/CLEAR_CONVERSATION_METADATA', 1, { root: true }],
+        [
+          'draftMessages/REMOVE_DRAFT_MESSAGES',
+          { key: 'draft-1-REPLY' },
+          { root: true },
+        ],
+        [
+          'draftMessages/REMOVE_DRAFT_MESSAGES',
+          { key: 'draft-1-NOTE' },
+          { root: true },
+        ],
+        [
+          'draftMessages/REMOVE_DRAFT_MESSAGES',
+          { key: 'draft-1-ASSISTANT' },
+          { root: true },
+        ],
+      ]);
+      expect(dispatch.mock.calls).toEqual([
+        ['conversationStats/get', {}, { root: true }],
+      ]);
+    });
+
+    it('clears the current chat window when the revoked conversation is open', async () => {
+      await actions.handleConversationAccessRevoked(
+        { commit, dispatch, state: { selectedChatId: 1 } },
+        { id: 1 }
+      );
+
+      expect(commit.mock.calls).toContainEqual([
+        types.CLEAR_CURRENT_CHAT_WINDOW,
+      ]);
+    });
+
+    it('accepts conversation_id payloads from realtime', async () => {
+      await actions.handleConversationAccessRevoked(
+        { commit, dispatch, state: { selectedChatId: null } },
+        { conversation_id: 1 }
+      );
+
+      expect(commit.mock.calls[0]).toEqual([types.DELETE_CONVERSATION, 1]);
     });
   });
 

@@ -159,6 +159,12 @@
         "FAILED": "Não foi possível alterar a prioridade. Por favor, tente novamente."
       }
     },
+    "ACCESS_CONTROL": {
+      "LABEL": "Quem tem acesso",
+      "ALL_AGENTS": "Todos os agentes",
+      "REVOKED_AGENT_TITLE": "{name} · acesso revogado",
+      "CONVERSATION_UNAVAILABLE": "Conversa indisponível"
+    },
     "DELETE_CONVERSATION": {
       "TITLE": "Excluir conversa #{conversationId}",
       "DESCRIPTION": "Tem certeza que deseja excluir esta conversa?",

@@ -69,5 +69,30 @@ RSpec.describe ConversationPolicy, type: :policy do
         expect(subject).not_to permit(agent_context, conversation)
       end
     end
+
+    context 'when conversation has selected access users' do
+      let(:inbox) { create(:inbox, account: account) }
+      let(:conversation) { create(:conversation, account: account, inbox: inbox) }
+      let(:other_agent) { create(:user, account: account, role: :agent) }
+
+      before do
+        create(:inbox_member, user: agent, inbox: inbox)
+        create(:inbox_member, user: other_agent, inbox: inbox)
+        create(:conversation_access_user, conversation: conversation, user: other_agent)
+      end
+
+      it 'denies agents not in the access list' do
+        expect(subject).not_to permit(agent_context, conversation)
+      end
+
+      it 'allows agents in the access list' do
+        other_context = { user: other_agent, account: account, account_user: other_agent.account_users.find_by(account: account) }
+        expect(subject).to permit(other_context, conversation)
+      end
+
+      it 'allows administrators even when not selected' do
+        expect(subject).to permit(administrator_context, conversation)
+      end
+    end
   end
 end

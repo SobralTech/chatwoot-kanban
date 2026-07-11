@@ -118,6 +118,8 @@ class Conversation < ApplicationRecord
   has_many :conversation_assistant_messages, dependent: :destroy_async
   has_one :csat_survey_response, dependent: :destroy_async
   has_many :conversation_participants, dependent: :destroy_async
+  has_many :conversation_access_users, dependent: :destroy_async
+  has_many :access_users, through: :conversation_access_users, source: :user
   has_many :notifications, as: :primary_actor, dependent: :destroy_async
   has_many :attachments, through: :messages
   has_many :reporting_events, dependent: :destroy_async

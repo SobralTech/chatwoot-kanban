@@ -183,5 +183,19 @@ RSpec.describe 'Canned Responses API', type: :request do
       expect(response).to have_http_status(:success)
       expect(conversation.messages.outgoing.pluck(:content)).to eq(['First message', 'Second message'])
     end
+
+    it 'does not send response to a restricted conversation without access' do
+      authorized_agent = create(:user, account: account, role: :agent)
+      create(:inbox_member, inbox: inbox, user: authorized_agent)
+      create(:conversation_access_user, account: account, conversation: conversation, user: authorized_agent)
+
+      post "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}/send_response",
+           params: { conversation_id: conversation.display_id },
+           headers: agent.create_new_auth_token,
+           as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(conversation.messages.outgoing).to be_empty
+    end
   end
 end

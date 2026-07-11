@@ -12,6 +12,12 @@ RSpec.describe 'Linear Integration API', type: :request do
     allow(Integrations::Linear::ProcessorService).to receive(:new).with(account: account).and_return(processor_service)
   end
 
+  def restrict_conversation_from_agent(conversation)
+    authorized_agent = create(:user, account: account, role: :agent)
+    create(:inbox_member, inbox: conversation.inbox, user: authorized_agent)
+    create(:conversation_access_user, account: account, conversation: conversation, user: authorized_agent)
+  end
+
   describe 'DELETE /api/v1/accounts/:account_id/integrations/linear' do
     it 'deletes the linear integration' do
       # Stub the HTTP call to Linear's revoke endpoint
@@ -114,6 +120,8 @@ RSpec.describe 'Linear Integration API', type: :request do
       }
     end
 
+    before { create(:inbox_member, inbox: conversation.inbox, user: agent) }
+
     context 'when it is an authenticated user' do
       context 'when the issue is created successfully' do
         let(:created_issue) { { data: { identifier: 'ENG-123', title: 'Sample Issue' } } }
@@ -146,6 +154,19 @@ RSpec.describe 'Linear Integration API', type: :request do
                     content: "Linear issue ENG-123 was created by #{agent.name}"
                   })
         end
+
+        it 'does not create issue for a restricted conversation without access' do
+          restrict_conversation_from_agent(conversation)
+
+          expect(processor_service).not_to receive(:create_issue)
+
+          post "/api/v1/accounts/#{account.id}/integrations/linear/create_issue",
+               params: issue_params,
+               headers: agent.create_new_auth_token,
+               as: :json
+
+          expect(response).to have_http_status(:unauthorized)
+        end
       end
 
       context 'when issue creation fails' do
@@ -172,6 +193,8 @@ RSpec.describe 'Linear Integration API', type: :request do
     let(:link) { "#{ENV.fetch('FRONTEND_URL', nil)}/app/accounts/#{account.id}/conversations/#{conversation.display_id}" }
     let(:title) { 'Sample Issue' }
 
+    before { create(:inbox_member, inbox: conversation.inbox, user: agent) }
+
     context 'when it is an authenticated user' do
       context 'when the issue is linked successfully' do
         let(:linked_issue) { { data: { 'id' => 'issue1', 'link' => 'https://linear.app/issue1' } } }
@@ -194,6 +217,19 @@ RSpec.describe 'Linear Integration API', type: :request do
 
           expect(response).to have_http_status(:ok)
           expect(response.body).to include('https://linear.app/issue1')
+        end
+
+        it 'does not link issue for a restricted conversation without access' do
+          restrict_conversation_from_agent(conversation)
+
+          expect(processor_service).not_to receive(:link_issue)
+
+          post "/api/v1/accounts/#{account.id}/integrations/linear/link_issue",
+               params: { conversation_id: conversation.display_id, issue_id: issue_id, title: title },
+               headers: agent.create_new_auth_token,
+               as: :json
+
+          expect(response).to have_http_status(:unauthorized)
         end
       end
 
@@ -220,6 +256,8 @@ RSpec.describe 'Linear Integration API', type: :request do
     let(:issue_id) { 'ENG-789' }
     let(:conversation) { create(:conversation, account: account) }
 
+    before { create(:inbox_member, inbox: conversation.inbox, user: agent) }
+
     context 'when it is an authenticated user' do
       context 'when the issue is unlinked successfully' do
         let(:unlinked_issue) { { data: { 'id' => 'issue1', 'link' => 'https://linear.app/issue1' } } }
@@ -242,6 +280,19 @@ RSpec.describe 'Linear Integration API', type: :request do
 
           expect(response).to have_http_status(:ok)
           expect(response.body).to include('https://linear.app/issue1')
+        end
+
+        it 'does not unlink issue for a restricted conversation without access' do
+          restrict_conversation_from_agent(conversation)
+
+          expect(processor_service).not_to receive(:unlink_issue)
+
+          post "/api/v1/accounts/#{account.id}/integrations/linear/unlink_issue",
+               params: { link_id: link_id, issue_id: issue_id, conversation_id: conversation.display_id },
+               headers: agent.create_new_auth_token,
+               as: :json
+
+          expect(response).to have_http_status(:unauthorized)
         end
       end
 
@@ -299,6 +350,8 @@ RSpec.describe 'Linear Integration API', type: :request do
     let(:conversation) { create(:conversation, account: account) }
     let(:link) { "#{ENV.fetch('FRONTEND_URL', nil)}/app/accounts/#{account.id}/conversations/#{conversation.display_id}" }
 
+    before { create(:inbox_member, inbox: conversation.inbox, user: agent) }
+
     context 'when it is an authenticated user' do
       context 'when linked issue is found' do
         let(:linked_issue) { { data: [{ 'id' => 'issue1', 'title' => 'Sample Issue' }] } }
@@ -311,6 +364,19 @@ RSpec.describe 'Linear Integration API', type: :request do
               as: :json
           expect(response).to have_http_status(:ok)
           expect(response.body).to include('Sample Issue')
+        end
+
+        it 'does not list linked issues for a restricted conversation without access' do
+          restrict_conversation_from_agent(conversation)
+
+          expect(processor_service).not_to receive(:linked_issues)
+
+          get "/api/v1/accounts/#{account.id}/integrations/linear/linked_issues",
+              params: { conversation_id: conversation.display_id },
+              headers: agent.create_new_auth_token,
+              as: :json
+
+          expect(response).to have_http_status(:unauthorized)
         end
       end
 

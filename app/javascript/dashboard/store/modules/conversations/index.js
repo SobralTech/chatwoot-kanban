@@ -279,9 +279,16 @@ export const mutations = {
   },
 
   [types.DELETE_CONVERSATION](_state, conversationId) {
+    const normalizedConversationId = Number(conversationId);
     _state.allConversations = _state.allConversations.filter(
-      c => c.id !== conversationId
+      c => c.id !== normalizedConversationId
     );
+    delete _state.attachments[normalizedConversationId];
+    delete _state.syncConversationsMessages[normalizedConversationId];
+
+    if (_state.selectedChatId === normalizedConversationId) {
+      _state.selectedChatId = null;
+    }
   },
 
   [types.UPDATE_CONVERSATION](_state, conversation) {

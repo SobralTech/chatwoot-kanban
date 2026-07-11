@@ -206,6 +206,24 @@ RSpec.describe 'Conversations API', type: :request do
         expect(uuids).not_to include(hidden_conversation.uuid)
       end
 
+      it 'does not show a pinned restricted conversation to an agent without access' do
+        conversation.inbox.update!(enable_auto_assignment: false)
+        authorized_agent = create(:user, account: account, role: :agent)
+        restricted_conversation = create(:conversation, account: account, inbox: conversation.inbox, last_activity_at: 60.days.ago)
+        create(:inbox_member, user: authorized_agent, inbox: conversation.inbox)
+        create(:conversation_access_user, account: account, conversation: restricted_conversation, user: authorized_agent)
+        create(:conversation_pin, account: account, conversation: restricted_conversation, user: agent, pinned_at: 1.hour.ago)
+
+        get "/api/v1/accounts/#{account.id}/conversations",
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        uuids = JSON.parse(response.body, symbolize_names: true)[:data][:payload].map { |payload| payload[:uuid] }
+        expect(uuids).to include(conversation.uuid)
+        expect(uuids).not_to include(restricted_conversation.uuid)
+      end
+
       it 'shows hidden inbox conversations when inbox_id is explicit' do
         hidden_inbox = create(:inbox, account: account, show_in_all_conversations: false)
         create(:inbox_member, user: agent, inbox: hidden_inbox)

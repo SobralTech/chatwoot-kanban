@@ -155,7 +155,9 @@ class ConversationFinder
       conversation_ids = current_account.mentions.where(user: current_user).pluck(:conversation_id)
       @conversations = @conversations.where(id: conversation_ids)
     when 'participating'
-      @conversations = current_user.participating_conversations.where(account_id: current_account.id)
+      @conversations = Conversations::PermissionFilterService.new(
+        current_user.participating_conversations.where(account_id: current_account.id), current_user, current_account
+      ).perform
     when 'unattended'
       @conversations = @conversations.with_unread_messages
     end

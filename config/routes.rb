@@ -177,6 +177,9 @@ Rails.application.routes.draw do
                 end
               end
               resources :assignments, only: [:create]
+              resource :access_users, only: [:show, :update], controller: 'access_users' do
+                get :eligible
+              end
               resources :kanban_cards, only: [:index, :create]
               resources :labels, only: [:create, :index]
               resource :participants, only: [:show, :create, :update, :destroy]
