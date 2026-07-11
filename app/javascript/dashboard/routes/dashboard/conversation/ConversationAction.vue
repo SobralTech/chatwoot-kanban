@@ -71,6 +71,7 @@ export default {
       ],
       accessUsers: [],
       eligibleAccessUsers: [],
+      accessMode: 'all_agents',
       accessSearchQuery: '',
       isAccessDropdownOpen: false,
       isAccessLoading: false,
@@ -196,7 +197,14 @@ export default {
     hasRevokedAccessUsers() {
       return this.selectedAccessUsers.some(user => user.isRevoked);
     },
+    isAdminsOnly() {
+      return this.accessMode === 'admins_only';
+    },
     accessSummaryLabel() {
+      if (this.isAdminsOnly) {
+        return this.$t('CONVERSATION.ACCESS_CONTROL.ADMINS_ONLY');
+      }
+
       if (!this.selectedAccessUsers.length) {
         return this.$t('CONVERSATION.ACCESS_CONTROL.ALL_AGENTS');
       }
@@ -268,6 +276,7 @@ export default {
         this.eligibleAccessUsers = this.normalizeAccessUsers(
           this.extractUsers(eligibleResponse)
         );
+        this.accessMode = selectedResponse?.data?.access_mode || 'all_agents';
       } finally {
         this.isAccessLoading = false;
       }
@@ -288,14 +297,16 @@ export default {
 
       this.openAccessDropdown();
     },
-    async persistAccessUsers(nextUsers) {
+    async persistAccessUsers(nextUsers, mode = this.accessMode) {
       this.isAccessSaving = true;
       this.accessUsers = nextUsers;
+      this.accessMode = mode;
 
       try {
         await ConversationApi.updateAccessUsers({
           conversationId: this.conversationId,
           userIds: nextUsers.map(user => user.id),
+          accessMode: mode,
         });
 
         await this.fetchAccessUsers();
@@ -303,13 +314,19 @@ export default {
         this.isAccessSaving = false;
       }
     },
+    async setAccessMode(mode) {
+      if (this.accessMode === mode) return;
+
+      const nextUsers = mode === 'selected_agents' ? this.accessUsers : [];
+      await this.persistAccessUsers(nextUsers, mode);
+    },
     async onToggleAccessUser(user) {
       const isSelected = this.selectedAccessUserIds.includes(user.id);
       const nextUsers = isSelected
         ? this.accessUsers.filter(selectedUser => selectedUser.id !== user.id)
         : [...this.accessUsers, user];
 
-      await this.persistAccessUsers(nextUsers);
+      await this.persistAccessUsers(nextUsers, 'selected_agents');
     },
     async onRemoveAccessUser(user) {
       await this.onToggleAccessUser(user);
@@ -459,8 +476,29 @@ export default {
               </button>
             </div>
 
+            <div class="flex items-center gap-1.5 pb-2">
+              <NextButton
+                xs
+                faded
+                :solid="!isAdminsOnly"
+                :blue="!isAdminsOnly"
+                :slate="isAdminsOnly"
+                :label="$t('CONVERSATION.ACCESS_CONTROL.MODE.ALL_AGENTS')"
+                @click="setAccessMode('all_agents')"
+              />
+              <NextButton
+                xs
+                faded
+                :solid="isAdminsOnly"
+                :blue="isAdminsOnly"
+                :slate="!isAdminsOnly"
+                :label="$t('CONVERSATION.ACCESS_CONTROL.MODE.ADMINS_ONLY')"
+                @click="setAccessMode('admins_only')"
+              />
+            </div>
+
             <div
-              v-if="selectedAccessUsers.length"
+              v-if="!isAdminsOnly && selectedAccessUsers.length"
               class="mb-2 flex flex-wrap gap-1.5"
             >
               <button
@@ -493,7 +531,10 @@ export default {
               </button>
             </div>
 
-            <div class="max-h-72 space-y-1 overflow-auto pr-1">
+            <div
+              v-if="!isAdminsOnly"
+              class="max-h-72 space-y-1 overflow-auto pr-1"
+            >
               <button
                 v-for="user in filteredEligibleAccessUsers"
                 :key="user.id"

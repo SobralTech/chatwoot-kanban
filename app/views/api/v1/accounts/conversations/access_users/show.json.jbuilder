@@ -1,3 +1,4 @@
+json.access_mode @conversation.access_mode
 json.payload do
   json.array! @conversation_access_users do |access_user|
     json.id access_user.user.id

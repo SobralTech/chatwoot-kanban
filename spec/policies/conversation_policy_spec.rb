@@ -72,7 +72,7 @@ RSpec.describe ConversationPolicy, type: :policy do
 
     context 'when conversation has selected access users' do
       let(:inbox) { create(:inbox, account: account) }
-      let(:conversation) { create(:conversation, account: account, inbox: inbox) }
+      let(:conversation) { create(:conversation, account: account, inbox: inbox, access_mode: :selected_agents) }
       let(:other_agent) { create(:user, account: account, role: :agent) }
 
       before do
@@ -91,6 +91,21 @@ RSpec.describe ConversationPolicy, type: :policy do
       end
 
       it 'allows administrators even when not selected' do
+        expect(subject).to permit(administrator_context, conversation)
+      end
+    end
+
+    context 'when conversation is restricted to admins only' do
+      let(:inbox) { create(:inbox, account: account) }
+      let(:conversation) { create(:conversation, account: account, inbox: inbox, access_mode: :admins_only) }
+
+      before { create(:inbox_member, user: agent, inbox: inbox) }
+
+      it 'denies agents even with inbox access' do
+        expect(subject).not_to permit(agent_context, conversation)
+      end
+
+      it 'allows administrators' do
         expect(subject).to permit(administrator_context, conversation)
       end
     end

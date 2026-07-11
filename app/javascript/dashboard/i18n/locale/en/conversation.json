@@ -175,8 +175,13 @@
     "ACCESS_CONTROL": {
       "LABEL": "Who has access",
       "ALL_AGENTS": "All agents",
+      "ADMINS_ONLY": "Only admins",
       "REVOKED_AGENT_TITLE": "{name} · access revoked",
-      "CONVERSATION_UNAVAILABLE": "Conversation unavailable"
+      "CONVERSATION_UNAVAILABLE": "Conversation unavailable",
+      "MODE": {
+        "ALL_AGENTS": "All agents",
+        "ADMINS_ONLY": "Only admins"
+      }
     },
     "DELETE_CONVERSATION": {
       "TITLE": "Delete conversation #{conversationId}",

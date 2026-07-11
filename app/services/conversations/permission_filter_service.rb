@@ -15,16 +15,14 @@ class Conversations::PermissionFilterService
   end
 
   def access_list_restricted(scope)
-    restricted_access_users = ConversationAccessUser.where(account_id: account.id)
-    return scope unless restricted_access_users.exists?
-
-    restricted_ids = restricted_access_users.select(:conversation_id)
-    allowed_ids = restricted_access_users.where(user_id: user.id).select(:conversation_id)
-
-    scope.where.not(id: restricted_ids).or(scope.where(id: allowed_ids))
+    scope.where(access_mode: :all_agents).or(scope.where(access_mode: :selected_agents, id: allowed_conversation_ids))
   end
 
   private
+
+  def allowed_conversation_ids
+    ConversationAccessUser.where(account_id: account.id, user_id: user.id).select(:conversation_id)
+  end
 
   def accessible_conversations
     conversations.where(inbox: user.inboxes.where(account_id: account.id))

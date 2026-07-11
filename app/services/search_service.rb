@@ -182,10 +182,10 @@ class SearchService
   end
 
   def access_list_restricted_conversations
-    restricted_ids = ConversationAccessUser.where(account_id: current_account.id).select(:conversation_id)
     allowed_ids = ConversationAccessUser.where(account_id: current_account.id, user_id: current_user.id).select(:conversation_id)
 
-    current_account.conversations.where.not(id: restricted_ids).or(current_account.conversations.where(id: allowed_ids))
+    current_account.conversations.where(access_mode: :all_agents)
+                   .or(current_account.conversations.where(access_mode: :selected_agents, id: allowed_ids))
   end
 
   def filter_contacts

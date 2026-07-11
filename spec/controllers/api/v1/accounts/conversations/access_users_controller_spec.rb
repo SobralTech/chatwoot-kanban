@@ -143,6 +143,7 @@ RSpec.describe 'Conversation Access Users API', type: :request do
     end
 
     it 'dispatches access_revoked only for users who lost access' do
+      conversation.update!(access_mode: :selected_agents)
       create(:conversation_access_user, account: account, conversation: conversation, user: agent)
       create(:conversation_access_user, account: account, conversation: conversation, user: eligible_agent)
 
@@ -158,6 +159,7 @@ RSpec.describe 'Conversation Access Users API', type: :request do
     end
 
     it 'does not dispatch access_revoked to users who remain authorized' do
+      conversation.update!(access_mode: :selected_agents)
       create(:conversation_access_user, account: account, conversation: conversation, user: eligible_agent)
 
       allow(Rails.configuration.dispatcher).to receive(:dispatch).and_call_original
@@ -167,6 +169,7 @@ RSpec.describe 'Conversation Access Users API', type: :request do
     end
 
     it 'does not calculate revoked users from submitted params only' do
+      conversation.update!(access_mode: :selected_agents)
       create(:conversation_access_user, account: account, conversation: conversation, user: eligible_agent)
       create(:conversation_access_user, account: account, conversation: conversation, user: agent)
 

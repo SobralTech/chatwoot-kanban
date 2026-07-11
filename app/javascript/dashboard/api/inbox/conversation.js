@@ -168,9 +168,10 @@ class ConversationApi extends ApiClient {
     return axios.get(`${this.url}/${conversationId}/access_users/eligible`);
   }
 
-  updateAccessUsers({ conversationId, userIds }) {
+  updateAccessUsers({ conversationId, userIds, accessMode }) {
     return axios.put(`${this.url}/${conversationId}/access_users`, {
       user_ids: userIds,
+      access_mode: accessMode,
     });
   }
 

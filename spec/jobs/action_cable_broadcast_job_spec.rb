@@ -6,7 +6,7 @@ RSpec.describe ActionCableBroadcastJob do
   let(:admin) { create(:user, account: account, role: :administrator) }
   let(:revoked_agent) { create(:user, account: account, role: :agent) }
   let(:authorized_agent) { create(:user, account: account, role: :agent) }
-  let(:conversation) { create(:conversation, account: account, inbox: inbox) }
+  let(:conversation) { create(:conversation, account: account, inbox: inbox, access_mode: :selected_agents) }
   let(:payload) { conversation.push_event_data.merge(account_id: account.id) }
 
   before do

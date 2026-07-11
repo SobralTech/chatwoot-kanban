@@ -209,7 +209,8 @@ RSpec.describe 'Conversations API', type: :request do
       it 'does not show a pinned restricted conversation to an agent without access' do
         conversation.inbox.update!(enable_auto_assignment: false)
         authorized_agent = create(:user, account: account, role: :agent)
-        restricted_conversation = create(:conversation, account: account, inbox: conversation.inbox, last_activity_at: 60.days.ago)
+        restricted_conversation = create(:conversation, account: account, inbox: conversation.inbox, last_activity_at: 60.days.ago,
+                                                        access_mode: :selected_agents)
         create(:inbox_member, user: authorized_agent, inbox: conversation.inbox)
         create(:conversation_access_user, account: account, conversation: restricted_conversation, user: authorized_agent)
         create(:conversation_pin, account: account, conversation: restricted_conversation, user: agent, pinned_at: 1.hour.ago)

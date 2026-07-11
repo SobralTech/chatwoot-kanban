@@ -9,13 +9,15 @@ class Api::V1::Accounts::Conversations::AccessUsersController < Api::V1::Account
   end
 
   def update
-    users = eligible_user_ids
+    mode = access_mode_param
+    users = mode == 'selected_agents' ? eligible_user_ids : []
 
     revoked_user_ids = []
 
     @conversation.with_lock do
       before_user_ids = policy_visible_non_admin_user_ids
 
+      @conversation.update!(access_mode: mode)
       @conversation.conversation_access_users.where.not(user_id: users).destroy_all
       users.each do |user_id|
         @conversation.conversation_access_users.find_or_create_by!(account: Current.account, user_id: user_id)
@@ -50,11 +52,18 @@ class Api::V1::Accounts::Conversations::AccessUsersController < Api::V1::Account
   end
 
   def permitted_params
-    params.permit(user_ids: [], access_users: { user_ids: [] })
+    params.permit(:access_mode, user_ids: [], access_users: [:access_mode, { user_ids: [] }])
   end
 
   def permitted_user_ids
     permitted_params[:user_ids] || permitted_params.dig(:access_users, :user_ids) || []
+  end
+
+  def access_mode_param
+    mode = permitted_params[:access_mode] || permitted_params.dig(:access_users, :access_mode)
+    return mode if Conversation.access_modes.key?(mode)
+
+    permitted_user_ids.present? ? 'selected_agents' : 'all_agents'
   end
 
   def eligible_user_ids

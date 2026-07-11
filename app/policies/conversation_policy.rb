@@ -30,7 +30,10 @@ class ConversationPolicy < ApplicationPolicy
   end
 
   def access_list_allowed?
-    !record.conversation_access_users.exists? || record.conversation_access_users.exists?(user_id: user.id)
+    return false if record.admins_only?
+    return record.conversation_access_users.exists?(user_id: user.id) if record.selected_agents?
+
+    true
   end
 
   def inbox_access?

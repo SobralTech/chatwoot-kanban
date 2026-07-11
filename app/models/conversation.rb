@@ -3,6 +3,7 @@
 # Table name: conversations
 #
 #  id                     :integer          not null, primary key
+#  access_mode            :integer          default(0), not null
 #  additional_attributes  :jsonb
 #  agent_last_seen_at     :datetime
 #  assignee_last_seen_at  :datetime
@@ -75,6 +76,7 @@ class Conversation < ApplicationRecord
 
   enum status: { open: 0, resolved: 1, pending: 2, snoozed: 3 }
   enum priority: { low: 0, medium: 1, high: 2, urgent: 3 }
+  enum access_mode: { all_agents: 0, selected_agents: 1, admins_only: 2 }
 
   scope :unassigned, -> { where(assignee_id: nil) }
   scope :assigned, -> { where.not(assignee_id: nil) }
