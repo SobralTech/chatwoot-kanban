@@ -77,4 +77,8 @@ class InboxPolicy < ApplicationPolicy
   def disable_whatsapp_calling?
     @account_user.administrator?
   end
+
+  def waha_session_status?
+    @account_user.administrator?
+  end
 end

@@ -79,11 +79,7 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
 
     service = Waha::SessionService.new(channel: @inbox.channel)
     status_data = service.status
-    qr = nil
-    if status_data&.dig('status') == 'SCAN_QR_CODE'
-      qr_data = service.qr_code
-      qr = qr_data&.dig('data')
-    end
+    qr = status_data&.dig('status') == 'SCAN_QR_CODE' ? service.qr_code : nil
 
     render json: {
       status: status_data&.dig('status'),

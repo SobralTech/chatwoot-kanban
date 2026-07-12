@@ -29,6 +29,7 @@ class Channel::Waha < ApplicationRecord
   EDITABLE_ATTRS = [:phone_number, :waha_url, :api_key, :session_name,
                     :groups_enabled, :auto_reconnect, :auto_read_receipts].freeze
 
+  before_validation :sanitize_session_name
   before_create :generate_webhook_token
   after_create :start_waha_session
   validates :waha_url, :api_key, :session_name, presence: true
@@ -50,6 +51,12 @@ class Channel::Waha < ApplicationRecord
   end
 
   private
+
+  def sanitize_session_name
+    return if session_name.blank?
+
+    self.session_name = session_name.strip.gsub(/[^a-zA-Z0-9._-]+/, '_')
+  end
 
   def generate_webhook_token
     self.webhook_token = SecureRandom.uuid

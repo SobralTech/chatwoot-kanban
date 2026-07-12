@@ -2,13 +2,17 @@ class Waha::HttpClient
   pattr_initialize [:channel!]
 
   def get(path)
-    response = HTTParty.get(url(path), headers: headers)
-    response.parsed_response
+    request(:get, path).parsed_response
   end
 
   def post(path, body)
-    response = HTTParty.post(url(path), headers: headers, body: body.to_json)
-    response.parsed_response
+    request(:post, path, body).parsed_response
+  end
+
+  def request(method, path, body = nil)
+    options = { headers: headers }
+    options[:body] = body.to_json if body
+    HTTParty.send(method, url(path), options)
   end
 
   private
