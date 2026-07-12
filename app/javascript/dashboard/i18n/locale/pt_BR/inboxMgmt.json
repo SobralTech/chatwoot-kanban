@@ -494,7 +494,14 @@
           "STARTING": "Iniciando...",
           "WAITING": "Aguardando o QR code",
           "QR_LABEL": "Escaneie com o WhatsApp",
-          "QR_HINT": "Abra o WhatsApp no seu celular → Dispositivos conectados → Conectar um dispositivo"
+          "QR_HINT": "Abra o WhatsApp no seu celular → Dispositivos conectados → Conectar um dispositivo",
+          "STATUSES": {
+            "STARTING": "Iniciando sessão",
+            "SCAN_QR_CODE": "Aguardando leitura do QR code",
+            "WORKING": "Conectado",
+            "STOPPED": "Sessão parada",
+            "FAILED": "Falha na conexão"
+          }
         },
         "SUBMIT_BUTTON": "Criar caixa de entrada WAHA",
         "PROCEED_BUTTON": "Continuar configuração",

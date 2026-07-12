@@ -483,7 +483,14 @@
           "STARTING": "Starting...",
           "WAITING": "Waiting for QR code",
           "QR_LABEL": "Scan with WhatsApp",
-          "QR_HINT": "Open WhatsApp on your phone → Linked devices → Link a device"
+          "QR_HINT": "Open WhatsApp on your phone → Linked devices → Link a device",
+          "STATUSES": {
+            "STARTING": "Starting session",
+            "SCAN_QR_CODE": "Waiting for QR code scan",
+            "WORKING": "Connected",
+            "STOPPED": "Session stopped",
+            "FAILED": "Connection failed"
+          }
         },
         "SUBMIT_BUTTON": "Create WAHA Inbox",
         "PROCEED_BUTTON": "Continue Setup",

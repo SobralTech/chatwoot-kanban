@@ -34,6 +34,15 @@ let pollInterval = null;
 const uiFlags = computed(() => store.getters['inboxes/getUIFlags']);
 const isConnected = computed(() => sessionStatus.value === 'WORKING');
 
+const displayStatus = computed(() => {
+  if (!sessionStatus.value)
+    return t('INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STARTING');
+  const key = `INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STATUSES.${sessionStatus.value}`;
+  const translated = t(key);
+  // Fall back to the raw WAHA status for values we don't have a label for
+  return translated === key ? sessionStatus.value : translated;
+});
+
 const rules = {
   name: { required },
   wahaUrl: { required, url },
@@ -229,10 +238,7 @@ onUnmounted(() => {
         <p class="font-semibold text-sm text-n-slate-12">
           {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STATUS_LABEL') }}:
           <span :class="isConnected ? 'text-n-teal-11' : 'text-n-amber-11'">
-            {{
-              sessionStatus ||
-              $t('INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STARTING')
-            }}
+            {{ displayStatus }}
           </span>
         </p>
       </div>
