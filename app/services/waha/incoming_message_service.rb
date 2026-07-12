@@ -23,9 +23,16 @@ class Waha::IncomingMessageService
   private
 
   def chat_id
-    # For DMs, payload['from'] is the contact JID.
-    # For groups, payload['from'] is the group JID.
-    @chat_id ||= payload.dig('_data', 'chatId') || payload['from']
+    # `_data.Info.Chat` is always the conversation JID regardless of direction
+    # (the contact for incoming DMs, the recipient for messages we sent from the
+    # phone, the group for group messages). We fall back to `to`/`from` because
+    # for a fromMe message `from` is our own number, not the contact.
+    @chat_id ||= payload.dig('_data', 'Info', 'Chat').presence ||
+                 (payload['fromMe'] ? payload['to'] : payload['from'])
+  end
+
+  def incoming?
+    !payload['fromMe']
   end
 
   def sender_jid
@@ -87,8 +94,9 @@ class Waha::IncomingMessageService
       content: text_content,
       account_id: inbox.account_id,
       inbox_id: inbox.id,
-      message_type: :incoming,
-      sender: @contact,
+      message_type: incoming? ? :incoming : :outgoing,
+      # Outgoing (sent from the phone) has no Chatwoot agent as sender.
+      sender: (@contact if incoming?),
       source_id: source_id,
       content_attributes: build_content_attributes
     )

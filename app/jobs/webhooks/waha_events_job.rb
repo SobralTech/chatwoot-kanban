@@ -5,13 +5,11 @@ class Webhooks::WahaEventsJob < ApplicationJob
     channel = Channel::Waha.find_by(id: channel_id)
     return unless channel&.account&.active?
 
-    event = params['event'].to_s
-
-    case event
-    when 'message'
-      handle_incoming_message(channel, params['payload'])
+    # We subscribe to message.any only (the superset of every message event) so
+    # each message is processed exactly once, regardless of direction.
+    case params['event'].to_s
     when 'message.any'
-      handle_message_any(channel, params['payload'])
+      handle_message(channel, params['payload'])
     when 'session.status'
       handle_session_status(channel, params['payload'])
     end
@@ -19,17 +17,23 @@ class Webhooks::WahaEventsJob < ApplicationJob
 
   private
 
-  def handle_incoming_message(channel, payload)
-    return if payload.blank? || payload['fromMe']
+  def handle_message(channel, payload)
+    return if payload.blank?
 
-    Waha::IncomingMessageService.new(channel: channel, payload: payload).perform
+    if chatwoot_originated?(payload)
+      # We sent this from Chatwoot via the WAHA API — the local message already
+      # exists. Just confirm delivery; mirroring it would create a duplicate.
+      message = find_message_by_source_id(channel, payload['id'])
+      message&.update!(status: :delivered)
+    else
+      # Incoming from a contact (fromMe: false) or sent from the phone/WhatsApp
+      # app directly (fromMe: true, source: app/web). Mirror both into Chatwoot.
+      Waha::IncomingMessageService.new(channel: channel, payload: payload).perform
+    end
   end
 
-  def handle_message_any(channel, payload)
-    return unless payload&.dig('fromMe') && payload.dig('_data', 'source') == 'api'
-
-    message = find_message_by_source_id(channel, payload['id'])
-    message&.update!(status: :delivered)
+  def chatwoot_originated?(payload)
+    payload['fromMe'] && payload['source'] == 'api'
   end
 
   def handle_session_status(channel, payload)

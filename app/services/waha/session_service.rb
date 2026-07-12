@@ -46,7 +46,7 @@ class Waha::SessionService
       start: true,
       config: {
         webhooks: [
-          { url: channel.webhook_url, events: %w[message session.status] }
+          { url: channel.webhook_url, events: %w[message.any message.ack session.status] }
         ]
       }
     }
