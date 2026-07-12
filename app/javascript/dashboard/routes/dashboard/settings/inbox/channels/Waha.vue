@@ -30,6 +30,7 @@ const webhookUrl = ref('');
 const sessionStatus = ref('');
 const qrCode = ref('');
 let pollInterval = null;
+const isCancelling = ref(false);
 
 const uiFlags = computed(() => store.getters['inboxes/getUIFlags']);
 const isConnected = computed(() => sessionStatus.value === 'WORKING');
@@ -113,6 +114,24 @@ function proceed() {
     name: 'settings_inboxes_add_agents',
     params: { page: 'new', inbox_id: createdInboxId.value },
   });
+}
+
+async function cancel() {
+  clearInterval(pollInterval);
+  pollInterval = null;
+
+  if (createdInboxId.value) {
+    isCancelling.value = true;
+    try {
+      await store.dispatch('inboxes/delete', createdInboxId.value);
+    } catch {
+      // ignore — inbox may not exist yet, we still navigate away
+    } finally {
+      isCancelling.value = false;
+    }
+  }
+
+  router.replace({ name: 'settings_inbox_list' });
 }
 
 onUnmounted(() => {
@@ -213,13 +232,18 @@ onUnmounted(() => {
         </label>
       </div>
 
-      <div class="mt-2">
+      <div class="mt-2 flex gap-2">
         <NextButton
           :is-loading="uiFlags.isCreating"
           type="submit"
           solid
           blue
           :label="$t('INBOX_MGMT.ADD.WAHA_CHANNEL.SUBMIT_BUTTON')"
+        />
+        <NextButton
+          type="button"
+          :label="$t('INBOX_MGMT.ADD.WAHA_CHANNEL.CANCEL_BUTTON')"
+          @click="cancel"
         />
       </div>
     </form>
@@ -286,6 +310,11 @@ onUnmounted(() => {
           blue
           :label="$t('INBOX_MGMT.ADD.WAHA_CHANNEL.PROCEED_BUTTON')"
           @click="proceed"
+        />
+        <NextButton
+          :is-loading="isCancelling"
+          :label="$t('INBOX_MGMT.ADD.WAHA_CHANNEL.CANCEL_BUTTON')"
+          @click="cancel"
         />
       </div>
     </div>

@@ -25,6 +25,12 @@ class Waha::SessionService
     nil
   end
 
+  def delete_session
+    http_client.request(:delete, "sessions/#{channel.session_name}")
+  rescue StandardError => e
+    Rails.logger.error "[WAHA] Failed to delete session #{channel.session_name}: #{e.message}"
+  end
+
   private
 
   # Creates the WAHA session with our webhook configured. WAHA's /start endpoint

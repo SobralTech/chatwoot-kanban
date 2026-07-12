@@ -32,6 +32,7 @@ class Channel::Waha < ApplicationRecord
   before_validation :sanitize_session_name
   before_create :generate_webhook_token
   after_create :start_waha_session
+  before_destroy :cleanup_waha_session
   validates :waha_url, :api_key, :session_name, presence: true
 
   def name
@@ -64,5 +65,9 @@ class Channel::Waha < ApplicationRecord
 
   def start_waha_session
     Waha::SessionService.new(channel: self).start
+  end
+
+  def cleanup_waha_session
+    Waha::SessionService.new(channel: self).delete_session
   end
 end

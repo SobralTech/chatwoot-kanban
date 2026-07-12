@@ -494,6 +494,7 @@
         },
         "SUBMIT_BUTTON": "Create WAHA Inbox",
         "PROCEED_BUTTON": "Continue Setup",
+        "CANCEL_BUTTON": "Cancel",
         "API": {
           "ERROR_MESSAGE": "Could not create the WAHA inbox. Please check your settings."
         }
