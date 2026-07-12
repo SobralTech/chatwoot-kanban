@@ -222,13 +222,13 @@ onUnmounted(() => {
         class="p-4 rounded-lg border"
         :class="
           isConnected
-            ? 'border-green-300 bg-green-50'
-            : 'border-yellow-300 bg-yellow-50'
+            ? 'border-n-teal-6 bg-n-teal-3'
+            : 'border-n-amber-6 bg-n-amber-3'
         "
       >
-        <p class="font-semibold text-sm">
+        <p class="font-semibold text-sm text-n-slate-12">
           {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STATUS_LABEL') }}:
-          <span :class="isConnected ? 'text-green-700' : 'text-yellow-700'">
+          <span :class="isConnected ? 'text-n-teal-11' : 'text-n-amber-11'">
             {{
               sessionStatus ||
               $t('INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STARTING')

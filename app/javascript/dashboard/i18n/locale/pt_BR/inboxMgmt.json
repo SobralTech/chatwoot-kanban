@@ -447,6 +447,61 @@
           "ERROR_MESSAGE": "Não foi possível salvar o canal de e-mail"
         }
       },
+      "WAHA_CHANNEL": {
+        "TITLE": "WhatsApp via WAHA",
+        "DESC": "Conecte seu número de WhatsApp usando um servidor WAHA auto-hospedado.",
+        "NAME": {
+          "LABEL": "Nome da caixa de entrada",
+          "PLACEHOLDER": "ex.: Suporte WhatsApp",
+          "ERROR": "O nome da caixa de entrada é obrigatório"
+        },
+        "WAHA_URL": {
+          "LABEL": "URL do servidor WAHA",
+          "PLACEHOLDER": "https://waha.suaempresa.com",
+          "ERROR": "É necessária uma URL de servidor válida"
+        },
+        "API_KEY": {
+          "LABEL": "Chave de API",
+          "PLACEHOLDER": "Sua chave de API do WAHA",
+          "ERROR": "A chave de API é obrigatória"
+        },
+        "SESSION_NAME": {
+          "LABEL": "Nome da sessão",
+          "PLACEHOLDER": "ex.: default",
+          "ERROR": "O nome da sessão é obrigatório"
+        },
+        "PHONE_NUMBER": {
+          "LABEL": "Número de telefone (opcional)",
+          "PLACEHOLDER": "+55 11 99999-9999"
+        },
+        "GROUPS_ENABLED": {
+          "LABEL": "Aceitar mensagens de grupos"
+        },
+        "AUTO_RECONNECT": {
+          "LABEL": "Reconectar automaticamente quando a sessão cair"
+        },
+        "AUTO_READ_RECEIPTS": {
+          "LABEL": "Marcar mensagens como lidas automaticamente"
+        },
+        "WEBHOOK_URL": {
+          "LABEL": "URL do Webhook",
+          "DESC": "Configure esta URL no WAHA para receber eventos. Eventos a habilitar: message, message.any, message.ack, message.revoked, message.edited, message.reaction, session.status",
+          "COPY": "Copiar"
+        },
+        "WEBHOOK_COPIED": "URL do webhook copiada!",
+        "SESSION": {
+          "STATUS_LABEL": "Status da conexão",
+          "STARTING": "Iniciando...",
+          "WAITING": "Aguardando o QR code",
+          "QR_LABEL": "Escaneie com o WhatsApp",
+          "QR_HINT": "Abra o WhatsApp no seu celular → Dispositivos conectados → Conectar um dispositivo"
+        },
+        "SUBMIT_BUTTON": "Criar caixa de entrada WAHA",
+        "PROCEED_BUTTON": "Continuar configuração",
+        "API": {
+          "ERROR_MESSAGE": "Não foi possível criar a caixa de entrada WAHA. Verifique suas configurações."
+        }
+      },
       "AUTH": {
         "TITLE": "Escolha um canal",
         "DESC": "O Chatwoot suporta widgets de chats ao vivo, Facebook Messenger, perfis do Twitter, WhatsApp, E-mails, etc., como canais. Se você quiser criar um canal personalizado, você pode criá-lo usando o canal API. Para começar, escolha um dos canais abaixo.",
@@ -496,6 +551,10 @@
           "VOICE": {
             "TITLE": "Voz",
             "DESCRIPTION": "Integre com o Twilio Voice"
+          },
+          "WAHA": {
+            "TITLE": "WhatsApp (WAHA)",
+            "DESCRIPTION": "Conecte o WhatsApp via servidor WAHA auto-hospedado"
           }
         }
       },
@@ -1165,7 +1224,8 @@
       "API": "Canal da API",
       "INSTAGRAM": "Instagram",
       "TIKTOK": "TikTok",
-      "VOICE": "Voz"
+      "VOICE": "Voz",
+      "WAHA": "WhatsApp (WAHA)"
     }
   }
 }
