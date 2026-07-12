@@ -74,6 +74,23 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     @inbox.channel.reset_secret!
   end
 
+  def waha_session_status
+    return head :not_found unless @inbox.waha?
+
+    service = Waha::SessionService.new(channel: @inbox.channel)
+    status_data = service.status
+    qr = nil
+    if status_data&.dig('status') == 'SCAN_QR_CODE'
+      qr_data = service.qr_code
+      qr = qr_data&.dig('data')
+    end
+
+    render json: {
+      status: status_data&.dig('status'),
+      qr_code: qr
+    }
+  end
+
   def destroy
     ::DeleteObjectJob.perform_later(@inbox, Current.user, request.ip) if @inbox.present?
     render status: :ok, json: { message: I18n.t('messages.inbox_deletetion_response') }
@@ -97,7 +114,7 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   end
 
   def allowed_channel_types
-    %w[web_widget api email line telegram whatsapp sms]
+    %w[web_widget api email line telegram whatsapp sms waha]
   end
 
   def update_inbox_working_hours
@@ -179,7 +196,8 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
       'line' => Channel::Line,
       'telegram' => Channel::Telegram,
       'whatsapp' => Channel::Whatsapp,
-      'sms' => Channel::Sms
+      'sms' => Channel::Sms,
+      'waha' => Channel::Waha
     }[permitted_params[:channel][:type]]
   end
 

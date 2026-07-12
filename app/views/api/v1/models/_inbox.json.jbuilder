@@ -146,3 +146,17 @@ end
 
 ## Voice attribute for WhatsApp Cloud (only embedded-signup channels surface true)
 json.voice_enabled resource.channel.voice_enabled? if resource.channel_type == 'Channel::Whatsapp' && resource.channel.respond_to?(:voice_enabled?)
+
+## WAHA channel attributes
+if resource.waha?
+  json.channel_config do
+    json.webhook_url resource.channel.webhook_url
+    json.session_status resource.channel.session_status
+    json.waha_url resource.channel.waha_url
+    json.session_name resource.channel.session_name
+    json.phone_number resource.channel.phone_number
+    json.groups_enabled resource.channel.groups_enabled
+    json.auto_reconnect resource.channel.auto_reconnect
+    json.auto_read_receipts resource.channel.auto_read_receipts
+  end
+end

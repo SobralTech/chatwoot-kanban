@@ -102,6 +102,13 @@ const channelList = computed(() => {
     icon: 'i-woot-whatsapp',
   });
 
+  channels.push({
+    key: 'waha',
+    title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WAHA.TITLE'),
+    description: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WAHA.DESCRIPTION'),
+    icon: 'i-woot-whatsapp',
+  });
+
   return channels;
 });
 

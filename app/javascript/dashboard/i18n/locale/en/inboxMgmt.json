@@ -436,6 +436,61 @@
           "SUBTITLE": "You have to configure the webhook URL in LINE application with the URL mentioned here."
         }
       },
+      "WAHA_CHANNEL": {
+        "TITLE": "WhatsApp via WAHA",
+        "DESC": "Connect your WhatsApp number using a self-hosted WAHA server.",
+        "NAME": {
+          "LABEL": "Inbox name",
+          "PLACEHOLDER": "e.g. WhatsApp Support",
+          "ERROR": "Inbox name is required"
+        },
+        "WAHA_URL": {
+          "LABEL": "WAHA server URL",
+          "PLACEHOLDER": "https://waha.yourcompany.com",
+          "ERROR": "A valid server URL is required"
+        },
+        "API_KEY": {
+          "LABEL": "API Key",
+          "PLACEHOLDER": "Your WAHA API key",
+          "ERROR": "API key is required"
+        },
+        "SESSION_NAME": {
+          "LABEL": "Session name",
+          "PLACEHOLDER": "e.g. default",
+          "ERROR": "Session name is required"
+        },
+        "PHONE_NUMBER": {
+          "LABEL": "Phone number (optional)",
+          "PLACEHOLDER": "+55 11 99999-9999"
+        },
+        "GROUPS_ENABLED": {
+          "LABEL": "Accept group messages"
+        },
+        "AUTO_RECONNECT": {
+          "LABEL": "Auto-reconnect when session drops"
+        },
+        "AUTO_READ_RECEIPTS": {
+          "LABEL": "Auto-mark messages as read"
+        },
+        "WEBHOOK_URL": {
+          "LABEL": "Webhook URL",
+          "DESC": "Configure this URL in WAHA to receive events. Events to enable: message, message.any, message.ack, message.revoked, message.edited, message.reaction, session.status",
+          "COPY": "Copy"
+        },
+        "WEBHOOK_COPIED": "Webhook URL copied!",
+        "SESSION": {
+          "STATUS_LABEL": "Connection status",
+          "STARTING": "Starting...",
+          "WAITING": "Waiting for QR code",
+          "QR_LABEL": "Scan with WhatsApp",
+          "QR_HINT": "Open WhatsApp on your phone → Linked devices → Link a device"
+        },
+        "SUBMIT_BUTTON": "Create WAHA Inbox",
+        "PROCEED_BUTTON": "Continue Setup",
+        "API": {
+          "ERROR_MESSAGE": "Could not create the WAHA inbox. Please check your settings."
+        }
+      },
       "TELEGRAM_CHANNEL": {
         "TITLE": "Telegram Channel",
         "DESC": "Integrate with Telegram channel and start supporting your customers.",
@@ -502,6 +557,10 @@
           "VOICE": {
             "TITLE": "Voice",
             "DESCRIPTION": "Integrate with Twilio Voice"
+          },
+          "WAHA": {
+            "TITLE": "WhatsApp (WAHA)",
+            "DESCRIPTION": "Connect WhatsApp via WAHA self-hosted server"
           }
         }
       },
@@ -1196,7 +1255,8 @@
       "API": "API Channel",
       "INSTAGRAM": "Instagram",
       "TIKTOK": "TikTok",
-      "VOICE": "Voice"
+      "VOICE": "Voice",
+      "WAHA": "WhatsApp (WAHA)"
     }
   }
 }

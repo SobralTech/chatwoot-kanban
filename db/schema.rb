@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_06_20_100001) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_12_100000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -584,6 +584,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_06_20_100001) do
     t.datetime "updated_at", null: false
     t.boolean "tweets_enabled", default: true
     t.index ["account_id", "profile_id"], name: "index_channel_twitter_profiles_on_account_id_and_profile_id", unique: true
+  end
+
+  create_table "channel_waha", force: :cascade do |t|
+    t.integer "account_id", null: false
+    t.string "phone_number"
+    t.string "waha_url", null: false
+    t.string "api_key", null: false
+    t.string "session_name", null: false
+    t.string "webhook_token", null: false
+    t.boolean "groups_enabled", default: false, null: false
+    t.boolean "auto_reconnect", default: true, null: false
+    t.boolean "auto_read_receipts", default: true, null: false
+    t.string "session_status"
+    t.jsonb "status_history", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_channel_waha_on_account_id"
+    t.index ["webhook_token"], name: "index_channel_waha_on_webhook_token", unique: true
   end
 
   create_table "channel_web_widgets", id: :serial, force: :cascade do |t|
