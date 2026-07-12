@@ -1,5 +1,8 @@
 class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   include Api::V1::InboxesHelper
+
+  # WAHA session states from which we should (re)create/start the session.
+  WAHA_STARTABLE_STATUSES = [nil, 'STOPPED', 'FAILED'].freeze
   before_action :fetch_inbox, except: [:index, :create]
   before_action :fetch_agent_bot, only: [:set_agent_bot]
   before_action :validate_limit, only: [:create]
@@ -79,6 +82,10 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
 
     service = Waha::SessionService.new(channel: @inbox.channel)
     status_data = service.status
+    if WAHA_STARTABLE_STATUSES.include?(status_data&.dig('status'))
+      service.start
+      status_data = service.status
+    end
     qr = status_data&.dig('status') == 'SCAN_QR_CODE' ? service.qr_code : nil
 
     render json: {

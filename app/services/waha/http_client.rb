@@ -22,6 +22,6 @@ class Waha::HttpClient
   end
 
   def headers
-    { 'Content-Type' => 'application/json', 'Authorization' => "Bearer #{channel.api_key}" }
+    { 'Content-Type' => 'application/json', 'X-Api-Key' => channel.api_key }
   end
 end
