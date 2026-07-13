@@ -1,6 +1,7 @@
 class Waha::IncomingMessageService
   IGNORED_CHAT_SUFFIXES = %w[@newsletter status@broadcast].freeze
   MEDIA_TYPES = %w[image document audio ptt video sticker].freeze
+  SENT_FROM_WHATSAPP_LABEL = 'Enviado pelo WhatsApp'.freeze
 
   pattr_initialize [:channel!, :payload!]
 
@@ -98,11 +99,21 @@ class Waha::IncomingMessageService
       # Outgoing (sent from the phone) has no Chatwoot agent as sender.
       sender: (@contact if incoming?),
       source_id: source_id,
-      content_attributes: build_content_attributes
+      content_attributes: build_content_attributes,
+      additional_attributes: build_additional_attributes
     )
 
     attach_media if media_message?
     @message.save!
+  end
+
+  # Messages sent from the phone/WhatsApp Web have no Chatwoot agent. Storing a
+  # sender_name (same mechanism Slack uses) makes the UI label them instead of
+  # falling back to the generic "Bot" sender.
+  def build_additional_attributes
+    return {} if incoming?
+
+    { sender_name: SENT_FROM_WHATSAPP_LABEL }
   end
 
   def text_content

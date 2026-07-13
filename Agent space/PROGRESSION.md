@@ -182,10 +182,17 @@ de envios via API eram tratados; qualquer coisa enviada pelo app era descartada.
   Outgoing espelhada tem `sender = nil` (sem agente) e `source_id` preenchido, então
   `SendOnChannelService#invalid_message?` a ignora (não há loop de reenvio).
 
+### Rótulo do remetente em mensagens espelhadas do celular
+Mensagem outgoing espelhada não tem agente Chatwoot; o front caía no fallback "Bot/Robôs".
+Setamos `additional_attributes[:sender_name] = 'Enviado pelo WhatsApp'` (mesmo mecanismo do
+Slack — `slack_message_helper.rb`). O `Message.vue` (components-next) lê `senderName` e:
+(1) não trata como variante BOT, (2) exibe o rótulo. Zero mudança de frontend.
+Constante `SENT_FROM_WHATSAPP_LABEL` em `IncomingMessageService`.
+
 ### Arquivos tocados
 - `app/jobs/webhooks/waha_events_job.rb` — só `message.any`; roteamento por direção.
 - `app/services/waha/incoming_message_service.rb` — `chat_id` via `_data.Info.Chat`;
-  `message_type`/`sender` por direção.
+  `message_type`/`sender` por direção; `sender_name` nas espelhadas outgoing.
 - `app/services/waha/session_service.rb` — eventos do webhook = `message.any message.ack session.status`.
 - `Agent space/SPEC.md` — tabela de eventos corrigida (o spec estava errado).
 
