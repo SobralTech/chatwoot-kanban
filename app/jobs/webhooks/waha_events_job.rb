@@ -1,7 +1,14 @@
 class Webhooks::WahaEventsJob < ApplicationJob
   queue_as :low
 
-  def perform(channel_id, params = {})
+  # A delivery ack can arrive while the mirror (message.any) is still being
+  # created — creating it takes ~1s (contact/conversation resolution) while the
+  # ack is processed in milliseconds. We retry the ack a few times so it lands
+  # after the message exists instead of being dropped.
+  ACK_MAX_RETRIES = 3
+  ACK_RETRY_DELAY = 3.seconds
+
+  def perform(channel_id, params = {}, ack_retries = 0)
     channel = Channel::Waha.find_by(id: channel_id)
     return unless channel&.account&.active?
 
@@ -11,7 +18,7 @@ class Webhooks::WahaEventsJob < ApplicationJob
     when 'message.any'
       handle_message(channel, params['payload'])
     when 'message.ack'
-      handle_message_ack(channel, params['payload'])
+      handle_message_ack(channel, params, ack_retries)
     when 'session.status'
       handle_session_status(channel, params['payload'])
     end
@@ -25,11 +32,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
     # its source_id). Mirroring would duplicate it; acks drive its status.
     return if chatwoot_originated?(payload)
 
-    # A re-emitted message.any for a message we already mirrored carries an updated
-    # ack (this is how WAHA advances the status of phone-originated messages).
-    # Advance the status instead of recreating the message.
-    existing = find_message_by_source_id(channel, payload['id'])
-    return update_delivery_status(existing, payload['ack']) if existing
+    # Already mirrored (dedup); acks drive its status from here on.
+    return if find_message_by_source_id(channel, payload['id'])
 
     # Incoming from a contact (fromMe: false) or sent from the phone/WhatsApp app
     # directly (fromMe: true, source: app/web). Mirror both into Chatwoot.
@@ -42,9 +46,15 @@ class Webhooks::WahaEventsJob < ApplicationJob
 
   # Maps WhatsApp delivery acks to Chatwoot statuses so outgoing bubbles show the
   # right check state (sent → delivered → read), mirroring WhatsApp itself.
-  def handle_message_ack(channel, payload)
+  def handle_message_ack(channel, params, retries)
+    payload = params['payload']
     message = find_message_by_source_id(channel, payload&.dig('id'))
-    update_delivery_status(message, payload&.dig('ack'))
+    return update_delivery_status(message, payload&.dig('ack')) if message
+
+    # The mirror is likely still being created — retry so we don't drop the ack.
+    return if retries >= ACK_MAX_RETRIES
+
+    self.class.set(wait: ACK_RETRY_DELAY).perform_later(channel.id, params, retries + 1)
   end
 
   def update_delivery_status(message, ack)

@@ -217,12 +217,17 @@ Todas as mensagens (Chatwoot e celular) ficavam presas em "Enviando" (relógio g
   próprio payload, então o check já aparece certo sem esperar o próximo `message.ack`.
 - `chatwoot_originated?` (fromMe+api) deixou de forçar `delivered`; o ack conduz o status.
 
-**Fix (mensagens do celular presas em 1 check):** as originadas no celular não avançavam
-porque o WAHA reenvia o `message.any` com o `ack` atualizado (em vez de/além do `message.ack`),
-e o dedup descartava esse reenvio. `handle_message` agora, se a mensagem já existe, chama
-`update_delivery_status(existing, payload['ack'])` em vez de recriar. Mapeamento de ack e a
-guarda anti-downgrade centralizados em `update_delivery_status`, usado por `message.any` e
-`message.ack`.
+**Fix (mensagens do celular presas em 1 check):** o WAHA **usa `message.ack`** para
+avançar o status (confirmado por log). O problema era uma **corrida**: o ack de entrega
+(`ack: 2`) chega no mesmo instante do envio e é processado em ~6ms, enquanto o `message.any`
+que cria o espelho leva ~850ms (resolução de contato/conversa). O ack rodava antes do
+espelho existir, não achava a mensagem e era descartado; o `message.any` então criava com
+`sent`. Acks de leitura (`ack: 3`) chegam depois (ao abrir o chat), por isso não sofriam a
+corrida — daí as do Chatwoot funcionarem e as do celular travarem em 1 check.
+Fix: `handle_message_ack`, quando não encontra a mensagem, **reenfileira o próprio job**
+com `wait: 3s` (até `ACK_MAX_RETRIES = 3`), de modo que o ack seja aplicado depois que o
+espelho for criado. Mapeamento de ack e a guarda anti-downgrade ficam em
+`update_delivery_status`, usado por `message.any`(dedup) e `message.ack`.
 
 Arquivos: `waha_events_job.rb`, `incoming_message_service.rb`,
 `composables/useInbox.js`, `components-next/message/MessageMeta.vue`.
