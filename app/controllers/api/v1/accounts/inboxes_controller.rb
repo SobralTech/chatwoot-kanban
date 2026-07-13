@@ -86,6 +86,8 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
       service.start
       status_data = service.status
     end
+    # Push the current webhook config to sessions created before it changed.
+    service.sync_webhook_config(status_data)
     qr = status_data&.dig('status') == 'SCAN_QR_CODE' ? service.qr_code : nil
 
     render json: {

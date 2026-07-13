@@ -189,10 +189,17 @@ de envios via API eram tratados; qualquer coisa enviada pelo app era descartada.
 - `app/services/waha/session_service.rb` — eventos do webhook = `message.any message.ack session.status`.
 - `Agent space/SPEC.md` — tabela de eventos corrigida (o spec estava errado).
 
-> **Sessão existente (`pedro_teste`)**: a config de webhook só é aplicada na criação da sessão.
-> Sessões antigas criadas com o evento `message` continuam funcionando (o job ignora eventos
-> fora de `message.any`), mas para garantir espelhamento de envios pelo celular, recriar a
-> sessão OU atualizar a config de webhook no WAHA para incluir `message.any`.
+### Auto-sync de webhook em sessão existente (sem recriar)
+WAHA só aplica config de webhook na **criação** da sessão. Para sessões antigas (ex:
+`pedro_teste`) pegarem a config nova sem recriar, usamos `PUT /api/sessions/{session}`:
+- `SessionService#sync_webhook_config(session_info)` compara os webhooks retornados pelo
+  `GET /api/sessions/{session}` com os desejados (`WEBHOOK_EVENTS`) e só faz `PUT` se
+  houver divergência — evita reiniciar a sessão a cada poll de status.
+- Chamado em `InboxesController#waha_session_status`, que já é polleado ao abrir as
+  configurações da inbox. Ou seja: **basta abrir a tela de status da inbox** que a config
+  de webhook é corrigida automaticamente na sessão existente.
+- `WEBHOOK_EVENTS = %w[message.any message.ack session.status]` centraliza a lista usada
+  tanto na criação quanto no sync.
 
 ---
 
