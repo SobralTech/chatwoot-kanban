@@ -99,12 +99,25 @@ class Waha::IncomingMessageService
       # Outgoing (sent from the phone) has no Chatwoot agent as sender.
       sender: (@contact if incoming?),
       source_id: source_id,
+      status: initial_status,
       content_attributes: build_content_attributes,
       additional_attributes: build_additional_attributes
     )
 
     attach_media if media_message?
     @message.save!
+  end
+
+  # For a mirrored outgoing message the payload already carries the WhatsApp ack,
+  # so we seed the check state instead of waiting for the next message.ack event.
+  def initial_status
+    return :sent if incoming?
+
+    case payload['ack']
+    when 2 then :delivered
+    when 3, 4 then :read
+    else :sent
+    end
   end
 
   # Messages sent from the phone/WhatsApp Web have no Chatwoot agent. Storing a

@@ -134,6 +134,10 @@ export const useInbox = (inboxId = null) => {
     return channelType.value === INBOX_TYPES.INSTAGRAM;
   });
 
+  const isAWahaChannel = computed(() => {
+    return channelType.value === INBOX_TYPES.WAHA;
+  });
+
   const isATiktokChannel = computed(() => {
     return channelType.value === INBOX_TYPES.TIKTOK;
   });
@@ -160,6 +164,7 @@ export const useInbox = (inboxId = null) => {
     isAnEmailChannel,
     isAnInstagramChannel,
     isATiktokChannel,
+    isAWahaChannel,
     voiceCallEnabled,
     voiceCallProvider,
   };

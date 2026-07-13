@@ -63,7 +63,7 @@ Spec completa: `Agent space/SPEC.md`
 - Handler de `message.revoked` no job (com flag `syncing`)
 - Handler de `message.edited` no job (com flag `syncing`)
 - Handler de `message.reaction` → salvar em `additional_attributes['reactions']`
-- Handler de `message.ack` → atualizar status da mensagem
+- ~~Handler de `message.ack` → atualizar status da mensagem~~ ✅ (feito, ver abaixo)
 - Read receipts automáticos ao abrir conversa
 
 ---
@@ -195,6 +195,32 @@ Constante `SENT_FROM_WHATSAPP_LABEL` em `IncomingMessageService`.
   `message_type`/`sender` por direção; `sender_name` nas espelhadas outgoing.
 - `app/services/waha/session_service.rb` — eventos do webhook = `message.any message.ack session.status`.
 - `Agent space/SPEC.md` — tabela de eventos corrigida (o spec estava errado).
+
+## Status de entrega das mensagens (checks estilo WhatsApp) (2026-07-12)
+
+Todas as mensagens (Chatwoot e celular) ficavam presas em "Enviando" (relógio girando).
+
+### Causas
+1. **Frontend não reconhecia o canal WAHA**: `MessageMeta.vue` só trata canais conhecidos
+   (`isAWhatsAppChannel`, `isATwilioChannel`...). Sem um match, `statusToShow` sempre caía
+   em `PROGRESS` (relógio), ignorando o status real.
+2. **Backend ignorava `message.ack`**: o job não tinha handler, então o status nunca avançava.
+
+### Correções
+- **Frontend**: novo `isAWahaChannel` em `useInbox.js`, incluído nas três condições
+  (`isSent`/`isDelivered`/`isRead`) do `MessageMeta.vue`. Reusa a mesma lógica do WhatsApp
+  (`sourceId` + `status`), então: 1 check = sent, 2 checks = delivered, 2 azuis = read.
+- **Backend**: `WahaEventsJob#handle_message_ack` mapeia ack WAHA → status Chatwoot
+  (`1→sent`, `2→delivered`, `3/4→read`, `-1→failed`), com guarda anti-downgrade (acks
+  chegam fora de ordem). Status default do model já é `sent (0)`.
+- **Espelhadas**: `IncomingMessageService#initial_status` semeia o status pelo `ack` do
+  próprio payload, então o check já aparece certo sem esperar o próximo `message.ack`.
+- `chatwoot_originated?` (fromMe+api) deixou de forçar `delivered`; o ack conduz o status.
+
+Arquivos: `waha_events_job.rb`, `incoming_message_service.rb`,
+`composables/useInbox.js`, `components-next/message/MessageMeta.vue`.
+
+---
 
 ### Auto-sync de webhook em sessão existente (sem recriar)
 WAHA só aplica config de webhook na **criação** da sessão. Para sessões antigas (ex:

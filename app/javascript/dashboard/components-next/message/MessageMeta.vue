@@ -21,6 +21,7 @@ const {
   isAnEmailChannel,
   isAnInstagramChannel,
   isATiktokChannel,
+  isAWahaChannel,
 } = useInbox();
 
 const {
@@ -55,6 +56,7 @@ const isSent = computed(() => {
 
   if (
     isAWhatsAppChannel.value ||
+    isAWahaChannel.value ||
     isATwilioChannel.value ||
     isAFacebookInbox.value ||
     isASmsInbox.value ||
@@ -79,6 +81,7 @@ const isDelivered = computed(() => {
 
   if (
     isAWhatsAppChannel.value ||
+    isAWahaChannel.value ||
     isATwilioChannel.value ||
     isASmsInbox.value ||
     isAFacebookInbox.value ||
@@ -105,6 +108,7 @@ const isRead = computed(() => {
 
   if (
     isAWhatsAppChannel.value ||
+    isAWahaChannel.value ||
     isATwilioChannel.value ||
     isAFacebookInbox.value ||
     isAnInstagramChannel.value ||
