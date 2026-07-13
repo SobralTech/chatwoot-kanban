@@ -76,6 +76,7 @@ export default {
       isFetchingConversation: false,
       conversationFetchError: false,
       fetchingConversationId: null,
+      isSyncingRouteWithArchivedState: false,
     };
   },
   computed: {
@@ -202,7 +203,7 @@ export default {
       return chat;
     },
     syncRouteWithArchivedState(archivedAt) {
-      if (!this.conversationId) {
+      if (!this.conversationId || this.isSyncingRouteWithArchivedState) {
         return;
       }
       // Ignore stale updates while currentChat hasn't caught up with the
@@ -215,19 +216,33 @@ export default {
       const isOnArchivedRoute =
         this.$route.name === 'conversation_through_archived';
 
-      if (isArchived && !isOnArchivedRoute) {
-        this.$router.replace({
-          name: 'conversation_through_archived',
-          params: { conversationId: this.conversationId },
-        });
-      } else if (!isArchived && isOnArchivedRoute) {
-        this.$router.replace(
-          conversationListPageURL({
+      if (isArchived === isOnArchivedRoute) {
+        return;
+      }
+
+      // beforeRouteLeave clears the selected chat on every route-record
+      // transition, including this redirect itself. That momentarily
+      // resets currentChat.archived_at, which would otherwise re-trigger
+      // this watcher and fire an overlapping replace() before the first
+      // one resolves, endlessly cancelling each other out. Guarding
+      // re-entrancy until the in-flight redirect settles keeps exactly one
+      // replace() alive at a time so it can actually complete.
+      this.isSyncingRouteWithArchivedState = true;
+      const target = isArchived
+        ? {
+            name: 'conversation_through_archived',
+            params: {
+              accountId: this.accountId,
+              conversationId: this.conversationId,
+            },
+          }
+        : conversationListPageURL({
             accountId: this.accountId,
             conversationType: wootConstants.CONVERSATION_TYPE.ARCHIVED,
-          })
-        );
-      }
+          });
+      this.$router.replace(target).finally(() => {
+        this.isSyncingRouteWithArchivedState = false;
+      });
     },
     setActiveChat() {
       if (this.conversationId) {
