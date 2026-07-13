@@ -1,9 +1,11 @@
 <script setup>
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { getInboxIconByType } from 'dashboard/helper/inbox';
 import { useRouter, useRoute } from 'vue-router';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper.js';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
+import wootConstants from 'dashboard/constants/globals';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
@@ -40,6 +42,7 @@ const props = defineProps({
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 
 const cardMessagePreviewWithMetaRef = ref(null);
 
@@ -50,6 +53,8 @@ const currentContactThumbnail = computed(() => currentContact.value?.thumbnail);
 const currentContactStatus = computed(
   () => currentContact.value?.availabilityStatus
 );
+
+const isArchived = computed(() => !!props.conversation.archivedAt);
 
 const inbox = computed(() => props.stateInbox);
 
@@ -77,6 +82,9 @@ const onCardClick = e => {
     conversationUrl({
       accountId: route.params.accountId,
       id: props.conversation.id,
+      conversationType: isArchived.value
+        ? wootConstants.CONVERSATION_TYPE.ARCHIVED
+        : '',
     })
   );
 
@@ -119,6 +127,17 @@ const onCardClick = e => {
         </h4>
         <div class="flex items-center gap-2">
           <CardPriorityIcon :priority="conversation.priority || null" />
+          <Icon
+            v-if="isArchived"
+            v-tooltip.top="{
+              content: t(
+                'CONVERSATION.CARD_CONTEXT_MENU.CONVERSATION_ARCHIVED'
+              ),
+              delay: { show: 500, hide: 0 },
+            }"
+            icon="i-lucide-archive"
+            class="flex-shrink-0 text-n-slate-9 size-4"
+          />
           <div
             v-if="!showInboxAsHeader"
             v-tooltip.left="inboxName"

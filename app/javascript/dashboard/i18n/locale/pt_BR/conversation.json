@@ -201,6 +201,7 @@
       "NOTIFICATIONS_MUTED": "Notificações silenciadas para esta conversa",
       "ARCHIVE_CONVERSATION": "Arquivar conversa",
       "UNARCHIVE_CONVERSATION": "Desarquivar conversa",
+      "CONVERSATION_ARCHIVED": "Esta conversa está arquivada",
       "OPEN_IN_NEW_TAB": "Abrir em nova aba",
       "COPY_LINK": "Copiar link da conversa",
       "COPY_LINK_SUCCESS": "Link da conversa copiado",
