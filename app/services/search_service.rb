@@ -48,7 +48,7 @@ class SearchService
                                               'conversations.last_activity_at')
     end
 
-    @conversations = conversations_query.order('conversations.created_at DESC')
+    @conversations = conversations_query.order('conversations.last_activity_at DESC, conversations.id DESC')
                                         .page(params[:page])
                                         .per(15)
   end
