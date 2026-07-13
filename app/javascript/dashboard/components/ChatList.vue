@@ -53,9 +53,11 @@ import {
   isOnMentionsView,
   isOnUnattendedView,
   isOnArchivedView,
+  isOnEmailView,
 } from '../store/modules/conversations/helpers/actionHelpers';
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
 import { CONVERSATION_EVENTS } from '../helper/AnalyticsHelper/events';
+import { INBOX_TYPES } from 'dashboard/helper/inbox';
 
 const props = defineProps({
   conversationInbox: { type: [String, Number], default: 0 },
@@ -339,6 +341,14 @@ const isVisibleInAllConversations = conversation => {
   );
 };
 
+const emailInboxIds = computed(() => {
+  return new Set(
+    inboxesList.value
+      .filter(inboxItem => inboxItem.channel_type === INBOX_TYPES.EMAIL)
+      .map(inboxItem => Number(inboxItem.id))
+  );
+});
+
 const conversationFilters = computed(() => {
   return {
     inboxId: props.conversationInbox ? props.conversationInbox : undefined,
@@ -350,6 +360,7 @@ const conversationFilters = computed(() => {
     teamId: props.teamId || undefined,
     conversationType: props.conversationType || undefined,
     conversationView: isAllConversationsView.value ? 'all' : undefined,
+    emailInboxIds: emailInboxIds.value,
   };
 });
 
@@ -381,6 +392,9 @@ const pageTitle = computed(() => {
   }
   if (props.conversationType === wootConstants.CONVERSATION_TYPE.ARCHIVED) {
     return t('CHAT_LIST.ARCHIVED_HEADING');
+  }
+  if (props.conversationType === wootConstants.CONVERSATION_TYPE.EMAIL) {
+    return t('CHAT_LIST.EMAIL_HEADING');
   }
   if (hasActiveFolders.value) {
     return activeFolder.value.name;
@@ -700,6 +714,8 @@ function redirectToConversationList() {
     conversationType = wootConstants.CONVERSATION_TYPE.UNATTENDED;
   } else if (isOnArchivedView({ route: { name } })) {
     conversationType = wootConstants.CONVERSATION_TYPE.ARCHIVED;
+  } else if (isOnEmailView({ route: { name } })) {
+    conversationType = wootConstants.CONVERSATION_TYPE.EMAIL;
   }
   router.push(
     conversationListPageURL({

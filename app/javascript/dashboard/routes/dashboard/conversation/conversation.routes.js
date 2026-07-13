@@ -211,6 +211,29 @@ export default {
       }),
     },
     {
+      path: frontendURL('accounts/:accountId/email/conversations'),
+      name: 'conversation_email',
+      meta: {
+        permissions: CONVERSATION_PERMISSIONS,
+      },
+      component: ConversationView,
+      props: () => ({ conversationType: 'email' }),
+    },
+    {
+      path: frontendURL(
+        'accounts/:accountId/email/conversations/:conversationId'
+      ),
+      name: 'conversation_through_email',
+      meta: {
+        permissions: CONVERSATION_PERMISSIONS,
+      },
+      component: ConversationView,
+      props: route => ({
+        conversationId: route.params.conversationId,
+        conversationType: 'email',
+      }),
+    },
+    {
       path: frontendURL('accounts/:accountId/archived/conversations'),
       name: 'conversation_archived',
       meta: {

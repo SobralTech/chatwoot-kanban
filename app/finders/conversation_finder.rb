@@ -167,6 +167,8 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
       ).perform
     when 'unattended'
       @conversations = @conversations.with_unread_messages
+    when 'email'
+      @conversations = @conversations.joins(:inbox).where(inboxes: { channel_type: 'Channel::Email' })
     end
     @conversations
   end

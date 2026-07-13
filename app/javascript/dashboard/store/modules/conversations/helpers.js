@@ -46,8 +46,25 @@ export const filterByArchived = (
     : !isArchived && shouldFilter;
 };
 
+export const filterByEmail = (
+  shouldFilter,
+  conversationType,
+  chatInboxId,
+  emailInboxIds
+) => {
+  if (conversationType !== 'email') return shouldFilter;
+  return emailInboxIds.has(Number(chatInboxId)) && shouldFilter;
+};
+
 export const applyPageFilters = (conversation, filters) => {
-  const { inboxId, status, labels = [], teamId, conversationType } = filters;
+  const {
+    inboxId,
+    status,
+    labels = [],
+    teamId,
+    conversationType,
+    emailInboxIds = new Set(),
+  } = filters;
   const {
     status: chatStatus,
     inbox_id: chatInboxId,
@@ -69,6 +86,12 @@ export const applyPageFilters = (conversation, filters) => {
     unreadCount
   );
   shouldFilter = filterByArchived(shouldFilter, conversationType, archivedAt);
+  shouldFilter = filterByEmail(
+    shouldFilter,
+    conversationType,
+    chatInboxId,
+    emailInboxIds
+  );
 
   return shouldFilter;
 };

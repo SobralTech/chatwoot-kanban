@@ -38,6 +38,11 @@ export const isOnArchivedView = ({ route: { name: routeName } }) => {
   return ARCHIVED_ROUTES.includes(routeName);
 };
 
+export const isOnEmailView = ({ route: { name: routeName } }) => {
+  const EMAIL_ROUTES = ['conversation_email', 'conversation_through_email'];
+  return EMAIL_ROUTES.includes(routeName);
+};
+
 export const isOnFoldersView = ({ route: { name: routeName } }) => {
   const FOLDER_ROUTES = [
     'folder_conversations',
