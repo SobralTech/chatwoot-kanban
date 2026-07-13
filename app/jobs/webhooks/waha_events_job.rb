@@ -22,8 +22,14 @@ class Webhooks::WahaEventsJob < ApplicationJob
   def handle_message(channel, payload)
     return if payload.blank?
     # Sent from Chatwoot via the WAHA API — the local message already exists (with
-    # its source_id). Mirroring would duplicate it; message.ack drives its status.
+    # its source_id). Mirroring would duplicate it; acks drive its status.
     return if chatwoot_originated?(payload)
+
+    # A re-emitted message.any for a message we already mirrored carries an updated
+    # ack (this is how WAHA advances the status of phone-originated messages).
+    # Advance the status instead of recreating the message.
+    existing = find_message_by_source_id(channel, payload['id'])
+    return update_delivery_status(existing, payload['ack']) if existing
 
     # Incoming from a contact (fromMe: false) or sent from the phone/WhatsApp app
     # directly (fromMe: true, source: app/web). Mirror both into Chatwoot.
@@ -37,12 +43,15 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # Maps WhatsApp delivery acks to Chatwoot statuses so outgoing bubbles show the
   # right check state (sent → delivered → read), mirroring WhatsApp itself.
   def handle_message_ack(channel, payload)
-    new_status = ack_to_status(payload&.dig('ack'))
-    return if new_status.nil?
+    message = find_message_by_source_id(channel, payload&.dig('id'))
+    update_delivery_status(message, payload&.dig('ack'))
+  end
 
-    message = find_message_by_source_id(channel, payload['id'])
+  def update_delivery_status(message, ack)
     return unless message&.outgoing?
-    return if status_downgrade?(message.status, new_status)
+
+    new_status = ack_to_status(ack)
+    return if new_status.nil? || status_downgrade?(message.status, new_status)
 
     message.update!(status: new_status)
   end

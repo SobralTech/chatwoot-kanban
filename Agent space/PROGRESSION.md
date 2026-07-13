@@ -217,6 +217,13 @@ Todas as mensagens (Chatwoot e celular) ficavam presas em "Enviando" (relógio g
   próprio payload, então o check já aparece certo sem esperar o próximo `message.ack`.
 - `chatwoot_originated?` (fromMe+api) deixou de forçar `delivered`; o ack conduz o status.
 
+**Fix (mensagens do celular presas em 1 check):** as originadas no celular não avançavam
+porque o WAHA reenvia o `message.any` com o `ack` atualizado (em vez de/além do `message.ack`),
+e o dedup descartava esse reenvio. `handle_message` agora, se a mensagem já existe, chama
+`update_delivery_status(existing, payload['ack'])` em vez de recriar. Mapeamento de ack e a
+guarda anti-downgrade centralizados em `update_delivery_status`, usado por `message.any` e
+`message.ack`.
+
 Arquivos: `waha_events_job.rb`, `incoming_message_service.rb`,
 `composables/useInbox.js`, `components-next/message/MessageMeta.vue`.
 
