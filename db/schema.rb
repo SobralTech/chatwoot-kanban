@@ -74,7 +74,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_11_120000) do
     t.integer "status", default: 0
     t.jsonb "internal_attributes", default: {}, null: false
     t.jsonb "settings", default: {}
-    t.boolean "allow_agent_kanban_board_creation", default: true, null: false
     t.index ["status"], name: "index_accounts_on_status"
   end
 
