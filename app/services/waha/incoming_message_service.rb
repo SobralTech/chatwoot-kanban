@@ -69,7 +69,9 @@ class Waha::IncomingMessageService
     Waha::ContactResolver.new(
       channel: channel,
       jid: chat_id,
-      push_name: push_name
+      push_name: push_name,
+      from_me: payload['fromMe'],
+      sender_alt: payload.dig('_data', 'Info', 'SenderAlt')
     ).perform
   end
 

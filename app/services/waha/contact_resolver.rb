@@ -1,5 +1,5 @@
 class Waha::ContactResolver
-  pattr_initialize [:channel!, :jid!, :push_name]
+  pattr_initialize [:channel!, :jid!, :push_name, :from_me, :sender_alt]
 
   # Returns a ContactInbox for the given JID, creating contact if needed.
   def perform
@@ -17,14 +17,28 @@ class Waha::ContactResolver
 
   private
 
-  # Resolve @lid JIDs to their real @c.us equivalent via WAHA API.
+  # Resolve @lid JIDs to their real @c.us equivalent.
   def resolve_jid
     return jid unless jid.end_with?('@lid')
 
-    response = http_client.get("#{channel.session_name}/contacts/#{jid}")
-    response&.dig('id') || jid
+    resolved = resolve_lid_to_cus
+    # Guard: never map a contact onto our own session number.
+    return jid if resolved.blank? || session_number?(resolved)
+
+    resolved
   rescue StandardError
     jid
+  end
+
+  def resolve_lid_to_cus
+    # Fast path: an incoming message carries the contact's real number in
+    # SenderAlt (e.g. "558894397552:23@s.whatsapp.net"). For fromMe messages
+    # SenderAlt is our own number, so we only trust it when incoming.
+    return swhatsapp_to_cus(sender_alt) if incoming? && sender_alt.to_s.end_with?('@s.whatsapp.net')
+
+    # Fallback: ask WAHA to map the lid to a phone number (@c.us).
+    response = http_client.get("#{channel.session_name}/lids/#{jid}")
+    response&.dig('pn')
   end
 
   def build_contact_attributes(resolved_jid)
@@ -40,15 +54,17 @@ class Waha::ContactResolver
     name = push_name.presence || (phone ? "+#{phone}" : resolved_jid)
     attrs = { name: name, additional_attributes: {} }
     attrs[:phone_number] = "+#{phone}" if phone
+    attrs[:avatar_url] = fetch_chat_picture(jid)
     attrs[:additional_attributes][:jid] = resolved_jid
     attrs[:additional_attributes][:lid] = jid if jid.end_with?('@lid')
     attrs
   end
 
   def group_contact_attributes(group_jid)
-    group_name = fetch_group_name(group_jid)
     {
-      name: group_name || group_jid,
+      name: fetch_group_name(group_jid) || group_jid,
+      identifier: group_jid,
+      avatar_url: fetch_chat_picture(group_jid),
       additional_attributes: { jid: group_jid, is_group: true }
     }
   end
@@ -58,6 +74,33 @@ class Waha::ContactResolver
     response&.dig('subject')
   rescue StandardError
     nil
+  end
+
+  def fetch_chat_picture(chat_jid)
+    response = http_client.get("#{channel.session_name}/chats/#{chat_jid}/picture")
+    response&.dig('url')
+  rescue StandardError
+    nil
+  end
+
+  def incoming?
+    !from_me
+  end
+
+  # "558894397552:23@s.whatsapp.net" -> "558894397552@c.us"
+  def swhatsapp_to_cus(raw)
+    digits = raw.to_s.split('@').first.to_s.split(':').first
+    digits.present? ? "#{digits}@c.us" : nil
+  end
+
+  def session_number?(cus_jid)
+    return false if channel.phone_number.blank?
+
+    only_digits(cus_jid) == only_digits(channel.phone_number)
+  end
+
+  def only_digits(str)
+    str.to_s.gsub(/\D/, '')
   end
 
   def phone_from_jid(resolved_jid)
