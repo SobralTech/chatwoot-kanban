@@ -42,7 +42,7 @@ class Waha::IncomingMessageService
   end
 
   def push_name
-    payload.dig('_data', 'pushName')
+    payload.dig('_data', 'Info', 'PushName').presence || payload.dig('_data', 'pushName')
   end
 
   def source_id
