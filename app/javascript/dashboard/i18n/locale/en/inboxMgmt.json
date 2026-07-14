@@ -472,12 +472,6 @@
         "AUTO_READ_RECEIPTS": {
           "LABEL": "Auto-mark messages as read"
         },
-        "WEBHOOK_URL": {
-          "LABEL": "Webhook URL",
-          "DESC": "Configure this URL in WAHA to receive events. Events to enable: message, message.any, message.ack, message.revoked, message.edited, message.reaction, session.status",
-          "COPY": "Copy"
-        },
-        "WEBHOOK_COPIED": "Webhook URL copied!",
         "SESSION": {
           "STATUS_LABEL": "Connection status",
           "STARTING": "Starting...",

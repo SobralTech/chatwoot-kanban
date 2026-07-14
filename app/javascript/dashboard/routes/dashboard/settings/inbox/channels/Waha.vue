@@ -26,7 +26,6 @@ const autoReconnect = ref(true);
 const autoReadReceipts = ref(true);
 
 const createdInboxId = ref(null);
-const webhookUrl = ref('');
 const sessionStatus = ref('');
 const qrCode = ref('');
 let pollInterval = null;
@@ -91,7 +90,6 @@ async function createChannel() {
     });
 
     createdInboxId.value = inbox.id;
-    webhookUrl.value = inbox.channel_config?.webhook_url || '';
 
     // Start polling for QR / session status
     await pollSessionStatus();
@@ -101,11 +99,6 @@ async function createChannel() {
       error.message || t('INBOX_MGMT.ADD.WAHA_CHANNEL.API.ERROR_MESSAGE')
     );
   }
-}
-
-async function copyWebhookUrl() {
-  await navigator.clipboard.writeText(webhookUrl.value);
-  useAlert(t('INBOX_MGMT.ADD.WAHA_CHANNEL.WEBHOOK_COPIED'));
 }
 
 function proceed() {
@@ -248,7 +241,7 @@ onUnmounted(() => {
       </div>
     </form>
 
-    <!-- Post-creation: QR code + webhook URL -->
+    <!-- Post-creation: session status + QR code -->
     <div v-if="createdInboxId" class="flex flex-col gap-6 mt-4">
       <!-- Session status -->
       <div
@@ -284,24 +277,6 @@ onUnmounted(() => {
       >
         {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.WAITING') }}
         <span class="animate-pulse">...</span>
-      </div>
-
-      <!-- Webhook URL -->
-      <div class="p-4 bg-n-slate-1 rounded-lg border border-n-slate-3">
-        <p class="font-semibold text-sm mb-1">
-          {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.WEBHOOK_URL.LABEL') }}
-        </p>
-        <p class="text-xs text-n-slate-11 mb-2">
-          {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.WEBHOOK_URL.DESC') }}
-        </p>
-        <div class="flex items-center gap-2">
-          <code class="text-xs bg-n-slate-2 px-2 py-1 rounded flex-1 break-all">
-            {{ webhookUrl }}
-          </code>
-          <NextButton size="small" @click="copyWebhookUrl">
-            {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.WEBHOOK_URL.COPY') }}
-          </NextButton>
-        </div>
       </div>
 
       <div class="flex gap-2">
