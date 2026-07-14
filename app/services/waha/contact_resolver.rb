@@ -1,4 +1,6 @@
 class Waha::ContactResolver
+  LID_ATTRIBUTE_KEY = 'whatsapp_lid'.freeze
+
   pattr_initialize [:channel!, :jid!, :push_name, :from_me, :sender_alt]
 
   # Returns a ContactInbox for the given JID, creating contact if needed.
@@ -56,8 +58,26 @@ class Waha::ContactResolver
     attrs[:phone_number] = "+#{phone}" if phone
     attrs[:avatar_url] = fetch_chat_picture(jid)
     attrs[:additional_attributes][:jid] = resolved_jid
-    attrs[:additional_attributes][:lid] = jid if jid.end_with?('@lid')
+    if jid.end_with?('@lid')
+      attrs[:additional_attributes][:lid] = jid
+      attrs[:custom_attributes] = { LID_ATTRIBUTE_KEY => jid }
+      ensure_lid_attribute_definition
+    end
     attrs
+  end
+
+  # The sidebar only renders custom attributes that have a matching definition,
+  # so we make sure one exists for the account (idempotent) before storing the lid.
+  def ensure_lid_attribute_definition
+    channel.account.custom_attribute_definitions.find_or_create_by!(
+      attribute_key: LID_ATTRIBUTE_KEY,
+      attribute_model: :contact_attribute
+    ) do |definition|
+      definition.attribute_display_name = 'WhatsApp LID'
+      definition.attribute_display_type = :text
+    end
+  rescue StandardError
+    nil
   end
 
   def group_contact_attributes(group_jid)
