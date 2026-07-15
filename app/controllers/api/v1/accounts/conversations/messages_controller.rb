@@ -1,6 +1,9 @@
 class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::Conversations::BaseController
   before_action :ensure_api_inbox, only: :update
 
+  # WhatsApp only allows editing a message within 15 minutes of sending it.
+  WAHA_EDIT_WINDOW = 15.minutes
+
   def index
     @messages = message_finder.perform
   end
@@ -49,6 +52,15 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     render_could_not_create_error(e.message)
   end
 
+  def waha_edit
+    return render_could_not_create_error(I18n.t('conversations.messages.waha_edit_not_allowed')) unless waha_editable?
+
+    Waha::EditMessageService.new(message: message, content: permitted_params[:content]).perform
+    head :ok
+  rescue StandardError => e
+    render_could_not_create_error(e.message)
+  end
+
   def translate
     return head :ok if already_translated_content_available?
 
@@ -73,6 +85,22 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     @message ||= @conversation.messages.find(permitted_params[:id])
   end
 
+  def waha_editable?
+    @conversation.inbox.waha? &&
+      message.outgoing? &&
+      edit_anchor.present? &&
+      edit_anchor.created_at > WAHA_EDIT_WINDOW.ago
+  end
+
+  # The 15-minute window is measured from the original message, not from the
+  # latest edit mirror, so we resolve to the family anchor before checking.
+  def edit_anchor
+    @edit_anchor ||= begin
+      anchor_source_id = message.additional_attributes['edit_of'].presence || message.source_id
+      @conversation.messages.find_by(source_id: anchor_source_id)
+    end
+  end
+
   def message_finder
     @message_finder ||= MessageFinder.new(@conversation, params)
   end
@@ -95,7 +123,7 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   end
 
   def permitted_params
-    params.permit(:id, :target_language, :status, :external_error)
+    params.permit(:id, :target_language, :status, :external_error, :content)
   end
 
   def already_translated_content_available?

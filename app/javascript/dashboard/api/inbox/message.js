@@ -128,6 +128,13 @@ class MessageApi extends ApiClient {
     });
   }
 
+  editWahaMessage(conversationId, messageId, content) {
+    return axios.post(
+      `${this.url}/${conversationId}/messages/${messageId}/waha_edit`,
+      { content }
+    );
+  }
+
   translateMessage(conversationId, messageId, targetLanguage) {
     return axios.post(
       `${this.url}/${conversationId}/messages/${messageId}/translate`,

@@ -169,6 +169,7 @@ Rails.application.routes.draw do
                 member do
                   post :translate
                   post :retry
+                  post :waha_edit
                 end
               end
               resources :assistant_messages, only: [:index, :create] do

@@ -344,6 +344,15 @@
         "MESSAGE": "You cannot undo this action",
         "DELETE": "Delete",
         "CANCEL": "Cancel"
+      },
+      "WAHA_EDIT": {
+        "BUTTON": "Edit",
+        "TITLE": "Edit message",
+        "PLACEHOLDER": "Edit your message",
+        "SAVE": "Save",
+        "CANCEL": "Cancel",
+        "SUCCESS": "Message edited",
+        "ERROR": "Could not edit the message"
       }
     },
     "SIDEBAR": {

@@ -389,6 +389,13 @@ const actions = {
     }
   },
 
+  // WAHA edit: the strike-through of the old message and the new edited message
+  // arrive over the socket via the message.edited webhook, so nothing is
+  // committed here — we just push the edit to WhatsApp.
+  editWahaMessage: async (_store, { conversationId, messageId, content }) => {
+    await MessageApi.editWahaMessage(conversationId, messageId, content);
+  },
+
   deleteConversation: async ({ commit, dispatch }, conversationId) => {
     try {
       await ConversationApi.delete(conversationId);

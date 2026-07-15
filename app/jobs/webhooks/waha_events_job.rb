@@ -91,19 +91,12 @@ class Webhooks::WahaEventsJob < ApplicationJob
 
   # A WhatsApp edit keeps the original in place; instead we strike the original
   # through (superseded flag, rendered as line-through) and post the new content
-  # as a fresh message quoting the original — the "[🖊 Editada]" marker.
+  # as a fresh message quoting the original — the "[✏️ Editada]" marker. Agent
+  # edits made from Chatwoot round-trip through this same event (fromMe: true).
   def handle_message_edited(channel, payload)
     return if payload.blank?
 
     original = find_message_by_source_id(channel, payload['editedMessageId'])
-
-    # An edit we pushed from Chatwoot round-trips here; drop the flag and stop
-    # so we don't strike/duplicate our own edit.
-    if original&.additional_attributes&.dig('syncing')
-      original.update!(additional_attributes: original.additional_attributes.except('syncing'))
-      return
-    end
-
     supersede_edit_family(channel, original) if original
     Waha::IncomingMessageService.new(channel: channel, payload: payload, edited_original: original).perform
   end

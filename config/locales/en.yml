@@ -263,6 +263,7 @@ en:
       instagram_shared_story_content: 'Shared story'
       instagram_shared_post_content: 'Shared post'
       deleted: This message was deleted
+      waha_edit_not_allowed: This message can no longer be edited
       whatsapp:
         list_button_label: 'Choose an item'
         call_permission_request_body: 'We would like to call you regarding your conversation.'

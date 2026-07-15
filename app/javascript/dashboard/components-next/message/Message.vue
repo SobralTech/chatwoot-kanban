@@ -386,6 +386,16 @@ const isActiveSearchResult = computed(() => {
   return Number(props.activeConversationSearchResultId) === Number(props.id);
 });
 
+const isWahaInbox = computed(() => {
+  return inbox.value?.channel_type === INBOX_TYPES.WAHA;
+});
+
+// WhatsApp only allows editing within 15 minutes of the original send.
+const withinWahaEditWindow = computed(() => {
+  const FIFTEEN_MINUTES = 15 * 60;
+  return Date.now() / 1000 - props.createdAt < FIFTEEN_MINUTES;
+});
+
 const payloadForContextMenu = computed(() => {
   return {
     id: props.id,
@@ -417,6 +427,14 @@ const contextMenuEnabledOptions = computed(() => {
       !props.private &&
       props.inboxSupportsReplyTo.outgoing &&
       !isFailedOrProcessing,
+    wahaEdit:
+      isWahaInbox.value &&
+      isOutgoing &&
+      hasText &&
+      !isFailedOrProcessing &&
+      !isMessageDeleted.value &&
+      !isSuperseded.value &&
+      withinWahaEditWindow.value,
   };
 });
 

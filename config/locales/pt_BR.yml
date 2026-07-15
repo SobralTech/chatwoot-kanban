@@ -241,6 +241,7 @@ pt_BR:
       instagram_shared_story_content: 'Story compartilhado'
       instagram_shared_post_content: 'Post compartilhado'
       deleted: Esta mensagem foi excluída
+      waha_edit_not_allowed: Esta mensagem não pode mais ser editada
       whatsapp:
         list_button_label: 'Escolha um item'
         call_permission_request_body: 'Gostaríamos de ligar para você em relação à sua conversa.'

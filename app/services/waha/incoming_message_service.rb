@@ -13,13 +13,22 @@ class Waha::IncomingMessageService
     return if group_message_disabled?
     return if message_already_exists?
 
-    @contact_inbox = resolve_contact
-    return unless @contact_inbox
+    if edited_original
+      # An edit reuses the original message's conversation and contact. The edit
+      # event (especially one sent from Chatwoot via the API) can carry a
+      # different chat id than the original, so re-resolving would spawn a bogus
+      # contact/conversation for the same person.
+      @conversation = edited_original.conversation
+      @contact = @conversation.contact
+    else
+      @contact_inbox = resolve_contact
+      return unless @contact_inbox
 
-    @contact = @contact_inbox.contact
+      @contact = @contact_inbox.contact
+    end
 
     ActiveRecord::Base.transaction do
-      set_conversation
+      set_conversation unless @conversation
       create_message
     end
   end

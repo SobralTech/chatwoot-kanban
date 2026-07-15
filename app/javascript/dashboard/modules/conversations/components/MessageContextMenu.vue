@@ -56,6 +56,9 @@ export default {
     return {
       isCannedResponseModalOpen: false,
       showDeleteModal: false,
+      showEditModal: false,
+      editContent: '',
+      isEditing: false,
     };
   },
   computed: {
@@ -80,6 +83,10 @@ export default {
       return useSnakeCase(
         this.message.content_attributes ?? this.message.contentAttributes
       );
+    },
+    // Strip the trailing "[✏️ Editada]" marker so the agent edits the clean text.
+    editableContent() {
+      return (this.messageContent || '').replace(/\s*\[✏️ Editada\]\s*$/u, '');
     },
   },
   methods: {
@@ -152,6 +159,32 @@ export default {
     closeDeleteModal() {
       this.showDeleteModal = false;
     },
+    openEditModal() {
+      this.editContent = this.editableContent;
+      this.handleClose();
+      this.showEditModal = true;
+    },
+    closeEditModal() {
+      this.showEditModal = false;
+    },
+    async confirmEdit() {
+      const content = this.editContent.trim();
+      if (!content || this.isEditing) return;
+      this.isEditing = true;
+      try {
+        await this.$store.dispatch('editWahaMessage', {
+          conversationId: this.conversationId,
+          messageId: this.messageId,
+          content,
+        });
+        useAlert(this.$t('CONVERSATION.CONTEXT_MENU.WAHA_EDIT.SUCCESS'));
+        this.closeEditModal();
+      } catch (error) {
+        useAlert(this.$t('CONVERSATION.CONTEXT_MENU.WAHA_EDIT.ERROR'));
+      } finally {
+        this.isEditing = false;
+      }
+    },
   },
 };
 </script>
@@ -181,6 +214,42 @@ export default {
       :confirm-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.DELETE')"
       :reject-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.CANCEL')"
     />
+    <!-- Edit a WhatsApp (WAHA) message -->
+    <woot-modal
+      v-if="showEditModal"
+      v-model:show="showEditModal"
+      :on-close="closeEditModal"
+    >
+      <div class="flex flex-col p-8 gap-4">
+        <h2 class="text-lg font-medium text-n-slate-12">
+          {{ $t('CONVERSATION.CONTEXT_MENU.WAHA_EDIT.TITLE') }}
+        </h2>
+        <textarea
+          v-model="editContent"
+          rows="4"
+          class="w-full p-3 text-sm rounded-lg resize-none bg-n-alpha-2 border border-n-weak text-n-slate-12 focus:outline-none focus:border-n-brand"
+          :placeholder="$t('CONVERSATION.CONTEXT_MENU.WAHA_EDIT.PLACEHOLDER')"
+          @keydown.enter.exact.prevent="confirmEdit"
+        />
+        <div class="flex justify-end gap-2">
+          <NextButton
+            faded
+            slate
+            :label="$t('CONVERSATION.CONTEXT_MENU.WAHA_EDIT.CANCEL')"
+            @click="closeEditModal"
+          />
+          <NextButton
+            solid
+            blue
+            icon="i-lucide-check"
+            :label="$t('CONVERSATION.CONTEXT_MENU.WAHA_EDIT.SAVE')"
+            :is-loading="isEditing"
+            :disabled="!editContent.trim() || isEditing"
+            @click="confirmEdit"
+          />
+        </div>
+      </div>
+    </woot-modal>
     <NextButton
       v-if="!hideButton"
       ghost
@@ -205,6 +274,15 @@ export default {
           }"
           variant="icon"
           @click.stop="handleReplyTo"
+        />
+        <MenuItem
+          v-if="enabledOptions['wahaEdit']"
+          :option="{
+            icon: 'edit',
+            label: $t('CONVERSATION.CONTEXT_MENU.WAHA_EDIT.BUTTON'),
+          }"
+          variant="icon"
+          @click.stop="openEditModal"
         />
         <MenuItem
           v-if="enabledOptions['copy']"

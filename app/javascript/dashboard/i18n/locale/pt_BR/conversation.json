@@ -329,6 +329,15 @@
         "MESSAGE": "Você não pode desfazer essa ação",
         "DELETE": "Excluir",
         "CANCEL": "Cancelar"
+      },
+      "WAHA_EDIT": {
+        "BUTTON": "Editar",
+        "TITLE": "Editar mensagem",
+        "PLACEHOLDER": "Edite sua mensagem",
+        "SAVE": "Salvar",
+        "CANCEL": "Cancelar",
+        "SUCCESS": "Mensagem editada",
+        "ERROR": "Não foi possível editar a mensagem"
       }
     },
     "SIDEBAR": {
