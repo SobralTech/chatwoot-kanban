@@ -132,7 +132,7 @@ const props = defineProps({
   inReplyTo: { type: Object, default: null }, // eslint-disable-line vue/no-unused-properties
   isEmailInbox: { type: Boolean, default: false },
   private: { type: Boolean, default: false },
-  additionalAttributes: { type: Object, default: () => ({}) }, // eslint-disable-line vue/no-unused-properties
+  additionalAttributes: { type: Object, default: () => ({}) },
   sender: { type: Object, default: null },
   senderId: { type: Number, default: null },
   senderType: { type: String, default: null },
@@ -374,6 +374,12 @@ const isBubble = computed(() => {
 
 const isMessageDeleted = computed(() => {
   return props.contentAttributes?.deleted;
+});
+
+// A message the contact/agent edited on WhatsApp: kept in place but struck
+// through, while the edited version arrives as a new message quoting it.
+const isSuperseded = computed(() => {
+  return !!props.additionalAttributes?.superseded;
 });
 
 const isActiveSearchResult = computed(() => {
@@ -625,6 +631,7 @@ provideMessageContext({
           'ltr:ml-8 rtl:mr-8 justify-end': orientation === ORIENTATION.RIGHT,
           'ltr:mr-8 rtl:ml-8': orientation === ORIENTATION.LEFT,
           'min-w-0': variant === MESSAGE_VARIANTS.EMAIL,
+          'line-through opacity-70': isSuperseded,
         }"
         @contextmenu="openContextMenu($event)"
       >

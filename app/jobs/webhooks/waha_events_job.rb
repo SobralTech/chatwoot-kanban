@@ -12,19 +12,25 @@ class Webhooks::WahaEventsJob < ApplicationJob
     channel = Channel::Waha.find_by(id: channel_id)
     return unless channel&.account&.active?
 
-    # We subscribe to message.any only (the superset of every message event) so
-    # each message is processed exactly once, regardless of direction.
+    route_event(channel, params, ack_retries)
+  end
+
+  private
+
+  # We subscribe to message.any only (the superset of every message event) so
+  # each message is processed exactly once, regardless of direction.
+  def route_event(channel, params, ack_retries)
     case params['event'].to_s
     when 'message.any'
       handle_message(channel, params['payload'])
     when 'message.ack'
       handle_message_ack(channel, params, ack_retries)
+    when 'message.edited'
+      handle_message_edited(channel, params['payload'])
     when 'session.status'
       handle_session_status(channel, params['payload'])
     end
   end
-
-  private
 
   def handle_message(channel, payload)
     return if payload.blank?
@@ -81,6 +87,42 @@ class Webhooks::WahaEventsJob < ApplicationJob
 
     rank = { 'sent' => 1, 'delivered' => 2, 'read' => 3 }
     rank.fetch(new_status, 0) <= rank.fetch(current, 0)
+  end
+
+  # A WhatsApp edit keeps the original in place; instead we strike the original
+  # through (superseded flag, rendered as line-through) and post the new content
+  # as a fresh message quoting the original — the "[🖊 Editada]" marker.
+  def handle_message_edited(channel, payload)
+    return if payload.blank?
+
+    original = find_message_by_source_id(channel, payload['editedMessageId'])
+
+    # An edit we pushed from Chatwoot round-trips here; drop the flag and stop
+    # so we don't strike/duplicate our own edit.
+    if original&.additional_attributes&.dig('syncing')
+      original.update!(additional_attributes: original.additional_attributes.except('syncing'))
+      return
+    end
+
+    supersede_edit_family(channel, original) if original
+    Waha::IncomingMessageService.new(channel: channel, payload: payload, edited_original: original).perform
+  end
+
+  # WhatsApp keeps a single message across N edits (all pointing at the original
+  # stanza), but we mirror each edit as a fresh message. So on every edit we
+  # strike through the whole prior family — the original plus any earlier edit
+  # mirrors — leaving only the newest version un-struck as the current one.
+  def supersede_edit_family(channel, original)
+    messages = channel.inbox.messages
+    family = messages.where(source_id: original.source_id)
+                     .or(messages.where("additional_attributes->>'edit_of' = ?", original.source_id))
+    family.find_each { |message| mark_superseded(message) }
+  end
+
+  def mark_superseded(message)
+    return if message.additional_attributes['superseded']
+
+    message.update!(additional_attributes: message.additional_attributes.merge('superseded' => true))
   end
 
   def handle_session_status(channel, payload)

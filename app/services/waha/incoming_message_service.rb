@@ -2,8 +2,11 @@ class Waha::IncomingMessageService
   IGNORED_CHAT_SUFFIXES = %w[@newsletter status@broadcast].freeze
   MEDIA_TYPES = %w[image document audio ptt video sticker].freeze
   SENT_FROM_WHATSAPP_LABEL = 'Enviado pelo WhatsApp'.freeze
+  EDITED_LABEL = '✏️ Editada'.freeze
 
-  pattr_initialize [:channel!, :payload!]
+  # `edited_original`, when present, means this message is the edited version of
+  # an existing one: we tag its content and quote the original message.
+  pattr_initialize [:channel!, :payload!, :edited_original]
 
   def perform
     return if ignored_chat?
@@ -126,13 +129,21 @@ class Waha::IncomingMessageService
   # sender_name (same mechanism Slack uses) makes the UI label them instead of
   # falling back to the generic "Bot" sender.
   def build_additional_attributes
-    return {} if incoming?
+    attrs = incoming? ? {} : { sender_name: SENT_FROM_WHATSAPP_LABEL }
 
-    { sender_name: SENT_FROM_WHATSAPP_LABEL }
+    # Anchor every edit mirror to the original message's source_id so the whole
+    # edit family can be found later (to strike the previous head, and to resolve
+    # replies back to the single real WhatsApp message).
+    attrs[:edit_of] = edited_original.source_id if edited_original
+
+    attrs
   end
 
   def text_content
-    payload['body'].presence
+    body = payload['body'].presence
+    return body unless edited_original && body
+
+    "#{body} [#{EDITED_LABEL}]"
   end
 
   def media_message?
@@ -181,6 +192,10 @@ class Waha::IncomingMessageService
       attrs[:sender_name] = push_name
       attrs[:participant_jid] = sender_jid
     end
+
+    # An edit quotes the original message it replaces, regardless of what the
+    # original itself was replying to.
+    attrs[:in_reply_to_external_id] = edited_original.source_id if edited_original
 
     attrs
   end
