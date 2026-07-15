@@ -30,6 +30,7 @@ class Waha::IncomingMessageService
     ActiveRecord::Base.transaction do
       set_conversation unless @conversation
       create_message
+      clear_pending_editor
     end
   end
 
@@ -110,8 +111,7 @@ class Waha::IncomingMessageService
       account_id: inbox.account_id,
       inbox_id: inbox.id,
       message_type: incoming? ? :incoming : :outgoing,
-      # Outgoing (sent from the phone) has no Chatwoot agent as sender.
-      sender: (@contact if incoming?),
+      sender: message_sender,
       source_id: source_id,
       status: initial_status,
       content_attributes: build_content_attributes,
@@ -137,8 +137,42 @@ class Waha::IncomingMessageService
   # Messages sent from the phone/WhatsApp Web have no Chatwoot agent. Storing a
   # sender_name (same mechanism Slack uses) makes the UI label them instead of
   # falling back to the generic "Bot" sender.
+  # Incoming messages are authored by the contact. An outgoing edit made from
+  # Chatwoot is authored by the agent who clicked edit (stashed on the original by
+  # EditMessageService); a phone-sent message/edit has no Chatwoot sender.
+  def message_sender
+    return @contact if incoming?
+
+    pending_editor
+  end
+
+  # The agent who clicked edit, resolved from the marker EditMessageService left
+  # on the original message. Absent for phone-side edits.
+  def pending_editor
+    return @pending_editor if defined?(@pending_editor)
+
+    editor_id = edited_original&.content_attributes&.dig('pending_edited_by_id')
+    @pending_editor = editor_id.present? ? inbox.account.users.find_by(id: editor_id) : nil
+  end
+
+  # Consume the marker so it never leaks into a later edit of the same message.
+  def clear_pending_editor
+    return unless edited_original&.content_attributes&.key?('pending_edited_by_id')
+
+    edited_original.update!(
+      content_attributes: edited_original.content_attributes.except('pending_edited_by_id')
+    )
+  end
+
   def build_additional_attributes
-    attrs = incoming? ? {} : { sender_name: SENT_FROM_WHATSAPP_LABEL }
+    # Incoming, or an agent-attributed edit: the sender association already names
+    # the author, so no sender_name override is needed. Everything else outgoing
+    # (a phone-sent message or a phone-side edit) keeps the WhatsApp label.
+    attrs = if incoming? || (edited_original && pending_editor)
+              {}
+            else
+              { sender_name: SENT_FROM_WHATSAPP_LABEL }
+            end
 
     # Anchor every edit mirror to the original message's source_id so the whole
     # edit family can be found later (to strike the previous head, and to resolve
