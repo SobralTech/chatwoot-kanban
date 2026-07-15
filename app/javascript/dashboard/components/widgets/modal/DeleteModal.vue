@@ -10,6 +10,7 @@ defineProps({
   messageValue: { type: String, default: '' },
   confirmText: { type: String, default: '' },
   rejectText: { type: String, default: '' },
+  isLoading: { type: Boolean, default: false },
 });
 
 const show = defineModel('show', { type: Boolean, default: false });
@@ -24,7 +25,14 @@ const show = defineModel('show', { type: Boolean, default: false });
     />
     <div class="flex items-center justify-end gap-2 p-8">
       <Button faded slate type="reset" :label="rejectText" @click="onClose" />
-      <Button ruby type="submit" :label="confirmText" @click="onConfirm" />
+      <Button
+        ruby
+        type="submit"
+        :label="confirmText"
+        :is-loading="isLoading"
+        :disabled="isLoading"
+        @click="onConfirm"
+      />
     </div>
   </Modal>
 </template>

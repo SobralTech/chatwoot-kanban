@@ -27,6 +27,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
       handle_message_ack(channel, params, ack_retries)
     when 'message.edited'
       handle_message_edited(channel, params['payload'])
+    when 'message.revoked'
+      handle_message_revoked(channel, params['payload'])
     when 'session.status'
       handle_session_status(channel, params['payload'])
     end
@@ -116,6 +118,37 @@ class Webhooks::WahaEventsJob < ApplicationJob
     return if message.additional_attributes['superseded']
 
     message.update!(additional_attributes: message.additional_attributes.merge('superseded' => true))
+  end
+
+  # A revoke ("delete for everyone") removes the message on WhatsApp, so we
+  # soft-delete the whole edit family — the original plus any edit mirrors —
+  # since all versions disappear at once there. Deletes made from Chatwoot
+  # round-trip through this same event; already-deleted messages are skipped,
+  # which makes the round-trip idempotent.
+  def handle_message_revoked(channel, payload)
+    return if payload.blank?
+
+    revoked = find_message_by_source_id(channel, payload['revokedMessageId'] || payload.dig('before', 'id'))
+    return unless revoked
+
+    anchor_source_id = revoked.additional_attributes['edit_of'].presence || revoked.source_id
+    messages = channel.inbox.messages
+    family = messages.where(source_id: anchor_source_id)
+                     .or(messages.where("additional_attributes->>'edit_of' = ?", anchor_source_id))
+    family.find_each { |message| soft_delete_message(message) }
+  end
+
+  def soft_delete_message(message)
+    return if message.content_attributes['deleted']
+
+    ActiveRecord::Base.transaction do
+      message.update!(
+        content: I18n.t('conversations.messages.deleted'),
+        content_type: :text,
+        content_attributes: message.content_attributes.merge('deleted' => true)
+      )
+      message.attachments.destroy_all
+    end
   end
 
   def handle_session_status(channel, payload)

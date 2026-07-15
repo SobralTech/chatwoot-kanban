@@ -59,6 +59,7 @@ export default {
       showEditModal: false,
       editContent: '',
       isEditing: false,
+      isDeleting: false,
     };
   },
   computed: {
@@ -145,15 +146,20 @@ export default {
       this.showDeleteModal = true;
     },
     async confirmDeletion() {
+      if (this.isDeleting) return;
+      this.isDeleting = true;
       try {
         await this.$store.dispatch('deleteMessage', {
           conversationId: this.conversationId,
           messageId: this.messageId,
         });
         useAlert(this.$t('CONVERSATION.SUCCESS_DELETE_MESSAGE'));
+        this.closeDeleteModal();
         this.handleClose();
       } catch (error) {
         useAlert(this.$t('CONVERSATION.FAIL_DELETE_MESSSAGE'));
+      } finally {
+        this.isDeleting = false;
       }
     },
     closeDeleteModal() {
@@ -213,6 +219,7 @@ export default {
       :message="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.MESSAGE')"
       :confirm-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.DELETE')"
       :reject-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.CANCEL')"
+      :is-loading="isDeleting"
     />
     <!-- Edit a WhatsApp (WAHA) message -->
     <woot-modal

@@ -35,10 +35,14 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   end
 
   def destroy
+    Waha::DeleteMessageService.new(message: message).perform if waha_deletable?
+
     ActiveRecord::Base.transaction do
       message.update!(content: I18n.t('conversations.messages.deleted'), content_type: :text, content_attributes: { deleted: true })
       message.attachments.destroy_all
     end
+  rescue StandardError => e
+    render_could_not_create_error(e.message)
   end
 
   def retry
@@ -83,6 +87,12 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
 
   def message
     @message ||= @conversation.messages.find(permitted_params[:id])
+  end
+
+  # Only our own messages can be revoked on WhatsApp; deleting a contact's
+  # message stays a local-only soft delete.
+  def waha_deletable?
+    @conversation.inbox.waha? && message.outgoing? && message.source_id.present?
   end
 
   def waha_editable?
