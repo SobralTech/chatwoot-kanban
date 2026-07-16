@@ -82,7 +82,13 @@ const messageClass = computed(() => {
   return classToApply;
 });
 
+// A ghost quote is a snapshot of a message that isn't in this conversation
+// (pre-inbox or cross-conversation) — there is nothing to scroll to.
+const isGhostQuote = computed(() => Boolean(inReplyTo.value?.isGhost));
+
 const scrollToMessage = () => {
+  if (isGhostQuote.value) return;
+
   emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, {
     messageId: inReplyTo.value.id,
   });
@@ -98,15 +104,16 @@ const shouldShowMeta = computed(
 const replyToPreview = computed(() => {
   if (!inReplyTo) return '';
 
-  const { content, attachments } = inReplyTo.value;
+  const { content, attachments, mediaType } = inReplyTo.value;
 
   if (content) return new MessageFormatter(content).formattedMessage;
-  if (attachments?.length) {
-    const firstAttachment = attachments[0];
-    const fileType = firstAttachment.fileType ?? firstAttachment.file_type;
 
-    return t(`CHAT_LIST.ATTACHMENTS.${fileType}.CONTENT`);
-  }
+  const fileType =
+    mediaType ??
+    (attachments?.length
+      ? (attachments[0].fileType ?? attachments[0].file_type)
+      : null);
+  if (fileType) return t(`CHAT_LIST.ATTACHMENTS.${fileType}.CONTENT`);
 
   return t('CONVERSATION.REPLY_MESSAGE_NOT_FOUND');
 });
@@ -124,9 +131,16 @@ const replyToPreview = computed(() => {
   >
     <div
       v-if="inReplyTo"
-      class="p-2 -mx-1 mb-2 rounded-lg cursor-pointer bg-n-alpha-black1"
+      class="p-2 -mx-1 mb-2 rounded-lg bg-n-alpha-black1"
+      :class="{ 'cursor-pointer': !isGhostQuote }"
       @click="scrollToMessage"
     >
+      <div
+        v-if="isGhostQuote && inReplyTo.authorName"
+        class="text-xs font-medium text-n-slate-11"
+      >
+        {{ inReplyTo.authorName }}
+      </div>
       <div
         v-dompurify-html="replyToPreview"
         class="prose prose-bubble line-clamp-2"

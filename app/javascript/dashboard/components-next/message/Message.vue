@@ -426,7 +426,8 @@ const contextMenuEnabledOptions = computed(() => {
     replyTo:
       !props.private &&
       props.inboxSupportsReplyTo.outgoing &&
-      !isFailedOrProcessing,
+      !isFailedOrProcessing &&
+      !isMessageDeleted.value,
     wahaEdit:
       isWahaInbox.value &&
       isOutgoing &&

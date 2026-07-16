@@ -157,7 +157,25 @@ const getInReplyToMessage = parentMessage => {
     parentMessage.contentAttributes?.inReplyTo ??
     parentMessage.content_attributes?.in_reply_to;
 
-  if (!inReplyToMessageId) return null;
+  if (!inReplyToMessageId) {
+    // Quoted message isn't in this conversation (pre-inbox or another
+    // conversation): render a non-clickable ghost quote from the snapshot the
+    // backend stored, without ever fetching.
+    const snapshot =
+      parentMessage.contentAttributes?.inReplyToSnapshot ??
+      parentMessage.content_attributes?.in_reply_to_snapshot;
+
+    if (snapshot) {
+      return {
+        isGhost: true,
+        content: snapshot.body,
+        authorName: snapshot.author,
+        mediaType: snapshot.mediaType ?? snapshot.media_type,
+      };
+    }
+
+    return null;
+  }
 
   // Try to find in current messages first
   let replyMessage = props.messages?.find(msg => msg.id === inReplyToMessageId);

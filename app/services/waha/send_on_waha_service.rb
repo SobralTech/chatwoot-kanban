@@ -55,8 +55,10 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
       chatId: chat_id
     }
 
+    # The WAHA send API takes reply_to (snake_case); replyTo only appears in
+    # incoming webhook payloads.
     reply_to_id = quoted_source_id
-    payload[:replyTo] = reply_to_id if reply_to_id.present?
+    payload[:reply_to] = reply_to_id if reply_to_id.present?
 
     payload
   end
@@ -65,14 +67,22 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     conversation.contact_inbox.source_id
   end
 
+  # WhatsApp keeps a single message across N edits, so when the agent replies to
+  # an edit mirror the replyTo must be the family anchor (the original message's
+  # source_id) — otherwise WhatsApp won't find the quoted message.
   def quoted_source_id
     external_id = message.content_attributes&.dig('in_reply_to_external_id')
-    return external_id if external_id.present?
-
     in_reply_to_id = message.content_attributes&.dig('in_reply_to')
-    return unless in_reply_to_id
 
-    inbox.messages.find_by(id: in_reply_to_id)&.source_id
+    quoted = quoted_message(external_id, in_reply_to_id)
+    return external_id if quoted.blank?
+
+    quoted.additional_attributes['edit_of'].presence || quoted.source_id
+  end
+
+  def quoted_message(external_id, in_reply_to_id)
+    (inbox.messages.find_by(source_id: external_id) if external_id.present?) ||
+      (inbox.messages.find_by(id: in_reply_to_id) if in_reply_to_id.present?)
   end
 
   def attachment_url(attachment)

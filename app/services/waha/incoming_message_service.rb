@@ -223,12 +223,7 @@ class Waha::IncomingMessageService
   end
 
   def build_content_attributes
-    attrs = {}
-    reply_stanza = payload.dig('replyTo', 'id')
-    if reply_stanza.present?
-      quoted = inbox.messages.where('source_id LIKE ?', "%_#{reply_stanza}").first
-      attrs[:in_reply_to_external_id] = quoted&.source_id || reply_stanza
-    end
+    attrs = Waha::ReplyContextResolver.new(channel: channel, payload: payload, conversation: @conversation).perform
 
     # Store participant name for group messages
     if chat_id.to_s.end_with?('@g.us')
@@ -236,11 +231,20 @@ class Waha::IncomingMessageService
       attrs[:participant_jid] = sender_jid
     end
 
-    # An edit quotes the original message it replaces, regardless of what the
-    # original itself was replying to.
-    attrs[:in_reply_to_external_id] = edited_original.source_id if edited_original
+    merge_edit_context(attrs)
 
     attrs
+  end
+
+  # An edit mirror quotes the version it replaces (the struck-through previous
+  # head), regardless of what the original itself was replying to — the reply
+  # context stays visible on the family's original bubble.
+  def merge_edit_context(attrs)
+    return unless edited_original
+
+    attrs.delete(:in_reply_to_snapshot)
+    attrs[:in_reply_to] = Waha::ReplyContextResolver.family_head(inbox, edited_original).id
+    attrs[:in_reply_to_external_id] = edited_original.source_id
   end
 
   def inbox
