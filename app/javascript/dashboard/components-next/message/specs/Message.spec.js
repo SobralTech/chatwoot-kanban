@@ -116,10 +116,12 @@ describe('Message', () => {
     );
   });
 
-  it('adds distinct visual state for the active result', () => {
+  it('flashes the active result', async () => {
     const wrapper = mountMessage({ activeConversationSearchResultId: 1 });
 
-    expect(wrapper.classes()).toContain('outline-n-amber-6');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.classes()).toContain('before:animate-message-flash');
   });
 
   it('scrolls loaded active result into view when active result changes', async () => {
@@ -144,12 +146,12 @@ describe('Message', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('preserves route messageId highlight behavior', async () => {
+  it('flashes the message targeted by the route messageId', async () => {
     routeQuery = { messageId: 1 };
     const wrapper = mountMessage();
 
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.classes()).toContain('bg-n-alpha-1');
+    expect(wrapper.classes()).toContain('before:animate-message-flash');
   });
 });

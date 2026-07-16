@@ -1,5 +1,13 @@
 <script setup>
-import { onMounted, computed, ref, toRefs, watch, nextTick } from 'vue';
+import {
+  onMounted,
+  onBeforeUnmount,
+  computed,
+  ref,
+  toRefs,
+  watch,
+  nextTick,
+} from 'vue';
 import { useTimeoutFn } from '@vueuse/core';
 import { provideMessageContext } from './provider.js';
 import { useTrack } from 'dashboard/composables';
@@ -144,7 +152,7 @@ const props = defineProps({
 const emit = defineEmits(['retry']);
 
 const contextMenuPosition = ref({});
-const showBackgroundHighlight = ref(false);
+const isFlashing = ref(false);
 const showContextMenu = ref(false);
 const { t } = useI18n();
 const route = useRoute();
@@ -558,21 +566,30 @@ const avatarTooltip = computed(() => {
   return `${t('CONVERSATION.SENT_BY')} ${avatarInfo.value.name}`;
 });
 
-const setupHighlightTimer = () => {
-  if (Number(route.query.messageId) !== Number(props.id)) {
-    return;
-  }
+const FLASH_DURATION = 2000;
+const { start: startFlashTimer } = useTimeoutFn(
+  () => {
+    isFlashing.value = false;
+  },
+  FLASH_DURATION,
+  { immediate: false }
+);
 
-  showBackgroundHighlight.value = true;
-  const HIGHLIGHT_TIMER = 1000;
-  useTimeoutFn(() => {
-    showBackgroundHighlight.value = false;
-  }, HIGHLIGHT_TIMER);
+const flashMessage = () => {
+  isFlashing.value = true;
+  startFlashTimer();
+};
+
+const onScrollToMessage = ({ messageId } = {}) => {
+  if (Number(messageId) !== Number(props.id)) return;
+
+  flashMessage();
 };
 
 const scrollToActiveSearchResult = () => {
   if (!isActiveSearchResult.value) return;
 
+  flashMessage();
   nextTick(() => {
     const messageElement = document.getElementById(`message${props.id}`);
     messageElement?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
@@ -580,8 +597,13 @@ const scrollToActiveSearchResult = () => {
 };
 
 onMounted(() => {
-  setupHighlightTimer();
+  emitter.on(BUS_EVENTS.SCROLL_TO_MESSAGE, onScrollToMessage);
+  if (Number(route.query.messageId) === Number(props.id)) flashMessage();
   scrollToActiveSearchResult();
+});
+
+onBeforeUnmount(() => {
+  emitter.off(BUS_EVENTS.SCROLL_TO_MESSAGE, onScrollToMessage);
 });
 
 watch(() => props.activeConversationSearchResultId, scrollToActiveSearchResult);
@@ -607,9 +629,8 @@ provideMessageContext({
     :class="[
       flexOrientationClass,
       {
-        'bg-n-alpha-1': showBackgroundHighlight,
-        'bg-n-amber-3/60 outline outline-1 -outline-offset-1 outline-n-amber-6 rounded-lg':
-          isActiveSearchResult,
+        'relative before:absolute before:inset-0 before:rounded-lg before:pointer-events-none before:bg-n-blue-9/30 before:animate-message-flash':
+          isFlashing,
       },
     ]"
   >
