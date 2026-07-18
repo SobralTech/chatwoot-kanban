@@ -63,11 +63,23 @@ const initWaveSurfer = () => {
 
   record.value.on('record-end', async blob => {
     const audioUrl = URL.createObjectURL(blob);
-    const audioBlob = await convertAudio(blob, props.audioRecordFormat);
-    const fileName = `${getUuid()}.mp3`;
-    const file = new File([audioBlob], fileName, {
-      type: props.audioRecordFormat,
-    });
+    // If MP3/WAV conversion fails (e.g. decodeAudioData can't parse the
+    // browser's MediaRecorder output), fall back to the raw blob so the
+    // stop button still resolves and the send button becomes usable.
+    let audioBlob;
+    let mimeType = props.audioRecordFormat;
+    let extension = props.audioRecordFormat === 'audio/wav' ? 'wav' : 'mp3';
+    try {
+      audioBlob = await convertAudio(blob, props.audioRecordFormat);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('[AudioRecorder] conversion failed, using raw blob', error);
+      audioBlob = blob;
+      mimeType = blob.type || 'audio/webm';
+      extension = (mimeType.split('/')[1] || 'webm').split(';')[0];
+    }
+    const fileName = `${getUuid()}.${extension}`;
+    const file = new File([audioBlob], fileName, { type: mimeType });
     wavesurfer.value.load(audioUrl);
     emit('finishRecord', {
       name: file.name,

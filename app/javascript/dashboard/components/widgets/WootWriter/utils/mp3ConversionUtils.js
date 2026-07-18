@@ -96,41 +96,28 @@ export const encodeToMP3 = (channels, sampleRate, samples, bitrate = 128) => {
 };
 
 /**
- * Converts an audio Blob to an MP3 format Blob.
+ * Converts an audio Blob to an MP3 format Blob. Downmixes to mono because
+ * lamejs's `encodeBuffer` only accepts a single Int16Array and voice notes
+ * are mono anyway; keeping stereo produced a garbled/unplayable MP3 that
+ * silently failed downstream on WhatsApp.
  * @param {Blob} audioBlob - The audio data as a Blob.
  * @param {number} bitrate - MP3 bitrate (default: 128)
  * @returns {Promise<Blob>} - A Blob containing the MP3 encoded audio.
  */
 export const convertToMp3 = async (audioBlob, bitrate = 128) => {
-  try {
-    const audioBuffer = await decodeAudioData(audioBlob);
-    const samples = new Int16Array(
-      audioBuffer.length * audioBuffer.numberOfChannels
-    );
-    let offset = 0;
-    for (let i = 0; i < audioBuffer.length; i += 1) {
-      for (
-        let channel = 0;
-        channel < audioBuffer.numberOfChannels;
-        channel += 1
-      ) {
-        const sample = Math.max(
-          -1,
-          Math.min(1, audioBuffer.getChannelData(channel)[i])
-        );
-        samples[offset] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-        offset += 1;
-      }
-    }
-    return encodeToMP3(
-      audioBuffer.numberOfChannels,
-      audioBuffer.sampleRate,
-      samples,
-      bitrate
-    );
-  } catch (error) {
-    throw new Error('Conversion to MP3 failed.');
+  const audioBuffer = await decodeAudioData(audioBlob);
+  const left = audioBuffer.getChannelData(0);
+  const right =
+    audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : null;
+
+  const samples = new Int16Array(audioBuffer.length);
+  for (let i = 0; i < audioBuffer.length; i += 1) {
+    const mixed = right ? (left[i] + right[i]) / 2 : left[i];
+    const clamped = Math.max(-1, Math.min(1, mixed));
+    samples[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
   }
+
+  return encodeToMP3(1, audioBuffer.sampleRate, samples, bitrate);
 };
 
 export const convertAudio = async (inputBlob, outputFormat, bitrate = 128) => {
