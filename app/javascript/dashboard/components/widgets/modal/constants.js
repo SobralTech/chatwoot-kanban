@@ -86,10 +86,4 @@ export const SHORTCUT_KEYS = [
     displayKeys: [KEYS.ALT, 'L'],
     keySet: ['Alt+KeyL'],
   },
-  {
-    id: 14,
-    label: 'TOGGLE_SNOOZE_DROPDOWN',
-    displayKeys: [KEYS.ALT, 'M'],
-    keySet: ['Alt+KeyM'],
-  },
 ];

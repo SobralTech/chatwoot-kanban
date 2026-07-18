@@ -136,16 +136,6 @@
         "DUE": "due"
       }
     },
-    "RESOLVE_DROPDOWN": {
-      "MARK_PENDING": "Mark as pending",
-      "SNOOZE_UNTIL": "Snooze",
-      "SNOOZE": {
-        "TITLE": "Snooze until",
-        "NEXT_REPLY": "Next reply",
-        "TOMORROW": "Tomorrow",
-        "NEXT_WEEK": "Next week"
-      }
-    },
     "MENTION": {
       "AGENTS": "Agents",
       "TEAMS": "Teams"
