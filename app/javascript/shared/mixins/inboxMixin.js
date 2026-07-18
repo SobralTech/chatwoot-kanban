@@ -130,6 +130,9 @@ export default {
         this.isATwilioWhatsAppChannel
       );
     },
+    isAWahaChannel() {
+      return this.channelType === INBOX_TYPES.WAHA;
+    },
     isAnInstagramChannel() {
       return this.channelType === INBOX_TYPES.INSTAGRAM;
     },

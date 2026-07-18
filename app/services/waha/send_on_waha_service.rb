@@ -35,18 +35,30 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     file_url = attachment_url(attachment)
     return if file_url.blank?
 
-    endpoint, body = attachment_endpoint_and_body(attachment.file_type.to_sym, file_url)
+    endpoint, body = attachment_endpoint_and_body(attachment.file_type.to_sym, attachment, file_url)
     http_client.post(endpoint, base_payload.merge(body))
   end
 
-  def attachment_endpoint_and_body(file_type, file_url)
+  # WAHA's RemoteFile requires mimetype; sendFile also needs filename to preserve
+  # the document name on WhatsApp. Passing them explicitly avoids the "422 file
+  # invalid" the server returns for a bare `{ url: ... }`.
+  def attachment_endpoint_and_body(file_type, attachment, file_url)
     caption = message.content.to_s.presence
+    remote_file = { url: file_url, mimetype: attachment_mimetype(attachment), filename: attachment_filename(attachment) }.compact
     case file_type
-    when :image  then ['sendImage', { file: { url: file_url }, caption: caption }]
-    when :audio  then ['sendVoice', { file: { url: file_url } }]
-    when :video  then ['sendVideo', { file: { url: file_url }, caption: caption }]
-    else              ['sendFile',  { file: { url: file_url }, caption: caption }]
+    when :image  then ['sendImage', { file: remote_file, caption: caption }]
+    when :audio  then ['sendVoice', { file: remote_file }]
+    when :video  then ['sendVideo', { file: remote_file, caption: caption }]
+    else              ['sendFile',  { file: remote_file, caption: caption }]
     end
+  end
+
+  def attachment_mimetype(attachment)
+    attachment.file.blob&.content_type.presence
+  end
+
+  def attachment_filename(attachment)
+    attachment.file.blob&.filename&.to_s.presence
   end
 
   def base_payload
@@ -88,7 +100,9 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   def attachment_url(attachment)
     return unless attachment.file.attached?
 
-    Rails.application.routes.url_helpers.url_for(attachment.file)
+    # `download_url` returns the pre-signed blob URL directly, without the 301
+    # redirect that WAHA's downloader doesn't follow.
+    attachment.download_url.presence
   rescue StandardError
     nil
   end

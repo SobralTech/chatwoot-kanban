@@ -1,6 +1,5 @@
 class Waha::IncomingMessageService
   IGNORED_CHAT_SUFFIXES = %w[@newsletter status@broadcast].freeze
-  MEDIA_TYPES = %w[image document audio ptt video sticker].freeze
   SENT_FROM_WHATSAPP_LABEL = 'Enviado pelo WhatsApp'.freeze
   EDITED_LABEL = '✏️ Editada'.freeze
 
@@ -118,7 +117,7 @@ class Waha::IncomingMessageService
       additional_attributes: build_additional_attributes
     )
 
-    attach_media if media_message?
+    Waha::MediaAttacher.new(channel: channel, payload: payload, message: @message).attach
     @message.save!
   end
 
@@ -187,39 +186,6 @@ class Waha::IncomingMessageService
     return body unless edited_original && body
 
     "#{body} [#{EDITED_LABEL}]"
-  end
-
-  def media_message?
-    MEDIA_TYPES.include?(payload['type']) && payload['hasMedia']
-  end
-
-  def attach_media
-    media_url = payload['mediaUrl']
-    return if media_url.blank?
-
-    begin
-      file = Down.download(media_url, headers: { 'Authorization' => "Bearer #{channel.api_key}" })
-      @message.attachments.build(
-        account_id: @message.account_id,
-        file_type: map_file_type(payload['type']),
-        file: {
-          io: file,
-          filename: file.original_filename,
-          content_type: file.content_type
-        }
-      )
-    rescue StandardError => e
-      Rails.logger.error "[WAHA] Media download failed for #{source_id}: #{e.message}"
-    end
-  end
-
-  def map_file_type(type)
-    case type
-    when 'image', 'sticker' then :image
-    when 'audio', 'ptt' then :audio
-    when 'video' then :video
-    else :file
-    end
   end
 
   def build_content_attributes
