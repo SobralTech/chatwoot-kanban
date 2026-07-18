@@ -87,12 +87,12 @@ class Waha::IncomingMessageService
     ).perform
   end
 
+  # WAHA has no UI toggle for `lock_to_single_conversation`, so we hardcode the
+  # single-conversation behavior here: always reuse the contact's last
+  # conversation (Message#reopen_conversation reopens it if resolved) instead
+  # of spawning a new one.
   def set_conversation
-    @conversation = if inbox.lock_to_single_conversation
-                      @contact_inbox.conversations.last
-                    else
-                      @contact_inbox.conversations.where.not(status: :resolved).last
-                    end
+    @conversation = @contact_inbox.conversations.last
 
     return if @conversation
 
