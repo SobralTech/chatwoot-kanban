@@ -22,6 +22,7 @@ const apiKey = ref('');
 const sessionName = ref('');
 const phoneNumber = ref('');
 const groupsEnabled = ref(false);
+const signingEnabled = ref(false);
 const autoReconnect = ref(true);
 const autoReadReceipts = ref(true);
 
@@ -84,6 +85,7 @@ async function createChannel() {
         api_key: apiKey.value,
         session_name: sessionName.value,
         groups_enabled: groupsEnabled.value,
+        signing_enabled: signingEnabled.value,
         auto_reconnect: autoReconnect.value,
         auto_read_receipts: autoReadReceipts.value,
       },
@@ -214,6 +216,10 @@ onUnmounted(() => {
         <label class="flex items-center gap-2 cursor-pointer">
           <input v-model="groupsEnabled" type="checkbox" class="checkbox" />
           {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.GROUPS_ENABLED.LABEL') }}
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input v-model="signingEnabled" type="checkbox" class="checkbox" />
+          {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.SIGNING_ENABLED.LABEL') }}
         </label>
         <label class="flex items-center gap-2 cursor-pointer">
           <input v-model="autoReconnect" type="checkbox" class="checkbox" />

@@ -156,6 +156,7 @@ if resource.waha?
     json.session_name resource.channel.session_name
     json.phone_number resource.channel.phone_number
     json.groups_enabled resource.channel.groups_enabled
+    json.signing_enabled resource.channel.signing_enabled
     json.auto_reconnect resource.channel.auto_reconnect
     json.auto_read_receipts resource.channel.auto_read_receipts
   end

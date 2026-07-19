@@ -27,7 +27,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def send_text
-    http_client.post('sendText', base_payload.merge(text: message.content.to_s))
+    http_client.post('sendText', base_payload.merge(text: signer.sign(message.content.to_s)))
   end
 
   def send_attachment
@@ -43,7 +43,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   # the document name on WhatsApp. Passing them explicitly avoids the "422 file
   # invalid" the server returns for a bare `{ url: ... }`.
   def attachment_endpoint_and_body(file_type, attachment, file_url)
-    caption = message.content.to_s.presence
+    caption = signer.sign(message.content.to_s.presence)
     remote_file = { url: file_url, mimetype: attachment_mimetype(attachment), filename: attachment_filename(attachment) }.compact
     case file_type
     when :image  then ['sendImage', { file: remote_file, caption: caption }]
@@ -109,6 +109,10 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
 
   def http_client
     @http_client ||= Waha::HttpClient.new(channel: channel)
+  end
+
+  def signer
+    @signer ||= Waha::MessageSigner.new(message: message)
   end
 
   def inbox

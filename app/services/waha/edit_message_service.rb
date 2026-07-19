@@ -7,7 +7,7 @@ class Waha::EditMessageService
   # webhook drives the local strike-through + new message.
   def perform
     stash_editor
-    response = http_client.request(:put, edit_path, { text: content })
+    response = http_client.request(:put, edit_path, { text: Waha::MessageSigner.new(message: message).sign(content) })
     return if response.success?
 
     raise "WAHA edit failed (#{response.code}): #{response.body}"
