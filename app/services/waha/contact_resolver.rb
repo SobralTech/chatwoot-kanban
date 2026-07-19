@@ -55,7 +55,10 @@ class Waha::ContactResolver
 
   def dm_contact_attributes(resolved_jid)
     phone = phone_from_jid(resolved_jid)
-    name = push_name.presence || (phone ? "+#{phone}" : resolved_jid)
+    # push_name only names the contact on incoming messages. On a fromMe message
+    # PushName is our own profile name, so we fall back to the phone number and
+    # let a later incoming message fill in the real name.
+    name = (incoming? && push_name.presence) || (phone ? "+#{phone}" : resolved_jid)
     attrs = { name: name, additional_attributes: {} }
     attrs[:phone_number] = "+#{phone}" if phone
     attrs[:avatar_url] = fetch_chat_picture(jid)
