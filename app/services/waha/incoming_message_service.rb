@@ -83,7 +83,8 @@ class Waha::IncomingMessageService
       jid: chat_id,
       push_name: push_name,
       from_me: payload['fromMe'],
-      sender_alt: payload.dig('_data', 'Info', 'SenderAlt')
+      sender_alt: payload.dig('_data', 'Info', 'SenderAlt'),
+      recipient_alt: payload.dig('_data', 'Info', 'RecipientAlt')
     ).perform
   end
 

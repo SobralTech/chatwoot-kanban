@@ -1,7 +1,7 @@
 class Waha::ContactResolver
   LID_ATTRIBUTE_KEY = 'whatsapp_lid'.freeze
 
-  pattr_initialize [:channel!, :jid!, :push_name, :from_me, :sender_alt]
+  pattr_initialize [:channel!, :jid!, :push_name, :from_me, :sender_alt, :recipient_alt]
 
   # Returns a ContactInbox for the given JID, creating contact if needed.
   def perform
@@ -35,8 +35,10 @@ class Waha::ContactResolver
   def resolve_lid_to_cus
     # Fast path: an incoming message carries the contact's real number in
     # SenderAlt (e.g. "558894397552:23@s.whatsapp.net"). For fromMe messages
-    # SenderAlt is our own number, so we only trust it when incoming.
+    # SenderAlt is our own number; the contact (the recipient) sits in
+    # RecipientAlt instead, so we read that mirror field when we sent it.
     return swhatsapp_to_cus(sender_alt) if incoming? && sender_alt.to_s.end_with?('@s.whatsapp.net')
+    return swhatsapp_to_cus(recipient_alt) if from_me && recipient_alt.to_s.end_with?('@s.whatsapp.net')
 
     # Fallback: ask WAHA to map the lid to a phone number (@c.us).
     response = http_client.get("#{channel.session_name}/lids/#{jid}")
