@@ -296,6 +296,7 @@ Rails.application.routes.draw do
             post :register_webhook, on: :member
             post :reset_secret, on: :member
             get :waha_session_status, on: :member
+            post :waha_reconnect, on: :member
             if ChatwootApp.enterprise?
               resource :conference, only: %i[create destroy], controller: 'conference' do
                 get :token, on: :member

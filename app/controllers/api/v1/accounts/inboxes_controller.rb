@@ -92,8 +92,17 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
 
     render json: {
       status: status_data&.dig('status'),
-      qr_code: qr
+      qr_code: qr,
+      phone_number: @inbox.channel.phone_number,
+      status_history: @inbox.channel.status_history
     }
+  end
+
+  def waha_reconnect
+    return head :not_found unless @inbox.waha?
+
+    Waha::SessionService.new(channel: @inbox.channel).reconnect
+    head :ok
   end
 
   def destroy

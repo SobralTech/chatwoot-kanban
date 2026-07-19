@@ -155,7 +155,43 @@ class Webhooks::WahaEventsJob < ApplicationJob
     status = payload&.dig('status')
     return if status.blank?
 
+    return if status == 'WORKING' && block_number_mismatch?(channel)
+
     channel.update_session_status(status)
+    register_connected_number(channel) if status == 'WORKING'
+  end
+
+  # On the first successful connection we adopt the real number reported by WAHA
+  # (overriding the free-typed value entered at creation) and lock it as the
+  # canonical reference for future reconnections.
+  def register_connected_number(channel)
+    return if channel.connected_number_locked?
+
+    number = connected_number(channel)
+    return if number.blank?
+
+    channel.update!(phone_number: number, connected_number_locked: true)
+  end
+
+  # Once a number is locked, a reconnection with a different number is refused:
+  # we log out immediately, keep phone_number intact and record a synthetic event
+  # the frontend surfaces as a blocked mismatch.
+  def block_number_mismatch?(channel)
+    return false unless channel.connected_number_locked?
+
+    number = connected_number(channel)
+    return false if number.blank? || number == channel.phone_number
+
+    Waha::SessionService.new(channel: channel).logout
+    channel.log_status_event('NUMBER_MISMATCH_BLOCKED')
+    true
+  end
+
+  # WAHA returns the connected account under me.id (e.g. "5562...@c.us"); we
+  # compare/store it as digits only.
+  def connected_number(channel)
+    session_info = Waha::SessionService.new(channel: channel).status
+    session_info&.dig('me', 'id').to_s.gsub(/\D/, '').presence
   end
 
   def find_message_by_source_id(channel, source_id)

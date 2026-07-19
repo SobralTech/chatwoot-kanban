@@ -477,6 +477,9 @@
         "GROUPS_ENABLED": {
           "LABEL": "Aceitar mensagens de grupos"
         },
+        "SIGNING_ENABLED": {
+          "LABEL": "Assinar mensagens"
+        },
         "AUTO_RECONNECT": {
           "LABEL": "Reconectar automaticamente quando a sessão cair"
         },
@@ -694,6 +697,7 @@
     },
     "TABS": {
       "SETTINGS": "Configurações",
+      "CONNECTION": "Conexão",
       "COLLABORATORS": "Agentes",
       "CONFIGURATION": "Configuração",
       "CAMPAIGN": "Campanhas",
@@ -704,6 +708,50 @@
       "ACCOUNT_HEALTH": "Saúde da conta",
       "CSAT": "CSAT",
       "VOICE": "Voz"
+    },
+    "WAHA_CONNECTION": {
+      "STATUS_TITLE": "Status da conexão",
+      "PHONE_NUMBER_LABEL": "Número conectado",
+      "RECONNECT_BUTTON": "Reconectar",
+      "LOG_TITLE": "Log de conexão",
+      "LOG_EMPTY": "Nenhum evento de conexão ainda.",
+      "EVENTS": {
+        "WORKING": "Celular conectado",
+        "FAILED": "Conexão perdida",
+        "STOPPED": "Sessão parada",
+        "STARTING": "Iniciando sessão",
+        "SCAN_QR_CODE": "Aguardando leitura do QR code",
+        "NUMBER_MISMATCH_BLOCKED": "Conexão bloqueada: número diferente do registrado"
+      },
+      "MODAL": {
+        "TITLE": "Reconectar WhatsApp",
+        "WAITING": "Preparando QR code",
+        "QR_LABEL": "Escaneie com o WhatsApp",
+        "QR_HINT": "Abra o WhatsApp no seu celular → Dispositivos conectados → Conectar um dispositivo",
+        "SUCCESS": "Celular conectado com sucesso.",
+        "NUMBER_MISMATCH": "Número diferente do que estava conectado. Escaneie com o número original.",
+        "CLOSE_BUTTON": "Fechar"
+      }
+    },
+    "WAHA_API_SETTINGS": {
+      "TITLE": "Configurações da API",
+      "SUBTITLE": "Configure como esta caixa de entrada do WhatsApp trata as mensagens.",
+      "GROUPS_ENABLED": {
+        "LABEL": "Aceitar mensagens de grupos",
+        "HELP": "Quando desligado, novas mensagens de grupos são ignoradas."
+      },
+      "SIGNING_ENABLED": {
+        "LABEL": "Assinar mensagens",
+        "HELP": "Mensagens enviadas pelo Chatwoot aparecem no WhatsApp com o nome do agente."
+      },
+      "AUTO_RECONNECT": {
+        "LABEL": "Reconexão automática",
+        "HELP": "Reinicia a sessão automaticamente quando a conexão cai."
+      },
+      "AUTO_READ_RECEIPTS": {
+        "LABEL": "Confirmação de leitura automática",
+        "HELP": "Marca mensagens recebidas como lidas automaticamente."
+      }
     },
     "VOICE_CONFIGURATION": {
       "ENABLE_VOICE": {

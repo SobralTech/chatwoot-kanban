@@ -27,6 +27,7 @@ import CustomerSatisfactionPage from './settingsPage/CustomerSatisfactionPage.vu
 import CollaboratorsPage from './settingsPage/CollaboratorsPage.vue';
 import BotConfiguration from './components/BotConfiguration.vue';
 import AccountHealth from './components/AccountHealth.vue';
+import WahaConnection from './components/WahaConnection.vue';
 import { FEATURE_FLAGS } from '../../../../featureFlags';
 import SenderNameExamplePreview from './components/SenderNameExamplePreview.vue';
 import LockToSingleConversationPreview from './components/LockToSingleConversationPreview.vue';
@@ -74,6 +75,7 @@ export default {
     ColorPicker,
     SelectInput,
     AccountHealth,
+    WahaConnection,
     Widget,
     AccessToken,
   },
@@ -110,6 +112,10 @@ export default {
       widgetBubblePosition: 'right',
       widgetBubbleType: 'standard',
       widgetBubbleLauncherTitle: '',
+      wahaGroupsEnabled: false,
+      wahaSigningEnabled: false,
+      wahaAutoReconnect: true,
+      wahaAutoReadReceipts: true,
     };
   },
   computed: {
@@ -167,6 +173,20 @@ export default {
           key: 'inbox-settings',
           name: this.$t('INBOX_MGMT.TABS.SETTINGS'),
         },
+      ];
+
+      if (this.isAWahaChannel) {
+        visibleToAllChannelTabs = [
+          ...visibleToAllChannelTabs,
+          {
+            key: 'connection',
+            name: this.$t('INBOX_MGMT.TABS.CONNECTION'),
+          },
+        ];
+      }
+
+      visibleToAllChannelTabs = [
+        ...visibleToAllChannelTabs,
         {
           key: 'collaborators',
           name: this.$t('INBOX_MGMT.TABS.COLLABORATORS'),
@@ -482,6 +502,12 @@ export default {
         ? this.inbox.help_center.slug
         : '';
 
+      const wahaConfig = this.inbox.channel_config || {};
+      this.wahaGroupsEnabled = wahaConfig.groups_enabled || false;
+      this.wahaSigningEnabled = wahaConfig.signing_enabled || false;
+      this.wahaAutoReconnect = wahaConfig.auto_reconnect ?? true;
+      this.wahaAutoReadReceipts = wahaConfig.auto_read_receipts ?? true;
+
       const savedBubbleSettings = LocalStorage.get(
         this.widgetBuilderStorageKey
       );
@@ -606,6 +632,12 @@ export default {
               this.isInboundEmailEnabled && this.continuityViaEmail,
           },
         };
+        if (this.isAWahaChannel) {
+          payload.channel.groups_enabled = this.wahaGroupsEnabled;
+          payload.channel.signing_enabled = this.wahaSigningEnabled;
+          payload.channel.auto_reconnect = this.wahaAutoReconnect;
+          payload.channel.auto_read_receipts = this.wahaAutoReadReceipts;
+        }
         if (this.avatarFile) {
           payload.avatar = this.avatarFile;
         }
@@ -1221,6 +1253,49 @@ export default {
               />
             </SettingsAccordion>
 
+            <SettingsAccordion
+              v-if="isAWahaChannel"
+              :title="$t('INBOX_MGMT.WAHA_API_SETTINGS.TITLE')"
+              class="mt-6"
+            >
+              <SettingsToggleSection
+                v-model="wahaGroupsEnabled"
+                :header="
+                  $t('INBOX_MGMT.WAHA_API_SETTINGS.GROUPS_ENABLED.LABEL')
+                "
+                :description="
+                  $t('INBOX_MGMT.WAHA_API_SETTINGS.GROUPS_ENABLED.HELP')
+                "
+              />
+              <SettingsToggleSection
+                v-model="wahaSigningEnabled"
+                :header="
+                  $t('INBOX_MGMT.WAHA_API_SETTINGS.SIGNING_ENABLED.LABEL')
+                "
+                :description="
+                  $t('INBOX_MGMT.WAHA_API_SETTINGS.SIGNING_ENABLED.HELP')
+                "
+              />
+              <SettingsToggleSection
+                v-model="wahaAutoReconnect"
+                :header="
+                  $t('INBOX_MGMT.WAHA_API_SETTINGS.AUTO_RECONNECT.LABEL')
+                "
+                :description="
+                  $t('INBOX_MGMT.WAHA_API_SETTINGS.AUTO_RECONNECT.HELP')
+                "
+              />
+              <SettingsToggleSection
+                v-model="wahaAutoReadReceipts"
+                :header="
+                  $t('INBOX_MGMT.WAHA_API_SETTINGS.AUTO_READ_RECEIPTS.LABEL')
+                "
+                :description="
+                  $t('INBOX_MGMT.WAHA_API_SETTINGS.AUTO_READ_RECEIPTS.HELP')
+                "
+              />
+            </SettingsAccordion>
+
             <div class="w-full flex justify-end items-center py-4 mt-2">
               <NextButton
                 v-if="isAPIInbox"
@@ -1265,6 +1340,9 @@ export default {
           </div>
         </div>
 
+        <div v-if="selectedTabKey === 'connection'" class="mx-6 max-w-4xl">
+          <WahaConnection :inbox="inbox" />
+        </div>
         <div v-if="selectedTabKey === 'collaborators'" class="mx-6 max-w-4xl">
           <CollaboratorsPage :inbox="inbox" />
         </div>

@@ -45,6 +45,20 @@ class Waha::SessionService
     Rails.logger.error "[WAHA] Failed to delete session #{channel.session_name}: #{e.message}"
   end
 
+  def logout
+    http_client.request(:post, "sessions/#{channel.session_name}/logout")
+  rescue StandardError => e
+    Rails.logger.error "[WAHA] Failed to logout session #{channel.session_name}: #{e.message}"
+  end
+
+  # Forces a fresh QR by always logging out and restarting the session, so the QR
+  # appears in any prior state — including a "WORKING" session whose phone was
+  # unlinked on the device. logout/create are idempotent, so a double click is safe.
+  def reconnect
+    logout
+    start
+  end
+
   private
 
   # Creates the WAHA session with our webhook configured. WAHA's /start endpoint

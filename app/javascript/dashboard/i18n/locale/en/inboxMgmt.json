@@ -466,6 +466,9 @@
         "GROUPS_ENABLED": {
           "LABEL": "Accept group messages"
         },
+        "SIGNING_ENABLED": {
+          "LABEL": "Sign messages"
+        },
         "AUTO_RECONNECT": {
           "LABEL": "Auto-reconnect when session drops"
         },
@@ -695,6 +698,7 @@
     },
     "TABS": {
       "SETTINGS": "Settings",
+      "CONNECTION": "Connection",
       "COLLABORATORS": "Collaborators",
       "CONFIGURATION": "Configuration",
       "CAMPAIGN": "Campaigns",
@@ -706,6 +710,50 @@
       "CSAT": "CSAT",
       "VOICE": "Voice",
       "CALLS": "Calls"
+    },
+    "WAHA_CONNECTION": {
+      "STATUS_TITLE": "Connection status",
+      "PHONE_NUMBER_LABEL": "Connected number",
+      "RECONNECT_BUTTON": "Reconnect",
+      "LOG_TITLE": "Connection log",
+      "LOG_EMPTY": "No connection events yet.",
+      "EVENTS": {
+        "WORKING": "Phone connected",
+        "FAILED": "Connection lost",
+        "STOPPED": "Session stopped",
+        "STARTING": "Starting session",
+        "SCAN_QR_CODE": "Waiting for QR code scan",
+        "NUMBER_MISMATCH_BLOCKED": "Connection blocked: number differs from the registered one"
+      },
+      "MODAL": {
+        "TITLE": "Reconnect WhatsApp",
+        "WAITING": "Preparing QR code",
+        "QR_LABEL": "Scan with WhatsApp",
+        "QR_HINT": "Open WhatsApp on your phone → Linked devices → Link a device",
+        "SUCCESS": "Phone connected successfully.",
+        "NUMBER_MISMATCH": "Different number from the one that was connected. Scan with the original number.",
+        "CLOSE_BUTTON": "Close"
+      }
+    },
+    "WAHA_API_SETTINGS": {
+      "TITLE": "API settings",
+      "SUBTITLE": "Configure how this WhatsApp inbox handles messages.",
+      "GROUPS_ENABLED": {
+        "LABEL": "Accept group messages",
+        "HELP": "When off, new group messages are ignored."
+      },
+      "SIGNING_ENABLED": {
+        "LABEL": "Sign messages",
+        "HELP": "Messages sent from Chatwoot appear on WhatsApp with the agent's name."
+      },
+      "AUTO_RECONNECT": {
+        "LABEL": "Auto-reconnect",
+        "HELP": "Automatically restart the session when the connection drops."
+      },
+      "AUTO_READ_RECEIPTS": {
+        "LABEL": "Auto read receipts",
+        "HELP": "Automatically mark incoming messages as read."
+      }
     },
     "VOICE_CONFIGURATION": {
       "ENABLE_VOICE": {

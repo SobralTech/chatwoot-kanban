@@ -2,20 +2,22 @@
 #
 # Table name: channel_waha
 #
-#  id                 :bigint           not null, primary key
-#  api_key            :string           not null
-#  auto_read_receipts :boolean          default(TRUE), not null
-#  auto_reconnect     :boolean          default(TRUE), not null
-#  groups_enabled     :boolean          default(FALSE), not null
-#  phone_number       :string
-#  session_name       :string           not null
-#  session_status     :string
-#  status_history     :jsonb
-#  waha_url           :string           not null
-#  webhook_token      :string           not null
-#  created_at         :datetime         not null
-#  updated_at         :datetime         not null
-#  account_id         :integer          not null
+#  id                      :bigint           not null, primary key
+#  api_key                 :string           not null
+#  auto_read_receipts      :boolean          default(TRUE), not null
+#  auto_reconnect          :boolean          default(TRUE), not null
+#  connected_number_locked :boolean          default(FALSE), not null
+#  groups_enabled          :boolean          default(FALSE), not null
+#  phone_number            :string
+#  session_name            :string           not null
+#  session_status          :string
+#  signing_enabled         :boolean          default(FALSE), not null
+#  status_history          :jsonb
+#  waha_url                :string           not null
+#  webhook_token           :string           not null
+#  created_at              :datetime         not null
+#  updated_at              :datetime         not null
+#  account_id              :integer          not null
 #
 # Indexes
 #
@@ -27,7 +29,7 @@ class Channel::Waha < ApplicationRecord
 
   self.table_name = 'channel_waha'
   EDITABLE_ATTRS = [:phone_number, :waha_url, :api_key, :session_name,
-                    :groups_enabled, :auto_reconnect, :auto_read_receipts].freeze
+                    :groups_enabled, :auto_reconnect, :auto_read_receipts, :signing_enabled].freeze
 
   before_validation :sanitize_session_name
   before_create :generate_webhook_token
@@ -44,14 +46,25 @@ class Channel::Waha < ApplicationRecord
   end
 
   def update_session_status(status)
-    history_entry = { status: status, timestamp: Time.current.iso8601 }
-    new_history = (status_history + [history_entry]).last(20)
     # rubocop:disable Rails/SkipsModelValidations
-    update_columns(session_status: status, status_history: new_history)
+    update_columns(session_status: status, status_history: appended_history(status))
+    # rubocop:enable Rails/SkipsModelValidations
+  end
+
+  # Records an event in the connection log without touching session_status — used
+  # for synthetic events (e.g. a blocked number mismatch) that aren't real WAHA
+  # session states.
+  def log_status_event(status)
+    # rubocop:disable Rails/SkipsModelValidations
+    update_columns(status_history: appended_history(status))
     # rubocop:enable Rails/SkipsModelValidations
   end
 
   private
+
+  def appended_history(status)
+    (status_history + [{ status: status, timestamp: Time.current.iso8601 }]).last(100)
+  end
 
   def sanitize_session_name
     return if session_name.blank?
