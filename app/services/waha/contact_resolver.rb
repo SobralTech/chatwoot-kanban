@@ -89,9 +89,11 @@ class Waha::ContactResolver
     }
   end
 
+  # WEBJS/NOWEB engines return the group name under `subject`; the GOWS engine
+  # returns the raw Go struct with a PascalCase `Name` field instead.
   def fetch_group_name(group_jid)
     response = http_client.get("#{channel.session_name}/groups/#{group_jid}")
-    response&.dig('subject')
+    response&.dig('subject').presence || response&.dig('Name').presence
   rescue StandardError
     nil
   end
