@@ -17,6 +17,9 @@ permissions:
 jobs:
   deployment_check:
     name: Check Deployment
+    # Review Apps (chatwoot-pr-*.herokuapp.com) only exist on the official repository.
+    # Keep the workflow for upstream sync, but skip outside chatwoot/chatwoot.
+    if: github.repository == 'chatwoot/chatwoot'
     runs-on: ubuntu-latest
     steps:
       - name: Install jq

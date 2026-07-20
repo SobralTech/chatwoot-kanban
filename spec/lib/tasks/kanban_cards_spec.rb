@@ -158,7 +158,13 @@ RSpec.describe KanbanCardsBackfill do
       expect(card.updated_at.to_i).to eq(state.updated_at.to_i)
     end
 
+    expect_migrated_card_stage_entered_at(card, state)
     expect_migrated_card_defaults(card)
+  end
+
+  def expect_migrated_card_stage_entered_at(card, state)
+    expected_stage_entered_at = state.updated_at || state.created_at
+    expect(card.stage_entered_at.to_i).to eq(expected_stage_entered_at.to_i)
   end
 
   def expect_migrated_card_defaults(card)
@@ -166,6 +172,7 @@ RSpec.describe KanbanCardsBackfill do
       expect(card.origin).to eq('conversation')
       expect(card.subject).to be_nil
       expect(card.normalized_subject).to be_nil
+      expect(card.stage_entered_at).to be_present
       expect(card).to be_active
     end
   end

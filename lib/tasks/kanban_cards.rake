@@ -154,7 +154,11 @@ class KanbanCardsParityAudit
       'position' => 'kc.position IS DISTINCT FROM cks.position',
       'active' => 'kc.active IS DISTINCT FROM TRUE',
       'origin' => "kc.origin IS DISTINCT FROM 'conversation'",
-      'normalized_subject' => 'kc.normalized_subject IS DISTINCT FROM NULL'
+      # Match KanbanCard#normalize_subject: trim, collapse whitespace, downcase.
+      'normalized_subject' => <<~SQL.squish
+        kc.normalized_subject IS DISTINCT FROM
+        NULLIF(LOWER(BTRIM(REGEXP_REPLACE(COALESCE(kc.subject, ''), '[[:space:]]+', ' ', 'g'))), '')
+      SQL
     }
   end
 
@@ -338,11 +342,7 @@ class KanbanCardsBackfill
       INNER JOIN kanban_boards kb ON kb.id = cks.kanban_board_id
       INNER JOIN kanban_stages ks ON ks.id = cks.kanban_stage_id
       WHERE cks.id IN (#{quoted_ids(ids)})
-        AND c.contact_id IS NOT NULL
-        AND c.inbox_id IS NOT NULL
-        AND kb.account_id = c.account_id
-        AND ks.account_id = c.account_id
-        AND ks.kanban_board_id = cks.kanban_board_id
+        AND #{insert_eligibility_sql}
       ON CONFLICT DO NOTHING
       RETURNING id
     SQL
@@ -351,14 +351,32 @@ class KanbanCardsBackfill
   def insert_columns
     <<~SQL.squish
       account_id, kanban_board_id, kanban_stage_id, contact_id, inbox_id, conversation_id,
-      subject, normalized_subject, origin, position, active, created_at, updated_at
+      subject, normalized_subject, origin, position, active, stage_entered_at, created_at, updated_at
     SQL
   end
 
   def insert_select_values
     <<~SQL.squish
       c.account_id, cks.kanban_board_id, cks.kanban_stage_id, c.contact_id, c.inbox_id, c.id,
-      NULL, NULL, 'conversation', cks.position, TRUE, cks.created_at, cks.updated_at
+      NULL, NULL, 'conversation', cks.position, TRUE, COALESCE(cks.updated_at, cks.created_at, CURRENT_TIMESTAMP),
+      cks.created_at, cks.updated_at
+    SQL
+  end
+
+  def insert_eligibility_sql
+    <<~SQL.squish
+      c.contact_id IS NOT NULL
+        AND c.inbox_id IS NOT NULL
+        AND kb.account_id = c.account_id
+        AND ks.account_id = c.account_id
+        AND ks.kanban_board_id = cks.kanban_board_id
+        AND NOT EXISTS (
+          SELECT 1
+          FROM kanban_cards kc
+          WHERE kc.kanban_board_id = cks.kanban_board_id
+            AND kc.conversation_id = c.id
+            AND kc.origin = 'conversation'
+        )
     SQL
   end
 

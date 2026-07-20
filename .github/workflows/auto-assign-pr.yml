@@ -6,6 +6,9 @@ on:
 
 jobs:
   auto-assign:
+    # Cosmetic assignee only; GITHUB_TOKEN on pull_request from forks has no write access.
+    # Keep the workflow for upstream sync, but skip outside the official repository.
+    if: github.repository == 'chatwoot/chatwoot'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write

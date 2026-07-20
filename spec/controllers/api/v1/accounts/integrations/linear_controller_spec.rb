@@ -15,6 +15,7 @@ RSpec.describe 'Linear Integration API', type: :request do
   def restrict_conversation_from_agent(conversation)
     authorized_agent = create(:user, account: account, role: :agent)
     create(:inbox_member, inbox: conversation.inbox, user: authorized_agent)
+    conversation.update!(access_mode: :selected_agents)
     create(:conversation_access_user, account: account, conversation: conversation, user: authorized_agent)
   end
 

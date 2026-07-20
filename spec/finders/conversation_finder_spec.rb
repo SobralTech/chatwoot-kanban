@@ -219,18 +219,17 @@ describe ConversationFinder do
     context 'with unattended' do
       let(:params) { { status: 'open', assignee_type: 'me', conversation_type: 'unattended' } }
 
-      it 'returns conversations with unread incoming messages' do
-        read_conversation = create(:conversation, account: account, inbox: inbox, assignee: user_1, agent_last_seen_at: Time.now.utc)
-        create(:message, conversation: read_conversation, message_type: 'incoming', created_at: 1.day.ago)
-
-        unread_conversation = create(:conversation, account: account, inbox: inbox, assignee: user_1, agent_last_seen_at: 1.day.ago)
-        create(:message, conversation: unread_conversation, message_type: 'incoming', created_at: Time.now.utc)
-
-        never_seen_conversation = create(:conversation, account: account, inbox: inbox, assignee: user_1, agent_last_seen_at: nil)
-        create(:message, conversation: never_seen_conversation, message_type: 'incoming')
+      it 'returns unattended conversations' do
+        account.conversations.find_each do |conversation|
+          conversation.update!(first_reply_created_at: Time.current, waiting_since: nil)
+        end
+        create(:conversation, account: account, inbox: inbox, first_reply_created_at: Time.current, assignee: user_1).update!(waiting_since: nil)
+        no_first_reply = create(:conversation, account: account, inbox: inbox, first_reply_created_at: nil, assignee: user_1)
+        no_first_reply.update!(waiting_since: nil)
+        waiting = create(:conversation, account: account, inbox: inbox, first_reply_created_at: Time.current, assignee: user_1)
 
         result = conversation_finder.perform
-        expect(result[:conversations]).to contain_exactly(unread_conversation, never_seen_conversation)
+        expect(result[:conversations]).to contain_exactly(no_first_reply, waiting)
       end
     end
 

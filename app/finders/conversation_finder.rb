@@ -166,7 +166,7 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
         current_user.participating_conversations.where(account_id: current_account.id), current_user, current_account
       ).perform
     when 'unattended'
-      @conversations = @conversations.with_unread_messages
+      @conversations = @conversations.unattended
     when 'email'
       @conversations = @conversations.joins(:inbox).where(inboxes: { channel_type: 'Channel::Email' })
     end
@@ -228,11 +228,11 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
     )
   end
 
-  # Some upstream filters (e.g. unattended -> with_unread_messages) use a plain
-  # SELECT DISTINCT, which Postgres forbids combining with an ORDER BY on a
-  # joined column (conversation_pins.pinned_at) that isn't in the select list.
-  # Collapsing to an id subquery gives pinned_first a clean relation to order,
-  # but it forces a full table scan, so only pay for it when DISTINCT is present.
+  # Some filters may use a plain SELECT DISTINCT, which Postgres forbids
+  # combining with an ORDER BY on a joined column (conversation_pins.pinned_at)
+  # that isn't in the select list. Collapsing to an id subquery gives
+  # pinned_first a clean relation to order, but it forces a full table scan,
+  # so only pay for it when DISTINCT is present.
   def drop_distinct_for_ordering
     return unless @conversations.distinct_value
 
