@@ -4,9 +4,10 @@ describe NotificationListener do
   let!(:account) { create(:account) }
   let!(:user) { create(:user, account: account) }
   let!(:first_agent) { create(:user, account: account) }
-  let!(:agent_with_out_notification) { create(:user, account: account) }
   let!(:inbox) { create(:inbox, account: account) }
   let!(:conversation) { create(:conversation, account: account, inbox: inbox, assignee: user) }
+
+  before { create(:user, account: account) }
 
   describe 'conversation_created' do
     let(:event_name) { :'conversation.created' }
