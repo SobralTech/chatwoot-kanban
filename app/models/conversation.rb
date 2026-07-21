@@ -64,8 +64,8 @@ class Conversation < ApplicationRecord
   include ConversationNotificationMuteHelpers
 
   # Set by the WAHA history importer so a backdated conversation skips the live
-  # creation side effects (automation, notifications, outgoing webhooks, kanban)
-  # and only pushes an ActionCable update to the UI.
+  # creation side effects (automation, notifications, outgoing webhooks, kanban,
+  # broadcast) — the import is fully silent.
   attr_accessor :imported
 
   validates :account_id, presence: true
@@ -293,19 +293,11 @@ class Conversation < ApplicationRecord
   end
 
   def notify_conversation_creation
-    return broadcast_imported_creation if imported
+    # Imported conversations are fully silent: no automation/notification/webhook/
+    # kanban/broadcast. They surface when the inbox is opened/refreshed.
+    return if imported
 
     dispatcher_dispatch(CONVERSATION_CREATED)
-  end
-
-  # Imported conversations skip the dispatcher (no automation/notification/webhook/
-  # kanban) and push the same ActionCable payload the UI already renders, so the
-  # conversation appears live in the list while the history import runs.
-  def broadcast_imported_creation
-    tokens = (inbox.members.pluck(:pubsub_token) + account.administrators.pluck(:pubsub_token)).uniq
-    return if tokens.blank?
-
-    ::ActionCableBroadcastJob.perform_later(tokens, CONVERSATION_CREATED, push_event_data.merge(account_id: account_id))
   end
 
   def notify_conversation_deletion

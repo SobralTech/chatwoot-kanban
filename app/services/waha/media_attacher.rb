@@ -16,7 +16,11 @@ class Waha::MediaAttacher
   def attach
     return unless media?
 
-    file = Down.download(media_url, headers: { 'X-Api-Key' => channel.api_key })
+    file = Down.download(
+      media_url,
+      headers: { 'X-Api-Key' => channel.api_key },
+      open_timeout: 10, read_timeout: 60
+    )
     message.attachments.build(
       account_id: message.account_id,
       file_type: map_file_type(media_kind),

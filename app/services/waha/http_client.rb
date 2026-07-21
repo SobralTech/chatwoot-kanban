@@ -1,4 +1,8 @@
 class Waha::HttpClient
+  # Ceiling so a slow/hanging WAHA call (e.g. a history page with downloadMedia)
+  # raises instead of blocking a worker forever.
+  DEFAULT_TIMEOUT = 90
+
   pattr_initialize [:channel!]
 
   def get(path)
@@ -10,7 +14,7 @@ class Waha::HttpClient
   end
 
   def request(method, path, body = nil)
-    options = { headers: headers }
+    options = { headers: headers, timeout: DEFAULT_TIMEOUT }
     options[:body] = body.to_json if body
     HTTParty.send(method, url(path), options)
   end

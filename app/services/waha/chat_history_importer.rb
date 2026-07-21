@@ -1,5 +1,7 @@
 class Waha::ChatHistoryImporter
-  PAGE_SIZE = 100
+  # Small page keeps each downloadMedia request light (fewer media downloaded per
+  # call), so a media-heavy chat responds instead of timing out.
+  PAGE_SIZE = 25
 
   pattr_initialize [:channel!, :chat_id!, :window!]
 
@@ -8,31 +10,35 @@ class Waha::ChatHistoryImporter
   # silently (backdated + read). Returns the number of messages written.
   # Best-effort: only what WhatsApp synced to the device is available.
   def run
-    first_page = fetch_page(0)
-    return 0 if first_page.blank?
-
-    @conversation = resolve_conversation(first_page)
-    return 0 unless @conversation
-
-    @existing_stanzas = load_existing_stanzas
-    imported = import_from(first_page)
+    imported = import_messages
     finalize_conversation if imported.positive?
     imported
   end
 
   private
 
-  def import_from(first_page)
+  # Cursor-based pagination by timestamp (not offset, which some WAHA engines
+  # ignore — an ignored offset would re-fetch the same page forever). Each page
+  # advances the lower bound to its last message's timestamp; the guard stops if
+  # it can't advance.
+  def import_messages
     imported = 0
-    page = first_page
-    offset = 0
+    cursor = window_unix('window_start')
     loop do
+      page = fetch_page(cursor)
+      break if page.blank?
+
+      @conversation ||= resolve_conversation(page)
+      return imported unless @conversation
+
+      @existing_stanzas ||= load_existing_stanzas
       imported += write_page(page)
       break if page.size < PAGE_SIZE
 
-      offset += PAGE_SIZE
-      page = fetch_page(offset)
-      break if page.blank?
+      next_cursor = page.last['timestamp'].to_i
+      break if next_cursor <= cursor
+
+      cursor = next_cursor
     end
     imported
   end
@@ -111,11 +117,11 @@ class Waha::ChatHistoryImporter
     # rubocop:enable Rails/SkipsModelValidations
   end
 
-  def fetch_page(offset)
+  def fetch_page(cursor)
     query = {
-      'limit' => PAGE_SIZE, 'offset' => offset,
+      'limit' => PAGE_SIZE,
       'sortBy' => 'timestamp', 'sortOrder' => 'asc', 'downloadMedia' => true,
-      'filter.timestamp.gte' => window_unix('window_start'),
+      'filter.timestamp.gte' => cursor,
       'filter.timestamp.lte' => window_unix('window_end')
     }.map { |key, value| "#{key}=#{value}" }.join('&')
 
