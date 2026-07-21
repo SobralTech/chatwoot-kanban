@@ -35,6 +35,7 @@ import Avatar from 'next/avatar/Avatar.vue';
 import TextBubble from './bubbles/Text/Index.vue';
 import ActivityBubble from './bubbles/Activity.vue';
 import ImageBubble from './bubbles/Image.vue';
+import StickerBubble from './bubbles/Sticker.vue';
 import FileBubble from './bubbles/File.vue';
 import AudioBubble from './bubbles/Audio.vue';
 import VideoBubble from './bubbles/Video.vue';
@@ -356,6 +357,10 @@ const componentToRender = computed(() => {
 
   if (Array.isArray(props.attachments) && props.attachments.length === 1) {
     const fileType = props.attachments[0].fileType;
+
+    // Stickers are stored as image attachments but flagged via content_type so
+    // they render in the compact, background-less sticker bubble.
+    if (props.contentType === CONTENT_TYPES.STICKER) return StickerBubble;
 
     if (!props.content) {
       if (fileType === ATTACHMENT_TYPES.IMAGE) return ImageBubble;

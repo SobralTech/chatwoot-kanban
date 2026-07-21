@@ -13,6 +13,9 @@ import { MESSAGE_VARIANTS, ORIENTATION } from '../constants';
 
 const props = defineProps({
   hideMeta: { type: Boolean, default: false },
+  // Render without the variant background/rounding (used for stickers, which
+  // are transparent and should float without a colored bubble behind them).
+  bare: { type: Boolean, default: false },
 });
 
 const { variant, orientation, inReplyTo, shouldGroupWithNext, isOwnMessage } =
@@ -64,6 +67,8 @@ const flexOrientationClass = computed(() => {
 });
 
 const messageClass = computed(() => {
+  if (props.bare) return [];
+
   const classToApply = [
     variant.value === MESSAGE_VARIANTS.AGENT && !isOwnMessage.value
       ? otherAgentBubbleClass

@@ -26,6 +26,10 @@ class Waha::MediaAttacher
         content_type: file.content_type
       }
     )
+    # Stickers are stored as image attachments (for gallery/download reuse) but
+    # flagged via content_type so the UI can render them with the compact,
+    # background-less sticker bubble instead of a full-size image.
+    message.content_type = :sticker if media_kind == 'sticker'
   rescue StandardError => e
     Rails.logger.error "[WAHA] Media download failed for #{payload['id']}: #{e.message}"
   end
