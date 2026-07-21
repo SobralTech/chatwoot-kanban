@@ -264,6 +264,7 @@ en:
       instagram_shared_post_content: 'Shared post'
       deleted: This message was deleted
       waha_edit_not_allowed: This message can no longer be edited
+      waha_react_not_allowed: This message cannot be reacted to
       whatsapp:
         list_button_label: 'Choose an item'
         call_permission_request_body: 'We would like to call you regarding your conversation.'
@@ -317,6 +318,14 @@ en:
       whatsapp_call:
         permission_requested: 'Sent a call permission request to %{contact_name}.'
         permission_granted: '%{contact_name} accepted the call permission request.'
+      waha_reaction:
+        reacted: '%{author} reacted with %{emoji} to: "%{quote}"'
+        you: 'You'
+        media:
+          photo: '📷 Photo'
+          video: '🎥 Video'
+          audio: '🎵 Audio'
+          document: '📄 Document'
       csat:
         not_sent_due_to_messaging_window: 'CSAT survey not sent due to outgoing message restrictions'
       auto_resolve:

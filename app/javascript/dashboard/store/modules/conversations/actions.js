@@ -396,6 +396,13 @@ const actions = {
     await MessageApi.editWahaMessage(conversationId, messageId, content);
   },
 
+  // WAHA reaction: the chip on the bubble and the activity arrive over the
+  // socket via the message.reaction webhook, so nothing is committed here —
+  // we just push the reaction (or its removal, empty emoji) to WhatsApp.
+  reactWahaMessage: async (_store, { conversationId, messageId, emoji }) => {
+    await MessageApi.reactWahaMessage(conversationId, messageId, emoji);
+  },
+
   deleteConversation: async ({ commit, dispatch }, conversationId) => {
     try {
       await ConversationApi.delete(conversationId);

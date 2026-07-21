@@ -51,9 +51,14 @@ const props = defineProps({
 const emit = defineEmits(['retry']);
 
 const allMessages = computed(() => {
+  // reactions is keyed by reactor JID (e.g. "5511...@c.us"); camelizing would
+  // mangle those keys, so the map is kept raw.
   return useCamelCase(props.messages, {
     deep: true,
-    stopPaths: ['content_attributes.translations'],
+    stopPaths: [
+      'content_attributes.translations',
+      'content_attributes.reactions',
+    ],
   });
 });
 

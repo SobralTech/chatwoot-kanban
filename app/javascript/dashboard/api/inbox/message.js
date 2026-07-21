@@ -135,6 +135,13 @@ class MessageApi extends ApiClient {
     );
   }
 
+  reactWahaMessage(conversationId, messageId, emoji) {
+    return axios.post(
+      `${this.url}/${conversationId}/messages/${messageId}/waha_react`,
+      { emoji }
+    );
+  }
+
   translateMessage(conversationId, messageId, targetLanguage) {
     return axios.post(
       `${this.url}/${conversationId}/messages/${messageId}/translate`,

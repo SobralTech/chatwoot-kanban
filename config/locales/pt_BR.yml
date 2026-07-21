@@ -242,6 +242,7 @@ pt_BR:
       instagram_shared_post_content: 'Post compartilhado'
       deleted: Esta mensagem foi excluída
       waha_edit_not_allowed: Esta mensagem não pode mais ser editada
+      waha_react_not_allowed: Não é possível reagir a esta mensagem
       whatsapp:
         list_button_label: 'Escolha um item'
         call_permission_request_body: 'Gostaríamos de ligar para você em relação à sua conversa.'
@@ -295,6 +296,14 @@ pt_BR:
       whatsapp_call:
         permission_requested: 'Solicitação de permissão de chamada enviada para %{contact_name}.'
         permission_granted: '%{contact_name} aceitou a solicitação de permissão de chamada.'
+      waha_reaction:
+        reacted: '%{author} reagiu com %{emoji} a: "%{quote}"'
+        you: 'Você'
+        media:
+          photo: '📷 Foto'
+          video: '🎥 Vídeo'
+          audio: '🎵 Áudio'
+          document: '📄 Documento'
       csat:
         not_sent_due_to_messaging_window: 'Pesquisa CSAT não foi enviada devido a restrições de envio de mensagens'
       auto_resolve:

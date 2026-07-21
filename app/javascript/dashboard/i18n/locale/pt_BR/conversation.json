@@ -338,6 +338,10 @@
         "CANCEL": "Cancelar",
         "SUCCESS": "Mensagem editada",
         "ERROR": "Não foi possível editar a mensagem"
+      },
+      "WAHA_REACT": {
+        "PICKER": "Mais emojis",
+        "ERROR": "Não foi possível enviar a reação"
       }
     },
     "SIDEBAR": {

@@ -14,6 +14,10 @@ import {
 import MenuItem from '../../../components/widgets/conversation/contextMenu/menuItem.vue';
 import { useTrack } from 'dashboard/composables';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import EmojiInput from 'shared/components/emoji/EmojiInput.vue';
+
+// WhatsApp's default quick-reaction row.
+const QUICK_REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 export default {
   components: {
@@ -21,6 +25,7 @@ export default {
     MenuItem,
     ContextMenu,
     NextButton,
+    EmojiInput,
   },
   props: {
     message: {
@@ -60,6 +65,9 @@ export default {
       editContent: '',
       isEditing: false,
       isDeleting: false,
+      isReacting: false,
+      showEmojiPicker: false,
+      quickReactionEmojis: QUICK_REACTION_EMOJIS,
     };
   },
   computed: {
@@ -88,6 +96,11 @@ export default {
     // Strip the trailing "[✏️ Editada]" marker so the agent edits the clean text.
     editableContent() {
       return (this.messageContent || '').replace(/\s*\[✏️ Editada\]\s*$/u, '');
+    },
+    // The business number's current reaction ("me" slot): highlighted in the
+    // quick row; clicking it again removes, clicking another emoji replaces.
+    ownReaction() {
+      return this.contentAttributes.reactions?.me?.emoji;
     },
   },
   methods: {
@@ -123,6 +136,7 @@ export default {
       this.$emit('open', e);
     },
     handleClose(e) {
+      this.showEmojiPicker = false;
       this.$emit('close', e);
     },
     handleTranslate() {
@@ -172,6 +186,30 @@ export default {
     },
     closeEditModal() {
       this.showEditModal = false;
+    },
+    toggleEmojiPicker() {
+      this.showEmojiPicker = !this.showEmojiPicker;
+    },
+    // Clicking the currently active emoji removes the reaction (empty emoji);
+    // clicking any other one replaces it — WhatsApp keeps a single reaction
+    // slot per message for the business number. The bubble chip only updates
+    // when the message.reaction webhook round-trips back (no optimistic UI).
+    async handleReact(emoji) {
+      if (this.isReacting) return;
+      this.isReacting = true;
+      try {
+        await this.$store.dispatch('reactWahaMessage', {
+          conversationId: this.conversationId,
+          messageId: this.messageId,
+          emoji: this.ownReaction === emoji ? '' : emoji,
+        });
+        this.showEmojiPicker = false;
+        this.handleClose();
+      } catch (error) {
+        useAlert(this.$t('CONVERSATION.CONTEXT_MENU.WAHA_REACT.ERROR'));
+      } finally {
+        this.isReacting = false;
+      }
     },
     async confirmEdit() {
       const content = this.editContent.trim();
@@ -273,6 +311,38 @@ export default {
       @close="handleClose"
     >
       <div class="menu-container">
+        <div
+          v-if="enabledOptions['wahaReact']"
+          class="flex items-center gap-0.5 p-1"
+        >
+          <button
+            v-for="emoji in quickReactionEmojis"
+            :key="emoji"
+            class="flex items-center justify-center w-8 h-8 text-lg rounded-full hover:bg-n-alpha-2"
+            :class="{
+              'bg-n-brand/20 ring-1 ring-n-brand': ownReaction === emoji,
+            }"
+            :disabled="isReacting"
+            @click.stop="handleReact(emoji)"
+          >
+            {{ emoji }}
+          </button>
+          <NextButton
+            v-tooltip.top="$t('CONVERSATION.CONTEXT_MENU.WAHA_REACT.PICKER')"
+            ghost
+            slate
+            sm
+            icon="i-lucide-plus"
+            @click.stop="toggleEmojiPicker"
+          />
+        </div>
+        <div
+          v-if="enabledOptions['wahaReact'] && showEmojiPicker"
+          class="relative"
+        >
+          <EmojiInput :on-click="handleReact" />
+        </div>
+        <hr v-if="enabledOptions['wahaReact']" />
         <MenuItem
           v-if="enabledOptions['replyTo']"
           :option="{

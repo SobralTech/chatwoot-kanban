@@ -50,6 +50,7 @@ import FormBubble from './bubbles/Form.vue';
 import VoiceCallBubble from './bubbles/VoiceCall.vue';
 
 import MessageError from './MessageError.vue';
+import MessageReactions from './MessageReactions.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
 import { useBranding } from 'shared/composables/useBranding';
 
@@ -144,7 +145,7 @@ const props = defineProps({
   sender: { type: Object, default: null },
   senderId: { type: Number, default: null },
   senderType: { type: String, default: null },
-  sourceId: { type: String, default: '' }, // eslint-disable-line vue/no-unused-properties
+  sourceId: { type: String, default: '' },
   conversationSearchQuery: { type: String, default: '' }, // eslint-disable-line vue/no-unused-properties
   activeConversationSearchResultId: { type: Number, default: null },
 });
@@ -390,6 +391,16 @@ const isSuperseded = computed(() => {
   return !!props.additionalAttributes?.superseded;
 });
 
+// WhatsApp reactions on this message, keyed by reactor. Chips never show on
+// deleted messages (WhatsApp drops reactions on revoke) nor on struck-through
+// edit-family members (reactions migrate to the current version).
+const messageReactions = computed(() => props.contentAttributes?.reactions);
+const shouldShowReactions = computed(() => {
+  if (isMessageDeleted.value || isSuperseded.value) return false;
+
+  return Object.keys(messageReactions.value || {}).length > 0;
+});
+
 const isActiveSearchResult = computed(() => {
   return Number(props.activeConversationSearchResultId) === Number(props.id);
 });
@@ -444,6 +455,14 @@ const contextMenuEnabledOptions = computed(() => {
       !isMessageDeleted.value &&
       !isSuperseded.value &&
       withinWahaEditWindow.value,
+    // WhatsApp allows reacting to any non-deleted message, incoming or
+    // outgoing, with no time window.
+    wahaReact:
+      isWahaInbox.value &&
+      !props.private &&
+      !!props.sourceId &&
+      !isFailedOrProcessing &&
+      !isMessageDeleted.value,
   };
 });
 
@@ -677,6 +696,19 @@ provideMessageContext({
       >
         <Component :is="componentToRender" />
       </div>
+      <MessageReactions
+        v-if="shouldShowReactions"
+        class="[grid-area:meta] relative z-10 -mt-2"
+        :class="[
+          flexOrientationClass,
+          orientation === ORIENTATION.RIGHT
+            ? 'ltr:pr-2 rtl:pl-2'
+            : 'ltr:pl-2 rtl:pr-2',
+        ]"
+        :reactions="messageReactions"
+        :message-id="id"
+        :conversation-id="conversationId"
+      />
       <MessageError
         v-if="contentAttributes.externalError"
         class="[grid-area:meta]"

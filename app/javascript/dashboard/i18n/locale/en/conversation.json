@@ -343,6 +343,10 @@
         "CANCEL": "Cancel",
         "SUCCESS": "Message edited",
         "ERROR": "Could not edit the message"
+      },
+      "WAHA_REACT": {
+        "PICKER": "More emojis",
+        "ERROR": "Could not send the reaction"
       }
     },
     "SIDEBAR": {

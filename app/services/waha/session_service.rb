@@ -1,7 +1,7 @@
 class Waha::SessionService
   pattr_initialize [:channel!]
 
-  WEBHOOK_EVENTS = %w[message.any message.ack message.edited message.revoked session.status].freeze
+  WEBHOOK_EVENTS = %w[message.any message.ack message.edited message.revoked message.reaction session.status].freeze
 
   def start
     create_session

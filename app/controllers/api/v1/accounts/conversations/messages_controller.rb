@@ -41,6 +41,8 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
       message.update!(content: I18n.t('conversations.messages.deleted'), content_type: :text, content_attributes: { deleted: true })
       message.attachments.destroy_all
     end
+  rescue ActiveRecord::RecordNotFound
+    raise
   rescue StandardError => e
     render_could_not_create_error(e.message)
   end
@@ -60,6 +62,15 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     return render_could_not_create_error(I18n.t('conversations.messages.waha_edit_not_allowed')) unless waha_editable?
 
     Waha::EditMessageService.new(message: message, content: permitted_params[:content]).perform
+    head :ok
+  rescue StandardError => e
+    render_could_not_create_error(e.message)
+  end
+
+  def waha_react
+    return render_could_not_create_error(I18n.t('conversations.messages.waha_react_not_allowed')) unless waha_reactable?
+
+    Waha::ReactionService.new(message: message, emoji: permitted_params[:emoji].to_s).perform
     head :ok
   rescue StandardError => e
     render_could_not_create_error(e.message)
@@ -102,6 +113,16 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
       edit_anchor.created_at > WAHA_EDIT_WINDOW.ago
   end
 
+  # WhatsApp allows reacting to any message (ours or the contact's), with no
+  # time window; only revoked messages, private notes and activities are out.
+  def waha_reactable?
+    @conversation.inbox.waha? &&
+      !message.activity? &&
+      !message.private? &&
+      message.source_id.present? &&
+      !message.content_attributes['deleted']
+  end
+
   # The 15-minute window is measured from the original message, not from the
   # latest edit mirror, so we resolve to the family anchor before checking.
   def edit_anchor
@@ -133,7 +154,7 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   end
 
   def permitted_params
-    params.permit(:id, :target_language, :status, :external_error, :content)
+    params.permit(:id, :target_language, :status, :external_error, :content, :emoji)
   end
 
   def already_translated_content_available?

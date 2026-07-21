@@ -30,6 +30,7 @@ class Waha::IncomingMessageService
       set_conversation unless @conversation
       create_message
       clear_pending_editor
+      clear_migrated_reactions
     end
   end
 
@@ -203,6 +204,28 @@ class Waha::IncomingMessageService
     attrs
   end
 
+  # Reactions follow "the message" as the user sees it: on every edit they
+  # migrate from the previous family head (now struck through, found via the
+  # family anchor since the reactions may sit on any earlier mirror) to the new
+  # mirror, so the chips never duplicate on screen.
+  def previous_reactions_holder
+    return @previous_reactions_holder if defined?(@previous_reactions_holder)
+    return @previous_reactions_holder = nil unless edited_original
+
+    anchor_source_id = edited_original.additional_attributes['edit_of'].presence || edited_original.source_id
+    family = inbox.messages.where(source_id: anchor_source_id)
+                  .or(inbox.messages.where("additional_attributes->>'edit_of' = ?", anchor_source_id))
+    @previous_reactions_holder = family.find { |member| member.content_attributes['reactions'].present? }
+  end
+
+  def clear_migrated_reactions
+    return unless previous_reactions_holder
+
+    previous_reactions_holder.update!(
+      content_attributes: previous_reactions_holder.content_attributes.except('reactions')
+    )
+  end
+
   # An edit mirror quotes the version it replaces (the struck-through previous
   # head), regardless of what the original itself was replying to — the reply
   # context stays visible on the family's original bubble.
@@ -212,6 +235,7 @@ class Waha::IncomingMessageService
     attrs.delete(:in_reply_to_snapshot)
     attrs[:in_reply_to] = Waha::ReplyContextResolver.family_head(inbox, edited_original).id
     attrs[:in_reply_to_external_id] = edited_original.source_id
+    attrs[:reactions] = previous_reactions_holder.content_attributes['reactions'] if previous_reactions_holder
   end
 
   def inbox

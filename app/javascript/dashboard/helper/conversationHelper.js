@@ -63,10 +63,22 @@ export const getLastMessage = m => {
     return lastMessageIncludingActivity;
   }
 
-  return getLastNonActivityMessage(
+  const lastNonActivityMessage = getLastNonActivityMessage(
     lastNonActivityMessageInStore,
     lastNonActivityMessageFromAPI
   );
+
+  // A WhatsApp reaction activity wins the preview while it's the newest event
+  // in the conversation ('Pedro reagiu com ❤️ a: "..."'); any later regular
+  // message naturally takes over again.
+  if (
+    lastMessageIncludingActivity?.content_attributes?.waha_reaction &&
+    lastMessageIncludingActivity.created_at >= lastNonActivityMessage.created_at
+  ) {
+    return lastMessageIncludingActivity;
+  }
+
+  return lastNonActivityMessage;
 };
 
 /**

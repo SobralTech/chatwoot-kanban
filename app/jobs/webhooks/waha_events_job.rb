@@ -29,6 +29,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
       handle_message_edited(channel, params['payload'])
     when 'message.revoked'
       handle_message_revoked(channel, params['payload'])
+    when 'message.reaction'
+      handle_message_reaction(channel, params, ack_retries)
     when 'session.status'
       handle_session_status(channel, params['payload'])
     end
@@ -108,10 +110,7 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # strike through the whole prior family — the original plus any earlier edit
   # mirrors — leaving only the newest version un-struck as the current one.
   def supersede_edit_family(channel, original)
-    messages = channel.inbox.messages
-    family = messages.where(source_id: original.source_id)
-                     .or(messages.where("additional_attributes->>'edit_of' = ?", original.source_id))
-    family.find_each { |message| mark_superseded(message) }
+    edit_family(channel, original.source_id).find_each { |message| mark_superseded(message) }
   end
 
   def mark_superseded(message)
@@ -132,10 +131,41 @@ class Webhooks::WahaEventsJob < ApplicationJob
     return unless revoked
 
     anchor_source_id = revoked.additional_attributes['edit_of'].presence || revoked.source_id
+    edit_family(channel, anchor_source_id).find_each { |message| soft_delete_message(message) }
+  end
+
+  # The whole edit family of a message: the anchor (the single real WhatsApp
+  # message) plus every edit mirror pointing at it.
+  def edit_family(channel, anchor_source_id)
     messages = channel.inbox.messages
-    family = messages.where(source_id: anchor_source_id)
-                     .or(messages.where("additional_attributes->>'edit_of' = ?", anchor_source_id))
-    family.find_each { |message| soft_delete_message(message) }
+    messages.where(source_id: anchor_source_id)
+            .or(messages.where("additional_attributes->>'edit_of' = ?", anchor_source_id))
+  end
+
+  # Applies a WhatsApp reaction to the mirrored message. Reactions sent from
+  # Chatwoot (fromMe + source: 'api') are processed too: like edits, the UI is
+  # rebuilt from the returning webhook instead of being applied locally.
+  def handle_message_reaction(channel, params, retries)
+    payload = params['payload']
+    target = find_message_by_source_id(channel, payload&.dig('reaction', 'messageId'))
+
+    if target.nil?
+      # The mirror may still be being created (same race as acks) — retry, then
+      # drop silently (reaction to a message older than the inbox).
+      return if retries >= ACK_MAX_RETRIES
+
+      self.class.set(wait: ACK_RETRY_DELAY).perform_later(channel.id, params, retries + 1)
+      return
+    end
+
+    Waha::ReactionApplier.new(channel: channel, target_message: current_family_member(channel, target), payload: payload).perform
+  end
+
+  # Reactions are displayed on the current (un-struck) member of the edit family,
+  # not necessarily on the anchor the webhook points at.
+  def current_family_member(channel, message)
+    anchor_source_id = message.additional_attributes['edit_of'].presence || message.source_id
+    edit_family(channel, anchor_source_id).find { |member| !member.additional_attributes['superseded'] } || message
   end
 
   def soft_delete_message(message)
