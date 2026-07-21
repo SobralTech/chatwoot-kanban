@@ -34,9 +34,63 @@ module ActionCableListenerKanbanEvents
   end
 end
 
+module ActionCableListenerTypingEvents
+  include Events::Types
+
+  def conversation_typing_on(event)
+    conversation = event.data[:conversation]
+    account = conversation.account
+    user = event.data[:user]
+    tokens = typing_event_listener_tokens(account, conversation, user)
+
+    broadcast(
+      account,
+      tokens,
+      CONVERSATION_TYPING_ON,
+      {
+        conversation: conversation.push_event_data,
+        user: user.push_event_data,
+        is_private: event.data[:is_private] || false
+      }
+    )
+  end
+
+  def conversation_typing_off(event)
+    conversation = event.data[:conversation]
+    account = conversation.account
+    user = event.data[:user]
+    tokens = typing_event_listener_tokens(account, conversation, user)
+
+    broadcast(
+      account,
+      tokens,
+      CONVERSATION_TYPING_OFF,
+      {
+        conversation: conversation.push_event_data,
+        user: user.push_event_data,
+        is_private: event.data[:is_private] || false
+      }
+    )
+  end
+
+  private
+
+  def typing_event_listener_tokens(account, conversation, user)
+    current_user_token = if user.is_a?(Contact)
+                           conversation.contact_inbox.pubsub_token
+                         elsif user.respond_to?(:pubsub_token)
+                           user.pubsub_token
+                         end
+
+    tokens = authorized_user_tokens(account, conversation) + [conversation.contact_inbox.pubsub_token]
+    current_user_token.present? ? tokens - [current_user_token] : tokens
+  end
+end
+
 class ActionCableListener < BaseListener
   include Events::Types
   include ActionCableListenerKanbanEvents
+  include ActionCableListenerTypingEvents
 
   def notification_created(event)
     notification, account, unread_count, count = extract_notification_and_account(event)
@@ -137,42 +191,6 @@ class ActionCableListener < BaseListener
     broadcast(account, tokens, CONVERSATION_UNREAD_COUNT_CHANGED, {})
   end
 
-  def conversation_typing_on(event)
-    conversation = event.data[:conversation]
-    account = conversation.account
-    user = event.data[:user]
-    tokens = typing_event_listener_tokens(account, conversation, user)
-
-    broadcast(
-      account,
-      tokens,
-      CONVERSATION_TYPING_ON,
-      {
-        conversation: conversation.push_event_data,
-        user: user.push_event_data,
-        is_private: event.data[:is_private] || false
-      }
-    )
-  end
-
-  def conversation_typing_off(event)
-    conversation = event.data[:conversation]
-    account = conversation.account
-    user = event.data[:user]
-    tokens = typing_event_listener_tokens(account, conversation, user)
-
-    broadcast(
-      account,
-      tokens,
-      CONVERSATION_TYPING_OFF,
-      {
-        conversation: conversation.push_event_data,
-        user: user.push_event_data,
-        is_private: event.data[:is_private] || false
-      }
-    )
-  end
-
   def assignee_changed(event)
     conversation, account = extract_conversation_and_account(event)
     tokens = authorized_user_tokens(account, conversation)
@@ -233,17 +251,6 @@ class ActionCableListener < BaseListener
   end
 
   private
-
-  def typing_event_listener_tokens(account, conversation, user)
-    current_user_token = if user.is_a?(Contact)
-                           conversation.contact_inbox.pubsub_token
-                         elsif user.respond_to?(:pubsub_token)
-                           user.pubsub_token
-                         end
-
-    tokens = authorized_user_tokens(account, conversation) + [conversation.contact_inbox.pubsub_token]
-    current_user_token.present? ? tokens - [current_user_token] : tokens
-  end
 
   def user_tokens(account, agents)
     agent_tokens = agents.pluck(:pubsub_token)
