@@ -3,12 +3,14 @@ require 'rails_helper'
 RSpec.describe NotificationFinder do
   let!(:account) { create(:account) }
   let!(:user) { create(:user, account: account) }
+  let!(:conversation) { create(:conversation, account: account) }
   let(:notification_finder) { described_class.new(user, account, params) }
 
   before do
-    create(:notification, :snoozed, account: account, user: user)
-    create_list(:notification, 2, :read, account: account, user: user)
-    create_list(:notification, 3, account: account, user: user)
+    create(:inbox_member, inbox: conversation.inbox, user: user)
+    create(:notification, :snoozed, account: account, user: user, primary_actor: conversation)
+    create_list(:notification, 2, :read, account: account, user: user, primary_actor: conversation)
+    create_list(:notification, 3, account: account, user: user, primary_actor: conversation)
   end
 
   describe '#notifications' do
@@ -20,6 +22,12 @@ RSpec.describe NotificationFinder do
       it 'returns all unread and unsnoozed notifications, ordered by last activity' do
         expect(subject.size).to eq(3)
         expect(subject).to match_array(subject.sort_by(&:last_activity_at).reverse)
+      end
+
+      it 'excludes notifications for conversations the user cannot access' do
+        hidden_notification = create(:notification, account: account, user: user)
+
+        expect(subject).not_to include(hidden_notification)
       end
     end
 

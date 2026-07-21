@@ -187,6 +187,7 @@ RSpec.describe 'Canned Responses API', type: :request do
     it 'does not send response to a restricted conversation without access' do
       authorized_agent = create(:user, account: account, role: :agent)
       create(:inbox_member, inbox: inbox, user: authorized_agent)
+      conversation.update!(access_mode: :selected_agents)
       create(:conversation_access_user, account: account, conversation: conversation, user: authorized_agent)
 
       post "/api/v1/accounts/#{account.id}/canned_responses/#{canned_response.id}/send_response",

@@ -35,6 +35,7 @@ RSpec.describe '/api/v1/accounts/:account_id/conversations/:conversation_id/dire
         create(:inbox_member, inbox: conversation.inbox, user: agent)
         authorized_agent = create(:user, account: account, role: :agent)
         create(:inbox_member, inbox: conversation.inbox, user: authorized_agent)
+        conversation.update!(access_mode: :selected_agents)
         create(:conversation_access_user, account: account, conversation: conversation, user: authorized_agent)
 
         post api_v1_account_conversation_direct_uploads_path(account_id: account.id, conversation_id: conversation.display_id),
