@@ -1,4 +1,4 @@
-class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController # rubocop:disable Metrics/ClassLength
   include Api::V1::InboxesHelper
 
   # WAHA session states from which we should (re)create/start the session.
@@ -94,7 +94,8 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
       status: status_data&.dig('status'),
       qr_code: qr,
       phone_number: @inbox.channel.phone_number,
-      status_history: @inbox.channel.status_history
+      status_history: @inbox.channel.status_history,
+      import_state: @inbox.channel.import_state
     }
   end
 
@@ -103,6 +104,13 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
 
     Waha::SessionService.new(channel: @inbox.channel).reconnect
     head :ok
+  end
+
+  # Resumes a failed history import from where it stopped (see Channel::Waha).
+  def waha_import_retry
+    return head :not_found unless @inbox.waha?
+
+    @inbox.channel.retry_failed_import! ? head(:ok) : head(:unprocessable_entity)
   end
 
   def destroy

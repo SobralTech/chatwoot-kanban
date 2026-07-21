@@ -20,6 +20,7 @@ const sessionStatus = ref('');
 const phoneNumber = ref('');
 const statusHistory = ref([]);
 const qrCode = ref('');
+const importState = ref({});
 
 const showModal = ref(false);
 const modalOpenedAt = ref(0);
@@ -36,6 +37,10 @@ const statusUrl = computed(
 const reconnectUrl = computed(
   () =>
     `/api/v1/accounts/${accountId.value}/inboxes/${props.inbox.id}/waha_reconnect`
+);
+const importRetryUrl = computed(
+  () =>
+    `/api/v1/accounts/${accountId.value}/inboxes/${props.inbox.id}/waha_import_retry`
 );
 
 const isConnected = computed(() => sessionStatus.value === 'WORKING');
@@ -58,6 +63,32 @@ const statusColorClass = computed(() => {
 // Most recent event first.
 const sortedLog = computed(() => [...statusHistory.value].reverse());
 
+// --- History import progress (shares the 5s status poll) ---
+const importStatus = computed(() => importState.value.status);
+const showImportProgress = computed(() =>
+  ['pending', 'running', 'failed', 'done'].includes(importStatus.value)
+);
+const importTotal = computed(() => importState.value.total_chats || 0);
+const importProcessed = computed(() => importState.value.processed_chats || 0);
+const importMessages = computed(() => importState.value.imported_messages || 0);
+// While no chats are counted yet the bar is indeterminate ("discovering…").
+const isImportIndeterminate = computed(
+  () => importStatus.value === 'pending' || importTotal.value === 0
+);
+const importPercent = computed(() =>
+  isImportIndeterminate.value
+    ? 0
+    : Math.min(
+        100,
+        Math.round((importProcessed.value / importTotal.value) * 100)
+      )
+);
+const importRunningLabel = computed(() =>
+  importState.value.kind === 'gap_fill'
+    ? t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.GAP_FILL_RUNNING')
+    : t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.RUNNING')
+);
+
 function eventLabel(status) {
   const key = `INBOX_MGMT.WAHA_CONNECTION.EVENTS.${status}`;
   const translated = t(key);
@@ -78,8 +109,18 @@ async function fetchStatus() {
     phoneNumber.value = data.phone_number || '';
     statusHistory.value = data.status_history || [];
     qrCode.value = data.qr_code || '';
+    importState.value = data.import_state || {};
   } catch {
     // silently ignore poll errors
+  }
+}
+
+async function retryImport() {
+  try {
+    await axios.post(importRetryUrl.value);
+    await fetchStatus();
+  } catch {
+    // ignore — the status poll will surface the resulting state
   }
 }
 
@@ -168,6 +209,78 @@ onUnmounted(() => {
           sm
           :label="$t('INBOX_MGMT.WAHA_CONNECTION.RECONNECT_BUTTON')"
           @click="openReconnectModal"
+        />
+      </div>
+    </div>
+
+    <!-- History import progress (below the connection status, per spec) -->
+    <div
+      v-if="showImportProgress"
+      class="flex flex-col gap-2 p-4 rounded-xl outline outline-1 -outline-offset-1 outline-n-weak"
+    >
+      <template v-if="importStatus === 'running' || importStatus === 'pending'">
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-body-main text-n-slate-12">
+            {{
+              isImportIndeterminate
+                ? $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.DISCOVERING')
+                : importRunningLabel
+            }}
+          </span>
+          <span
+            v-if="!isImportIndeterminate"
+            class="text-body-main text-n-slate-11 tabular-nums"
+          >
+            {{
+              $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.PROGRESS', {
+                processed: importProcessed,
+                total: importTotal,
+              })
+            }}
+          </span>
+        </div>
+        <div class="rounded-full overflow-hidden h-2 w-full bg-n-slate-4">
+          <div
+            class="h-2 bg-n-blue-9"
+            :class="{ 'w-full animate-pulse': isImportIndeterminate }"
+            :style="
+              isImportIndeterminate ? null : { width: `${importPercent}%` }
+            "
+          />
+        </div>
+        <span
+          v-if="!isImportIndeterminate"
+          class="text-body-small text-n-slate-11"
+        >
+          {{
+            $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.MESSAGES_IMPORTED', {
+              count: importMessages,
+            })
+          }}
+        </span>
+      </template>
+
+      <span
+        v-else-if="importStatus === 'done'"
+        class="text-body-small text-n-slate-11"
+      >
+        {{
+          $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.DONE', {
+            count: importMessages,
+          })
+        }}
+      </span>
+
+      <div v-else class="flex items-center justify-between gap-3">
+        <span class="text-body-main text-n-ruby-11">
+          {{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.FAILED') }}
+        </span>
+        <NextButton
+          sm
+          faded
+          blue
+          :label="$t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.RETRY_BUTTON')"
+          @click="retryImport"
         />
       </div>
     </div>

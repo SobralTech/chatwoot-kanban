@@ -188,7 +188,31 @@ class Webhooks::WahaEventsJob < ApplicationJob
     return if status == 'WORKING' && block_number_mismatch?(channel)
 
     channel.update_session_status(status)
-    register_connected_number(channel) if status == 'WORKING'
+    return unless status == 'WORKING'
+
+    register_connected_number(channel)
+    trigger_history_import(channel)
+  end
+
+  # On WORKING we either run the opt-in initial import (once, consuming the
+  # setup choice) or an automatic reconnect gap-fill. gap_fill_window returns nil
+  # on the first ever connection (no prior outage), so nothing runs there.
+  def trigger_history_import(channel)
+    months = channel.consume_import_on_connect_months!
+    return start_history_import(channel, channel.initial_import_window(months), 'initial') if months
+
+    window = channel.gap_fill_window
+    start_history_import(channel, window, 'gap_fill') if window
+  end
+
+  # Respects the single-import-per-inbox lock: a window arriving while an import
+  # runs is merged into the queued one instead of starting a parallel job.
+  def start_history_import(channel, window, kind)
+    if channel.import_running?
+      channel.queue_import_window(window)
+    else
+      Waha::HistoryImportJob.perform_later(channel.id, window, kind)
+    end
   end
 
   # On the first successful connection we adopt the real number reported by WAHA

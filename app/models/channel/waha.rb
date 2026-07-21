@@ -2,22 +2,24 @@
 #
 # Table name: channel_waha
 #
-#  id                      :bigint           not null, primary key
-#  api_key                 :string           not null
-#  auto_read_receipts      :boolean          default(TRUE), not null
-#  auto_reconnect          :boolean          default(TRUE), not null
-#  connected_number_locked :boolean          default(FALSE), not null
-#  groups_enabled          :boolean          default(FALSE), not null
-#  phone_number            :string
-#  session_name            :string           not null
-#  session_status          :string
-#  signing_enabled         :boolean          default(FALSE), not null
-#  status_history          :jsonb
-#  waha_url                :string           not null
-#  webhook_token           :string           not null
-#  created_at              :datetime         not null
-#  updated_at              :datetime         not null
-#  account_id              :integer          not null
+#  id                       :bigint           not null, primary key
+#  api_key                  :string           not null
+#  auto_read_receipts       :boolean          default(TRUE), not null
+#  auto_reconnect           :boolean          default(TRUE), not null
+#  connected_number_locked  :boolean          default(FALSE), not null
+#  groups_enabled           :boolean          default(FALSE), not null
+#  import_on_connect_months :integer
+#  import_state             :jsonb            not null
+#  phone_number             :string
+#  session_name             :string           not null
+#  session_status           :string
+#  signing_enabled          :boolean          default(FALSE), not null
+#  status_history           :jsonb
+#  waha_url                 :string           not null
+#  webhook_token            :string           not null
+#  created_at               :datetime         not null
+#  updated_at               :datetime         not null
+#  account_id               :integer          not null
 #
 # Indexes
 #
@@ -29,7 +31,11 @@ class Channel::Waha < ApplicationRecord
 
   self.table_name = 'channel_waha'
   EDITABLE_ATTRS = [:phone_number, :waha_url, :api_key, :session_name,
-                    :groups_enabled, :auto_reconnect, :auto_read_receipts, :signing_enabled].freeze
+                    :groups_enabled, :auto_reconnect, :auto_read_receipts, :signing_enabled,
+                    :import_on_connect_months].freeze
+
+  # Cap on how far back any import window can reach, even after a very long outage.
+  IMPORT_WINDOW_CAP = 6.months
 
   before_validation :sanitize_session_name
   before_create :generate_webhook_token
@@ -60,7 +66,139 @@ class Channel::Waha < ApplicationRecord
     # rubocop:enable Rails/SkipsModelValidations
   end
 
+  # --- Import state (single source of truth for progress + lock) ---
+
+  # `status == "running"` is the logical lock: no new import starts while one runs.
+  def import_running?
+    import_state['status'] == 'running'
+  end
+
+  def import_processed_chat_ids
+    import_state['processed_chat_ids'] || []
+  end
+
+  def import_retries
+    import_state['retries'] || 0
+  end
+
+  # The window currently being imported, as a string-keyed hash — the same shape
+  # jobs pass around and the retry endpoint replays.
+  def import_window
+    { 'window_start' => import_state['window_start'], 'window_end' => import_state['window_end'] }
+  end
+
+  def start_import!(kind:, window:)
+    update_import_state!(
+      'status' => 'running', 'kind' => kind,
+      'window_start' => window['window_start'], 'window_end' => window['window_end'],
+      'total_chats' => 0, 'processed_chats' => 0, 'processed_chat_ids' => [],
+      'imported_messages' => 0, 'started_at' => Time.current.utc.iso8601,
+      'finished_at' => nil, 'error' => nil, 'retries' => 0, 'queued_window' => nil
+    )
+  end
+
+  def set_import_total_chats!(count)
+    update_import_state!('total_chats' => count)
+  end
+
+  def mark_import_chat_processed!(chat_id, imported_count)
+    ids = (import_processed_chat_ids + [chat_id]).uniq
+    update_import_state!(
+      'processed_chat_ids' => ids,
+      'processed_chats' => ids.size,
+      'imported_messages' => (import_state['imported_messages'] || 0) + imported_count
+    )
+  end
+
+  def record_import_retry!
+    update_import_state!('retries' => import_retries + 1)
+  end
+
+  def finish_import!
+    update_import_state!('status' => 'done', 'finished_at' => Time.current.utc.iso8601, 'queued_window' => nil)
+  end
+
+  def fail_import!(message)
+    update_import_state!('status' => 'failed', 'error' => message.to_s.truncate(500))
+  end
+
+  # Resumes a failed import from where it stopped, replaying the same window.
+  # Restores the running lock (not pending) with a fresh retry budget so the
+  # re-enqueued job resumes over the already-processed chats instead of
+  # restarting. Returns false (no-op) unless the import is currently failed.
+  def retry_failed_import!
+    return false unless import_state['status'] == 'failed'
+
+    update_import_state!('status' => 'running', 'error' => nil, 'retries' => 0)
+    Waha::HistoryImportJob.perform_later(id, import_window, import_state['kind'])
+    true
+  end
+
+  # A gap-fill window that arrives while an import is running is stashed as a
+  # single pending window; subsequent windows merge by taking the widest span.
+  def queue_import_window(window)
+    existing = import_state['queued_window']
+    merged = if existing
+               { 'window_start' => [existing['window_start'], window['window_start']].min,
+                 'window_end' => [existing['window_end'], window['window_end']].max }
+             else
+               window
+             end
+    update_import_state!('queued_window' => merged)
+  end
+
+  def update_import_state!(attrs)
+    # rubocop:disable Rails/SkipsModelValidations
+    update_column(:import_state, import_state.merge(attrs.stringify_keys))
+    # rubocop:enable Rails/SkipsModelValidations
+  end
+
+  # --- Import windows ---
+
+  # Consumed once, on the first WORKING connection, to kick off the opt-in import.
+  def consume_import_on_connect_months!
+    months = import_on_connect_months
+    return if months.blank?
+
+    update!(import_on_connect_months: nil)
+    months
+  end
+
+  def initial_import_window(months)
+    { 'window_start' => months.to_i.months.ago.utc.iso8601, 'window_end' => Time.current.utc.iso8601 }
+  end
+
+  # Window for a reconnect gap-fill: from midnight (account timezone) of the day
+  # the session dropped, capped at IMPORT_WINDOW_CAP. Nil on the first connection
+  # (no prior outage to fill).
+  def gap_fill_window
+    disconnect_at = last_outage_started_at
+    return if disconnect_at.blank?
+
+    window_start = [disconnect_at.in_time_zone(import_timezone).beginning_of_day, IMPORT_WINDOW_CAP.ago].max
+    { 'window_start' => window_start.utc.iso8601, 'window_end' => Time.current.utc.iso8601 }
+  end
+
   private
+
+  def import_timezone
+    ActiveSupport::TimeZone[account.reporting_timezone.presence || 'UTC'] || ActiveSupport::TimeZone['UTC']
+  end
+
+  # The first non-WORKING transition after the previous WORKING — i.e. when the
+  # outage that just ended began. Assumes the current WORKING is already logged
+  # (last entry). Nil when there's no earlier WORKING (first ever connection).
+  def last_outage_started_at
+    history = status_history
+    working_indices = history.each_index.select { |i| history[i]['status'] == 'WORKING' }
+    return if working_indices.size < 2
+
+    first_drop = history[working_indices[-2] + 1]
+    # Nil or another WORKING means no real outage between the two connections.
+    return if first_drop.nil? || first_drop['status'] == 'WORKING'
+
+    Time.zone.parse(first_drop['timestamp'])
+  end
 
   def appended_history(status)
     (status_history + [{ status: status, timestamp: Time.current.iso8601 }]).last(100)

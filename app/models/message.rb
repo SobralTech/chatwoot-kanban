@@ -85,6 +85,10 @@ class Message < ApplicationRecord
   attr_accessor :preserve_waiting_since
   # Transient delay (in seconds) before SendReplyJob runs, used to stagger delivery order
   attr_accessor :send_reply_delay
+  # Set by the WAHA history importer: marks a backdated message so its create
+  # commit skips every live side effect (send_reply, automation, webhooks,
+  # notifications) and only pushes an ActionCable update to the UI.
+  attr_accessor :imported
 
   enum message_type: { incoming: 0, outgoing: 1, activity: 2, template: 3 }
   enum content_type: {
@@ -324,6 +328,8 @@ class Message < ApplicationRecord
   end
 
   def execute_after_create_commit_callbacks
+    return broadcast_imported if imported
+
     # rails issue with order of active record callbacks being executed https://github.com/rails/rails/issues/20911
     reopen_conversation
     mark_pending_conversation_as_open_for_human_response
@@ -336,6 +342,17 @@ class Message < ApplicationRecord
 
   def update_contact_activity
     sender.update(last_activity_at: DateTime.now) if sender.is_a?(Contact)
+  end
+
+  # Imported messages skip the dispatcher entirely (no MESSAGE_CREATED event, so
+  # no notifications/automation/outgoing webhooks) and push the same ActionCable
+  # payload the UI already renders, so an open conversation and the list update
+  # live while the history import runs.
+  def broadcast_imported
+    tokens = (conversation.inbox.members.pluck(:pubsub_token) + account.administrators.pluck(:pubsub_token)).uniq
+    return if tokens.blank?
+
+    ::ActionCableBroadcastJob.perform_later(tokens, MESSAGE_CREATED, push_event_data.merge(account_id: account_id))
   end
 
   def update_waiting_since

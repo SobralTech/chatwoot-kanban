@@ -489,6 +489,15 @@
             "FAILED": "Connection failed"
           }
         },
+        "IMPORT": {
+          "TITLE": "Import conversation history?",
+          "DESC": "We can bring your recent WhatsApp conversations into Chatwoot. What's available depends on what your phone has synced to WhatsApp.",
+          "SIX_MONTHS": "Last 6 months",
+          "THREE_MONTHS": "Last 3 months",
+          "IMPORT_BUTTON": "Import",
+          "SKIP_BUTTON": "Don't import",
+          "CANCEL_BUTTON": "Cancel"
+        },
         "SUBMIT_BUTTON": "Create WAHA Inbox",
         "PROCEED_BUTTON": "Continue Setup",
         "CANCEL_BUTTON": "Cancel",
@@ -733,6 +742,16 @@
         "SUCCESS": "Phone connected successfully.",
         "NUMBER_MISMATCH": "Different number from the one that was connected. Scan with the original number.",
         "CLOSE_BUTTON": "Close"
+      },
+      "IMPORT": {
+        "DISCOVERING": "Discovering conversations…",
+        "RUNNING": "Importing conversations…",
+        "GAP_FILL_RUNNING": "Syncing missed messages…",
+        "PROGRESS": "{processed} / {total}",
+        "MESSAGES_IMPORTED": "{count} messages imported",
+        "DONE": "Import complete — {count} messages imported",
+        "FAILED": "Import failed",
+        "RETRY_BUTTON": "Try again"
       }
     },
     "WAHA_API_SETTINGS": {

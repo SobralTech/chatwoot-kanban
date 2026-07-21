@@ -506,8 +506,18 @@
             "FAILED": "Falha na conexão"
           }
         },
+        "IMPORT": {
+          "TITLE": "Importar histórico de conversas?",
+          "DESC": "Podemos trazer suas conversas recentes do WhatsApp para o Chatwoot. O que estará disponível depende do que o seu celular já sincronizou com o WhatsApp.",
+          "SIX_MONTHS": "Últimos 6 meses",
+          "THREE_MONTHS": "Últimos 3 meses",
+          "IMPORT_BUTTON": "Importar",
+          "SKIP_BUTTON": "Não importar",
+          "CANCEL_BUTTON": "Cancelar"
+        },
         "SUBMIT_BUTTON": "Criar caixa de entrada WAHA",
         "PROCEED_BUTTON": "Continuar configuração",
+        "CANCEL_BUTTON": "Cancelar",
         "API": {
           "ERROR_MESSAGE": "Não foi possível criar a caixa de entrada WAHA. Verifique suas configurações."
         }
@@ -731,6 +741,16 @@
         "SUCCESS": "Celular conectado com sucesso.",
         "NUMBER_MISMATCH": "Número diferente do que estava conectado. Escaneie com o número original.",
         "CLOSE_BUTTON": "Fechar"
+      },
+      "IMPORT": {
+        "DISCOVERING": "Descobrindo conversas…",
+        "RUNNING": "Importando conversas…",
+        "GAP_FILL_RUNNING": "Sincronizando mensagens perdidas…",
+        "PROGRESS": "{processed} / {total}",
+        "MESSAGES_IMPORTED": "{count} mensagens importadas",
+        "DONE": "Importação concluída — {count} mensagens importadas",
+        "FAILED": "Falha na importação",
+        "RETRY_BUTTON": "Tentar novamente"
       }
     },
     "WAHA_API_SETTINGS": {

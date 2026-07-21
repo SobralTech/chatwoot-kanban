@@ -32,6 +32,9 @@ const qrCode = ref('');
 let pollInterval = null;
 const isCancelling = ref(false);
 
+const showImportModal = ref(false);
+const importMonths = ref(6);
+
 const uiFlags = computed(() => store.getters['inboxes/getUIFlags']);
 const isConnected = computed(() => sessionStatus.value === 'WORKING');
 
@@ -71,9 +74,16 @@ async function pollSessionStatus() {
   }
 }
 
-async function createChannel() {
+// The submit only opens the import opt-in modal; the inbox is created (and any
+// WAHA API call made) once the user picks an option there.
+function openImportModal() {
   v$.value.$touch();
   if (v$.value.$invalid) return;
+  showImportModal.value = true;
+}
+
+async function createChannel(months) {
+  showImportModal.value = false;
 
   try {
     const inbox = await store.dispatch('inboxes/createChannel', {
@@ -88,6 +98,7 @@ async function createChannel() {
         signing_enabled: signingEnabled.value,
         auto_reconnect: autoReconnect.value,
         auto_read_receipts: autoReadReceipts.value,
+        import_on_connect_months: months,
       },
     });
 
@@ -145,7 +156,7 @@ onUnmounted(() => {
     <form
       v-if="!createdInboxId"
       class="flex flex-col gap-4 mx-0"
-      @submit.prevent="createChannel"
+      @submit.prevent="openImportModal"
     >
       <label :class="{ error: v$.name.$error }">
         {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.NAME.LABEL') }}
@@ -299,5 +310,48 @@ onUnmounted(() => {
         />
       </div>
     </div>
+
+    <!-- Import opt-in: asked before the inbox is created / any WAHA call is made -->
+    <woot-modal
+      v-model:show="showImportModal"
+      :on-close="() => (showImportModal = false)"
+    >
+      <div class="flex flex-col gap-4 p-8">
+        <h3 class="text-heading-2 text-n-slate-12">
+          {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.IMPORT.TITLE') }}
+        </h3>
+        <p class="text-body-main text-n-slate-11">
+          {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.IMPORT.DESC') }}
+        </p>
+        <div class="flex flex-col gap-2">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input v-model="importMonths" type="radio" :value="6" />
+            {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.IMPORT.SIX_MONTHS') }}
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input v-model="importMonths" type="radio" :value="3" />
+            {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.IMPORT.THREE_MONTHS') }}
+          </label>
+        </div>
+        <div class="flex gap-2 justify-end mt-2">
+          <NextButton
+            faded
+            slate
+            :label="$t('INBOX_MGMT.ADD.WAHA_CHANNEL.IMPORT.CANCEL_BUTTON')"
+            @click="showImportModal = false"
+          />
+          <NextButton
+            :label="$t('INBOX_MGMT.ADD.WAHA_CHANNEL.IMPORT.SKIP_BUTTON')"
+            @click="createChannel(null)"
+          />
+          <NextButton
+            solid
+            blue
+            :label="$t('INBOX_MGMT.ADD.WAHA_CHANNEL.IMPORT.IMPORT_BUTTON')"
+            @click="createChannel(importMonths)"
+          />
+        </div>
+      </div>
+    </woot-modal>
   </div>
 </template>
