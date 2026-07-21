@@ -1,19 +1,12 @@
 module ReportHelper
+  include ReportVisibilityHelper
+
   private
 
   def scope
-    case params[:type]
-    when :account
-      account
-    when :inbox
-      inbox
-    when :agent
-      user
-    when :label
-      label
-    when :team
-      team
-    end
+    scope_method = { account: :account, inbox: :inbox, agent: :user, label: :label, team: :team }[params[:type]]
+
+    send(scope_method) if scope_method
   end
 
   def conversations_count
@@ -59,7 +52,7 @@ module ReportHelper
   def bot_resolutions
     events = scope.reporting_events.where(account_id: account.id, name: :conversation_bot_resolved, created_at: range)
 
-    visible_reporting_event_scope(events).where.not(conversation_id: bot_handoff_conversation_ids_subquery)
+    visible_reporting_event_scope(events).where.not(conversation_id: bot_handoffs)
   end
 
   def bot_handoffs
@@ -70,10 +63,6 @@ module ReportHelper
     )
 
     visible_reporting_event_scope(events).distinct
-  end
-
-  def bot_handoff_conversation_ids_subquery
-    bot_handoffs
   end
 
   def avg_first_response_time
@@ -139,27 +128,5 @@ module ReportHelper
     return 0 if avg_frt.blank?
 
     avg_frt
-  end
-
-  def visible_conversation_scope(conversation_scope)
-    return conversation_scope if Current.user.blank? || Current.account_user&.administrator?
-
-    Conversations::PermissionFilterService.new(conversation_scope, Current.user, account).access_list_restricted(conversation_scope)
-  end
-
-  def visible_conversation_ids
-    visible_conversation_scope(account.conversations).select(:id)
-  end
-
-  def visible_message_scope(message_scope)
-    return message_scope if Current.user.blank? || Current.account_user&.administrator?
-
-    message_scope.where(conversation_id: visible_conversation_ids)
-  end
-
-  def visible_reporting_event_scope(event_scope)
-    return event_scope if Current.user.blank? || Current.account_user&.administrator?
-
-    event_scope.where(conversation_id: visible_conversation_ids)
   end
 end
