@@ -1,5 +1,5 @@
 class FixConversationAccessUsersAccountId < ActiveRecord::Migration[7.0]
-  def change
+  def up
     return if column_exists?(:conversation_access_users, :account_id)
 
     # The original create_conversation_access_users migration was edited after it
@@ -16,4 +16,7 @@ class FixConversationAccessUsersAccountId < ActiveRecord::Migration[7.0]
     change_column_null :conversation_access_users, :account_id, false
     add_index :conversation_access_users, [:account_id, :user_id], name: 'idx_conversation_access_users_account_user'
   end
+
+  # account_id is part of the canonical table definition and may predate this repair migration.
+  def down; end
 end
