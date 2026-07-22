@@ -5,16 +5,16 @@ class Waha::HttpClient
 
   pattr_initialize [:channel!]
 
-  def get(path)
-    request(:get, path).parsed_response
+  def get(path, timeout: nil)
+    request(:get, path, timeout: timeout).parsed_response
   end
 
   def post(path, body)
     request(:post, path, body).parsed_response
   end
 
-  def request(method, path, body = nil)
-    options = { headers: headers, timeout: DEFAULT_TIMEOUT }
+  def request(method, path, body = nil, timeout: nil)
+    options = { headers: headers, timeout: timeout || DEFAULT_TIMEOUT }
     options[:body] = body.to_json if body
     HTTParty.send(method, url(path), options)
   end

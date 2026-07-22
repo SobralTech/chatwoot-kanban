@@ -1,7 +1,8 @@
 class Waha::ChatHistoryImporter
-  # Small page keeps each downloadMedia request light (fewer media downloaded per
-  # call), so a media-heavy chat responds instead of timing out.
-  PAGE_SIZE = 25
+  # Pagination fetches text only (downloadMedia=false) — media is downloaded
+  # later, off the critical path, via Waha::HistoryMediaJob. Without the inline
+  # media download each page is light, so we can pull a large batch per request.
+  PAGE_SIZE = 200
 
   pattr_initialize [:channel!, :chat_id!, :window!]
 
@@ -20,10 +21,11 @@ class Waha::ChatHistoryImporter
   # Cursor-based pagination by timestamp (not offset, which some WAHA engines
   # ignore — an ignored offset would re-fetch the same page forever). Each page
   # advances the lower bound to its last message's timestamp; the guard stops if
-  # it can't advance.
+  # it can't advance. Progress + cursor are persisted per page so the UI advances
+  # inside a large chat and a restart resumes mid-chat.
   def import_messages
     imported = 0
-    cursor = window_unix('window_start')
+    cursor = resume_cursor
     loop do
       page = fetch_page(cursor)
       break if page.blank?
@@ -43,20 +45,40 @@ class Waha::ChatHistoryImporter
     imported
   end
 
+  # Resume from the persisted cursor when this run is picking up the same chat
+  # after a restart; otherwise start at the window's lower bound.
+  def resume_cursor
+    state = channel.import_state
+    return state['cursor'].to_i if state['cursor_chat_id'] == chat_id && state['cursor'].present?
+
+    window_unix('window_start')
+  end
+
   def write_page(page)
-    page.count do |payload|
-      write_message(payload)
-    end
+    @page_media_ids = []
+    imported = page.count { |payload| write_message(payload) }
+    enqueue_page_media
+    channel.record_import_page!(chat_id, page.last['timestamp'].to_i, imported)
+    imported
   end
 
   def write_message(payload)
     stanza = payload['id'].to_s.split('_').last
     return false if stanza.blank? || @existing_stanzas.include?(stanza)
 
-    Waha::HistoryMessageWriter.new(channel: channel, payload: payload, conversation: @conversation).perform
+    message = Waha::HistoryMessageWriter.new(channel: channel, payload: payload, conversation: @conversation).perform
     @existing_stanzas << stanza
     track_timestamp(payload['timestamp'].to_i)
+    @page_media_ids << message.id if payload['hasMedia'].present?
     true
+  end
+
+  # One media job per page carries just this page's media messages, so media
+  # downloads run off the import's critical path in bounded, retryable batches.
+  def enqueue_page_media
+    return if @page_media_ids.blank?
+
+    Waha::HistoryMediaJob.perform_later(channel.id, chat_id, @page_media_ids)
   end
 
   def resolve_conversation(page)
@@ -120,7 +142,7 @@ class Waha::ChatHistoryImporter
   def fetch_page(cursor)
     query = {
       'limit' => PAGE_SIZE,
-      'sortBy' => 'timestamp', 'sortOrder' => 'asc', 'downloadMedia' => true,
+      'sortBy' => 'timestamp', 'sortOrder' => 'asc', 'downloadMedia' => false,
       'filter.timestamp.gte' => cursor,
       'filter.timestamp.lte' => window_unix('window_end')
     }.map { |key, value| "#{key}=#{value}" }.join('&')

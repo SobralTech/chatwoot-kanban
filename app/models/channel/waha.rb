@@ -92,7 +92,8 @@ class Channel::Waha < ApplicationRecord
       'status' => 'running', 'kind' => kind,
       'window_start' => window['window_start'], 'window_end' => window['window_end'],
       'total_chats' => 0, 'processed_chats' => 0, 'processed_chat_ids' => [],
-      'imported_messages' => 0, 'started_at' => Time.current.utc.iso8601,
+      'imported_messages' => 0, 'cursor' => nil, 'cursor_chat_id' => nil,
+      'started_at' => Time.current.utc.iso8601,
       'finished_at' => nil, 'error' => nil, 'retries' => 0, 'queued_window' => nil
     )
   end
@@ -101,12 +102,22 @@ class Channel::Waha < ApplicationRecord
     update_import_state!('total_chats' => count)
   end
 
-  def mark_import_chat_processed!(chat_id, imported_count)
+  # Per-page progress: bumps the imported-message counter as each page lands (so
+  # the UI advances inside a large chat) and persists the timestamp cursor so a
+  # restart resumes mid-chat instead of replaying the whole window.
+  def record_import_page!(chat_id, cursor, imported_count)
+    update_import_state!(
+      'cursor_chat_id' => chat_id, 'cursor' => cursor,
+      'imported_messages' => (import_state['imported_messages'] || 0) + imported_count
+    )
+  end
+
+  def mark_import_chat_processed!(chat_id)
     ids = (import_processed_chat_ids + [chat_id]).uniq
     update_import_state!(
       'processed_chat_ids' => ids,
       'processed_chats' => ids.size,
-      'imported_messages' => (import_state['imported_messages'] || 0) + imported_count
+      'cursor' => nil, 'cursor_chat_id' => nil
     )
   end
 

@@ -42,12 +42,12 @@ class Waha::HistoryImportJob < ApplicationJob
   # processed) instead of stalling or failing the whole import. The overview/
   # systemic errors still bubble up to the job-level retry.
   def import_chat(chat_id)
-    imported = Waha::ChatHistoryImporter.new(channel: @channel, chat_id: chat_id, window: @window).run
-    @channel.mark_import_chat_processed!(chat_id, imported)
+    Waha::ChatHistoryImporter.new(channel: @channel, chat_id: chat_id, window: @window).run
+    @channel.mark_import_chat_processed!(chat_id)
     sleep THROTTLE
   rescue StandardError => e
     Rails.logger.error "[WAHA] History import: chat #{chat_id} failed: #{e.message}"
-    @channel.mark_import_chat_processed!(chat_id, 0)
+    @channel.mark_import_chat_processed!(chat_id)
   end
 
   # A gap-fill window that arrived while this import ran is picked up as a fresh

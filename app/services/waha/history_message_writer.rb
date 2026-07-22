@@ -3,15 +3,17 @@ class Waha::HistoryMessageWriter
 
   # Writes one historical WAHA message into an already-resolved conversation:
   # silent (the `imported` flag skips every live side effect), backdated to the
-  # real WhatsApp timestamp, and pre-read. Media and reply-context reuse the same
-  # resolvers as the live path. Edits/reactions are not reconstructed (MVP).
+  # real WhatsApp timestamp, and pre-read. Reply-context reuses the same resolver
+  # as the live path. Media is attached later by Waha::HistoryMediaJob (off the
+  # import's critical path). Edits/reactions are not reconstructed (MVP).
+  # Returns the persisted message.
   pattr_initialize [:channel!, :payload!, :conversation!]
 
   def perform
     build_message
-    Waha::MediaAttacher.new(channel: channel, payload: payload, message: @message).attach
     @message.imported = true
     @message.save!
+    @message
   end
 
   private
