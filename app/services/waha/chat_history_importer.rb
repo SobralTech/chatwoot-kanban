@@ -4,6 +4,11 @@ class Waha::ChatHistoryImporter
   # media download each page is light, so we can pull a large batch per request.
   PAGE_SIZE = 200
 
+  # Only media newer than this is worth fetching: older WhatsApp media (especially
+  # in groups) is usually expired on the servers, so attempting it just burns a
+  # 30s timeout per message and pounds the WAHA session for nothing.
+  MEDIA_MAX_AGE = ENV.fetch('WAHA_IMPORT_MEDIA_MAX_AGE_DAYS', 30).to_i.days
+
   pattr_initialize [:channel!, :chat_id!, :window!, :import_chat!]
 
   # Imports one chat's messages within the window. Resolves the conversation once,
@@ -13,6 +18,7 @@ class Waha::ChatHistoryImporter
   def run
     imported = import_messages
     finalize_conversation if imported.positive?
+    enqueue_media
     imported
   end
 
@@ -25,6 +31,7 @@ class Waha::ChatHistoryImporter
   # inside a large chat and a restart resumes mid-chat.
   def import_messages
     imported = 0
+    @media_message_ids = []
     cursor = resume_cursor
     loop do
       page = fetch_page(cursor)
@@ -54,9 +61,7 @@ class Waha::ChatHistoryImporter
   # Per-page progress on the chat's own row (single-row write, no jsonb churn):
   # bumps its imported count and persists the timestamp cursor for mid-chat resume.
   def write_page(page)
-    @page_media_ids = []
     imported = page.count { |payload| write_message(payload) }
-    enqueue_page_media
     import_chat.update!(cursor: page.last['timestamp'].to_i, imported_count: import_chat.imported_count + imported)
     imported
   end
@@ -68,16 +73,27 @@ class Waha::ChatHistoryImporter
     message = Waha::HistoryMessageWriter.new(channel: channel, payload: payload, conversation: @conversation).perform
     @existing_stanzas << stanza
     track_timestamp(payload['timestamp'].to_i)
-    @page_media_ids << message.id if payload['hasMedia'].present?
+    @media_message_ids << message.id if downloadable_media?(payload)
     true
   end
 
-  # One media job per page carries just this page's media messages, so media
-  # downloads run off the import's critical path in bounded, retryable batches.
-  def enqueue_page_media
-    return if @page_media_ids.blank?
+  # Skip media that is almost certainly expired on WhatsApp's servers, so the
+  # media job doesn't waste a 30s fetch (and WAHA load) on it.
+  def downloadable_media?(payload)
+    payload['hasMedia'].present? && payload['timestamp'].to_i >= media_cutoff
+  end
 
-    Waha::HistoryMediaJob.perform_later(channel.id, chat_id, @page_media_ids)
+  def media_cutoff
+    @media_cutoff ||= MEDIA_MAX_AGE.ago.to_i
+  end
+
+  # One serial media job per chat (not per page): it fetches this chat's media
+  # off the critical path, throttled and with a circuit breaker, so media never
+  # floods the queue or hammers the WAHA session.
+  def enqueue_media
+    return if @media_message_ids.blank?
+
+    Waha::HistoryMediaJob.perform_later(channel.id, chat_id, @media_message_ids)
   end
 
   def resolve_conversation(page)
