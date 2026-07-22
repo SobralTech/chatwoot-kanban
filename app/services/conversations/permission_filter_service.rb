@@ -8,12 +8,21 @@ class Conversations::PermissionFilterService
   end
 
   def perform
+    return conversations if user.is_a?(AgentBot)
     return conversations if user_role == 'administrator'
 
-    accessible_conversations
+    access_list_restricted(accessible_conversations)
+  end
+
+  def access_list_restricted(scope)
+    scope.where(access_mode: :all_agents).or(scope.where(access_mode: :selected_agents, id: allowed_conversation_ids))
   end
 
   private
+
+  def allowed_conversation_ids
+    ConversationAccessUser.where(account_id: account.id, user_id: user.id).select(:conversation_id)
+  end
 
   def accessible_conversations
     conversations.where(inbox: user.inboxes.where(account_id: account.id))

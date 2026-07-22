@@ -157,7 +157,33 @@ class ConversationReplyMailer < ApplicationMailer
   end
 
   def conversation_reply_email_id
-    # Find the last incoming message's message_id to reply to
+    # Prefer the message actually being replied to/quoted; fall back to the last
+    # incoming message's message_id to preserve the historical behaviour.
+    replied_message_email_id || last_incoming_reply_email_id
+  end
+
+  # RFC parent derived from the message being sent (@message) when it replies to
+  # a prior message that already has a source_id (its RFC Message-ID).
+  def replied_message_email_id
+    return nil unless @message
+
+    source_id = replied_message_source_id
+    return nil if source_id.blank?
+
+    "<#{source_id.gsub(/[<>]/, '')}>"
+  end
+
+  def replied_message_source_id
+    content_attributes = @message.content_attributes || {}
+    return content_attributes['in_reply_to_external_id'] if content_attributes['in_reply_to_external_id'].present?
+
+    in_reply_to_id = content_attributes['in_reply_to']
+    return nil if in_reply_to_id.blank?
+
+    @conversation.messages.find_by(id: in_reply_to_id)&.source_id
+  end
+
+  def last_incoming_reply_email_id
     content_attributes = @conversation.messages.incoming.last&.content_attributes
 
     if content_attributes && content_attributes['email'] && content_attributes['email']['message_id']

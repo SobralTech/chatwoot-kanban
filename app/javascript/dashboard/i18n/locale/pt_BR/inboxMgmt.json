@@ -756,6 +756,10 @@
       "ENABLE_CONTINUITY_VIA_EMAIL": "Habilitar continuidade das conversas por e-mail",
       "ENABLE_CONTINUITY_VIA_EMAIL_SUB_TEXT": "As conversas continuarão sobre o e-mail se o endereço de e-mail de contato estiver disponível.",
       "ENABLE_CONTINUITY_VIA_EMAIL_DISABLED_TEXT": "Este recurso está disponível em um plano pago. Atualize para ativar a continuidade da conversa via e-mail.",
+      "SHOW_IN_ALL_CONVERSATIONS": {
+        "LABEL": "Mostrar conversas em Todas as conversas",
+        "DESCRIPTION": "Inclui esta caixa de entrada na visualização Todas as conversas. Visualizações diretas da caixa de entrada, Minhas, Não atribuídas, menções, buscas, filtros, equipes e etiquetas não são afetadas."
+      },
       "LOCK_TO_SINGLE_CONVERSATION": "Roteamento de Conversa",
       "LOCK_TO_SINGLE_CONVERSATION_SUB_TEXT": "Configurar a criação de conversas para contatos existentes",
       "INBOX_UPDATE_TITLE": "Configurações da Caixa de Entrada",
@@ -1012,7 +1016,12 @@
         "PLACE_HOLDER": "Senha"
       },
       "ENABLE_SSL": "Habilitar o SSL",
-      "AUTH_MECHANISM": "Autenticação"
+      "AUTH_MECHANISM": "Autenticação",
+      "FOLDERS": {
+        "LABEL": "Pastas/marcadores para sincronizar",
+        "PLACE_HOLDER": "INBOX, Chatwoot",
+        "HELP_TEXT": "Lista separada por vírgulas de pastas IMAP ou marcadores do Gmail para sincronizar. Deixe em branco para sincronizar apenas a INBOX (padrão)."
+      }
     },
     "MICROSOFT": {
       "TITLE": "Microsoft",

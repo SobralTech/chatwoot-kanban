@@ -55,7 +55,13 @@ class Api::V2::Accounts::LiveReportsController < Api::V1::Accounts::BaseControll
   def load_conversations
     scope = Current.account.conversations
     scope = scope.where(team_id: team.id) if team.present?
-    @conversations = scope
+    @conversations = visible_conversation_scope(scope)
+  end
+
+  def visible_conversation_scope(scope)
+    return scope if Current.user.blank? || Current.account_user&.administrator?
+
+    Conversations::PermissionFilterService.new(scope, Current.user, Current.account).access_list_restricted(scope)
   end
 
   def permitted_params

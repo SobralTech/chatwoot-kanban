@@ -201,6 +201,35 @@ export function appendSignature(body, signature, channelType) {
   return `${body.trimEnd()}\n\n${appendDelimiter(cleanedSignature)}`;
 }
 
+// Build the unique list of signature variants to try when matching against a body.
+function getSignatureVariants(signature, channelType) {
+  const channelStripped = channelType
+    ? cleanSignature(stripUnsupportedMarkdown(signature, channelType))
+    : null;
+  return [
+    cleanSignature(signature),
+    channelStripped,
+    cleanSignature(extractTextFromMarkdown(signature)),
+  ].filter((sig, i, arr) => sig && arr.indexOf(sig) === i); // Remove nulls and duplicates
+}
+
+/**
+ * Finds the index of the canonical signature (in any of its known variants)
+ * at the end of the body, or -1 if none of them match.
+ *
+ * @param {string} body - The body to search.
+ * @param {string} signature - The signature to match against.
+ * @param {string} channelType - Optional. The effective channel type for channel-specific stripping.
+ * @returns {number} - The index of the matched signature, or -1 if not found.
+ */
+export function findSignatureIndex(body, signature, channelType) {
+  const variants = getSignatureVariants(signature, channelType);
+  return variants.reduce(
+    (index, sig) => (index === -1 ? findSignatureInBody(body, sig) : index),
+    -1
+  );
+}
+
 /**
  * Removes the signature from the body, along with the signature delimiter.
  * Tries multiple signature variants: original, channel-stripped, and fully stripped.
@@ -211,21 +240,7 @@ export function appendSignature(body, signature, channelType) {
  * @returns {string} - The body with the signature removed.
  */
 export function removeSignature(body, signature, channelType) {
-  // Build unique list of signature variants to try
-  const channelStripped = channelType
-    ? cleanSignature(stripUnsupportedMarkdown(signature, channelType))
-    : null;
-  const signaturesToTry = [
-    cleanSignature(signature),
-    channelStripped,
-    cleanSignature(extractTextFromMarkdown(signature)),
-  ].filter((sig, i, arr) => sig && arr.indexOf(sig) === i); // Remove nulls and duplicates
-
-  // Find the first matching signature
-  const signatureIndex = signaturesToTry.reduce(
-    (index, sig) => (index === -1 ? findSignatureInBody(body, sig) : index),
-    -1
-  );
+  const signatureIndex = findSignatureIndex(body, signature, channelType);
 
   // no need to trim the ends here, because it will simply be removed in the next method
   let newBody = body;
@@ -265,6 +280,64 @@ export function removeSignature(body, signature, channelType) {
 export function replaceSignature(body, oldSignature, newSignature) {
   const withoutSignature = removeSignature(body, oldSignature);
   return appendSignature(withoutSignature, newSignature);
+}
+
+/**
+ * Classifies and extracts whatever sits at the tail of `body` that looks like
+ * a signature block, without ever reconstructing edited text from `signature`.
+ *
+ * Returns one of:
+ *  - canonical signature found: { base (before it), signatureBlock: null, isCanonical: true }
+ *    (caller is expected to reconstruct via appendSignature)
+ *  - trailing '--' delimiter line with real content after it, not matching any
+ *    canonical variant: treated as a manually-edited signature -> { base,
+ *    signatureBlock: <verbatim text from the delimiter line to the end>, isCanonical: false }
+ *  - trailing '--' delimiter line with nothing (or only whitespace) after it:
+ *    orphan delimiter, stripped, nothing to move -> { base, signatureBlock: null, isCanonical: false }
+ *  - no recognizable delimiter at all: untouched -> { base: body, signatureBlock: null, isCanonical: false }
+ *
+ * @param {string} body - The body to classify.
+ * @param {string} signature - The canonical signature to match against.
+ * @param {string} channelType - Optional. The effective channel type for channel-specific stripping.
+ * @returns {{ base: string, signatureBlock: string|null, isCanonical: boolean }}
+ */
+export function extractTrailingSignatureBlock(body, signature, channelType) {
+  const canonicalIndex = findSignatureIndex(body, signature, channelType);
+  if (canonicalIndex > -1) {
+    return {
+      base: removeSignature(body, signature, channelType),
+      signatureBlock: null,
+      isCanonical: true,
+    };
+  }
+
+  // '--' alone on a line is treated as the reserved signature delimiter in
+  // this context (only reached once the caller has already confirmed the
+  // automatic signature is active and configured) — deliberately not, e.g.,
+  // checked for similarity to the actual signature, to avoid the ambiguity
+  // and new false positives a "looks like a signature" heuristic would add.
+  const lines = body.split('\n');
+  let delimiterLineIndex = -1;
+  lines.forEach((line, i) => {
+    if (line.trim() === SIGNATURE_DELIMITER) delimiterLineIndex = i;
+  });
+
+  if (delimiterLineIndex === -1) {
+    return { base: body, signatureBlock: null, isCanonical: false };
+  }
+
+  const afterDelimiter = lines.slice(delimiterLineIndex + 1).join('\n');
+  const base = lines.slice(0, delimiterLineIndex).join('\n').trimEnd();
+
+  if (!afterDelimiter.trim()) {
+    // orphan delimiter only — drop it, nothing to relocate
+    return { base, signatureBlock: null, isCanonical: false };
+  }
+
+  // manually-edited signature — carry the delimiter line + everything after
+  // it forward exactly as typed, no reconstruction from `signature`
+  const signatureBlock = lines.slice(delimiterLineIndex).join('\n');
+  return { base, signatureBlock, isCanonical: false };
 }
 
 /**

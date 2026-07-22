@@ -362,6 +362,14 @@ RSpec.describe Messages::MarkdownRendererService, type: :service do
         result = described_class.new(content, channel_type).render
         expect(result).to include('<del>strikethrough text</del>')
       end
+
+      it 'renders blockquotes with the Gmail-style inline border/indent' do
+        content = '> quoted text'
+        result = described_class.new(content, channel_type).render
+        expect(result).to include('<blockquote')
+        expect(result).to include('border-left:1px solid #ccc')
+        expect(result).to include('quoted text')
+      end
     end
 
     context 'when channel is Channel::WebWidget' do
@@ -379,6 +387,14 @@ RSpec.describe Messages::MarkdownRendererService, type: :service do
         content = '~~strikethrough text~~'
         result = described_class.new(content, channel_type).render
         expect(result).to include('<del>strikethrough text</del>')
+      end
+
+      it 'renders blockquotes without the email-only inline style (regression guard)' do
+        content = '> quoted text'
+        result = described_class.new(content, channel_type).render
+        expect(result).to include('<blockquote')
+        expect(result).not_to include('border-left')
+        expect(result).not_to include('style=')
       end
     end
 

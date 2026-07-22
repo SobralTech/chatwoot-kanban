@@ -8,9 +8,9 @@ RSpec.describe 'Enterprise Reports API', type: :request do
 
   # Create a custom role with report_manage permission
   let!(:custom_role) { create(:custom_role, account: account, permissions: ['report_manage']) }
-  let!(:agent_with_role) { create(:user) }
+  let!(:agent_with_role) { create(:user, account: account, role: :agent) }
   let(:agent_with_role_account_user) do
-    create(:account_user, user: agent_with_role, account: account, role: :agent, custom_role: custom_role)
+    agent_with_role.account_users.find_by!(account: account).tap { |account_user| account_user.update!(custom_role: custom_role) }
   end
 
   let(:default_timezone) { 'UTC' }
@@ -61,6 +61,35 @@ RSpec.describe 'Enterprise Reports API', type: :request do
             as: :json
 
         expect(response).to have_http_status(:success)
+      end
+    end
+  end
+
+  describe 'GET /api/v2/accounts/:account_id/live_reports/conversation_metrics' do
+    context 'when it is an authenticated report_manage user' do
+      let(:inbox) { create(:inbox, account: account) }
+      let(:allowed_conversation) { create(:conversation, account: account, inbox: inbox, status: 'open') }
+      let(:restricted_conversation) { create(:conversation, account: account, inbox: inbox, status: 'open') }
+      let(:authorized_agent) { create(:user, account: account, role: :agent) }
+
+      before do
+        create(:inbox_member, inbox: inbox, user: agent_with_role)
+        create(:inbox_member, inbox: inbox, user: authorized_agent)
+        create(:conversation_access_user, account: account, conversation: restricted_conversation, user: authorized_agent)
+        allowed_conversation
+      end
+
+      it 'excludes conversations restricted away from the report_manage user' do
+        service = Conversations::PermissionFilterService.new(account.conversations, agent_with_role, account)
+        visible_conversations = service.access_list_restricted(account.conversations)
+        expect(visible_conversations.open.count).to eq(1)
+
+        get "/api/v2/accounts/#{account.id}/live_reports/conversation_metrics",
+            headers: agent_with_role.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body['open']).to eq(1)
       end
     end
   end

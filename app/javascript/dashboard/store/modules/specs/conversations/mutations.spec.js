@@ -1149,10 +1149,16 @@ describe('#mutations', () => {
     it('should delete a conversation', () => {
       const state = {
         allConversations: [{ id: 1, messages: [] }],
+        attachments: { 1: [{ id: 1 }] },
+        syncConversationsMessages: { 1: 10 },
+        selectedChatId: 1,
       };
 
       mutations[types.DELETE_CONVERSATION](state, 1);
       expect(state.allConversations).toEqual([]);
+      expect(state.attachments).toEqual({});
+      expect(state.syncConversationsMessages).toEqual({});
+      expect(state.selectedChatId).toBeNull();
     });
   });
 

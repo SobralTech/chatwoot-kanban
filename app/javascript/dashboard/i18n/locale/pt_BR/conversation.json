@@ -159,6 +159,17 @@
         "FAILED": "Não foi possível alterar a prioridade. Por favor, tente novamente."
       }
     },
+    "ACCESS_CONTROL": {
+      "LABEL": "Quem tem acesso",
+      "ALL_AGENTS": "Todos os agentes",
+      "ADMINS_ONLY": "Somente admins",
+      "REVOKED_AGENT_TITLE": "{name} · acesso revogado",
+      "CONVERSATION_UNAVAILABLE": "Conversa indisponível",
+      "MODE": {
+        "ALL_AGENTS": "Todos os agentes",
+        "ADMINS_ONLY": "Somente admins"
+      }
+    },
     "DELETE_CONVERSATION": {
       "TITLE": "Excluir conversa #{conversationId}",
       "DESCRIPTION": "Tem certeza que deseja excluir esta conversa?",
@@ -188,6 +199,9 @@
       "MUTE_NOTIFICATIONS_SUCCESS": "Notificações silenciadas para esta conversa",
       "UNMUTE_NOTIFICATIONS_SUCCESS": "Notificações reativadas para esta conversa",
       "NOTIFICATIONS_MUTED": "Notificações silenciadas para esta conversa",
+      "ARCHIVE_CONVERSATION": "Arquivar conversa",
+      "UNARCHIVE_CONVERSATION": "Desarquivar conversa",
+      "CONVERSATION_ARCHIVED": "Esta conversa está arquivada",
       "OPEN_IN_NEW_TAB": "Abrir em nova aba",
       "COPY_LINK": "Copiar link da conversa",
       "COPY_LINK_SUCCESS": "Link da conversa copiado",
@@ -270,7 +284,8 @@
         "DISABLE_TOOLTIP": "Não incluir o encadeamento de e-mails citado",
         "REMOVE_PREVIEW": "Remover o encadeamento de e-mails citado",
         "COLLAPSE": "Recolher a prévia",
-        "EXPAND": "Expandir a prévia"
+        "EXPAND": "Expandir a prévia",
+        "HEADER": "Em {date} às {time}, {contact} escreveu:"
       }
     },
     "ASSISTANT": {

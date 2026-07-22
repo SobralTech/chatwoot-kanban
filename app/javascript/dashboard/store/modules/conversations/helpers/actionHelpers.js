@@ -30,6 +30,19 @@ export const isOnUnattendedView = ({ route: { name: routeName } }) => {
   return UNATTENDED_ROUTES.includes(routeName);
 };
 
+export const isOnArchivedView = ({ route: { name: routeName } }) => {
+  const ARCHIVED_ROUTES = [
+    'conversation_archived',
+    'conversation_through_archived',
+  ];
+  return ARCHIVED_ROUTES.includes(routeName);
+};
+
+export const isOnEmailView = ({ route: { name: routeName } }) => {
+  const EMAIL_ROUTES = ['conversation_email', 'conversation_through_email'];
+  return EMAIL_ROUTES.includes(routeName);
+};
+
 export const isOnFoldersView = ({ route: { name: routeName } }) => {
   const FOLDER_ROUTES = [
     'folder_conversations',

@@ -1,4 +1,4 @@
-class ConversationFinder
+class ConversationFinder # rubocop:disable Metrics/ClassLength
   attr_reader :current_user, :current_account, :params
 
   DEFAULT_STATUS = 'open'.freeze
@@ -40,8 +40,15 @@ class ConversationFinder
   def perform
     set_up
 
-    mine_count, unassigned_count, all_count, = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
+    count_base = @conversations
+    apply_all_conversations_inbox_visibility
+    list_base = @conversations
+
+    base_count = count_base.count
+    unassigned_count = count_base.unassigned.count
+    assigned_count = base_count - unassigned_count
+    all_count = all_conversations_view? ? list_base.count : base_count
+    mine_count = count_base.assigned_to(current_user).count
 
     filter_by_assignee_type
 
@@ -59,8 +66,15 @@ class ConversationFinder
   def perform_meta_only
     set_up
 
-    mine_count, unassigned_count, all_count, = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
+    count_base = @conversations
+    apply_all_conversations_inbox_visibility
+    list_base = @conversations
+
+    base_count = count_base.count
+    unassigned_count = count_base.unassigned.count
+    assigned_count = base_count - unassigned_count
+    all_count = all_conversations_view? ? list_base.count : base_count
+    mine_count = count_base.assigned_to(current_user).count
 
     {
       count: {
@@ -119,7 +133,14 @@ class ConversationFinder
       current_user,
       current_account
     ).perform
-    filter_by_conversation_type if params[:conversation_type]
+
+    if params[:conversation_type] == 'archived'
+      @conversations = @conversations.archived
+    else
+      @conversations = @conversations.not_archived
+      filter_by_conversation_type if params[:conversation_type]
+    end
+
     @conversations
   end
 
@@ -141,9 +162,13 @@ class ConversationFinder
       conversation_ids = current_account.mentions.where(user: current_user).pluck(:conversation_id)
       @conversations = @conversations.where(id: conversation_ids)
     when 'participating'
-      @conversations = current_user.participating_conversations.where(account_id: current_account.id)
+      @conversations = Conversations::PermissionFilterService.new(
+        current_user.participating_conversations.where(account_id: current_account.id), current_user, current_account
+      ).perform
     when 'unattended'
-      @conversations = @conversations.with_unread_messages
+      @conversations = @conversations.unattended
+    when 'email'
+      @conversations = @conversations.joins(:inbox).where(inboxes: { channel_type: 'Channel::Email' })
     end
     @conversations
   end
@@ -183,12 +208,14 @@ class ConversationFinder
     @conversations = @conversations.where(contact_inboxes: { source_id: params[:source_id] })
   end
 
-  def set_count_for_all_conversations
-    [
-      @conversations.assigned_to(current_user).count,
-      @conversations.unassigned.count,
-      @conversations.count
-    ]
+  def all_conversations_view?
+    params[:conversation_view] == 'all' && params[:inbox_id].blank?
+  end
+
+  def apply_all_conversations_inbox_visibility
+    return unless all_conversations_view?
+
+    @conversations = @conversations.joins(:inbox).where(inboxes: { show_in_all_conversations: true })
   end
 
   def current_page
@@ -201,11 +228,11 @@ class ConversationFinder
     )
   end
 
-  # Some upstream filters (e.g. unattended -> with_unread_messages) use a plain
-  # SELECT DISTINCT, which Postgres forbids combining with an ORDER BY on a
-  # joined column (conversation_pins.pinned_at) that isn't in the select list.
-  # Collapsing to an id subquery gives pinned_first a clean relation to order,
-  # but it forces a full table scan, so only pay for it when DISTINCT is present.
+  # Some filters may use a plain SELECT DISTINCT, which Postgres forbids
+  # combining with an ORDER BY on a joined column (conversation_pins.pinned_at)
+  # that isn't in the select list. Collapsing to an id subquery gives
+  # pinned_first a clean relation to order, but it forces a full table scan,
+  # so only pay for it when DISTINCT is present.
   def drop_distinct_for_ordering
     return unless @conversations.distinct_value
 

@@ -18,6 +18,7 @@ module Enterprise::SearchService
   def build_where_conditions
     conditions = { account_id: current_account.id, message_type: { not: 'activity' } }
     conditions[:inbox_id] = accessable_inbox_ids unless should_skip_inbox_filtering?
+    conditions[:conversation_id] = visible_conversation_ids.pluck(:id)
     conditions
   end
 

@@ -17,6 +17,7 @@ const BLOCKQUOTE_FALLBACK_SELECTOR = 'blockquote';
 // Regex patterns for quote identification
 const QUOTE_PATTERNS = [
   /On .* wrote:/i,
+  /Em .* escreveu:/i,
   /-----Original Message-----/i,
   /Sent: /i,
   /From: /i,
@@ -42,9 +43,12 @@ export class EmailQuoteExtractor {
 
     this.removeTrailingBlockquote(tempDiv);
 
-    // Remove text-based quotes
+    // Remove text-based quotes and any blockquote that immediately follows the
+    // quote header (the header is a sibling of the blockquote, not necessarily
+    // the last element, so signatures after the blockquote are preserved).
     const textNodeQuotes = this.findTextNodeQuotes(tempDiv);
     textNodeQuotes.forEach(el => {
+      this.removeFollowingBlockquotes(el);
       el.remove();
     });
 
@@ -96,15 +100,17 @@ export class EmailQuoteExtractor {
       currentNode !== null;
       currentNode = treeWalker.nextNode()
     ) {
-      const isQuoteLike = QUOTE_PATTERNS.some(pattern =>
-        pattern.test(currentNode.textContent)
-      );
+      const parentBlock = this.findParentBlock(currentNode);
+      const alreadyTracked = !parentBlock || quoteBlocks.includes(parentBlock);
+
+      // Test the block's aggregate text so quote headers split across inline
+      // nodes (e.g. "Em ... <a>addr</a> escreveu:") are still detected.
+      const isQuoteLike =
+        !alreadyTracked &&
+        QUOTE_PATTERNS.some(pattern => pattern.test(parentBlock.textContent));
 
       if (isQuoteLike) {
-        const parentBlock = this.findParentBlock(currentNode);
-        if (parentBlock && !quoteBlocks.includes(parentBlock)) {
-          quoteBlocks.push(parentBlock);
-        }
+        quoteBlocks.push(parentBlock);
       }
     }
 
@@ -132,6 +138,22 @@ export class EmailQuoteExtractor {
     }
 
     return null;
+  }
+
+  /**
+   * Remove blockquotes that immediately follow a quote header element.
+   * Used to strip the quoted body attached to a "... wrote:" / "... escreveu:"
+   * header without depending on the blockquote being the last element, so a
+   * signature placed after the blockquote is left untouched.
+   * @param {Element} element - The quote header element
+   */
+  static removeFollowingBlockquotes(element) {
+    let sibling = element.nextElementSibling;
+    while (sibling?.matches?.(BLOCKQUOTE_FALLBACK_SELECTOR)) {
+      const next = sibling.nextElementSibling;
+      sibling.remove();
+      sibling = next;
+    }
   }
 
   /**

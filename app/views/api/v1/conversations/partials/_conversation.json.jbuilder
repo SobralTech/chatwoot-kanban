@@ -45,6 +45,7 @@ json.can_reply conversation.can_reply?
 json.contact_last_seen_at conversation.contact_last_seen_at.to_i
 json.custom_attributes conversation.custom_attributes
 json.inbox_id conversation.inbox_id
+json.inbox_show_in_all_conversations conversation.inbox.show_in_all_conversations
 json.labels conversation.cached_label_list_array
 json.muted conversation.muted?
 json.snoozed_until conversation.snoozed_until
@@ -59,5 +60,6 @@ json.last_activity_at conversation.last_activity_at.to_i
 json.priority conversation.priority
 json.waiting_since conversation.waiting_since.to_i.to_i
 json.account_pinned_at conversation.account_pin&.pinned_at&.to_i
+json.archived_at conversation.archived_at&.to_i
 json.sla_policy_id conversation.sla_policy_id
 json.partial! 'enterprise/api/v1/conversations/partials/conversation', conversation: conversation if ChatwootApp.enterprise?

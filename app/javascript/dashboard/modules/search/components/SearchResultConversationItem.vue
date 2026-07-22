@@ -1,8 +1,9 @@
 <script setup>
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { isToday, isYesterday, fromUnixTime } from 'date-fns';
 import { frontendURL } from 'dashboard/helper/URLHelper.js';
-import { messageStamp } from 'shared/helpers/timeHelper';
+import { messageStamp, dateFormat } from 'shared/helpers/timeHelper';
 import { MESSAGE_TYPE } from 'shared/constants/messages';
 import { ATTACHMENT_TYPES } from 'dashboard/components-next/message/constants.js';
 
@@ -49,7 +50,10 @@ const previewTime = computed(() => {
   const timestamp = previewMessage.value.createdAt || props.lastActivityAt;
   if (!timestamp) return '';
 
-  return messageStamp(timestamp, 'HH:mm');
+  const date = fromUnixTime(timestamp);
+  if (isToday(date)) return messageStamp(timestamp, 'HH:mm');
+  if (isYesterday(date)) return t('SEARCH.YESTERDAY');
+  return dateFormat(timestamp, 'dd/MM/yyyy');
 });
 
 const attachmentLabels = computed(() => ({

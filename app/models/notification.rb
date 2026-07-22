@@ -49,6 +49,18 @@ class Notification < ApplicationRecord
 
   ENABLED_NOTIFICATION_TYPES = %w[contact_message conversation_mention].freeze
 
+  PUSH_MESSAGE_TITLE_I18N_KEYS = {
+    'conversation_creation' => 'notifications.notification_title.conversation_creation',
+    'conversation_assignment' => 'notifications.notification_title.conversation_assignment',
+    'assigned_conversation_new_message' => 'notifications.notification_title.assigned_conversation_new_message',
+    'participating_conversation_new_message' => 'notifications.notification_title.assigned_conversation_new_message',
+    'conversation_mention' => 'notifications.notification_title.conversation_mention',
+    'contact_message' => 'notifications.notification_title.contact_message',
+    'sla_missed_first_response' => 'notifications.notification_title.sla_missed_first_response',
+    'sla_missed_next_response' => 'notifications.notification_title.sla_missed_next_response',
+    'sla_missed_resolution' => 'notifications.notification_title.sla_missed_resolution'
+  }.freeze
+
   enum notification_type: NOTIFICATION_TYPES
 
   before_create :set_last_activity_at
@@ -92,36 +104,12 @@ class Notification < ApplicationRecord
     }
   end
 
-  # rubocop:disable Metrics/MethodLength
   def push_message_title
-    notification_title_map = {
-      'conversation_creation' => 'notifications.notification_title.conversation_creation',
-      'conversation_assignment' => 'notifications.notification_title.conversation_assignment',
-      'assigned_conversation_new_message' => 'notifications.notification_title.assigned_conversation_new_message',
-      'participating_conversation_new_message' => 'notifications.notification_title.assigned_conversation_new_message',
-      'conversation_mention' => 'notifications.notification_title.conversation_mention',
-      'contact_message' => 'notifications.notification_title.contact_message',
-      'sla_missed_first_response' => 'notifications.notification_title.sla_missed_first_response',
-      'sla_missed_next_response' => 'notifications.notification_title.sla_missed_next_response',
-      'sla_missed_resolution' => 'notifications.notification_title.sla_missed_resolution'
-    }
-
-    i18n_key = notification_title_map[notification_type]
+    i18n_key = PUSH_MESSAGE_TITLE_I18N_KEYS[notification_type]
     return '' unless i18n_key
 
-    if notification_type == 'contact_message'
-      I18n.t(i18n_key, contact_name: contact_name, inbox_name: conversation.inbox.name)
-    elsif notification_type == 'conversation_mention'
-      I18n.t(i18n_key, agent_name: sender_name(secondary_actor), contact_name: contact_name)
-    elsif notification_type == 'conversation_creation'
-      I18n.t(i18n_key, display_id: conversation.display_id, inbox_name: primary_actor.inbox.name)
-    elsif %w[conversation_assignment assigned_conversation_new_message participating_conversation_new_message].include?(notification_type)
-      I18n.t(i18n_key, display_id: conversation.display_id)
-    else
-      I18n.t(i18n_key, display_id: primary_actor.display_id)
-    end
+    I18n.t(i18n_key, **push_message_title_options)
   end
-  # rubocop:enable Metrics/MethodLength
 
   def push_message_body
     case notification_type
@@ -129,7 +117,7 @@ class Notification < ApplicationRecord
       content_preview(secondary_actor)
     when 'conversation_creation', 'sla_missed_first_response'
       message_body(conversation.messages.first)
-    when 'assigned_conversation_new_message', 'participating_conversation_new_message', 'conversation_mention'
+    when 'assigned_conversation_new_message', 'participating_conversation_new_message'
       message_body(secondary_actor)
     when 'conversation_assignment', 'sla_missed_next_response', 'sla_missed_resolution'
       message_body((conversation.messages.incoming.last || conversation.messages.outgoing.last))
@@ -143,6 +131,21 @@ class Notification < ApplicationRecord
   end
 
   private
+
+  def push_message_title_options
+    case notification_type
+    when 'contact_message'
+      { contact_name: contact_name, inbox_name: conversation.inbox.name }
+    when 'conversation_mention'
+      { agent_name: sender_name(secondary_actor), contact_name: contact_name }
+    when 'conversation_creation'
+      { display_id: conversation.display_id, inbox_name: primary_actor.inbox.name }
+    when 'conversation_assignment', 'assigned_conversation_new_message', 'participating_conversation_new_message'
+      { display_id: conversation.display_id }
+    else
+      { display_id: primary_actor.display_id }
+    end
+  end
 
   def message_body(actor)
     sender_name = sender_name(actor)

@@ -7,8 +7,10 @@ import {
   cleanSignature,
   collapseSelection,
   extractTextFromMarkdown,
+  extractTrailingSignatureBlock,
   findNodeToInsertImage,
   findSignatureInBody,
+  findSignatureIndex,
   getContentNode,
   getFormattingForEditor,
   getMenuAnchor,
@@ -125,6 +127,31 @@ describe('findSignatureInBody', () => {
       const { body, signature } = HAS_SIGNATURE[key];
       expect(findSignatureInBody(body, signature)).toBeGreaterThan(0);
     });
+  });
+});
+
+describe('findSignatureIndex', () => {
+  it('returns -1 if there is no signature', () => {
+    Object.keys(DOES_NOT_HAVE_SIGNATURE).forEach(key => {
+      const { body, signature } = DOES_NOT_HAVE_SIGNATURE[key];
+      expect(findSignatureIndex(body, signature)).toBe(-1);
+    });
+  });
+
+  it('returns the index of the signature if there is one', () => {
+    Object.keys(HAS_SIGNATURE).forEach(key => {
+      const { body, signature } = HAS_SIGNATURE[key];
+      expect(findSignatureIndex(body, signature)).toBeGreaterThan(0);
+    });
+  });
+
+  it('returns -1 when the body ends only in the bare "--" delimiter with no real signature text after it', () => {
+    expect(findSignatureIndex('Mensagem\n\n--\n', 'This is a signature')).toBe(
+      -1
+    );
+    expect(findSignatureIndex('Mensagem\n\n--', 'This is a signature')).toBe(
+      -1
+    );
   });
 });
 
@@ -397,6 +424,43 @@ describe('removeSignature with stripped signature', () => {
     const body = 'Hello\n\n--\n\nBest regards';
     const result = removeSignature(body, simpleSignature);
     expect(result).toBe('Hello\n\n');
+  });
+});
+
+describe('extractTrailingSignatureBlock', () => {
+  const signature = 'Pedro\nSobralTec';
+
+  it('classifies a canonical signature: isCanonical true, base excludes it', () => {
+    const cleanedSignature = cleanSignature(signature);
+    const body = `Mensagem\n\n--\n\n${cleanedSignature}`;
+    const result = extractTrailingSignatureBlock(body, signature);
+    expect(result.isCanonical).toBe(true);
+    expect(result.signatureBlock).toBeNull();
+    expect(result.base).toBe(removeSignature(body, signature));
+  });
+
+  it('classifies an orphan delimiter with nothing after it: delimiter dropped, nothing to move', () => {
+    const body = 'Mensagem\n\n--\n';
+    const result = extractTrailingSignatureBlock(body, signature);
+    expect(result.isCanonical).toBe(false);
+    expect(result.signatureBlock).toBeNull();
+    expect(result.base).toBe('Mensagem');
+  });
+
+  it('classifies no delimiter at all: base is untouched', () => {
+    const body = 'Mensagem sem assinatura';
+    const result = extractTrailingSignatureBlock(body, signature);
+    expect(result.isCanonical).toBe(false);
+    expect(result.signatureBlock).toBeNull();
+    expect(result.base).toBe(body);
+  });
+
+  it('classifies a manually-edited signature: signatureBlock equals the trailing text byte-for-byte', () => {
+    const body = 'Mensagem\n--\nPedro\nEquipe SobralTec';
+    const result = extractTrailingSignatureBlock(body, signature);
+    expect(result.isCanonical).toBe(false);
+    expect(result.signatureBlock).toBe('--\nPedro\nEquipe SobralTec');
+    expect(result.base).toBe('Mensagem');
   });
 });
 

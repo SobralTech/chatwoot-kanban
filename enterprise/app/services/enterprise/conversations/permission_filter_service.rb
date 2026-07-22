@@ -1,6 +1,6 @@
 module Enterprise::Conversations::PermissionFilterService
   def perform
-    return filter_by_permissions(permissions) if user_has_custom_role?
+    return access_list_restricted(filter_by_permissions(permissions)) if user_has_custom_role?
 
     super
   end

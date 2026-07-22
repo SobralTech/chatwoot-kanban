@@ -92,6 +92,7 @@ export default {
       businessName: '',
       locktoSingleConversation: false,
       allowMessagesAfterResolved: true,
+      showInAllConversations: true,
       continuityViaEmail: true,
       selectedInboxName: '',
       channelWebsiteUrl: '',
@@ -471,6 +472,7 @@ export default {
       this.businessName = this.inbox.business_name;
       this.allowMessagesAfterResolved =
         this.inbox.allow_messages_after_resolved;
+      this.showInAllConversations = this.inbox.show_in_all_conversations;
       this.continuityViaEmail = this.inbox.continuity_via_email;
       this.channelWebsiteUrl = this.inbox.website_url;
       this.channelWelcomeTitle = this.inbox.welcome_title;
@@ -584,6 +586,7 @@ export default {
           name: this.selectedInboxName?.trim(),
           enable_email_collect: this.emailCollectEnabled,
           allow_messages_after_resolved: this.allowMessagesAfterResolved,
+          show_in_all_conversations: this.showInAllConversations,
           greeting_enabled: this.greetingEnabled,
           greeting_message: this.greetingMessage || '',
           portal_id: this.selectedPortalSlug
@@ -1150,6 +1153,20 @@ export default {
               :title="$t('INBOX_MGMT.CHANNEL_PREFERENCES')"
               class="mt-6"
             >
+              <SettingsToggleSection
+                v-model="showInAllConversations"
+                :header="
+                  $t(
+                    'INBOX_MGMT.SETTINGS_POPUP.SHOW_IN_ALL_CONVERSATIONS.LABEL'
+                  )
+                "
+                :description="
+                  $t(
+                    'INBOX_MGMT.SETTINGS_POPUP.SHOW_IN_ALL_CONVERSATIONS.DESCRIPTION'
+                  )
+                "
+              />
+
               <SettingsToggleSection
                 v-model="greetingEnabled"
                 :header="

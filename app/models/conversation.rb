@@ -3,8 +3,10 @@
 # Table name: conversations
 #
 #  id                     :integer          not null, primary key
+#  access_mode            :integer          default("all_agents"), not null
 #  additional_attributes  :jsonb
 #  agent_last_seen_at     :datetime
+#  archived_at            :datetime
 #  assignee_last_seen_at  :datetime
 #  cached_label_list      :text
 #  contact_last_seen_at   :datetime
@@ -34,6 +36,7 @@
 #
 #  conv_acid_inbid_stat_asgnid_idx                    (account_id,inbox_id,status,assignee_id)
 #  index_conversations_on_account_id                  (account_id)
+#  index_conversations_on_account_id_and_archived_at  (account_id,archived_at)
 #  index_conversations_on_account_id_and_display_id   (account_id,display_id) UNIQUE
 #  index_conversations_on_assignee_id_and_account_id  (assignee_id,account_id)
 #  index_conversations_on_campaign_id                 (campaign_id)
@@ -75,11 +78,14 @@ class Conversation < ApplicationRecord
 
   enum status: { open: 0, resolved: 1, pending: 2, snoozed: 3 }
   enum priority: { low: 0, medium: 1, high: 2, urgent: 3 }
+  enum access_mode: { all_agents: 0, selected_agents: 1, admins_only: 2 }
 
   scope :unassigned, -> { where(assignee_id: nil) }
   scope :assigned, -> { where.not(assignee_id: nil) }
   scope :assigned_to, ->(agent) { where(assignee_id: agent.id) }
   scope :unattended, -> { where(first_reply_created_at: nil).or(where.not(waiting_since: nil)) }
+  scope :not_archived, -> { where(archived_at: nil) }
+  scope :archived, -> { where.not(archived_at: nil) }
   scope :with_unread_messages, lambda {
     joins(:messages)
       .merge(Message.unscoped.incoming.where(private: false))
@@ -118,6 +124,8 @@ class Conversation < ApplicationRecord
   has_many :conversation_assistant_messages, dependent: :destroy_async
   has_one :csat_survey_response, dependent: :destroy_async
   has_many :conversation_participants, dependent: :destroy_async
+  has_many :conversation_access_users, dependent: :destroy_async
+  has_many :access_users, through: :conversation_access_users, source: :user
   has_many :notifications, as: :primary_actor, dependent: :destroy_async
   has_many :attachments, through: :messages
   has_many :reporting_events, dependent: :destroy_async
@@ -169,6 +177,18 @@ class Conversation < ApplicationRecord
   def toggle_priority(priority = nil)
     self.priority = priority.presence
     save
+  end
+
+  def archived?
+    archived_at.present?
+  end
+
+  def archive!
+    update!(archived_at: Time.current)
+  end
+
+  def unarchive!
+    update!(archived_at: nil)
   end
 
   def bot_handoff!

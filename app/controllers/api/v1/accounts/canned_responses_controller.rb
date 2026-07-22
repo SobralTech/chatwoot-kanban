@@ -28,6 +28,8 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
     conversation = Current.account.conversations.find_by!(
       display_id: params[:conversation_id]
     )
+    authorize conversation, :show?
+
     messages = CannedResponses::QuickSendService.new(
       user: Current.user,
       conversation: conversation,
@@ -35,6 +37,8 @@ class Api::V1::Accounts::CannedResponsesController < Api::V1::Accounts::BaseCont
     ).perform
 
     render json: messages.map(&:push_event_data)
+  rescue Pundit::NotAuthorizedError
+    raise
   rescue StandardError => e
     render_could_not_create_error(e.message)
   end

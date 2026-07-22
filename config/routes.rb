@@ -177,6 +177,9 @@ Rails.application.routes.draw do
                 end
               end
               resources :assignments, only: [:create]
+              resource :access_users, only: [:show, :update], controller: 'access_users' do
+                get :eligible
+              end
               resources :kanban_cards, only: [:index, :create]
               resources :labels, only: [:create, :index]
               resource :participants, only: [:show, :create, :update, :destroy]
@@ -188,6 +191,8 @@ Rails.application.routes.draw do
               post :unmute
               post :mute_notifications
               post :unmute_notifications
+              post :archive
+              post :unarchive
               post :transcript
               post :toggle_status
               post :toggle_priority

@@ -88,16 +88,12 @@ describe('useUISettings', () => {
     );
   });
 
-  it('includes kanban after macros in default conversation sidebar order', () => {
+  it('pins kanban and conversation_actions first in default conversation sidebar order', () => {
     const itemNames = DEFAULT_CONVERSATION_SIDEBAR_ITEMS_ORDER.map(
       item => item.name
     );
 
-    expect(itemNames).toContain('kanban');
-    expect(itemNames.indexOf('kanban')).toBe(itemNames.indexOf('macros') + 1);
-    expect(itemNames.indexOf('kanban')).toBeLessThan(
-      itemNames.indexOf('conversation_info')
-    );
+    expect(itemNames.slice(0, 2)).toEqual(['kanban', 'conversation_actions']);
   });
 
   it('appends missing default conversation sidebar items safely', () => {
@@ -116,10 +112,49 @@ describe('useUISettings', () => {
     );
 
     expect(itemNames).toEqual([
+      'kanban',
       'conversation_actions',
       'macros',
       'conversation_info',
+      'contact_attributes',
+      'contact_notes',
+      'shared_files',
+      'previous_conversation',
+      'conversation_participants',
+      'linear_issues',
+      'shopify_orders',
+    ]);
+  });
+
+  it('always pins kanban and conversation_actions first, even with a legacy saved order', () => {
+    getUISettingsMock.value = {
+      ...getUISettingsMock.value,
+      conversation_sidebar_items_order: [
+        { name: 'conversation_info' },
+        { name: 'conversation_actions' },
+        { name: 'macros' },
+        { name: 'kanban' },
+        { name: 'contact_attributes' },
+        { name: 'contact_notes' },
+        { name: 'shared_files' },
+        { name: 'previous_conversation' },
+        { name: 'conversation_participants' },
+        { name: 'linear_issues' },
+        { name: 'shopify_orders' },
+      ],
+    };
+
+    const { conversationSidebarItemsOrder } = useUISettings();
+    const itemNames = conversationSidebarItemsOrder.value.map(
+      item => item.name
+    );
+
+    expect(itemNames.slice(0, 2)).toEqual(['kanban', 'conversation_actions']);
+    expect(itemNames).toEqual([
       'kanban',
+      'conversation_actions',
+      'conversation_info',
+      'macros',
       'contact_attributes',
       'contact_notes',
       'shared_files',

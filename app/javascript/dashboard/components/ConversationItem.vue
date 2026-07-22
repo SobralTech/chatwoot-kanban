@@ -32,6 +32,7 @@ const markAsRead = inject('markAsRead');
 const assignPriority = inject('assignPriority');
 const isConversationSelected = inject('isConversationSelected');
 const deleteConversation = inject('deleteConversation');
+const toggleArchive = inject('toggleArchive');
 
 // --- Context menu state (shared by both layouts) ---
 const showContextMenu = ref(false);
@@ -177,6 +178,15 @@ const onToggleNotificationsMute = ({ chatId }) => {
   });
   closeContextMenu();
 };
+
+const onToggleArchive = () => {
+  toggleArchive(
+    props.source.id,
+    !!props.source.archived_at,
+    isActiveChat.value
+  );
+  closeContextMenu();
+};
 </script>
 
 <template>
@@ -230,6 +240,7 @@ const onToggleNotificationsMute = ({ chatId }) => {
       :is-notifications-muted="
         !!source.additional_attributes?.notifications_muted
       "
+      :is-archived="!!source.archived_at"
       @update-conversation="onUpdateConversation"
       @assign-agent="onAssignAgent"
       @assign-label="onAssignLabel"
@@ -241,6 +252,7 @@ const onToggleNotificationsMute = ({ chatId }) => {
       @delete-conversation="onDeleteConversation"
       @toggle-pin="onTogglePin"
       @toggle-notifications-mute="onToggleNotificationsMute"
+      @toggle-archive="onToggleArchive"
       @close="closeContextMenu"
     />
   </ContextMenu>
