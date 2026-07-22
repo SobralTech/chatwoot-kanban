@@ -14,6 +14,7 @@ const conversationSidebarItemsOrderMock = ref([
 ]);
 
 vi.mock('dashboard/composables/useUISettings', () => ({
+  PINNED_CONVERSATION_SIDEBAR_ITEMS: ['kanban', 'conversation_actions'],
   useUISettings: () => ({
     updateUISettings: vi.fn(),
     isContactSidebarItemOpen: isContactSidebarItemOpenMock,
@@ -135,13 +136,18 @@ describe('ContactPanel', () => {
     });
   });
 
-  it('keeps Kanban after macros and before conversation info', async () => {
+  it('pins Kanban and Conversation Actions as the first two blocks', async () => {
     const wrapper = mountPanel();
     await nextTick();
     const text = wrapper.text();
 
-    expect(text.indexOf('Macros')).toBeLessThan(text.indexOf('Kanban'));
     expect(text.indexOf('Kanban')).toBeLessThan(
+      text.indexOf('Conversation Actions')
+    );
+    expect(text.indexOf('Conversation Actions')).toBeLessThan(
+      text.indexOf('Macros')
+    );
+    expect(text.indexOf('Macros')).toBeLessThan(
       text.indexOf('Conversation Information')
     );
   });

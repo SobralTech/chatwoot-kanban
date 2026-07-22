@@ -911,6 +911,10 @@
       "ENABLE_CONTINUITY_VIA_EMAIL": "Enable conversation continuity via email",
       "ENABLE_CONTINUITY_VIA_EMAIL_SUB_TEXT": "Conversations will continue over email if the contact email address is available.",
       "ENABLE_CONTINUITY_VIA_EMAIL_DISABLED_TEXT": "This feature is available on a paid plan. Upgrade to enable conversation continuity via email.",
+      "SHOW_IN_ALL_CONVERSATIONS": {
+        "LABEL": "Show conversations in All conversations",
+        "DESCRIPTION": "Include this inbox in the All conversations view. Direct inbox views, Mine, Unassigned, mentions, searches, filters, teams, and labels are not affected."
+      },
       "LOCK_TO_SINGLE_CONVERSATION": "Conversation Routing",
       "LOCK_TO_SINGLE_CONVERSATION_SUB_TEXT": "Configure conversation creation for existing contacts",
       "INBOX_UPDATE_TITLE": "Inbox Settings",
@@ -1171,7 +1175,12 @@
         "PLACE_HOLDER": "Password"
       },
       "ENABLE_SSL": "Enable SSL",
-      "AUTH_MECHANISM": "Authentication"
+      "AUTH_MECHANISM": "Authentication",
+      "FOLDERS": {
+        "LABEL": "Folders/Labels to sync",
+        "PLACE_HOLDER": "INBOX, Chatwoot",
+        "HELP_TEXT": "Comma-separated list of IMAP folders or Gmail labels to sync. Leave blank to sync only INBOX (default)."
+      }
     },
     "MICROSOFT": {
       "TITLE": "Microsoft",

@@ -10,11 +10,24 @@ class ActionCableBroadcastJob < ApplicationJob
     CONVERSATION_STATUS_CHANGED
   ].freeze
 
-  def perform(members, event_name, data)
+  CONVERSATION_PAYLOAD_EVENTS = [
+    CONVERSATION_READ,
+    CONVERSATION_UPDATED,
+    TEAM_CHANGED,
+    ASSIGNEE_CHANGED,
+    CONVERSATION_STATUS_CHANGED,
+    CONVERSATION_CREATED,
+    CONVERSATION_CONTACT_CHANGED,
+    MESSAGE_CREATED,
+    MESSAGE_UPDATED,
+    FIRST_REPLY_CREATED
+  ].freeze
+
+  def perform(members, event_name, data, conversation_id = nil)
     return if members.blank?
 
     broadcast_data = prepare_broadcast_data(event_name, data)
-    broadcast_to_members(members, event_name, broadcast_data)
+    broadcast_to_members(authorized_members(members, event_name, conversation_id), event_name, broadcast_data)
   end
 
   private
@@ -39,6 +52,23 @@ class ActionCableBroadcastJob < ApplicationJob
           data: broadcast_data
         }
       )
+    end
+  end
+
+  def authorized_members(members, event_name, conversation_id)
+    return members unless CONVERSATION_PAYLOAD_EVENTS.include?(event_name) && conversation_id.present?
+
+    conversation = Conversation.find_by(id: conversation_id)
+    return [] if conversation.blank?
+
+    account = conversation.account
+
+    members.select do |member|
+      user = User.find_by(pubsub_token: member)
+      next true if user.blank?
+
+      account_user = user.account_users.find_by(account: account)
+      ConversationPolicy.new({ user: user, account: account, account_user: account_user }, conversation).show?
     end
   end
 end

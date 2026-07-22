@@ -38,14 +38,39 @@ class Imap::BaseFetchEmailService
   end
 
   def email_already_present?(channel, message_id)
-    channel.inbox.messages.find_by(source_id: message_id).present?
+    channel.inbox.messages.find_by(source_id: message_id).present? || @synced_message_ids.include?(message_id)
   end
 
   def fetch_mail_for_channel
+    @synced_message_ids = Set.new
+    @remaining_message_budget = MAX_MESSAGES_PER_SYNC
+
+    channel.imap_folders_to_sync.each_with_object([]) do |folder, mails|
+      break mails if @remaining_message_budget <= 0
+
+      mails.concat(fetch_mail_for_folder(folder))
+    end
+  end
+
+  def fetch_mail_for_folder(folder)
+    return [] unless select_folder(folder)
+
     message_ids_with_seq = fetch_message_ids_with_sequence
+    @remaining_message_budget -= message_ids_with_seq.length
+
     message_ids_with_seq.filter_map do |message_id_with_seq|
       process_message_id(message_id_with_seq)
     end
+  end
+
+  # Selecting a bad/non-existent folder must only skip that folder, never
+  # mask connection/session errors raised elsewhere (e.g. during auth).
+  def select_folder(folder)
+    imap_client.select(folder)
+    true
+  rescue Net::IMAP::NoResponseError, Net::IMAP::BadResponseError => e
+    Rails.logger.error "[IMAP::FETCH_EMAIL_SERVICE] Failed to select folder '#{folder}' for #{channel.email}: #{e.message}"
+    false
   end
 
   def process_message_id(message_id_with_seq)
@@ -67,6 +92,7 @@ class Imap::BaseFetchEmailService
     end
 
     inbound_mail = build_mail_from_string(mail_str)
+    @synced_message_ids << message_id
     mail_info_logger(inbound_mail, seq_no)
     inbound_mail
   end
@@ -81,7 +107,7 @@ class Imap::BaseFetchEmailService
     message_ids_with_seq = []
     seq_nums.each_slice(MAX_MESSAGES_PER_SYNC).each do |batch|
       append_message_ids_for_batch(batch, message_ids_with_seq)
-      if message_ids_with_seq.length >= MAX_MESSAGES_PER_SYNC
+      if message_ids_with_seq.length >= @remaining_message_budget
         Rails.logger.info "[IMAP::FETCH_EMAIL_SERVICE] Reached MAX_MESSAGES_PER_SYNC=#{MAX_MESSAGES_PER_SYNC} for #{channel.email}, stopping sync."
         break
       end
@@ -107,7 +133,7 @@ class Imap::BaseFetchEmailService
       next if entry.nil?
 
       message_ids_with_seq.push(entry)
-      break if message_ids_with_seq.length >= MAX_MESSAGES_PER_SYNC
+      break if message_ids_with_seq.length >= @remaining_message_budget
     end
   end
 
@@ -133,7 +159,6 @@ class Imap::BaseFetchEmailService
     imap = Net::IMAP.new(channel.imap_address, port: channel.imap_port, ssl: channel.imap_enable_ssl)
     Imap::Authentication.authenticate!(imap, authentication_type, channel.imap_login, imap_password)
 
-    imap.select('INBOX')
     imap
   end
 

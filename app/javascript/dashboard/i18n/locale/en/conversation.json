@@ -162,6 +162,17 @@
         "FAILED": "Couldn't change priority. Please try again."
       }
     },
+    "ACCESS_CONTROL": {
+      "LABEL": "Who has access",
+      "ALL_AGENTS": "All agents",
+      "ADMINS_ONLY": "Only admins",
+      "REVOKED_AGENT_TITLE": "{name} · access revoked",
+      "CONVERSATION_UNAVAILABLE": "Conversation unavailable",
+      "MODE": {
+        "ALL_AGENTS": "All agents",
+        "ADMINS_ONLY": "Only admins"
+      }
+    },
     "DELETE_CONVERSATION": {
       "TITLE": "Delete conversation #{conversationId}",
       "DESCRIPTION": "Are you sure you want to delete this conversation?",
@@ -191,6 +202,9 @@
       "MUTE_NOTIFICATIONS_SUCCESS": "Notifications muted for this conversation",
       "UNMUTE_NOTIFICATIONS_SUCCESS": "Notifications unmuted for this conversation",
       "NOTIFICATIONS_MUTED": "Notifications muted for this conversation",
+      "ARCHIVE_CONVERSATION": "Archive conversation",
+      "UNARCHIVE_CONVERSATION": "Unarchive conversation",
+      "CONVERSATION_ARCHIVED": "This conversation is archived",
       "OPEN_IN_NEW_TAB": "Open in new tab",
       "COPY_LINK": "Copy conversation link",
       "COPY_LINK_SUCCESS": "Conversation link copied to clipboard",
@@ -273,7 +287,8 @@
         "DISABLE_TOOLTIP": "Don't include quoted email thread",
         "REMOVE_PREVIEW": "Remove quoted email thread",
         "COLLAPSE": "Collapse preview",
-        "EXPAND": "Expand preview"
+        "EXPAND": "Expand preview",
+        "HEADER": "On {date} at {time} {contact} wrote:"
       }
     },
     "ASSISTANT": {

@@ -46,7 +46,6 @@ RSpec.describe SlaEvent, type: :model do
     let!(:account) { create(:account) }
     let!(:assignee) { create(:user, account: account) }
     let!(:participant) { create(:user, account: account) }
-    let!(:admin) { create(:user, account: account, role: :administrator) }
     let!(:inbox) { create(:inbox, account: account) }
     let(:conversation) { create(:conversation, inbox: inbox, assignee: assignee, account: account) }
     let(:sla_policy) { create(:sla_policy, account: conversation.account) }
@@ -55,6 +54,7 @@ RSpec.describe SlaEvent, type: :model do
     before do
       # to ensure notifications are not sent to other users
       create(:user, account: account)
+      create(:user, account: account, role: :administrator)
       create(:inbox_member, inbox: inbox, user: assignee)
       create(:inbox_member, inbox: inbox, user: participant)
       create(:conversation_participant, conversation: conversation, user: participant)

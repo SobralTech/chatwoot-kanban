@@ -16,6 +16,7 @@ class ConversationApi extends ApiClient {
     conversationType,
     sortBy,
     updatedWithin,
+    conversationView,
   }) {
     return axios.get(this.url, {
       params: {
@@ -28,6 +29,7 @@ class ConversationApi extends ApiClient {
         conversation_type: conversationType,
         sort_by: sortBy,
         updated_within: updatedWithin,
+        conversation_view: conversationView,
       },
     });
   }
@@ -104,7 +106,23 @@ class ConversationApi extends ApiClient {
     return axios.post(`${this.url}/${conversationId}/unmute_notifications`);
   }
 
-  meta({ inboxId, status, assigneeType, labels, teamId, conversationType }) {
+  archive(conversationId) {
+    return axios.post(`${this.url}/${conversationId}/archive`);
+  }
+
+  unarchive(conversationId) {
+    return axios.post(`${this.url}/${conversationId}/unarchive`);
+  }
+
+  meta({
+    inboxId,
+    status,
+    assigneeType,
+    labels,
+    teamId,
+    conversationType,
+    conversationView,
+  }) {
     return axios.get(`${this.url}/meta`, {
       params: {
         inbox_id: inboxId,
@@ -113,6 +131,7 @@ class ConversationApi extends ApiClient {
         labels,
         team_id: teamId,
         conversation_type: conversationType,
+        conversation_view: conversationView,
       },
     });
   }
@@ -147,6 +166,21 @@ class ConversationApi extends ApiClient {
 
   togglePin({ conversationId }) {
     return axios.post(`${this.url}/${conversationId}/toggle_pin`);
+  }
+
+  getAccessUsers(conversationId) {
+    return axios.get(`${this.url}/${conversationId}/access_users`);
+  }
+
+  getEligibleAccessUsers(conversationId) {
+    return axios.get(`${this.url}/${conversationId}/access_users/eligible`);
+  }
+
+  updateAccessUsers({ conversationId, userIds, accessMode }) {
+    return axios.put(`${this.url}/${conversationId}/access_users`, {
+      user_ids: userIds,
+      access_mode: accessMode,
+    });
   }
 
   delete(conversationId) {

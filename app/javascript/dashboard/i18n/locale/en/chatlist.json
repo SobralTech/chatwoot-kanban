@@ -10,6 +10,8 @@
     "TAB_HEADING": "Conversations",
     "MENTION_HEADING": "Mentions",
     "UNATTENDED_HEADING": "Unattended",
+    "ARCHIVED_HEADING": "Archived",
+    "EMAIL_HEADING": "Emails",
     "SEARCH": {
       "INPUT": "Search for People, Chats, Saved Replies .."
     },

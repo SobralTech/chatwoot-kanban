@@ -38,16 +38,17 @@ class SearchService
       OR unaccent(contacts.phone_number) ILIKE unaccent(:search)
       OR unaccent(contacts.identifier) ILIKE unaccent(:search)
     SQL
-    conversations_query = current_account.conversations.where(inbox_id: accessable_inbox_ids)
-                                         .joins('INNER JOIN contacts ON conversations.contact_id = contacts.id')
-                                         .where(search_sql, search: "%#{search_query}%")
+    conversations_query = visible_conversations(current_account.conversations.where(inbox_id: accessable_inbox_ids))
+                          .not_archived
+                          .joins('INNER JOIN contacts ON conversations.contact_id = contacts.id')
+                          .where(search_sql, search: "%#{search_query}%")
 
     if current_account.feature_enabled?('advanced_search')
       conversations_query = apply_time_filter(conversations_query,
                                               'conversations.last_activity_at')
     end
 
-    @conversations = conversations_query.order('conversations.created_at DESC')
+    @conversations = conversations_query.order('conversations.last_activity_at DESC, conversations.id DESC')
                                         .page(params[:page])
                                         .per(15)
   end
@@ -115,7 +116,9 @@ class SearchService
                            .where('created_at >= ?', 3.months.ago)
                            .where.not(message_type: :activity)
     query = query.where(inbox_id: accessable_inbox_ids) unless should_skip_inbox_filtering?
-    query
+    return query if account_user.administrator?
+
+    query.where(conversation_id: visible_message_conversation_ids)
   end
 
   def apply_message_filters(query)
@@ -165,8 +168,25 @@ class SearchService
     accessable_inbox_ids.sort == current_account.inboxes.pluck(:id).sort
   end
 
-  def use_gin_search
-    current_account.feature_enabled?('search_with_gin')
+  def use_gin_search = current_account.feature_enabled?('search_with_gin')
+
+  def visible_conversations(conversation_scope)
+    Conversations::PermissionFilterService.new(conversation_scope, current_user, current_account).perform
+  end
+
+  def visible_conversation_ids = visible_conversations(current_account.conversations).select(:id)
+
+  def visible_message_conversation_ids
+    return access_list_restricted_conversations.select(:id) if user_has_access_to_all_inboxes?
+
+    visible_conversation_ids
+  end
+
+  def access_list_restricted_conversations
+    allowed_ids = ConversationAccessUser.where(account_id: current_account.id, user_id: current_user.id).select(:conversation_id)
+
+    current_account.conversations.where(access_mode: :all_agents)
+                   .or(current_account.conversations.where(access_mode: :selected_agents, id: allowed_ids))
   end
 
   def filter_contacts

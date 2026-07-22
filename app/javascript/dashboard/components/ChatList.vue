@@ -52,9 +52,12 @@ import { conversationListPageURL } from '../helper/URLHelper';
 import {
   isOnMentionsView,
   isOnUnattendedView,
+  isOnArchivedView,
+  isOnEmailView,
 } from '../store/modules/conversations/helpers/actionHelpers';
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
 import { CONVERSATION_EVENTS } from '../helper/AnalyticsHelper/events';
+import { INBOX_TYPES } from 'dashboard/helper/inbox';
 
 const props = defineProps({
   conversationInbox: { type: [String, Number], default: 0 },
@@ -122,7 +125,11 @@ const store = useStore();
 
 const resolveAttributesModalRef = ref(null);
 
-const activeStatus = ref(wootConstants.STATUS_TYPE.OPEN);
+const activeStatus = ref(
+  props.conversationType === wootConstants.CONVERSATION_TYPE.ARCHIVED
+    ? wootConstants.STATUS_TYPE.ALL
+    : wootConstants.STATUS_TYPE.OPEN
+);
 const activeSortBy = ref(wootConstants.SORT_BY_TYPE.LAST_ACTIVITY_AT_DESC);
 const showAdvancedFilters = ref(false);
 // chatsOnView is to store the chats that are currently visible on the screen,
@@ -305,6 +312,43 @@ const conversationListPagination = computed(() => {
   return currentPage.value + 1;
 });
 
+const isAllConversationsView = computed(() => {
+  return (
+    route.name === 'home' &&
+    currentPageFilterKey.value === wootConstants.ASSIGNEE_TYPE.ALL &&
+    !hasAppliedFiltersOrActiveFolders.value &&
+    !isSearching.value &&
+    !searchQuery.value &&
+    !props.conversationInbox &&
+    !props.teamId &&
+    !props.label &&
+    !props.conversationType &&
+    !props.foldersId
+  );
+});
+
+const visibleInAllConversationInboxIds = computed(() => {
+  return new Set(
+    inboxesList.value
+      .filter(inboxItem => inboxItem.show_in_all_conversations !== false)
+      .map(inboxItem => Number(inboxItem.id))
+  );
+});
+
+const isVisibleInAllConversations = conversation => {
+  return visibleInAllConversationInboxIds.value.has(
+    Number(conversation.inbox_id)
+  );
+};
+
+const emailInboxIds = computed(() => {
+  return new Set(
+    inboxesList.value
+      .filter(inboxItem => inboxItem.channel_type === INBOX_TYPES.EMAIL)
+      .map(inboxItem => Number(inboxItem.id))
+  );
+});
+
 const conversationFilters = computed(() => {
   return {
     inboxId: props.conversationInbox ? props.conversationInbox : undefined,
@@ -315,6 +359,8 @@ const conversationFilters = computed(() => {
     labels: props.label ? [props.label] : undefined,
     teamId: props.teamId || undefined,
     conversationType: props.conversationType || undefined,
+    conversationView: isAllConversationsView.value ? 'all' : undefined,
+    emailInboxIds: emailInboxIds.value,
   };
 });
 
@@ -344,6 +390,12 @@ const pageTitle = computed(() => {
   if (props.conversationType === wootConstants.CONVERSATION_TYPE.UNATTENDED) {
     return t('CHAT_LIST.UNATTENDED_HEADING');
   }
+  if (props.conversationType === wootConstants.CONVERSATION_TYPE.ARCHIVED) {
+    return t('CHAT_LIST.ARCHIVED_HEADING');
+  }
+  if (props.conversationType === wootConstants.CONVERSATION_TYPE.EMAIL) {
+    return t('CHAT_LIST.EMAIL_HEADING');
+  }
   if (hasActiveFolders.value) {
     return activeFolder.value.name;
   }
@@ -358,6 +410,12 @@ const conversationList = computed(() => {
     localConversationList = [...allChatList.value(filters)];
   } else {
     localConversationList = [...chatLists.value];
+  }
+
+  if (isAllConversationsView.value) {
+    localConversationList = localConversationList.filter(
+      isVisibleInAllConversations
+    );
   }
 
   if (activeFolder.value) {
@@ -654,6 +712,10 @@ function redirectToConversationList() {
     conversationType = wootConstants.CONVERSATION_TYPE.MENTION;
   } else if (isOnUnattendedView({ route: { name } })) {
     conversationType = wootConstants.CONVERSATION_TYPE.UNATTENDED;
+  } else if (isOnArchivedView({ route: { name } })) {
+    conversationType = wootConstants.CONVERSATION_TYPE.ARCHIVED;
+  } else if (isOnEmailView({ route: { name } })) {
+    conversationType = wootConstants.CONVERSATION_TYPE.EMAIL;
   }
   router.push(
     conversationListPageURL({
@@ -701,6 +763,25 @@ async function markAsRead(conversationId) {
     await store.dispatch('markMessagesRead', {
       id: conversationId,
     });
+  } catch (error) {
+    // Ignore error
+  }
+}
+
+async function toggleArchive(conversationId, isArchived, isActiveChat = false) {
+  try {
+    if (isArchived) {
+      await store.dispatch('unarchiveConversation', conversationId);
+      if (isActiveChat) redirectToConversationList();
+    } else {
+      await store.dispatch('archiveConversation', conversationId);
+      if (isActiveChat) {
+        router.push({
+          name: 'conversation_through_archived',
+          params: { conversationId },
+        });
+      }
+    }
   } catch (error) {
     // Ignore error
   }
@@ -807,6 +888,7 @@ useEmitter('fetch_conversation_stats', () => {
 
 onUnmounted(() => {
   store.dispatch('conversationSearch/clearSearchResults');
+  store.dispatch('updateChatListFilters', { conversationView: undefined });
 });
 
 onMounted(() => {
@@ -852,6 +934,7 @@ provide('markAsRead', markAsRead);
 provide('assignPriority', assignPriority);
 provide('isConversationSelected', isConversationSelected);
 provide('deleteConversation', handleDelete);
+provide('toggleArchive', toggleArchive);
 
 watch(activeTeam, () => resetAndFetchData());
 

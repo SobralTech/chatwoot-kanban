@@ -15,7 +15,8 @@ describe ActionCableListener do
       expect(ActionCableBroadcastJob).to receive(:perform_later).with(
         [user.pubsub_token],
         'copilot.message.created',
-        copilot_message.push_event_data.merge(account_id: account.id)
+        copilot_message.push_event_data.merge(account_id: account.id),
+        nil
       )
 
       listener.copilot_message_created(event)

@@ -30,6 +30,7 @@ export default {
       login: '',
       password: '',
       isSSLEnabled: true,
+      folders: '',
       authMechanism: 'plain',
       authMechanisms: [
         { key: 1, value: 'plain' },
@@ -65,6 +66,7 @@ export default {
         imap_password,
         imap_enable_ssl,
         imap_authentication,
+        imap_folders,
       } = this.inbox;
       this.isIMAPEnabled = imap_enabled;
       this.address = imap_address;
@@ -73,6 +75,7 @@ export default {
       this.password = imap_password;
       this.isSSLEnabled = imap_enable_ssl;
       this.authMechanism = imap_authentication || 'plain';
+      this.folders = (imap_folders || []).join(', ');
     },
     async updateInbox() {
       try {
@@ -88,6 +91,10 @@ export default {
             imap_password: this.password,
             imap_enable_ssl: this.isSSLEnabled,
             imap_authentication: this.authMechanism,
+            imap_folders: this.folders
+              .split(',')
+              .map(folder => folder.trim())
+              .filter(Boolean),
           },
         };
 
@@ -175,6 +182,13 @@ export default {
           :selected="authMechanism"
           :options="authMechanisms"
           :action="handleAuthMechanismChange"
+        />
+        <woot-input
+          v-model="folders"
+          class="w-full"
+          :label="$t('INBOX_MGMT.IMAP.FOLDERS.LABEL')"
+          :placeholder="$t('INBOX_MGMT.IMAP.FOLDERS.PLACE_HOLDER')"
+          :help-text="$t('INBOX_MGMT.IMAP.FOLDERS.HELP_TEXT')"
         />
       </div>
       <NextButton

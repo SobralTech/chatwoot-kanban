@@ -26,6 +26,7 @@ const MENU = {
   COPY_LINK: 'copy-link',
   PIN: 'pin',
   MUTE_NOTIFICATIONS: 'mute-notifications',
+  ARCHIVE: 'archive',
 };
 
 export default {
@@ -75,6 +76,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    isArchived: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: [
     'updateConversation',
@@ -88,6 +93,7 @@ export default {
     'deleteConversation',
     'togglePin',
     'toggleNotificationsMute',
+    'toggleArchive',
     'close',
   ],
   setup() {
@@ -259,6 +265,10 @@ export default {
       this.$emit('toggleNotificationsMute', { chatId: this.chatId });
       this.$emit('close');
     },
+    toggleArchive() {
+      this.$emit('toggleArchive', { chatId: this.chatId });
+      this.$emit('close');
+    },
     openInNewTab() {
       if (!this.conversationUrl) return;
 
@@ -315,6 +325,43 @@ export default {
         :option="readOption"
         variant="icon"
         @click.stop="$emit('markAsRead')"
+      />
+      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
+    </template>
+    <template v-if="isAllowed([MENU.MUTE_NOTIFICATIONS])">
+      <MenuItem
+        :option="{
+          icon: isNotificationsMuted ? 'speaker-1' : 'speaker-mute',
+          label: isNotificationsMuted
+            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNMUTE_NOTIFICATIONS')
+            : $t('CONVERSATION.CARD_CONTEXT_MENU.MUTE_NOTIFICATIONS'),
+        }"
+        variant="icon"
+        @click.stop="toggleNotificationsMute"
+      />
+    </template>
+    <template v-if="isAllowed([MENU.PIN])">
+      <MenuItem
+        :option="{
+          icon: isPinned ? 'pin-dismiss' : 'pin',
+          label: isPinned
+            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_CONVERSATION')
+            : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_CONVERSATION'),
+        }"
+        variant="icon"
+        @click.stop="togglePin"
+      />
+    </template>
+    <template v-if="isAllowed([MENU.ARCHIVE])">
+      <MenuItem
+        :option="{
+          icon: isArchived ? 'mail-inbox' : 'archive',
+          label: isArchived
+            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNARCHIVE_CONVERSATION')
+            : $t('CONVERSATION.CARD_CONTEXT_MENU.ARCHIVE_CONVERSATION'),
+        }"
+        variant="icon"
+        @click.stop="toggleArchive"
       />
       <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
     </template>
@@ -400,31 +447,6 @@ export default {
         />
       </MenuItemWithSubmenu>
       <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
-    </template>
-    <template v-if="isAllowed([MENU.PIN])">
-      <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
-      <MenuItem
-        :option="{
-          icon: isPinned ? 'pin-dismiss' : 'pin',
-          label: isPinned
-            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN_CONVERSATION')
-            : $t('CONVERSATION.CARD_CONTEXT_MENU.PIN_CONVERSATION'),
-        }"
-        variant="icon"
-        @click.stop="togglePin"
-      />
-    </template>
-    <template v-if="isAllowed([MENU.MUTE_NOTIFICATIONS])">
-      <MenuItem
-        :option="{
-          icon: isNotificationsMuted ? 'speaker-1' : 'speaker-mute',
-          label: isNotificationsMuted
-            ? $t('CONVERSATION.CARD_CONTEXT_MENU.UNMUTE_NOTIFICATIONS')
-            : $t('CONVERSATION.CARD_CONTEXT_MENU.MUTE_NOTIFICATIONS'),
-        }"
-        variant="icon"
-        @click.stop="toggleNotificationsMute"
-      />
     </template>
     <template v-if="isAllowed([MENU.OPEN_NEW_TAB, MENU.COPY_LINK])">
       <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />

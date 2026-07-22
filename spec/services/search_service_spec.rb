@@ -242,7 +242,7 @@ describe SearchService do
     end
 
     context 'when conversation search' do
-      it 'searches across conversations using contact information and order by created_at desc' do
+      it 'searches across conversations using contact information and order by last_activity_at desc' do
         # random messages in another inbox
         random = create(:contact, account_id: account.id)
         create(:conversation, contact: random, inbox: inbox, account: account)

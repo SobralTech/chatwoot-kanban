@@ -34,11 +34,36 @@ export const hasMessageFailedWithExternalError = pendingMessage => {
   return status === MESSAGE_STATUS.FAILED && externalError !== '';
 };
 
+const shouldSkipAllConversationsUpsert = (state, rootGetters, conversation) => {
+  if (state?.conversationFilters?.conversationView !== 'all') return false;
+
+  const conversationInboxVisibility =
+    conversation.inbox_show_in_all_conversations ??
+    conversation.inbox?.show_in_all_conversations;
+  if (conversationInboxVisibility !== undefined) {
+    return conversationInboxVisibility === false;
+  }
+
+  const inbox = rootGetters?.['inboxes/getInbox']?.(conversation.inbox_id);
+  return inbox?.show_in_all_conversations === false;
+};
+
 // actions
 const actions = {
-  getConversation: async ({ commit }, conversationId) => {
+  getConversation: async (
+    { commit, state, rootGetters },
+    conversationIdOrPayload
+  ) => {
+    const conversationId =
+      conversationIdOrPayload?.conversationId || conversationIdOrPayload;
+    const forceUpsert = conversationIdOrPayload?.forceUpsert || false;
     const response = await ConversationApi.show(conversationId);
-    commit(types.UPSERT_CONVERSATION, response.data);
+    if (
+      forceUpsert ||
+      !shouldSkipAllConversationsUpsert(state, rootGetters, response.data)
+    ) {
+      commit(types.UPSERT_CONVERSATION, response.data);
+    }
     commit(`contacts/${types.SET_CONTACT_ITEM}`, response.data.meta.sender);
     return response.data;
   },
@@ -407,10 +432,48 @@ const actions = {
     try {
       await ConversationApi.delete(conversationId);
       commit(types.DELETE_CONVERSATION, conversationId);
+      commit(
+        'conversationMetadata/CLEAR_CONVERSATION_METADATA',
+        conversationId,
+        {
+          root: true,
+        }
+      );
       dispatch('conversationStats/get', {}, { root: true });
     } catch (error) {
       throw new Error(error);
     }
+  },
+
+  handleConversationAccessRevoked: async (
+    { commit, dispatch, state },
+    conversationIdOrPayload
+  ) => {
+    const conversationId =
+      conversationIdOrPayload?.conversation_id ||
+      conversationIdOrPayload?.conversationId ||
+      conversationIdOrPayload?.id ||
+      conversationIdOrPayload;
+
+    if (!conversationId) return;
+
+    commit(types.DELETE_CONVERSATION, conversationId);
+    commit('conversationMetadata/CLEAR_CONVERSATION_METADATA', conversationId, {
+      root: true,
+    });
+    ['REPLY', 'NOTE', 'ASSISTANT'].forEach(replyMode => {
+      commit(
+        'draftMessages/REMOVE_DRAFT_MESSAGES',
+        { key: `draft-${conversationId}-${replyMode}` },
+        { root: true }
+      );
+    });
+
+    if (state.selectedChatId === Number(conversationId)) {
+      commit(types.CLEAR_CURRENT_CHAT_WINDOW);
+    }
+
+    dispatch('conversationStats/get', {}, { root: true });
   },
 
   addConversation({ commit, state, dispatch, rootState }, conversation) {
@@ -508,6 +571,38 @@ const actions = {
       commit(types.UNMUTE_CONVERSATION);
     } catch (error) {
       //
+    }
+  },
+
+  archiveConversation: async ({ commit }, conversationId) => {
+    commit(types.UPDATE_CONVERSATION_ARCHIVE, {
+      conversationId,
+      archivedAt: Math.floor(Date.now() / 1000),
+    });
+
+    try {
+      await ConversationApi.archive(conversationId);
+    } catch (error) {
+      commit(types.UPDATE_CONVERSATION_ARCHIVE, {
+        conversationId,
+        archivedAt: null,
+      });
+    }
+  },
+
+  unarchiveConversation: async ({ commit }, conversationId) => {
+    commit(types.UPDATE_CONVERSATION_ARCHIVE, {
+      conversationId,
+      archivedAt: null,
+    });
+
+    try {
+      await ConversationApi.unarchive(conversationId);
+    } catch (error) {
+      commit(types.UPDATE_CONVERSATION_ARCHIVE, {
+        conversationId,
+        archivedAt: Math.floor(Date.now() / 1000),
+      });
     }
   },
 

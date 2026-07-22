@@ -14,6 +14,10 @@ class ConversationPolicy < ApplicationPolicy
   private
 
   def agent_can_view_conversation?
+    (inbox_access? || team_access?) && access_list_allowed?
+  end
+
+  def base_agent_can_view_conversation?
     inbox_access? || team_access?
   end
 
@@ -23,6 +27,13 @@ class ConversationPolicy < ApplicationPolicy
 
   def agent_bot?
     user.is_a?(AgentBot)
+  end
+
+  def access_list_allowed?
+    return false if record.admins_only?
+    return record.conversation_access_users.exists?(user_id: user.id) if record.selected_agents?
+
+    true
   end
 
   def inbox_access?

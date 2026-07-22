@@ -1,0 +1,10 @@
+<p>Hi {{user.available_name}},</p>
+
+<p>You have received a new message. <b>{{message.sender_display_name}}</b> wrote:</p>
+<blockquote style="box-sizing:border-box; padding:8px 16px; margin:0 0 20px; font-size:14px; border-left:5px solid #eeeeee">
+  {{message.text_content}}
+</blockquote>
+
+<p>
+  <a href="{{action_url}}">View Message</a>
+</p>

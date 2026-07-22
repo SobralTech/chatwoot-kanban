@@ -9,6 +9,7 @@
 #  imap_authentication       :string           default("plain")
 #  imap_enable_ssl           :boolean          default(TRUE)
 #  imap_enabled              :boolean          default(FALSE)
+#  imap_folders              :text             default([]), is an Array
 #  imap_login                :string           default("")
 #  imap_password             :string           default("")
 #  imap_port                 :integer          default(0)
@@ -50,12 +51,14 @@ class Channel::Email < ApplicationRecord
   self.table_name = 'channel_email'
   EDITABLE_ATTRS = [:email, :imap_enabled, :imap_login, :imap_password, :imap_address, :imap_port, :imap_enable_ssl, :imap_authentication,
                     :smtp_enabled, :smtp_login, :smtp_password, :smtp_address, :smtp_port, :smtp_domain, :smtp_enable_starttls_auto,
-                    :smtp_enable_ssl_tls, :smtp_openssl_verify_mode, :smtp_authentication, :provider, :verified_for_sending].freeze
+                    :smtp_enable_ssl_tls, :smtp_openssl_verify_mode, :smtp_authentication, :provider, :verified_for_sending,
+                    { imap_folders: [] }].freeze
 
   validates :email, uniqueness: true
   validates :forward_to_email, uniqueness: true
 
   before_validation :ensure_forward_to_email, on: :create
+  before_validation :normalize_imap_folders
 
   def name
     'Email'
@@ -73,9 +76,17 @@ class Channel::Email < ApplicationRecord
     imap_enabled && imap_address == 'imap.gmail.com'
   end
 
+  def imap_folders_to_sync
+    imap_folders.presence || ['INBOX']
+  end
+
   private
 
   def ensure_forward_to_email
     self.forward_to_email ||= "#{SecureRandom.hex}@#{account.inbound_email_domain}"
+  end
+
+  def normalize_imap_folders
+    self.imap_folders = imap_folders.to_a.map(&:strip).reject(&:blank?).uniq
   end
 end

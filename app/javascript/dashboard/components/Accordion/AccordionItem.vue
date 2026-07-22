@@ -22,6 +22,10 @@ defineProps({
     type: Boolean,
     default: true,
   },
+  draggable: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const emit = defineEmits(['toggle']);
@@ -34,8 +38,11 @@ const onToggle = () => {
 <template>
   <div class="text-sm">
     <button
-      class="flex items-center select-none w-full rounded-lg bg-n-slate-2 outline outline-1 outline-n-weak m-0 cursor-grab justify-between py-2 px-4 drag-handle"
-      :class="{ 'rounded-bl-none rounded-br-none': isOpen }"
+      class="flex items-center select-none w-full rounded-lg bg-n-slate-2 outline outline-1 outline-n-weak m-0 justify-between py-2 px-4"
+      :class="[
+        { 'rounded-bl-none rounded-br-none': isOpen },
+        draggable ? 'cursor-grab drag-handle' : 'cursor-pointer',
+      ]"
       @click.stop="onToggle"
     >
       <div class="flex justify-between">

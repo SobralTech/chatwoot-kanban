@@ -6,7 +6,10 @@ import {
   useStore,
 } from 'dashboard/composables/store';
 import { useAccount } from 'dashboard/composables/useAccount';
-import { useUISettings } from 'dashboard/composables/useUISettings';
+import {
+  useUISettings,
+  PINNED_CONVERSATION_SIDEBAR_ITEMS,
+} from 'dashboard/composables/useUISettings';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 
 import AccordionItem from 'dashboard/components/Accordion/AccordionItem.vue';
@@ -112,7 +115,10 @@ watch(contactId, (newContactId, prevContactId) => {
 const onDragEnd = () => {
   dragging.value = false;
   updateUISettings({
-    conversation_sidebar_items_order: conversationSidebarItems.value,
+    conversation_sidebar_items_order: [
+      ...PINNED_CONVERSATION_SIDEBAR_ITEMS.map(name => ({ name })),
+      ...conversationSidebarItems.value,
+    ],
   });
 };
 
@@ -124,7 +130,9 @@ const closeContactPanel = () => {
 };
 
 onMounted(() => {
-  conversationSidebarItems.value = conversationSidebarItemsOrder.value;
+  conversationSidebarItems.value = conversationSidebarItemsOrder.value.filter(
+    item => !PINNED_CONVERSATION_SIDEBAR_ITEMS.includes(item.name)
+  );
   getContactDetails();
   store.dispatch('attributes/get', 0);
   // Load integrations to ensure linear integration state is available
@@ -139,7 +147,31 @@ onMounted(() => {
       @close="closeContactPanel"
     />
     <ContactInfo :contact="contact" :channel-type="channelType" />
-    <div class="px-2 pb-8 list-group">
+    <div class="px-2 pb-8 list-group flex flex-col gap-3">
+      <div class="conversation--actions">
+        <AccordionItem
+          :title="$t('CONVERSATION_SIDEBAR.ACCORDION.KANBAN')"
+          :is-open="isContactSidebarItemOpen('is_kanban_open')"
+          compact
+          :draggable="false"
+          @toggle="value => toggleSidebarUIState('is_kanban_open', value)"
+        >
+          <KanbanConversationCards :conversation-id="conversationId" />
+        </AccordionItem>
+      </div>
+      <div class="conversation--actions">
+        <AccordionItem
+          :title="$t('CONVERSATION_SIDEBAR.ACCORDION.CONVERSATION_ACTIONS')"
+          :is-open="isContactSidebarItemOpen('is_conv_actions_open')"
+          :draggable="false"
+          @toggle="value => toggleSidebarUIState('is_conv_actions_open', value)"
+        >
+          <ConversationAction
+            :conversation-id="conversationId"
+            :inbox-id="inboxId"
+          />
+        </AccordionItem>
+      </div>
       <Draggable
         :list="conversationSidebarItems"
         animation="200"
@@ -152,24 +184,7 @@ onMounted(() => {
       >
         <template #item="{ element }">
           <div
-            v-if="element.name === 'conversation_actions'"
-            class="conversation--actions"
-          >
-            <AccordionItem
-              :title="$t('CONVERSATION_SIDEBAR.ACCORDION.CONVERSATION_ACTIONS')"
-              :is-open="isContactSidebarItemOpen('is_conv_actions_open')"
-              @toggle="
-                value => toggleSidebarUIState('is_conv_actions_open', value)
-              "
-            >
-              <ConversationAction
-                :conversation-id="conversationId"
-                :inbox-id="inboxId"
-              />
-            </AccordionItem>
-          </div>
-          <div
-            v-else-if="element.name === 'conversation_participants'"
+            v-if="element.name === 'conversation_participants'"
             class="conversation--actions"
           >
             <AccordionItem
@@ -252,16 +267,6 @@ onMounted(() => {
               <MacrosList :conversation-id="conversationId" />
             </AccordionItem>
           </woot-feature-toggle>
-          <div v-else-if="element.name === 'kanban'">
-            <AccordionItem
-              :title="$t('CONVERSATION_SIDEBAR.ACCORDION.KANBAN')"
-              :is-open="isContactSidebarItemOpen('is_kanban_open')"
-              compact
-              @toggle="value => toggleSidebarUIState('is_kanban_open', value)"
-            >
-              <KanbanConversationCards :conversation-id="conversationId" />
-            </AccordionItem>
-          </div>
           <div
             v-else-if="
               element.name === 'linear_issues' &&

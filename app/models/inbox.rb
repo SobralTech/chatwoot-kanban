@@ -20,6 +20,7 @@
 #  name                          :string           not null
 #  out_of_office_message         :string
 #  sender_name_type              :integer          default("friendly"), not null
+#  show_in_all_conversations     :boolean          default(TRUE), not null
 #  timezone                      :string           default("UTC")
 #  working_hours_enabled         :boolean          default(FALSE)
 #  created_at                    :datetime         not null
@@ -30,9 +31,10 @@
 #
 # Indexes
 #
-#  index_inboxes_on_account_id                   (account_id)
-#  index_inboxes_on_channel_id_and_channel_type  (channel_id,channel_type)
-#  index_inboxes_on_portal_id                    (portal_id)
+#  index_inboxes_on_account_id                                (account_id)
+#  index_inboxes_on_account_id_and_show_in_all_conversations  (account_id,show_in_all_conversations)
+#  index_inboxes_on_channel_id_and_channel_type               (channel_id,channel_type)
+#  index_inboxes_on_portal_id                                 (portal_id)
 #
 # Foreign Keys
 #
