@@ -30,6 +30,9 @@ class Channel::Waha < ApplicationRecord
   include Channelable
 
   self.table_name = 'channel_waha'
+
+  has_many :import_chats, class_name: 'WahaImportChat', foreign_key: :channel_waha_id,
+                          dependent: :delete_all, inverse_of: :channel
   EDITABLE_ATTRS = [:phone_number, :waha_url, :api_key, :session_name,
                     :groups_enabled, :auto_reconnect, :auto_read_receipts, :signing_enabled,
                     :import_on_connect_months].freeze
@@ -73,12 +76,20 @@ class Channel::Waha < ApplicationRecord
     import_state['status'] == 'running'
   end
 
-  def import_processed_chat_ids
-    import_state['processed_chat_ids'] || []
-  end
-
   def import_retries
     import_state['retries'] || 0
+  end
+
+  # Aggregate progress for the UI, computed from the per-chat rows at read time so
+  # the import hot path never rewrites the jsonb. Keys mirror the fields the
+  # frontend reads off import_state.
+  def import_progress
+    rows = import_chats
+    {
+      'total_chats' => rows.count,
+      'processed_chats' => rows.where(status: %i[done failed]).count,
+      'imported_messages' => rows.sum(:imported_count)
+    }
   end
 
   # The window currently being imported, as a string-keyed hash — the same shape
@@ -87,42 +98,33 @@ class Channel::Waha < ApplicationRecord
     { 'window_start' => import_state['window_start'], 'window_end' => import_state['window_end'] }
   end
 
+  # Begins a fresh import: clears any prior per-chat rows and resets the jsonb
+  # header (the per-item progress now lives in import_chats). Only called when not
+  # resuming, so wiping the rows is safe.
   def start_import!(kind:, window:)
+    import_chats.delete_all
     update_import_state!(
       'status' => 'running', 'kind' => kind,
       'window_start' => window['window_start'], 'window_end' => window['window_end'],
-      'total_chats' => 0, 'processed_chats' => 0, 'processed_chat_ids' => [],
-      'imported_messages' => 0, 'cursor' => nil, 'cursor_chat_id' => nil,
       'started_at' => Time.current.utc.iso8601,
       'finished_at' => nil, 'error' => nil, 'retries' => 0, 'queued_window' => nil
     )
   end
 
-  def set_import_total_chats!(count)
-    update_import_state!('total_chats' => count)
-  end
-
-  # Per-page progress: bumps the imported-message counter as each page lands (so
-  # the UI advances inside a large chat) and persists the timestamp cursor so a
-  # restart resumes mid-chat instead of replaying the whole window.
-  def record_import_page!(chat_id, cursor, imported_count)
-    update_import_state!(
-      'cursor_chat_id' => chat_id, 'cursor' => cursor,
-      'imported_messages' => (import_state['imported_messages'] || 0) + imported_count
-    )
-  end
-
-  def mark_import_chat_processed!(chat_id)
-    ids = (import_processed_chat_ids + [chat_id]).uniq
-    update_import_state!(
-      'processed_chat_ids' => ids,
-      'processed_chats' => ids.size,
-      'cursor' => nil, 'cursor_chat_id' => nil
-    )
-  end
-
   def record_import_retry!
     update_import_state!('retries' => import_retries + 1)
+  end
+
+  # Called by the last worker to drain the queue: a gap-fill window that arrived
+  # mid-import is picked up as a follow-up run, otherwise the import is done.
+  def finalize_import!
+    queued = import_state['queued_window']
+    if queued
+      update_import_state!('queued_window' => nil, 'status' => 'pending')
+      Waha::HistoryImportJob.perform_later(id, queued, 'gap_fill')
+    else
+      finish_import!
+    end
   end
 
   def finish_import!
@@ -140,6 +142,9 @@ class Channel::Waha < ApplicationRecord
   def retry_failed_import!
     return false unless import_state['status'] == 'failed'
 
+    # rubocop:disable Rails/SkipsModelValidations
+    import_chats.where(status: %i[importing failed]).update_all(status: WahaImportChat.statuses[:pending])
+    # rubocop:enable Rails/SkipsModelValidations
     update_import_state!('status' => 'running', 'error' => nil, 'retries' => 0)
     Waha::HistoryImportJob.perform_later(id, import_window, import_state['kind'])
     true

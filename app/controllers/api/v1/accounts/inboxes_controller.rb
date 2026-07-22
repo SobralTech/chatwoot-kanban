@@ -95,7 +95,7 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController #
       qr_code: qr,
       phone_number: @inbox.channel.phone_number,
       status_history: @inbox.channel.status_history,
-      import_state: @inbox.channel.import_state
+      import_state: @inbox.channel.import_state.merge(@inbox.channel.import_progress)
     }
   end
 

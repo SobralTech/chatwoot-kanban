@@ -4,7 +4,7 @@ class Waha::ChatHistoryImporter
   # media download each page is light, so we can pull a large batch per request.
   PAGE_SIZE = 200
 
-  pattr_initialize [:channel!, :chat_id!, :window!]
+  pattr_initialize [:channel!, :chat_id!, :window!, :import_chat!]
 
   # Imports one chat's messages within the window. Resolves the conversation once,
   # batch-dedups against existing stanza ids, then writes each new message
@@ -45,20 +45,19 @@ class Waha::ChatHistoryImporter
     imported
   end
 
-  # Resume from the persisted cursor when this run is picking up the same chat
-  # after a restart; otherwise start at the window's lower bound.
+  # Resume from the row's persisted cursor after a restart; otherwise start at the
+  # window's lower bound.
   def resume_cursor
-    state = channel.import_state
-    return state['cursor'].to_i if state['cursor_chat_id'] == chat_id && state['cursor'].present?
-
-    window_unix('window_start')
+    import_chat.cursor || window_unix('window_start')
   end
 
+  # Per-page progress on the chat's own row (single-row write, no jsonb churn):
+  # bumps its imported count and persists the timestamp cursor for mid-chat resume.
   def write_page(page)
     @page_media_ids = []
     imported = page.count { |payload| write_message(payload) }
     enqueue_page_media
-    channel.record_import_page!(chat_id, page.last['timestamp'].to_i, imported)
+    import_chat.update!(cursor: page.last['timestamp'].to_i, imported_count: import_chat.imported_count + imported)
     imported
   end
 

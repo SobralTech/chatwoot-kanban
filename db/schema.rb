@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_20_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_21_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1479,6 +1479,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_120000) do
     t.index ["uid", "provider"], name: "index_users_on_uid_and_provider", unique: true
   end
 
+  create_table "waha_import_chats", force: :cascade do |t|
+    t.bigint "channel_waha_id", null: false
+    t.string "chat_id", null: false
+    t.integer "status", default: 0, null: false
+    t.integer "imported_count", default: 0, null: false
+    t.bigint "cursor"
+    t.string "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["channel_waha_id", "chat_id"], name: "index_waha_import_chats_on_channel_waha_id_and_chat_id", unique: true
+    t.index ["channel_waha_id", "status"], name: "index_waha_import_chats_on_channel_waha_id_and_status"
+    t.index ["channel_waha_id"], name: "index_waha_import_chats_on_channel_waha_id"
+  end
+
   create_table "webhooks", force: :cascade do |t|
     t.integer "account_id"
     t.integer "inbox_id"
@@ -1528,6 +1542,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_20_120000) do
   add_foreign_key "kanban_card_assignees", "accounts"
   add_foreign_key "kanban_card_assignees", "kanban_cards"
   add_foreign_key "kanban_card_assignees", "users"
+  add_foreign_key "waha_import_chats", "channel_waha"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").
       after(:insert).

@@ -2,11 +2,15 @@ class Waha::HistoryImportJob < ApplicationJob
   queue_as :low
 
   MAX_RETRIES = 5
-  THROTTLE = 0.5
+  # Bounded per-channel parallelism: how many chats import at once. Tunable in
+  # production without a deploy; kept well under Sidekiq concurrency so one
+  # channel's import doesn't starve other work (or hammer the WAHA session).
+  WORKER_POOL = ENV.fetch('WAHA_IMPORT_CONCURRENCY', 4).to_i
 
-  # Orchestrates a silent history import for one WAHA channel: it is the logical
-  # lock (import_state.status == running), scans chats in scope, imports each one,
-  # and persists progress so a failure resumes from the next un-processed chat.
+  # Dispatches a silent history import for one WAHA channel: it acquires the lock
+  # (import_state.status == running), seeds the per-chat work queue, and spins up
+  # a bounded worker pool that imports chats concurrently. Progress lives on the
+  # per-chat rows, so a restart or retry just re-runs this and the pool resumes.
   def perform(channel_id, window, kind)
     @channel = Channel::Waha.find_by(id: channel_id)
     return unless @channel
@@ -14,56 +18,52 @@ class Waha::HistoryImportJob < ApplicationJob
     @window = window
     @kind = kind
     @channel.start_import!(kind: kind, window: window) unless resuming?
-    import_all_chats
-    finalize
+    dispatch_chats
   rescue StandardError => e
     handle_failure(e)
   end
 
   private
 
-  # A retry re-enqueues the same job while status is still running; that run
-  # resumes (skips already-processed chats) instead of restarting the import.
+  # A retry/restart re-enqueues this job while status is still running; that run
+  # resumes (keeps the existing chat rows) instead of wiping and restarting.
   def resuming?
     state = @channel.import_state
     state['status'] == 'running' && state['kind'] == @kind &&
       state['window_start'] == @window['window_start'] && state['window_end'] == @window['window_end']
   end
 
-  def import_all_chats
+  def dispatch_chats
     chat_ids = Waha::ChatOverviewFetcher.new(channel: @channel).all
-    @channel.set_import_total_chats!(chat_ids.size)
-    processed = @channel.import_processed_chat_ids.to_set
+    seed_chat_rows(chat_ids)
+    reclaim_stale_rows
+    return @channel.finalize_import! unless @channel.import_chats.exists?
 
-    chat_ids.each { |chat_id| import_chat(chat_id) unless processed.include?(chat_id) }
+    WORKER_POOL.times { Waha::ImportChatWorkerJob.perform_later(@channel.id, @window) }
   end
 
-  # Per-chat isolation: one bad/slow chat is logged and skipped (marked
-  # processed) instead of stalling or failing the whole import. The overview/
-  # systemic errors still bubble up to the job-level retry.
-  def import_chat(chat_id)
-    Waha::ChatHistoryImporter.new(channel: @channel, chat_id: chat_id, window: @window).run
-    @channel.mark_import_chat_processed!(chat_id)
-    sleep THROTTLE
-  rescue StandardError => e
-    Rails.logger.error "[WAHA] History import: chat #{chat_id} failed: #{e.message}"
-    @channel.mark_import_chat_processed!(chat_id)
+  # Idempotent seed: ON CONFLICT DO NOTHING keeps the progress of chats already
+  # queued by a prior run, so a resume only adds newly discovered chats.
+  def seed_chat_rows(chat_ids)
+    return if chat_ids.blank?
+
+    now = Time.current
+    rows = chat_ids.map { |chat_id| { channel_waha_id: @channel.id, chat_id: chat_id, created_at: now, updated_at: now } }
+    # rubocop:disable Rails/SkipsModelValidations
+    WahaImportChat.insert_all(rows, unique_by: %i[channel_waha_id chat_id])
+    # rubocop:enable Rails/SkipsModelValidations
   end
 
-  # A gap-fill window that arrived while this import ran is picked up as a fresh
-  # follow-up import; otherwise the import is done.
-  def finalize
-    queued = @channel.import_state['queued_window']
-    if queued
-      @channel.update_import_state!('queued_window' => nil, 'status' => 'pending')
-      self.class.perform_later(@channel.id, queued, 'gap_fill')
-    else
-      @channel.finish_import!
-    end
+  # A worker that died leaves its chat stuck in `importing`; requeue those so the
+  # fresh pool re-claims them (the row's cursor resumes mid-chat).
+  def reclaim_stale_rows
+    # rubocop:disable Rails/SkipsModelValidations
+    @channel.import_chats.importing.update_all(status: WahaImportChat.statuses[:pending])
+    # rubocop:enable Rails/SkipsModelValidations
   end
 
-  # Re-finds the channel so a mid-import inbox deletion just stops silently
-  # instead of erroring on a gone record.
+  # Only systemic failures (e.g. the chat-overview fetch) reach here — per-chat
+  # failures are isolated inside the workers.
   def handle_failure(error)
     channel = Channel::Waha.find_by(id: @channel&.id)
     return if channel.nil?
