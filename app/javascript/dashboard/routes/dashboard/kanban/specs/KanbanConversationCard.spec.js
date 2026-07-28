@@ -12,6 +12,7 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.CARD.UNKNOWN_CONTACT': 'Unknown Contact',
         'KANBAN.CARD.UNKNOWN_INBOX': 'Unknown Inbox',
         'KANBAN.CARD.NO_LINKED_CONVERSATION': 'No linked conversation',
+        'KANBAN.CARD.EDIT': 'Edit card',
         'KANBAN.ACTIONS.REMOVE_CARD': 'Remove',
       };
 
@@ -185,14 +186,14 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.text()).not.toContain('+1');
   });
 
-  it('emits openDetails when the card surface is clicked', async () => {
+  it('emits openConversation when the card surface is clicked', async () => {
     const card = buildCard();
     const wrapper = mountCard({ card });
 
     await wrapper.find('article').trigger('click');
 
-    expect(wrapper.emitted('openDetails')).toHaveLength(1);
-    expect(wrapper.emitted('openDetails')[0][0]).toEqual(card);
+    expect(wrapper.emitted('openConversation')).toHaveLength(1);
+    expect(wrapper.emitted('openConversation')[0][0]).toEqual(card);
   });
 
   it('renders subject above contact name with title when subject is present', () => {
@@ -215,25 +216,22 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.text()).toContain('Sales Inbox');
   });
 
-  it('emits openDetails even when conversationId is null', async () => {
-    const card = buildManualCard();
-    const wrapper = mountCard({ card });
+  it('does not emit openConversation when the card has no conversation', async () => {
+    const wrapper = mountCard({ card: buildManualCard() });
 
     await wrapper.find('article').trigger('click');
 
-    expect(wrapper.emitted('openDetails')).toHaveLength(1);
-    expect(wrapper.emitted('openDetails')[0][0]).toEqual(card);
+    expect(wrapper.emitted('openConversation')).toBeUndefined();
   });
 
-  it('does not emit openConversation from avatar when conversation is missing', async () => {
-    const wrapper = mountCard({ card: buildManualCard() });
+  it('emits openDetails when the settings action is clicked', async () => {
+    const card = buildManualCard();
+    const wrapper = mountCard({ card });
 
-    await wrapper
-      .find('[data-testid="kanban-card-contact-avatar"]')
-      .trigger('click');
+    await wrapper.find('[data-testid="kanban-card-settings"]').trigger('click');
 
     expect(wrapper.emitted('openConversation')).toBeUndefined();
-    expect(wrapper.emitted('openDetails')).toBeUndefined();
+    expect(wrapper.emitted('openDetails')).toEqual([[card]]);
   });
 
   it('does not emit openDetails when clicking remove button', async () => {
@@ -254,24 +252,14 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.emitted('removeCard')).toEqual([[card]]);
   });
 
-  it('emits openConversation when clicking the contact avatar with a conversation', async () => {
-    const card = buildCard();
-    const wrapper = mountCard({ card });
-
-    await wrapper
-      .find('[data-testid="kanban-card-contact-avatar"]')
-      .trigger('click');
-
-    expect(wrapper.emitted('openConversation')).toHaveLength(1);
-    expect(wrapper.emitted('openConversation')[0][0]).toEqual(card);
-    expect(wrapper.emitted('openDetails')).toBeUndefined();
-  });
-
-  it('marks remove button as no-drag', async () => {
+  it('marks card action buttons as no-drag', () => {
     const wrapper = mountCard();
 
     expect(
       wrapper.find('[data-testid="kanban-card-remove"]').classes()
+    ).toContain('no-drag');
+    expect(
+      wrapper.find('[data-testid="kanban-card-settings"]').classes()
     ).toContain('no-drag');
   });
 
@@ -283,11 +271,13 @@ describe('KanbanConversationCard', () => {
     expect(removeButton.attributes('title')).toBe('Remove');
   });
 
-  it('does not render an edit button', () => {
+  it('renders an accessible settings button', () => {
     const wrapper = mountCard();
+    const settingsButton = wrapper.find('[data-testid="kanban-card-settings"]');
 
-    expect(wrapper.find('.i-lucide-pencil').exists()).toBe(false);
-    expect(wrapper.text()).not.toContain('Edit');
+    expect(settingsButton.attributes('aria-label')).toBe('Edit card');
+    expect(settingsButton.attributes('title')).toBe('Edit card');
+    expect(settingsButton.find('.i-lucide-settings').exists()).toBe(true);
   });
 
   it('renders inbox badge separately from the inbox pill', () => {

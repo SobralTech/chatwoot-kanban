@@ -130,8 +130,8 @@ const dueAtClasses = computed(() => {
   }
 });
 
-const openDetails = event => {
-  emit('openDetails', props.card, event);
+const openDetails = () => {
+  emit('openDetails', props.card);
 };
 
 const onSelectPriority = (option, hide) => {
@@ -148,11 +148,23 @@ const openConversation = event => {
 
 <template>
   <article
-    class="card-drag-handle group relative cursor-grab rounded-lg border border-n-weak bg-n-surface-1 p-2"
+    class="card-drag-handle group relative cursor-pointer rounded-lg border border-n-weak bg-n-surface-1 p-2"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
-    @click="openDetails"
+    @click="openConversation"
   >
+    <button
+      type="button"
+      data-testid="kanban-card-settings"
+      class="no-drag pointer-events-auto absolute top-1.5 ltr:right-10 rtl:left-10 flex size-8 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 opacity-0 shadow-sm transition-opacity hover:bg-n-alpha-2 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-n-brand group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+      :aria-label="t('KANBAN.CARD.EDIT')"
+      :title="t('KANBAN.CARD.EDIT')"
+      :disabled="!!activeActionKey"
+      @click.stop="openDetails"
+    >
+      <i class="i-lucide-settings size-5" />
+    </button>
+
     <button
       type="button"
       data-testid="kanban-card-remove"
@@ -175,12 +187,10 @@ const openConversation = event => {
       </p>
 
       <div class="mt-1 flex items-center gap-1.5">
-        <button
-          type="button"
+        <span
           data-testid="kanban-card-contact-avatar"
-          class="no-drag relative flex flex-shrink-0 rounded-full focus:outline-none focus:ring-1 focus:ring-n-brand"
+          class="relative flex flex-shrink-0 rounded-full"
           :title="contactName"
-          @click.stop="openConversation"
         >
           <Avatar
             :name="contactName"
@@ -194,7 +204,7 @@ const openConversation = event => {
           >
             <ChannelIcon :inbox="inbox" class="size-3.5 text-n-slate-11" />
           </span>
-        </button>
+        </span>
 
         <h4
           class="min-w-0 flex-1 truncate text-xs font-medium leading-4 text-n-slate-12"
