@@ -21,8 +21,10 @@ class Waha::HistoryMediaJob < ApplicationJob
     return if channel.nil?
 
     consecutive_failures = 0
-    Message.where(id: message_ids).find_each do |message|
-      next if message.attachments.any?
+    first = true
+    Message.where(id: message_ids).where.missing(:attachments).find_each do |message|
+      sleep THROTTLE unless first
+      first = false
 
       if attach_media(channel, chat_id, message)
         consecutive_failures = 0
@@ -30,7 +32,6 @@ class Waha::HistoryMediaJob < ApplicationJob
         consecutive_failures += 1
         break if consecutive_failures >= MAX_CONSECUTIVE_FAILURES
       end
-      sleep THROTTLE
     end
   end
 
@@ -42,7 +43,7 @@ class Waha::HistoryMediaJob < ApplicationJob
     payload = fetch_message(channel, chat_id, message.source_id)
     return false if payload.blank?
 
-    Waha::MediaAttacher.new(channel: channel, payload: payload, message: message).attach
+    Waha::MediaAttacher.new(channel: channel, payload: payload).attach_to(message)
     return false if message.attachments.blank?
 
     message.imported = true
@@ -55,7 +56,11 @@ class Waha::HistoryMediaJob < ApplicationJob
 
   def fetch_message(channel, chat_id, source_id)
     path = "#{channel.session_name}/chats/#{CGI.escape(chat_id.to_s)}/messages/#{CGI.escape(source_id.to_s)}?downloadMedia=true"
-    response = Waha::HttpClient.new(channel: channel).get(path, timeout: FETCH_TIMEOUT)
+    response = http_client(channel).get(path, timeout: FETCH_TIMEOUT)
     response.is_a?(Hash) ? response : nil
+  end
+
+  def http_client(channel)
+    @http_client ||= Waha::HttpClient.new(channel: channel)
   end
 end

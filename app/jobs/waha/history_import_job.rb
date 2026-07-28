@@ -39,7 +39,10 @@ class Waha::HistoryImportJob < ApplicationJob
     reclaim_stale_rows
     return @channel.finalize_import! unless @channel.import_chats.exists?
 
-    WORKER_POOL.times { Waha::ImportChatWorkerJob.perform_later(@channel.id, @window) }
+    # Never spin up more workers than there are chats for them to claim.
+    @channel.import_chats.pending.count.clamp(1, WORKER_POOL).times do
+      Waha::ImportChatWorkerJob.perform_later(@channel.id, @window)
+    end
   end
 
   # Idempotent seed: ON CONFLICT DO NOTHING keeps the progress of chats already
@@ -65,19 +68,18 @@ class Waha::HistoryImportJob < ApplicationJob
   # Only systemic failures (e.g. the chat-overview fetch) reach here — per-chat
   # failures are isolated inside the workers.
   def handle_failure(error)
-    channel = Channel::Waha.find_by(id: @channel&.id)
-    return if channel.nil?
+    return if @channel.nil?
 
-    channel.record_import_retry!
-    if channel.import_retries <= MAX_RETRIES
-      self.class.set(wait: backoff(channel)).perform_later(channel.id, @window, @kind)
+    @channel.record_import_retry!
+    if @channel.import_retries <= MAX_RETRIES
+      self.class.set(wait: backoff).perform_later(@channel.id, @window, @kind)
     else
-      channel.fail_import!(error.message)
+      @channel.fail_import!(error.message)
     end
   end
 
   # Quadratic backoff: 10s, 40s, 90s, 160s, 250s.
-  def backoff(channel)
-    ((channel.import_retries**2) * 10).seconds
+  def backoff
+    ((@channel.import_retries**2) * 10).seconds
   end
 end

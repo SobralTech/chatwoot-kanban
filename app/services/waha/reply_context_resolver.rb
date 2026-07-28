@@ -30,7 +30,7 @@ class Waha::ReplyContextResolver
   def stanza
     # replyTo.id carries only the stanza (e.g. 3EB061968E662308B1CAEE), but we
     # normalize just like the dedupe path in case a full source_id shows up.
-    @stanza ||= payload.dig('replyTo', 'id').to_s.split('_').last
+    @stanza ||= Waha::Anchoring.stanza_of(payload.dig('replyTo', 'id'))
   end
 
   def original
@@ -38,7 +38,7 @@ class Waha::ReplyContextResolver
 
     # Prefer a match in the current conversation: stanzas are only guaranteed
     # unique per chat, so this minimizes cross-chat false positives.
-    scope = inbox.messages.where('source_id LIKE ?', "%_#{stanza}")
+    scope = Waha::Anchoring.by_stanza(inbox, stanza)
     @original = scope.find_by(conversation_id: conversation.id) || scope.first
   end
 
@@ -92,16 +92,14 @@ class Waha::ReplyContextResolver
     contact = find_contact(jid)
     return contact.name if contact&.name.present?
 
-    digits = jid.to_s.split('@').first.to_s.split(':').first
-    jid.to_s.end_with?('@lid') ? jid : "+#{digits}"
+    Waha::Jid.lid?(jid) ? jid : "+#{Waha::Jid.digits(jid)}"
   end
 
   def find_contact(jid)
-    if jid.to_s.end_with?('@lid')
+    if Waha::Jid.lid?(jid)
       channel.account.contacts.where("additional_attributes->>'lid' = ?", jid).first
     else
-      digits = jid.to_s.split('@').first.to_s.split(':').first
-      channel.account.contacts.find_by(phone_number: "+#{digits}")
+      channel.account.contacts.find_by(phone_number: "+#{Waha::Jid.digits(jid)}")
     end
   end
 

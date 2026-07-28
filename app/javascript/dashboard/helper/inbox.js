@@ -89,6 +89,13 @@ const INBOX_ICON_MAP_LINE = {
 
 const DEFAULT_ICON_LINE = 'i-ri-chat-1-line';
 
+// vue-i18n returns the key itself when a translation is missing, so fall back to
+// the raw value — WAHA emits session/event names we may not have a label for.
+export const translateOrRaw = (t, key, raw) => {
+  const translated = t(key);
+  return translated === key ? raw : translated;
+};
+
 export const isApiWhatsappInbox = (type, name = '') => {
   return (
     type === INBOX_TYPES.API && (name || '').toLowerCase().includes('whatsapp')

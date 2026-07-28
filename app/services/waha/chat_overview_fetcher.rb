@@ -1,6 +1,5 @@
 class Waha::ChatOverviewFetcher
   PAGE_SIZE = 50
-  IGNORED_SUFFIXES = %w[@newsletter status@broadcast].freeze
 
   pattr_initialize [:channel!]
 
@@ -29,8 +28,8 @@ class Waha::ChatOverviewFetcher
   end
 
   def in_scope?(id)
-    return false if IGNORED_SUFFIXES.any? { |suffix| id.end_with?(suffix) }
-    return channel.groups_enabled if id.end_with?('@g.us')
+    return false if Channel::Waha::IGNORED_CHAT_SUFFIXES.any? { |suffix| id.end_with?(suffix) }
+    return channel.groups_enabled if Waha::Jid.group?(id)
 
     true
   end

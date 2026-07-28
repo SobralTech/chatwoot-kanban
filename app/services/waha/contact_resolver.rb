@@ -3,14 +3,34 @@ class Waha::ContactResolver
 
   pattr_initialize [:channel!, :jid!, :push_name, :from_me, :sender_alt, :recipient_alt]
 
+  # Builds a resolver straight from a WAHA message payload — the live and the
+  # import path both dig the same five fields out of the same engine-specific
+  # paths, so the shape is owned here.
+  def self.from_payload(channel:, jid:, payload:)
+    new(
+      channel: channel,
+      jid: jid,
+      push_name: payload.dig('_data', 'Info', 'PushName').presence || payload.dig('_data', 'pushName'),
+      from_me: payload['fromMe'],
+      sender_alt: payload.dig('_data', 'Info', 'SenderAlt'),
+      recipient_alt: payload.dig('_data', 'Info', 'RecipientAlt')
+    )
+  end
+
   # Returns a ContactInbox for the given JID, creating contact if needed.
   def perform
     resolved_jid = resolve_jid
-    contact_attrs = build_contact_attributes(resolved_jid)
+    # The builder discards contact_attributes when the contact_inbox already
+    # exists, so short-circuit before building them — otherwise every message
+    # from a known contact pays for an avatar (and group name) fetch against the
+    # shared WAHA session for nothing.
+    existing = channel.inbox.contact_inboxes.find_by(source_id: resolved_jid)
+    return existing if existing
+
     ::ContactInboxWithContactBuilder.new(
       source_id: resolved_jid,
       inbox: channel.inbox,
-      contact_attributes: contact_attrs
+      contact_attributes: build_contact_attributes(resolved_jid)
     ).perform
   rescue StandardError => e
     Rails.logger.error "[WAHA] ContactResolver error for #{jid}: #{e.message}"
@@ -21,7 +41,7 @@ class Waha::ContactResolver
 
   # Resolve @lid JIDs to their real @c.us equivalent.
   def resolve_jid
-    return jid unless jid.end_with?('@lid')
+    return jid unless Waha::Jid.lid?(jid)
 
     resolved = resolve_lid_to_cus
     # Guard: never map a contact onto our own session number.
@@ -46,7 +66,7 @@ class Waha::ContactResolver
   end
 
   def build_contact_attributes(resolved_jid)
-    if resolved_jid.end_with?('@g.us')
+    if Waha::Jid.group?(resolved_jid)
       group_contact_attributes(resolved_jid)
     else
       dm_contact_attributes(resolved_jid)
@@ -63,7 +83,7 @@ class Waha::ContactResolver
     attrs[:phone_number] = "+#{phone}" if phone
     attrs[:avatar_url] = fetch_chat_picture(jid)
     attrs[:additional_attributes][:jid] = resolved_jid
-    if jid.end_with?('@lid')
+    if Waha::Jid.lid?(jid)
       attrs[:additional_attributes][:lid] = jid
       attrs[:custom_attributes] = { LID_ATTRIBUTE_KEY => jid }
       ensure_lid_attribute_definition
@@ -81,8 +101,6 @@ class Waha::ContactResolver
       definition.attribute_display_name = 'WhatsApp LID'
       definition.attribute_display_type = :text
     end
-  rescue StandardError
-    nil
   end
 
   def group_contact_attributes(group_jid)
@@ -97,15 +115,18 @@ class Waha::ContactResolver
   # WEBJS/NOWEB engines return the group name under `subject`; the GOWS engine
   # returns the raw Go struct with a PascalCase `Name` field instead.
   def fetch_group_name(group_jid)
-    response = http_client.get("#{channel.session_name}/groups/#{group_jid}")
-    response&.dig('subject').presence || response&.dig('Name').presence
-  rescue StandardError
-    nil
+    fetch("groups/#{group_jid}", 'subject', 'Name')
   end
 
   def fetch_chat_picture(chat_jid)
-    response = http_client.get("#{channel.session_name}/chats/#{chat_jid}/picture")
-    response&.dig('url')
+    fetch("chats/#{chat_jid}/picture", 'url')
+  end
+
+  # Optional session lookups: a miss (or an unreachable session) just means we
+  # fall back to the JID, so it must never fail the resolution.
+  def fetch(path, *keys)
+    response = http_client.get("#{channel.session_name}/#{path}")
+    keys.lazy.filter_map { |key| response&.dig(key).presence }.first
   rescue StandardError
     nil
   end
@@ -116,7 +137,7 @@ class Waha::ContactResolver
 
   # "558894397552:23@s.whatsapp.net" -> "558894397552@c.us"
   def swhatsapp_to_cus(raw)
-    digits = raw.to_s.split('@').first.to_s.split(':').first
+    digits = Waha::Jid.digits(raw)
     digits.present? ? "#{digits}@c.us" : nil
   end
 

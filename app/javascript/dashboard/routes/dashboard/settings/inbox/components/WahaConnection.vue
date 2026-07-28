@@ -3,6 +3,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { translateOrRaw } from 'dashboard/helper/inbox';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import SpinnerLoader from 'dashboard/components-next/spinner/Spinner.vue';
 
@@ -44,13 +45,14 @@ const importRetryUrl = computed(
 );
 
 const isConnected = computed(() => sessionStatus.value === 'WORKING');
-const canReconnect = computed(() => sessionStatus.value !== 'WORKING');
 
 const displayStatus = computed(() => {
   if (!sessionStatus.value) return '';
-  const key = `INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STATUSES.${sessionStatus.value}`;
-  const translated = t(key);
-  return translated === key ? sessionStatus.value : translated;
+  return translateOrRaw(
+    t,
+    `INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STATUSES.${sessionStatus.value}`,
+    sessionStatus.value
+  );
 });
 
 const statusColorClass = computed(() => {
@@ -65,9 +67,8 @@ const sortedLog = computed(() => [...statusHistory.value].reverse());
 
 // --- History import progress (shares the 5s status poll) ---
 const importStatus = computed(() => importState.value.status);
-const showImportProgress = computed(() =>
-  ['pending', 'running', 'failed', 'done'].includes(importStatus.value)
-);
+// Any recorded status means an import has been kicked off for this channel.
+const showImportProgress = computed(() => Boolean(importStatus.value));
 const importTotal = computed(() => importState.value.total_chats || 0);
 const importProcessed = computed(() => importState.value.processed_chats || 0);
 const importMessages = computed(() => importState.value.imported_messages || 0);
@@ -90,9 +91,11 @@ const importRunningLabel = computed(() =>
 );
 
 function eventLabel(status) {
-  const key = `INBOX_MGMT.WAHA_CONNECTION.EVENTS.${status}`;
-  const translated = t(key);
-  return translated === key ? status : translated;
+  return translateOrRaw(
+    t,
+    `INBOX_MGMT.WAHA_CONNECTION.EVENTS.${status}`,
+    status
+  );
 }
 
 function formatTimestamp(timestamp) {
@@ -141,6 +144,18 @@ function stopModalPolling() {
   }
 }
 
+function stopTabPolling() {
+  if (tabPollInterval) {
+    clearInterval(tabPollInterval);
+    tabPollInterval = null;
+  }
+}
+
+function startTabPolling() {
+  stopTabPolling();
+  tabPollInterval = setInterval(fetchStatus, 5000);
+}
+
 async function pollModal() {
   await fetchStatus();
   if (isConnected.value) {
@@ -156,6 +171,8 @@ async function openReconnectModal() {
   modalMismatch.value = false;
   modalOpenedAt.value = Date.now();
   showModal.value = true;
+  // The modal drives its own polling; the tab poll would only duplicate it.
+  stopTabPolling();
 
   try {
     await axios.post(reconnectUrl.value);
@@ -170,15 +187,16 @@ async function openReconnectModal() {
 function closeModal() {
   stopModalPolling();
   showModal.value = false;
+  startTabPolling();
 }
 
 onMounted(() => {
   fetchStatus();
-  tabPollInterval = setInterval(fetchStatus, 5000);
+  startTabPolling();
 });
 
 onUnmounted(() => {
-  if (tabPollInterval) clearInterval(tabPollInterval);
+  stopTabPolling();
   stopModalPolling();
 });
 </script>
@@ -203,7 +221,7 @@ onUnmounted(() => {
           </span>
         </div>
         <NextButton
-          v-if="canReconnect"
+          v-if="!isConnected"
           solid
           blue
           sm

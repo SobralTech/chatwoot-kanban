@@ -78,11 +78,6 @@ class Waha::ReactionApplier
     contact_inbox&.contact&.name || formatted_number(reactor_key)
   end
 
-  def formatted_number(jid)
-    digits = jid.to_s.split('@').first.to_s.split(':').first
-    digits.present? ? "+#{digits}" : jid.to_s
-  end
-
   # The agent who reacted from Chatwoot, resolved from the marker ReactionService
   # stashed on the family anchor before the PUT. Absent for phone/Web reactions
   # ("Você") and for contact reactions.
@@ -110,6 +105,12 @@ class Waha::ReactionApplier
 
     anchor_source_id = target_message.additional_attributes['edit_of'].presence
     @anchor_message = anchor_source_id ? channel.inbox.messages.find_by(source_id: anchor_source_id) : target_message
+  end
+
+  # "5511999999999:23@s.whatsapp.net" -> "+5511999999999"
+  def formatted_number(jid)
+    digits = Waha::Jid.digits(jid)
+    digits.present? ? "+#{digits}" : jid.to_s
   end
 
   def create_activity(emoji, author)

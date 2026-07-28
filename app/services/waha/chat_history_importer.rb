@@ -67,7 +67,7 @@ class Waha::ChatHistoryImporter
   end
 
   def write_message(payload)
-    stanza = payload['id'].to_s.split('_').last
+    stanza = Waha::Anchoring.stanza_of(payload['id'])
     return false if stanza.blank? || @existing_stanzas.include?(stanza)
 
     message = Waha::HistoryMessageWriter.new(channel: channel, payload: payload, conversation: @conversation).perform
@@ -100,14 +100,7 @@ class Waha::ChatHistoryImporter
     # Prefer an incoming sample: it carries the contact's real number/name for
     # @lid resolution (a fromMe sample only has our own side).
     sample = page.find { |message| !message['fromMe'] } || page.first
-    contact_inbox = Waha::ContactResolver.new(
-      channel: channel,
-      jid: chat_id,
-      push_name: sample.dig('_data', 'Info', 'PushName').presence || sample.dig('_data', 'pushName'),
-      from_me: sample['fromMe'],
-      sender_alt: sample.dig('_data', 'Info', 'SenderAlt'),
-      recipient_alt: sample.dig('_data', 'Info', 'RecipientAlt')
-    ).perform
+    contact_inbox = Waha::ContactResolver.from_payload(channel: channel, jid: chat_id, payload: sample).perform
     return unless contact_inbox
 
     contact_inbox.conversations.last || create_conversation(contact_inbox)
@@ -128,7 +121,7 @@ class Waha::ChatHistoryImporter
   def load_existing_stanzas
     @conversation.messages.where.not(source_id: nil)
                  .pluck(:source_id)
-                 .to_set { |source_id| source_id.to_s.split('_').last }
+                 .to_set { |source_id| Waha::Anchoring.stanza_of(source_id) }
   end
 
   def track_timestamp(unix)
@@ -160,7 +153,7 @@ class Waha::ChatHistoryImporter
       'sortBy' => 'timestamp', 'sortOrder' => 'asc', 'downloadMedia' => false,
       'filter.timestamp.gte' => cursor,
       'filter.timestamp.lte' => window_unix('window_end')
-    }.map { |key, value| "#{key}=#{value}" }.join('&')
+    }.to_query
 
     response = http_client.get("#{channel.session_name}/chats/#{chat_id}/messages?#{query}")
     response.is_a?(Array) ? response : []

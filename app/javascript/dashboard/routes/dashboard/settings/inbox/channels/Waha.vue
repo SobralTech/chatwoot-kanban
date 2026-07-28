@@ -8,6 +8,7 @@ import { required, url } from '@vuelidate/validators';
 import { useStore } from 'vuex';
 import { useAlert } from 'dashboard/composables';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { translateOrRaw } from 'dashboard/helper/inbox';
 import PageHeader from '../../SettingsSubPageHeader.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 
@@ -41,10 +42,11 @@ const isConnected = computed(() => sessionStatus.value === 'WORKING');
 const displayStatus = computed(() => {
   if (!sessionStatus.value)
     return t('INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STARTING');
-  const key = `INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STATUSES.${sessionStatus.value}`;
-  const translated = t(key);
-  // Fall back to the raw WAHA status for values we don't have a label for
-  return translated === key ? sessionStatus.value : translated;
+  return translateOrRaw(
+    t,
+    `INBOX_MGMT.ADD.WAHA_CHANNEL.SESSION.STATUSES.${sessionStatus.value}`,
+    sessionStatus.value
+  );
 });
 
 const rules = {

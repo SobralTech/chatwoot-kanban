@@ -26,6 +26,10 @@
 #  index_channel_waha_on_account_id     (account_id)
 #  index_channel_waha_on_webhook_token  (webhook_token) UNIQUE
 #
+# Import/session bookkeeping is written with update_column(s) by design: these
+# are high-frequency progress writes that must not fire validations, callbacks
+# or broadcasts on the message hot path.
+# rubocop:disable Rails/SkipsModelValidations
 class Channel::Waha < ApplicationRecord
   include Channelable
 
@@ -39,6 +43,9 @@ class Channel::Waha < ApplicationRecord
 
   # Cap on how far back any import window can reach, even after a very long outage.
   IMPORT_WINDOW_CAP = 6.months
+
+  # Chats we never mirror into Chatwoot, in either the live or the import path.
+  IGNORED_CHAT_SUFFIXES = %w[@newsletter status@broadcast].freeze
 
   before_validation :sanitize_session_name
   before_create :generate_webhook_token
@@ -55,18 +62,14 @@ class Channel::Waha < ApplicationRecord
   end
 
   def update_session_status(status)
-    # rubocop:disable Rails/SkipsModelValidations
     update_columns(session_status: status, status_history: appended_history(status))
-    # rubocop:enable Rails/SkipsModelValidations
   end
 
   # Records an event in the connection log without touching session_status — used
   # for synthetic events (e.g. a blocked number mismatch) that aren't real WAHA
   # session states.
   def log_status_event(status)
-    # rubocop:disable Rails/SkipsModelValidations
     update_columns(status_history: appended_history(status))
-    # rubocop:enable Rails/SkipsModelValidations
   end
 
   # --- Import state (single source of truth for progress + lock) ---
@@ -84,12 +87,11 @@ class Channel::Waha < ApplicationRecord
   # the import hot path never rewrites the jsonb. Keys mirror the fields the
   # frontend reads off import_state.
   def import_progress
-    rows = import_chats
-    {
-      'total_chats' => rows.count,
-      'processed_chats' => rows.where(status: %i[done failed]).count,
-      'imported_messages' => rows.sum(:imported_count)
-    }
+    done = WahaImportChat.statuses.values_at(:done, :failed)
+    total, processed, imported = import_chats.pick(
+      Arel.sql("COUNT(*), COUNT(*) FILTER (WHERE status IN (#{done.join(',')})), COALESCE(SUM(imported_count), 0)")
+    )
+    { 'total_chats' => total, 'processed_chats' => processed, 'imported_messages' => imported }
   end
 
   # The window currently being imported, as a string-keyed hash — the same shape
@@ -142,9 +144,7 @@ class Channel::Waha < ApplicationRecord
   def retry_failed_import!
     return false unless import_state['status'] == 'failed'
 
-    # rubocop:disable Rails/SkipsModelValidations
     import_chats.where(status: %i[importing failed]).update_all(status: WahaImportChat.statuses[:pending])
-    # rubocop:enable Rails/SkipsModelValidations
     update_import_state!('status' => 'running', 'error' => nil, 'retries' => 0)
     Waha::HistoryImportJob.perform_later(id, import_window, import_state['kind'])
     true
@@ -164,9 +164,7 @@ class Channel::Waha < ApplicationRecord
   end
 
   def update_import_state!(attrs)
-    # rubocop:disable Rails/SkipsModelValidations
     update_column(:import_state, import_state.merge(attrs.stringify_keys))
-    # rubocop:enable Rails/SkipsModelValidations
   end
 
   # --- Import windows ---
@@ -238,3 +236,4 @@ class Channel::Waha < ApplicationRecord
     Waha::SessionService.new(channel: self).delete_session
   end
 end
+# rubocop:enable Rails/SkipsModelValidations

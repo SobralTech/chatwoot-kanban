@@ -26,6 +26,10 @@ class Waha::IncomingMessageService
       @contact = @contact_inbox.contact
     end
 
+    # Downloading media can block for up to a minute, so it happens before the
+    # transaction opens rather than pinning a connection for the whole fetch.
+    media_attacher.download
+
     ActiveRecord::Base.transaction do
       set_conversation unless @conversation
       create_message
@@ -62,12 +66,8 @@ class Waha::IncomingMessageService
     @source_id ||= payload['id']
   end
 
-  def stanza_id
-    @stanza_id ||= source_id.to_s.split('_').last
-  end
-
   def ignored_chat?
-    IGNORED_CHAT_SUFFIXES.any? { |suffix| chat_id.to_s.end_with?(suffix) }
+    Channel::Waha::IGNORED_CHAT_SUFFIXES.any? { |suffix| chat_id.to_s.end_with?(suffix) }
   end
 
   def group_message_disabled?
@@ -75,18 +75,11 @@ class Waha::IncomingMessageService
   end
 
   def message_already_exists?
-    inbox.messages.exists?(['source_id LIKE ?', "%_#{stanza_id}"])
+    Waha::Anchoring.by_stanza(inbox, source_id).exists?
   end
 
   def resolve_contact
-    Waha::ContactResolver.new(
-      channel: channel,
-      jid: chat_id,
-      push_name: push_name,
-      from_me: payload['fromMe'],
-      sender_alt: payload.dig('_data', 'Info', 'SenderAlt'),
-      recipient_alt: payload.dig('_data', 'Info', 'RecipientAlt')
-    ).perform
+    Waha::ContactResolver.from_payload(channel: channel, jid: chat_id, payload: payload).perform
   end
 
   # WAHA has no UI toggle for `lock_to_single_conversation`, so we hardcode the
@@ -119,8 +112,12 @@ class Waha::IncomingMessageService
       additional_attributes: build_additional_attributes
     )
 
-    Waha::MediaAttacher.new(channel: channel, payload: payload, message: @message).attach
+    media_attacher.attach_to(@message)
     @message.save!
+  end
+
+  def media_attacher
+    @media_attacher ||= Waha::MediaAttacher.new(channel: channel, payload: payload)
   end
 
   # For a mirrored outgoing message the payload already carries the WhatsApp ack,
@@ -212,9 +209,7 @@ class Waha::IncomingMessageService
     return @previous_reactions_holder if defined?(@previous_reactions_holder)
     return @previous_reactions_holder = nil unless edited_original
 
-    anchor_source_id = edited_original.additional_attributes['edit_of'].presence || edited_original.source_id
-    family = inbox.messages.where(source_id: anchor_source_id)
-                  .or(inbox.messages.where("additional_attributes->>'edit_of' = ?", anchor_source_id))
+    family = Waha::Anchoring.family(inbox, Waha::Anchoring.anchor_source_id(edited_original))
     @previous_reactions_holder = family.find { |member| member.content_attributes['reactions'].present? }
   end
 

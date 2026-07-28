@@ -6,24 +6,14 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def perform_reply
-    result = send_message_to_waha
+    # CSAT surveys have no WhatsApp representation.
+    return if message.content_type.to_s == 'input_csat'
+
+    result = message.attachments.any? ? send_attachment : send_text
     message.update!(source_id: result['id']) if result&.dig('id').present?
   rescue StandardError => e
     Rails.logger.error "[WAHA] Send failed for message #{message.id}: #{e.message}"
     message.update!(status: :failed, external_error: e.message)
-  end
-
-  def send_message_to_waha
-    case message.content_type.to_s
-    when 'input_csat'
-      nil
-    else
-      if message.attachments.any?
-        send_attachment
-      else
-        send_text
-      end
-    end
   end
 
   def send_text
@@ -39,26 +29,23 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     http_client.post(endpoint, base_payload.merge(body))
   end
 
+  def blob(attachment)
+    attachment.file.blob
+  end
+
   # WAHA's RemoteFile requires mimetype; sendFile also needs filename to preserve
   # the document name on WhatsApp. Passing them explicitly avoids the "422 file
   # invalid" the server returns for a bare `{ url: ... }`.
   def attachment_endpoint_and_body(file_type, attachment, file_url)
     caption = signer.sign(message.content.to_s.presence)
-    remote_file = { url: file_url, mimetype: attachment_mimetype(attachment), filename: attachment_filename(attachment) }.compact
+    remote_file = { url: file_url, mimetype: blob(attachment)&.content_type.presence,
+                    filename: blob(attachment)&.filename&.to_s.presence }.compact
     case file_type
     when :image  then ['sendImage', { file: remote_file, caption: caption }]
     when :audio  then ['sendVoice', { file: remote_file }]
     when :video  then ['sendVideo', { file: remote_file, caption: caption }]
     else              ['sendFile',  { file: remote_file, caption: caption }]
     end
-  end
-
-  def attachment_mimetype(attachment)
-    attachment.file.blob&.content_type.presence
-  end
-
-  def attachment_filename(attachment)
-    attachment.file.blob&.filename&.to_s.presence
   end
 
   def base_payload
@@ -76,7 +63,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def chat_id
-    conversation.contact_inbox.source_id
+    contact_inbox.source_id
   end
 
   # WhatsApp keeps a single message across N edits, so when the agent replies to
@@ -89,7 +76,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     quoted = quoted_message(external_id, in_reply_to_id)
     return external_id if quoted.blank?
 
-    quoted.additional_attributes['edit_of'].presence || quoted.source_id
+    Waha::Anchoring.anchor_source_id(quoted)
   end
 
   def quoted_message(external_id, in_reply_to_id)
@@ -113,9 +100,5 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
 
   def signer
     @signer ||= Waha::MessageSigner.new(message: message)
-  end
-
-  def inbox
-    conversation.inbox
   end
 end

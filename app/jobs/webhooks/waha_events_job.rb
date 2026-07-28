@@ -42,11 +42,9 @@ class Webhooks::WahaEventsJob < ApplicationJob
     # its source_id). Mirroring would duplicate it; acks drive its status.
     return if chatwoot_originated?(payload)
 
-    # Already mirrored (dedup); acks drive its status from here on.
-    return if find_message_by_source_id(channel, payload['id'])
-
     # Incoming from a contact (fromMe: false) or sent from the phone/WhatsApp app
-    # directly (fromMe: true, source: app/web). Mirror both into Chatwoot.
+    # directly (fromMe: true, source: app/web). Mirror both into Chatwoot; the
+    # service's own dedup check is the single gate against double-mirroring.
     Waha::IncomingMessageService.new(channel: channel, payload: payload).perform
   end
 
@@ -62,6 +60,13 @@ class Webhooks::WahaEventsJob < ApplicationJob
     return update_delivery_status(message, payload&.dig('ack')) if message
 
     # The mirror is likely still being created — retry so we don't drop the ack.
+    retry_event(channel, params, retries)
+  end
+
+  # The mirror may still be being created (contact/conversation resolution takes
+  # ~1s while the event lands in milliseconds), so replay the event a few times
+  # before giving up on it.
+  def retry_event(channel, params, retries)
     return if retries >= ACK_MAX_RETRIES
 
     self.class.set(wait: ACK_RETRY_DELAY).perform_later(channel.id, params, retries + 1)
@@ -130,16 +135,11 @@ class Webhooks::WahaEventsJob < ApplicationJob
     revoked = find_message_by_source_id(channel, payload['revokedMessageId'] || payload.dig('before', 'id'))
     return unless revoked
 
-    anchor_source_id = revoked.additional_attributes['edit_of'].presence || revoked.source_id
-    edit_family(channel, anchor_source_id).find_each { |message| soft_delete_message(message) }
+    edit_family(channel, Waha::Anchoring.anchor_source_id(revoked)).find_each { |message| soft_delete_message(message) }
   end
 
-  # The whole edit family of a message: the anchor (the single real WhatsApp
-  # message) plus every edit mirror pointing at it.
   def edit_family(channel, anchor_source_id)
-    messages = channel.inbox.messages
-    messages.where(source_id: anchor_source_id)
-            .or(messages.where("additional_attributes->>'edit_of' = ?", anchor_source_id))
+    Waha::Anchoring.family(channel.inbox, anchor_source_id)
   end
 
   # Applies a WhatsApp reaction to the mirrored message. Reactions sent from
@@ -149,14 +149,9 @@ class Webhooks::WahaEventsJob < ApplicationJob
     payload = params['payload']
     target = find_message_by_source_id(channel, payload&.dig('reaction', 'messageId'))
 
-    if target.nil?
-      # The mirror may still be being created (same race as acks) — retry, then
-      # drop silently (reaction to a message older than the inbox).
-      return if retries >= ACK_MAX_RETRIES
-
-      self.class.set(wait: ACK_RETRY_DELAY).perform_later(channel.id, params, retries + 1)
-      return
-    end
+    # A missing target is the same race as acks; after the retries it drops
+    # silently (a reaction to a message older than the inbox).
+    return retry_event(channel, params, retries) if target.nil?
 
     Waha::ReactionApplier.new(channel: channel, target_message: current_family_member(channel, target), payload: payload).perform
   end
@@ -164,8 +159,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # Reactions are displayed on the current (un-struck) member of the edit family,
   # not necessarily on the anchor the webhook points at.
   def current_family_member(channel, message)
-    anchor_source_id = message.additional_attributes['edit_of'].presence || message.source_id
-    edit_family(channel, anchor_source_id).find { |member| !member.additional_attributes['superseded'] } || message
+    edit_family(channel, Waha::Anchoring.anchor_source_id(message))
+      .where("COALESCE(additional_attributes->>'superseded', 'false') = 'false'").first || message
   end
 
   def soft_delete_message(message)
@@ -185,12 +180,17 @@ class Webhooks::WahaEventsJob < ApplicationJob
     status = payload&.dig('status')
     return if status.blank?
 
-    return if status == 'WORKING' && block_number_mismatch?(channel)
+    unless status == 'WORKING'
+      channel.update_session_status(status)
+      return
+    end
+
+    # One session fetch serves both the mismatch check and the number lock below.
+    number = connected_number(channel)
+    return if block_number_mismatch?(channel, number)
 
     channel.update_session_status(status)
-    return unless status == 'WORKING'
-
-    register_connected_number(channel)
+    register_connected_number(channel, number)
     trigger_history_import(channel)
   end
 
@@ -218,11 +218,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # On the first successful connection we adopt the real number reported by WAHA
   # (overriding the free-typed value entered at creation) and lock it as the
   # canonical reference for future reconnections.
-  def register_connected_number(channel)
-    return if channel.connected_number_locked?
-
-    number = connected_number(channel)
-    return if number.blank?
+  def register_connected_number(channel, number)
+    return if channel.connected_number_locked? || number.blank?
 
     channel.update!(phone_number: number, connected_number_locked: true)
   end
@@ -230,10 +227,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # Once a number is locked, a reconnection with a different number is refused:
   # we log out immediately, keep phone_number intact and record a synthetic event
   # the frontend surfaces as a blocked mismatch.
-  def block_number_mismatch?(channel)
+  def block_number_mismatch?(channel, number)
     return false unless channel.connected_number_locked?
-
-    number = connected_number(channel)
     return false if number.blank? || number == channel.phone_number
 
     Waha::SessionService.new(channel: channel).logout
@@ -249,9 +244,6 @@ class Webhooks::WahaEventsJob < ApplicationJob
   end
 
   def find_message_by_source_id(channel, source_id)
-    return if source_id.blank?
-
-    stanza_id = source_id.to_s.split('_').last
-    channel.inbox.messages.where('source_id LIKE ?', "%_#{stanza_id}").first
+    Waha::Anchoring.by_stanza(channel.inbox, source_id).first
   end
 end

@@ -1,5 +1,4 @@
 class Waha::MediaAttacher
-  MEDIA_TYPES = %w[image document audio ptt video sticker].freeze
   # GOWS engine encodes media as raw `_data.Message.<kind>Message` keys; use this
   # mapping when neither `payload.type` nor `_data.Info.MediaType` is set.
   DATA_MESSAGE_KINDS = {
@@ -11,16 +10,28 @@ class Waha::MediaAttacher
     'stickerMessage' => 'sticker'
   }.freeze
 
-  pattr_initialize [:channel!, :payload!, :message!]
+  pattr_initialize [:channel!, :payload!]
 
-  def attach
-    return unless media?
+  # Fetches the media ahead of time so callers can keep the (potentially slow)
+  # network round-trip outside their database transaction. Idempotent.
+  def download
+    return @file if defined?(@file)
+    return @file = nil unless media?
 
-    file = Down.download(
+    @file = Down.download(
       media_url,
       headers: { 'X-Api-Key' => channel.api_key },
       open_timeout: 10, read_timeout: 60
     )
+  rescue StandardError => e
+    Rails.logger.error "[WAHA] Media download failed for #{payload['id']}: #{e.message}"
+    @file = nil
+  end
+
+  def attach_to(message)
+    file = download
+    return if file.blank?
+
     message.attachments.build(
       account_id: message.account_id,
       file_type: map_file_type(media_kind),
@@ -34,8 +45,6 @@ class Waha::MediaAttacher
     # flagged via content_type so the UI can render them with the compact,
     # background-less sticker bubble instead of a full-size image.
     message.content_type = :sticker if media_kind == 'sticker'
-  rescue StandardError => e
-    Rails.logger.error "[WAHA] Media download failed for #{payload['id']}: #{e.message}"
   end
 
   private
