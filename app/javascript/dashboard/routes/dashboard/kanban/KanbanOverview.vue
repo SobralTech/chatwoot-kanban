@@ -15,9 +15,6 @@ const router = useRouter();
 const route = useRoute();
 const store = useStore();
 
-const currentRole = useMapGetter('auth/getCurrentRole');
-const isAdmin = computed(() => currentRole.value === 'administrator');
-
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const isLoading = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const error = useMapGetter('kanbanBoards/kanbanBoardsError');
@@ -85,9 +82,12 @@ onMounted(async () => {
     class="flex h-full min-h-0 w-full overflow-y-auto no-scrollbar bg-n-surface-1 text-n-slate-12"
   >
     <div
-      class="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8 lg:px-10"
+      class="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-6 px-6 py-8 lg:px-10"
     >
-      <header class="flex flex-wrap items-center justify-between gap-4">
+      <header
+        v-if="hasBoards"
+        class="flex flex-wrap items-center justify-between gap-4"
+      >
         <div class="min-w-0">
           <h1 class="text-2xl font-semibold text-n-slate-12">
             {{ t('KANBAN.OVERVIEW.TITLE') }}
@@ -137,15 +137,53 @@ onMounted(async () => {
 
       <div
         v-else-if="!hasBoards && hasFetched"
-        class="flex flex-col items-center gap-4 py-16 text-center"
+        class="flex flex-1 items-center justify-center py-8"
       >
-        <p class="text-sm text-n-slate-11">
-          {{
-            isAdmin
-              ? t('KANBAN.OVERVIEW.EMPTY_ADMIN')
-              : t('KANBAN.OVERVIEW.EMPTY_AGENT')
-          }}
-        </p>
+        <section
+          data-testid="overview-empty-state"
+          class="flex w-full max-w-xl flex-col items-center rounded-xl border border-n-weak bg-n-surface-2 p-6 text-center shadow-lg sm:p-8"
+        >
+          <div
+            class="mb-5 flex size-14 items-center justify-center rounded-xl bg-n-brand text-white shadow-sm"
+          >
+            <i class="i-lucide-panels-top-left size-7" aria-hidden="true" />
+          </div>
+
+          <h1 class="text-xl font-semibold text-n-slate-12">
+            {{ t('KANBAN.OVERVIEW.EMPTY_TITLE') }}
+          </h1>
+          <p class="mt-2 max-w-md text-sm leading-6 text-n-slate-11">
+            {{ t('KANBAN.OVERVIEW.EMPTY_DESCRIPTION') }}
+          </p>
+
+          <div
+            class="my-6 flex w-full gap-3 rounded-lg border border-n-weak bg-n-alpha-2 p-4 text-left"
+          >
+            <div
+              class="flex size-8 flex-shrink-0 items-center justify-center rounded-lg bg-n-brand/10 text-n-blue-11"
+            >
+              <i class="i-lucide-lightbulb size-4" aria-hidden="true" />
+            </div>
+            <div class="min-w-0">
+              <h2 class="text-sm font-semibold text-n-slate-12">
+                {{ t('KANBAN.OVERVIEW.TIP_TITLE') }}
+              </h2>
+              <p class="mt-1 text-sm leading-5 text-n-slate-11">
+                {{ t('KANBAN.OVERVIEW.TIP_DESCRIPTION') }}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            icon="i-lucide-plus"
+            data-testid="overview-create-board-button"
+            class="w-full"
+            :label="t('KANBAN.ACTIONS.CONFIRM_CREATE_BOARD')"
+            color="blue"
+            size="md"
+            @click="openCreateBoardDialog"
+          />
+        </section>
       </div>
 
       <div v-else-if="hasBoards" class="flex flex-col gap-3">

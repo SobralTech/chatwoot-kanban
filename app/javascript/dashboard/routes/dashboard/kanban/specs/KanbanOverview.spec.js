@@ -14,6 +14,12 @@ vi.mock('vue-i18n', () => ({
     t: (key, params) => {
       const translations = {
         'KANBAN.OVERVIEW.CREATE_BOARD': 'Adicionar Funil',
+        'KANBAN.OVERVIEW.EMPTY_TITLE': 'Crie seu primeiro funil',
+        'KANBAN.OVERVIEW.EMPTY_DESCRIPTION':
+          'Organize seu processo de vendas criando etapas em um funil de vendas.',
+        'KANBAN.OVERVIEW.TIP_TITLE': 'Dica rápida',
+        'KANBAN.OVERVIEW.TIP_DESCRIPTION':
+          'Organize suas oportunidades em estágios claros.',
         'KANBAN.ACTIONS.CONFIRM_CREATE_BOARD': 'Criar funil',
         'KANBAN.ACTIONS.CANCEL_CREATE_BOARD': 'Cancelar criação do funil',
         'KANBAN.ACTIONS.CREATE_BOARD_ERROR':
@@ -111,7 +117,7 @@ describe('KanbanOverview', () => {
   it('renders the overview page without redirecting', async () => {
     const wrapper = await mountOverview();
 
-    expect(wrapper.text()).toContain('KANBAN.OVERVIEW.TITLE');
+    expect(wrapper.text()).toContain('Crie seu primeiro funil');
   });
 
   it('shows loading state', async () => {
@@ -136,7 +142,7 @@ describe('KanbanOverview', () => {
     await flushPromises();
     await nextTick();
 
-    expect(wrapper.text()).toContain('KANBAN.OVERVIEW.EMPTY_ADMIN');
+    expect(wrapper.text()).toContain('Crie seu primeiro funil');
   });
 
   it('shows empty state for agent', async () => {
@@ -144,7 +150,7 @@ describe('KanbanOverview', () => {
     await flushPromises();
     await nextTick();
 
-    expect(wrapper.text()).toContain('KANBAN.OVERVIEW.EMPTY_AGENT');
+    expect(wrapper.text()).toContain('Crie seu primeiro funil');
   });
 
   it('lists visible boards', async () => {
@@ -201,7 +207,7 @@ describe('KanbanOverview', () => {
       '[data-testid="overview-create-board-button"]'
     );
     expect(createButton.exists()).toBe(true);
-    expect(createButton.text()).toContain('Adicionar Funil');
+    expect(createButton.text()).toContain('Criar funil');
   });
 
   it('renders only one create button in the overview', async () => {
@@ -217,7 +223,9 @@ describe('KanbanOverview', () => {
     expect(createButtons).toHaveLength(1);
     expect(
       wrapper
-        .find('header [data-testid="overview-create-board-button"]')
+        .find(
+          '[data-testid="overview-empty-state"] [data-testid="overview-create-board-button"]'
+        )
         .exists()
     ).toBe(true);
   });
@@ -249,7 +257,7 @@ describe('KanbanOverview', () => {
     );
 
     expect(createButton.exists()).toBe(true);
-    expect(createButton.text()).toContain('Adicionar Funil');
+    expect(createButton.text()).toContain('Criar funil');
   });
 
   it('uses valid Button colors in the overview actions', async () => {
@@ -309,7 +317,7 @@ describe('KanbanOverview', () => {
     await flushPromises();
     await nextTick();
 
-    expect(wrapper.text()).toContain('KANBAN.OVERVIEW.EMPTY_AGENT');
+    expect(wrapper.text()).toContain('Crie seu primeiro funil');
     expect(
       wrapper.findAll('[data-testid="overview-create-board-button"]')
     ).toHaveLength(1);
