@@ -29,7 +29,6 @@ export const routes = [
     component: ConversationView,
     meta,
     props: route => ({
-      inboxId: 0,
       conversationId: route.params.conversationId,
       backRoute: {
         name: 'kanban_board_show',
@@ -38,7 +37,6 @@ export const routes = [
           boardId: route.params.boardId,
         },
       },
-      expandSidebarItems: ['is_kanban_open'],
     }),
   },
   {

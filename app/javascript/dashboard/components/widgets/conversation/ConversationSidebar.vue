@@ -1,11 +1,10 @@
 <script setup>
 import { computed } from 'vue';
 import ContactPanel from 'dashboard/routes/dashboard/conversation/ContactPanel.vue';
-import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useWindowSize } from '@vueuse/core';
 import { vOnClickOutside } from '@vueuse/components';
 import wootConstants from 'dashboard/constants/globals';
-import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
+import { useContactSidebar } from 'dashboard/composables/useEmbeddedConversation';
 
 defineProps({
   currentChat: {
@@ -14,42 +13,19 @@ defineProps({
   },
 });
 
-const { uiSettings, updateUISettings } = useUISettings();
-const embeddedConversation = useEmbeddedConversation();
-const embedded = computed(() => embeddedConversation?.value);
+const { isContactSidebarOpen, closeSidePanels } = useContactSidebar();
 const { width: windowWidth } = useWindowSize();
 
-const activeTab = computed(() => {
-  if (embedded.value) {
-    return embedded.value.sidebarOpen ? 0 : null;
-  }
-
-  const { is_contact_sidebar_open: isContactSidebarOpen } = uiSettings.value;
-
-  if (isContactSidebarOpen) {
-    return 0;
-  }
-  return null;
-});
+const activeTab = computed(() => (isContactSidebarOpen.value ? 0 : null));
 
 const isSmallScreen = computed(
   () => windowWidth.value < wootConstants.SMALL_SCREEN_BREAKPOINT
 );
 
 const closeContactPanel = () => {
-  if (!isSmallScreen.value) return;
+  if (!isSmallScreen.value || !isContactSidebarOpen.value) return;
 
-  if (embedded.value?.sidebarOpen) {
-    embedded.value.setSidebarOpen(false);
-    return;
-  }
-
-  if (uiSettings.value?.is_contact_sidebar_open) {
-    updateUISettings({
-      is_contact_sidebar_open: false,
-      is_copilot_panel_open: false,
-    });
-  }
+  closeSidePanels();
 };
 </script>
 

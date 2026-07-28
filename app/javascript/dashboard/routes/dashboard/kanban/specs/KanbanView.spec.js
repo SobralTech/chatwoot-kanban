@@ -1473,7 +1473,7 @@ describe('KanbanView drag and drop', () => {
         boardId: 10,
         conversationId: 123,
       },
-      state: { embeddedDepth: 0 },
+      state: { fromEmbedded: false },
     });
   });
 
@@ -1639,7 +1639,7 @@ describe('KanbanView drag and drop', () => {
         boardId: 10,
         conversationId: 123,
       },
-      state: { embeddedDepth: 0 },
+      state: { fromEmbedded: false },
     });
   });
 });

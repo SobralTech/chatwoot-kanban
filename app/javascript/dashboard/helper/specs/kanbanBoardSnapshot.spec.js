@@ -21,13 +21,10 @@ describe('kanbanBoardSnapshot', () => {
       snapshot: { scrollLeft: 120 },
     });
 
-    expect(getKanbanBoardSnapshot({ accountId: 1, boardId: 10 })).toMatchObject(
-      {
-        boardId: 10,
-        scrollLeft: 120,
-        savedAt: 1_000_000,
-      }
-    );
+    expect(getKanbanBoardSnapshot({ accountId: 1, boardId: 10 })).toEqual({
+      scrollLeft: 120,
+      savedAt: 1_000_000,
+    });
     expect(getKanbanBoardSnapshot({ accountId: 1, boardId: 11 })).toBeNull();
   });
 

@@ -29,10 +29,8 @@ export default {
   provide() {
     return {
       [EMBEDDED_CONVERSATION]: computed(() =>
-        this.backRoute
+        this.isEmbedded
           ? {
-              backRoute: this.backRoute,
-              expandSidebarItems: this.expandSidebarItems,
               sidebarOpen: this.embeddedSidebarOpen,
               setSidebarOpen: this.setEmbeddedSidebarOpen,
               goBack: this.goBackFromEmbedded,
@@ -77,10 +75,6 @@ export default {
     backRoute: {
       type: Object,
       default: null,
-    },
-    expandSidebarItems: {
-      type: Array,
-      default: () => [],
     },
   },
   setup() {
@@ -374,7 +368,7 @@ export default {
       @conversation-load="onConversationLoad"
     />
     <ConversationBox
-      v-if="isEmbedded || showMessageView"
+      v-if="showMessageView"
       ref="conversationBox"
       :inbox-id="inboxId"
       :is-on-expanded-layout="isOnExpandedLayout"

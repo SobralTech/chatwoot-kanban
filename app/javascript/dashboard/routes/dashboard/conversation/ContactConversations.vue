@@ -8,10 +8,7 @@ import {
   kanbanConversationUrl,
 } from 'dashboard/helper/URLHelper';
 import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
-import {
-  currentEmbeddedDepth,
-  pushEmbedded,
-} from 'dashboard/helper/embeddedConversationHistory';
+import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
 import {
   isOnMentionsView,
   isOnUnattendedView,
@@ -30,8 +27,7 @@ const props = defineProps({
 const store = useStore();
 const route = useRoute();
 const router = useRouter();
-const embeddedConversation = useEmbeddedConversation();
-const embedded = computed(() => embeddedConversation?.value);
+const embedded = useEmbeddedConversation();
 
 const currentChat = useMapGetter('getSelectedChat');
 const uiFlags = useMapGetter('contactConversations/getUIFlags');
@@ -112,7 +108,7 @@ const onCardClick = (conversation, e) => {
   }
 
   if (embedded.value) {
-    pushEmbedded(router, { path }, currentEmbeddedDepth() + 1);
+    pushEmbedded(router, { path }, true);
     return;
   }
 

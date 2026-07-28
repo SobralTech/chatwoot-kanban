@@ -318,22 +318,19 @@ describe('ConversationHeader', () => {
     );
   });
 
-  it('renders one embedded back button and uses the embedded navigation', async () => {
-    const goBack = vi.fn();
+  it('replaces the route back button with the embedded one', () => {
     createWrapper({
       showBackButton: true,
       embeddedContext: {
         sidebarOpen: true,
         setSidebarOpen: vi.fn(),
-        goBack,
+        goBack: vi.fn(),
       },
     });
 
-    await wrapper
-      .get('[data-testid="embedded-conversation-back"]')
-      .trigger('click');
-
-    expect(goBack).toHaveBeenCalledTimes(1);
+    expect(wrapper.findComponent({ name: 'EmbeddedBackButton' }).exists()).toBe(
+      true
+    );
     expect(wrapper.findComponent({ name: 'BackButton' }).exists()).toBe(false);
   });
 

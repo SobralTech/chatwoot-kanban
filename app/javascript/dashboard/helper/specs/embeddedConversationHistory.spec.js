@@ -1,8 +1,4 @@
-import {
-  currentEmbeddedDepth,
-  goBackEmbedded,
-  pushEmbedded,
-} from '../embeddedConversationHistory';
+import { goBackEmbedded, pushEmbedded } from '../embeddedConversationHistory';
 
 describe('embeddedConversationHistory', () => {
   const backRoute = { name: 'kanban_board_show' };
@@ -11,22 +7,32 @@ describe('embeddedConversationHistory', () => {
     window.history.replaceState({}, '');
   });
 
-  it('pushes an embedded conversation with its depth', () => {
+  it('marks a conversation pushed from another embedded conversation', () => {
     const router = { push: vi.fn() };
 
-    pushEmbedded(router, { path: '/conversation/2' }, 2);
+    pushEmbedded(router, { path: '/conversation/2' }, true);
 
     expect(router.push).toHaveBeenCalledWith({
       path: '/conversation/2',
-      state: { embeddedDepth: 2 },
+      state: { fromEmbedded: true },
     });
   });
 
-  it('returns one history entry when the embedded depth is greater than zero', () => {
-    const router = { go: vi.fn(), push: vi.fn() };
-    window.history.replaceState({ embeddedDepth: 2 }, '');
+  it('defaults to not coming from an embedded conversation', () => {
+    const router = { push: vi.fn() };
 
-    expect(currentEmbeddedDepth()).toBe(2);
+    pushEmbedded(router, { path: '/conversation/2' });
+
+    expect(router.push).toHaveBeenCalledWith({
+      path: '/conversation/2',
+      state: { fromEmbedded: false },
+    });
+  });
+
+  it('returns one history entry when arriving from an embedded conversation', () => {
+    const router = { go: vi.fn(), push: vi.fn() };
+    window.history.replaceState({ fromEmbedded: true }, '');
+
     goBackEmbedded(router, backRoute);
 
     expect(router.go).toHaveBeenCalledWith(-1);

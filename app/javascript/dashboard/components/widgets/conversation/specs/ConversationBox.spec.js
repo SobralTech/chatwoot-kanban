@@ -89,9 +89,9 @@ describe('ConversationBox', () => {
       goBack: vi.fn(),
     });
 
-    expect(
-      wrapper.find('[data-testid="embedded-conversation-back"]').exists()
-    ).toBe(true);
+    expect(wrapper.findComponent({ name: 'EmbeddedBackButton' }).exists()).toBe(
+      true
+    );
   });
 
   it('opens search panel with Ctrl+F when a conversation exists', async () => {

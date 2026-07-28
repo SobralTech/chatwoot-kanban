@@ -78,14 +78,9 @@ const mountConversations = () =>
 describe('ContactConversations embedded navigation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.history.replaceState({ embeddedDepth: 1 }, '');
   });
 
-  afterEach(() => {
-    window.history.replaceState({}, '');
-  });
-
-  it('keeps contact history navigation in kanban mode and increments depth', async () => {
+  it('keeps contact history navigation in kanban mode and marks the origin', async () => {
     const wrapper = mountConversations();
 
     wrapper.getComponent({ name: 'ConversationCard' }).vm.$emit('click', {});
@@ -93,7 +88,7 @@ describe('ContactConversations embedded navigation', () => {
 
     expect(mocks.push).toHaveBeenCalledWith({
       path: '/app/accounts/1/kanban/10/conversations/2',
-      state: { embeddedDepth: 2 },
+      state: { fromEmbedded: true },
     });
   });
 });

@@ -1,10 +1,9 @@
-const DEPTH_KEY = 'embeddedDepth';
+const FROM_EMBEDDED_KEY = 'fromEmbedded';
 
-export const currentEmbeddedDepth = () =>
-  Number(window.history.state?.[DEPTH_KEY] ?? 0);
-
-export const pushEmbedded = (router, to, depth) =>
-  router.push({ ...to, state: { [DEPTH_KEY]: depth } });
+export const pushEmbedded = (router, to, fromEmbedded = false) =>
+  router.push({ ...to, state: { [FROM_EMBEDDED_KEY]: fromEmbedded } });
 
 export const goBackEmbedded = (router, backRoute) =>
-  currentEmbeddedDepth() > 0 ? router.go(-1) : router.push(backRoute);
+  window.history.state?.[FROM_EMBEDDED_KEY]
+    ? router.go(-1)
+    : router.push(backRoute);

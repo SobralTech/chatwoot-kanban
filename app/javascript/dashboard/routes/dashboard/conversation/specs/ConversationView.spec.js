@@ -66,7 +66,6 @@ const mountView = ({
       conversationId,
       inboxId: 2,
       backRoute,
-      expandSidebarItems: backRoute ? ['is_kanban_open'] : [],
     },
     global: {
       plugins: [store],

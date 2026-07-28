@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { useElementSize } from '@vueuse/core';
 import BackButton from '../BackButton.vue';
+import EmbeddedBackButton from './EmbeddedBackButton.vue';
 import InboxName from '../InboxName.vue';
 import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
@@ -14,9 +15,11 @@ import wootConstants from 'dashboard/constants/globals';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { snoozedReopenTime } from 'dashboard/helper/snoozeHelpers';
 import { useInbox } from 'dashboard/composables/useInbox';
-import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useI18n } from 'vue-i18n';
-import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
+import {
+  useContactSidebar,
+  useEmbeddedConversation,
+} from 'dashboard/composables/useEmbeddedConversation';
 
 const props = defineProps({
   chat: {
@@ -36,9 +39,8 @@ const route = useRoute();
 const conversationHeader = ref(null);
 const { width } = useElementSize(conversationHeader);
 const { isAWebWidgetInbox } = useInbox();
-const { uiSettings, updateUISettings } = useUISettings();
-const embeddedConversation = useEmbeddedConversation();
-const embedded = computed(() => embeddedConversation?.value);
+const embedded = useEmbeddedConversation();
+const { toggleContactSidebar } = useContactSidebar();
 const headerSeparator = '\u2022';
 
 const currentChat = computed(() => store.getters.getSelectedChat);
@@ -97,29 +99,7 @@ const inbox = computed(() => {
 const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
 
 const toggleContactDetails = () => {
-  const shouldOpenContactDetails = embedded.value
-    ? !embedded.value.sidebarOpen
-    : !uiSettings.value.is_contact_sidebar_open;
-
-  if (embedded.value) {
-    embedded.value.setSidebarOpen(shouldOpenContactDetails);
-    if (shouldOpenContactDetails && uiSettings.value.is_copilot_panel_open) {
-      updateUISettings({ is_copilot_panel_open: false });
-    }
-    emit('toggleContactDetails', shouldOpenContactDetails);
-    return;
-  }
-
-  const nextUISettings = {
-    is_contact_sidebar_open: shouldOpenContactDetails,
-  };
-
-  if (shouldOpenContactDetails) {
-    nextUISettings.is_copilot_panel_open = false;
-  }
-
-  updateUISettings(nextUISettings);
-  emit('toggleContactDetails', shouldOpenContactDetails);
+  emit('toggleContactDetails', toggleContactSidebar());
 };
 </script>
 
@@ -129,17 +109,7 @@ const toggleContactDetails = () => {
     class="flex flex-row items-center justify-between flex-1 w-full min-w-0 gap-3 px-3 py-2 min-h-12"
   >
     <div class="flex items-center justify-start flex-1 min-w-0">
-      <NextButton
-        v-if="embedded"
-        slate
-        faded
-        sm
-        icon="i-lucide-arrow-left"
-        :label="$t('GENERAL_SETTINGS.BACK')"
-        class="ltr:mr-2 rtl:ml-2 flex-shrink-0"
-        data-testid="embedded-conversation-back"
-        @click="embedded.goBack()"
-      />
+      <EmbeddedBackButton v-if="embedded" class="ltr:mr-2 rtl:ml-2" />
       <BackButton
         v-else-if="showBackButton"
         :back-url="backButtonUrl"

@@ -494,7 +494,7 @@ const getStageScrollElement = stageId =>
     `[data-stage-scroll-id="${stageId}"]`
   );
 
-const saveBoardSnapshot = card => {
+const saveBoardSnapshot = () => {
   if (!selectedBoard.value?.id) return;
 
   saveKanbanBoardSnapshot({
@@ -515,34 +515,33 @@ const saveBoardSnapshot = card => {
         inboxIds: selectedInboxIds.value,
         assigneeIds: selectedAssigneeIds.value,
       },
-      openedFromStageId: findCardStageId(card) || null,
     },
   });
 };
 
 const applyBoardSnapshot = async snapshot => {
+  // showBoard already loaded every stage's first page, so only the stages
+  // that had been paged past it need to be re-fetched.
   await Promise.all(
     stages.value.map(async stage => {
-      const loadedCount = snapshot.stages?.[stage.id]?.loadedCount || 0;
-      if (loadedCount <= stage.cards.length) return;
+      const { loadedCount } = snapshot.stages[stage.id] ?? {};
+      if (!loadedCount || loadedCount <= stage.cards.length) return;
 
       const page = await fetchStageCardsPage(stage.id, { limit: loadedCount });
       applyStageFirstPage(stage.id, page);
     })
   );
 
-  await refreshStageFirstPage(snapshot.openedFromStageId);
   await nextTick();
 
   if (boardScrollContainer.value) {
-    boardScrollContainer.value.scrollLeft = snapshot.scrollLeft || 0;
+    boardScrollContainer.value.scrollLeft = snapshot.scrollLeft;
   }
 
   stages.value.forEach(stage => {
     const stageScrollElement = getStageScrollElement(stage.id);
     if (stageScrollElement) {
-      stageScrollElement.scrollTop =
-        snapshot.stages?.[stage.id]?.scrollTop || 0;
+      stageScrollElement.scrollTop = snapshot.stages[stage.id]?.scrollTop ?? 0;
     }
   });
 };
@@ -553,13 +552,16 @@ const showBoardWithSnapshot = async boardId => {
     boardId,
   });
 
-  if (snapshot) {
-    selectedInboxIds.value = snapshot.filters?.inboxIds || [];
-    selectedAssigneeIds.value = snapshot.filters?.assigneeIds || [];
+  if (!snapshot) {
+    await showBoard(boardId);
+    return;
   }
 
+  selectedInboxIds.value = snapshot.filters.inboxIds;
+  selectedAssigneeIds.value = snapshot.filters.assigneeIds;
+
   await showBoard(boardId);
-  if (!snapshot || !selectedBoard.value) return;
+  if (!selectedBoard.value) return;
 
   await applyBoardSnapshot(snapshot);
   removeKanbanBoardSnapshot({
@@ -1089,7 +1091,8 @@ const getConversationPath = card =>
 const openConversationInNewTab = card => {
   if (!card?.conversationId) return;
 
-  saveBoardSnapshot(card);
+  // The board stays mounted in this tab and the new tab gets its own
+  // sessionStorage, so there is no snapshot to save here.
   window.open(
     `${window.chatwootConfig.hostURL}${getConversationPath(card)}`,
     '_blank',
@@ -1110,19 +1113,15 @@ const openConversation = (card, event = {}) => {
     return;
   }
 
-  saveBoardSnapshot(card);
-  pushEmbedded(
-    router,
-    {
-      name: 'kanban_board_conversation',
-      params: {
-        accountId: route.params.accountId,
-        boardId: selectedBoard.value.id,
-        conversationId: card.conversationId,
-      },
+  saveBoardSnapshot();
+  pushEmbedded(router, {
+    name: 'kanban_board_conversation',
+    params: {
+      accountId: route.params.accountId,
+      boardId: selectedBoard.value.id,
+      conversationId: card.conversationId,
     },
-    0
-  );
+  });
 };
 
 const openDetails = card => {
@@ -1147,10 +1146,6 @@ const onOpportunityUpdated = updatedCard => {
       kanbanStageId: updatedCard?.kanbanStageId,
     })
   );
-};
-
-const onOpportunityOpenConversation = card => {
-  openConversation(card);
 };
 
 const onOpportunityRemoveCard = card => {
@@ -1657,7 +1652,7 @@ onUnmounted(() => {
         :card-id="selectedOpportunityCardId"
         @close="closeOpportunityDetails"
         @updated="onOpportunityUpdated"
-        @open-conversation="onOpportunityOpenConversation"
+        @open-conversation="openConversation"
         @remove-card="onOpportunityRemoveCard"
       />
     </woot-modal>

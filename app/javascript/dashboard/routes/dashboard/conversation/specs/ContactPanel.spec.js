@@ -161,7 +161,7 @@ describe('ContactPanel', () => {
   it('expands Kanban locally in embedded mode without updating UI settings', async () => {
     isContactSidebarItemOpenMock.mockReturnValue(false);
     const wrapper = mountPanel({
-      expandSidebarItems: ['is_kanban_open'],
+      sidebarOpen: true,
       setSidebarOpen: vi.fn(),
     });
     await nextTick();

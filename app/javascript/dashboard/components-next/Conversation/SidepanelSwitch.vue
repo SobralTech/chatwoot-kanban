@@ -6,9 +6,7 @@ import { computed } from 'vue';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useKeyboardEvents } from 'dashboard/composables/useKeyboardEvents';
-import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
-
-const { updateUISettings } = useUISettings();
+import { useContactSidebar } from 'dashboard/composables/useEmbeddedConversation';
 
 const currentAccountId = useMapGetter('getCurrentAccountId');
 const isFeatureEnabledonAccount = useMapGetter(
@@ -20,47 +18,14 @@ const showCopilotTab = computed(() =>
 );
 
 const { uiSettings } = useUISettings();
-const embeddedConversation = useEmbeddedConversation();
-const embedded = computed(() => embeddedConversation?.value);
-const isContactSidebarOpen = computed(
-  () => embedded.value?.sidebarOpen ?? uiSettings.value.is_contact_sidebar_open
-);
+const { toggleContactSidebar, openCopilotPanel } = useContactSidebar();
 const isCopilotPanelOpen = computed(
   () => uiSettings.value.is_copilot_panel_open
 );
 
-const toggleConversationSidebarToggle = () => {
-  if (embedded.value) {
-    const shouldOpen = !isContactSidebarOpen.value;
-    embedded.value.setSidebarOpen(shouldOpen);
-    if (shouldOpen && isCopilotPanelOpen.value) {
-      updateUISettings({ is_copilot_panel_open: false });
-    }
-    return;
-  }
-
-  updateUISettings({
-    is_contact_sidebar_open: !isContactSidebarOpen.value,
-    is_copilot_panel_open: false,
-  });
-};
-
-const handleCopilotSidebarToggle = () => {
-  if (embedded.value) {
-    embedded.value.setSidebarOpen(false);
-    updateUISettings({ is_copilot_panel_open: true });
-    return;
-  }
-
-  updateUISettings({
-    is_contact_sidebar_open: false,
-    is_copilot_panel_open: true,
-  });
-};
-
 const keyboardEvents = {
   'Alt+KeyO': {
-    action: toggleConversationSidebarToggle,
+    action: toggleContactSidebar,
   },
 };
 useKeyboardEvents(keyboardEvents);
@@ -83,7 +48,7 @@ useKeyboardEvents(keyboardEvents);
             isCopilotPanelOpen,
         }"
         icon="i-woot-captain"
-        @click="handleCopilotSidebarToggle"
+        @click="openCopilotPanel"
       />
     </ButtonGroup>
   </div>
