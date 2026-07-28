@@ -144,7 +144,8 @@ class ActionCableConnector extends BaseActionCableConnector {
       conversation: { last_activity_at: lastActivityAt },
       conversation_id: conversationId,
     } = data;
-    if (this.shouldSkipAllConversationsRealtime(data.conversation)) {
+    // `data.conversation` carries no inbox_id, so use the message's own inbox_id.
+    if (this.shouldSkipAllConversationsRealtime(data)) {
       const selectedChat = this.app.$store.getters.getSelectedChat;
       if (selectedChat?.id === conversationId) {
         this.app.$store.dispatch('addMessage', data);
@@ -356,7 +357,14 @@ class ActionCableConnector extends BaseActionCableConnector {
     const inboxId = conversation?.inbox_id || conversation?.inboxId;
     if (!inboxId) return false;
 
-    return !this.eligibleAllConversationInboxIds().has(Number(inboxId));
+    // Runs for every message event, so match the single inbox instead of
+    // building a Set of all eligible ones.
+    const inboxes = this.app.$store.getters['inboxes/getInboxes'] || [];
+    return !inboxes.some(
+      inbox =>
+        Number(inbox.id) === Number(inboxId) &&
+        inbox.show_in_all_conversations !== false
+    );
   };
 
   onCacheInvalidate = async data => {

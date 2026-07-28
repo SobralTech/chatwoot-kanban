@@ -312,13 +312,13 @@ const conversationListPagination = computed(() => {
   return currentPage.value + 1;
 });
 
+// Every other conversation route sets one of these props, so their absence is
+// what identifies the all-conversations view — including while a conversation
+// is open, which the list stays mounted for.
 const isAllConversationsView = computed(() => {
   return (
-    route.name === 'home' &&
-    currentPageFilterKey.value === wootConstants.ASSIGNEE_TYPE.ALL &&
     !hasAppliedFiltersOrActiveFolders.value &&
     !isSearching.value &&
-    !searchQuery.value &&
     !props.conversationInbox &&
     !props.teamId &&
     !props.label &&
