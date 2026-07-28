@@ -12,7 +12,11 @@ import {
   handleWhatsappRemoteEnd,
   isLocalWhatsappCall,
 } from 'dashboard/composables/useWhatsappCallSession';
-import { VOICE_CALL_PROVIDERS } from 'dashboard/helper/inbox';
+import {
+  VOICE_CALL_PROVIDERS,
+  isInboxVisibleInAllConversations,
+  isInboxIdVisibleInAllConversations,
+} from 'dashboard/helper/inbox';
 import { VOICE_CALL_DIRECTION } from 'dashboard/components-next/message/constants';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 
@@ -144,8 +148,7 @@ class ActionCableConnector extends BaseActionCableConnector {
       conversation: { last_activity_at: lastActivityAt },
       conversation_id: conversationId,
     } = data;
-    // `data.conversation` carries no inbox_id, so use the message's own inbox_id.
-    if (this.shouldSkipAllConversationsRealtime(data)) {
+    if (this.shouldSkipAllConversationsRealtime(data.conversation)) {
       const selectedChat = this.app.$store.getters.getSelectedChat;
       if (selectedChat?.id === conversationId) {
         this.app.$store.dispatch('addMessage', data);
@@ -331,11 +334,14 @@ class ActionCableConnector extends BaseActionCableConnector {
     this.app.$store.dispatch('accounts/get', { silent: true });
   };
 
+  allConversationInboxes = () => {
+    return this.app.$store.getters['inboxes/getInboxes'] || [];
+  };
+
   eligibleAllConversationInboxIds = () => {
-    const inboxes = this.app.$store.getters['inboxes/getInboxes'] || [];
     return new Set(
-      inboxes
-        .filter(inbox => inbox.show_in_all_conversations !== false)
+      this.allConversationInboxes()
+        .filter(isInboxVisibleInAllConversations)
         .map(inbox => Number(inbox.id))
     );
   };
@@ -359,11 +365,9 @@ class ActionCableConnector extends BaseActionCableConnector {
 
     // Runs for every message event, so match the single inbox instead of
     // building a Set of all eligible ones.
-    const inboxes = this.app.$store.getters['inboxes/getInboxes'] || [];
-    return !inboxes.some(
-      inbox =>
-        Number(inbox.id) === Number(inboxId) &&
-        inbox.show_in_all_conversations !== false
+    return !isInboxIdVisibleInAllConversations(
+      this.allConversationInboxes(),
+      inboxId
     );
   };
 

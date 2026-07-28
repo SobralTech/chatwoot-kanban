@@ -12,6 +12,7 @@ import {
 import messageReadActions from './actions/messageReadActions';
 import messageTranslateActions from './actions/messageTranslateActions';
 import * as Sentry from '@sentry/vue';
+import { isInboxIdVisibleInAllConversations } from 'dashboard/helper/inbox';
 import {
   handleVoiceCallCreated,
   handleVoiceCallUpdated,
@@ -44,8 +45,8 @@ const shouldSkipAllConversationsUpsert = (state, rootGetters, conversation) => {
     return conversationInboxVisibility === false;
   }
 
-  const inbox = rootGetters?.['inboxes/getInbox']?.(conversation.inbox_id);
-  return inbox?.show_in_all_conversations === false;
+  const inboxes = rootGetters?.['inboxes/getInboxes'] || [];
+  return !isInboxIdVisibleInAllConversations(inboxes, conversation.inbox_id);
 };
 
 // actions

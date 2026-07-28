@@ -136,6 +136,7 @@ RSpec.describe Message do
         status: message.status,
         updated_at: message.updated_at,
         conversation: {
+          inbox_id: message.conversation.inbox_id,
           assignee_id: message.conversation.assignee_id,
           contact_inbox: {
             source_id: message.conversation.contact_inbox.source_id

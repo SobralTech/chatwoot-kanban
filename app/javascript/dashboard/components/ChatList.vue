@@ -57,7 +57,10 @@ import {
 } from '../store/modules/conversations/helpers/actionHelpers';
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
 import { CONVERSATION_EVENTS } from '../helper/AnalyticsHelper/events';
-import { INBOX_TYPES } from 'dashboard/helper/inbox';
+import {
+  INBOX_TYPES,
+  isInboxVisibleInAllConversations,
+} from 'dashboard/helper/inbox';
 
 const props = defineProps({
   conversationInbox: { type: [String, Number], default: 0 },
@@ -330,7 +333,7 @@ const isAllConversationsView = computed(() => {
 const visibleInAllConversationInboxIds = computed(() => {
   return new Set(
     inboxesList.value
-      .filter(inboxItem => inboxItem.show_in_all_conversations !== false)
+      .filter(isInboxVisibleInAllConversations)
       .map(inboxItem => Number(inboxItem.id))
   );
 });

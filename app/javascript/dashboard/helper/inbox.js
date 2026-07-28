@@ -38,6 +38,20 @@ export const getVoiceCallProvider = inbox => {
 
 export const isVoiceCallEnabled = inbox => getVoiceCallProvider(inbox) !== null;
 
+// An inbox only drops out of the All conversations list by explicitly setting
+// the flag to false, so anything else counts as visible.
+export const isInboxVisibleInAllConversations = inbox =>
+  inbox?.show_in_all_conversations !== false;
+
+// An inbox missing from the list is treated as hidden: the agent has no access
+// to it, so it must not surface in All conversations.
+export const isInboxIdVisibleInAllConversations = (inboxes, inboxId) =>
+  inboxes.some(
+    inbox =>
+      Number(inbox.id) === Number(inboxId) &&
+      isInboxVisibleInAllConversations(inbox)
+  );
+
 export const TWILIO_CHANNEL_MEDIUM = {
   WHATSAPP: 'whatsapp',
   SMS: 'sms',
