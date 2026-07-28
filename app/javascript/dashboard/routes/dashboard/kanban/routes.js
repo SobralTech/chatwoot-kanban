@@ -2,6 +2,7 @@ import { frontendURL } from '../../../helper/URLHelper';
 import KanbanOverview from './KanbanOverview.vue';
 import KanbanView from './KanbanView.vue';
 import KanbanBoardSettings from './KanbanBoardSettings.vue';
+import ConversationView from '../conversation/ConversationView.vue';
 
 const meta = {
   permissions: ['administrator', 'agent'],
@@ -19,6 +20,26 @@ export const routes = [
     name: 'kanban_board_show',
     component: KanbanView,
     meta,
+  },
+  {
+    path: frontendURL(
+      'accounts/:accountId/kanban/:boardId/conversations/:conversationId'
+    ),
+    name: 'kanban_board_conversation',
+    component: ConversationView,
+    meta,
+    props: route => ({
+      inboxId: 0,
+      conversationId: route.params.conversationId,
+      backRoute: {
+        name: 'kanban_board_show',
+        params: {
+          accountId: route.params.accountId,
+          boardId: route.params.boardId,
+        },
+      },
+      expandSidebarItems: ['is_kanban_open'],
+    }),
   },
   {
     path: frontendURL('accounts/:accountId/kanban/:boardId/settings'),

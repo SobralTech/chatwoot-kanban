@@ -1,6 +1,7 @@
 import {
   frontendURL,
   conversationUrl,
+  kanbanConversationUrl,
   isValidURL,
   conversationListPageURL,
   getArticleSearchURL,
@@ -61,6 +62,18 @@ describe('#URL Helpers', () => {
       expect(conversationUrl({ accountId: 1, teamId: 1, id: 1 })).toBe(
         'accounts/1/team/1/conversations/1'
       );
+    });
+  });
+
+  describe('kanbanConversationUrl', () => {
+    it('returns a focused kanban conversation URL', () => {
+      expect(
+        kanbanConversationUrl({
+          accountId: 1,
+          boardId: 10,
+          conversationId: 42,
+        })
+      ).toBe('accounts/1/kanban/10/conversations/42');
     });
   });
 

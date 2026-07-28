@@ -28,6 +28,7 @@ import ShopifyOrdersList from 'dashboard/components/widgets/conversation/Shopify
 import SidebarActionsHeader from 'dashboard/components-next/SidebarActionsHeader.vue';
 import LinearIssuesList from 'dashboard/components/widgets/conversation/linear/IssuesList.vue';
 import LinearSetupCTA from 'dashboard/components/widgets/conversation/linear/LinearSetupCTA.vue';
+import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
 
 const props = defineProps({
   conversationId: {
@@ -49,6 +50,16 @@ const {
 
 const dragging = ref(false);
 const conversationSidebarItems = ref([]);
+const embeddedConversation = useEmbeddedConversation();
+const embedded = computed(() => embeddedConversation?.value);
+const isEmbeddedKanbanOpen = ref(
+  embedded.value?.expandSidebarItems.includes('is_kanban_open') ?? false
+);
+const isKanbanOpen = computed(() =>
+  embedded.value
+    ? isEmbeddedKanbanOpen.value
+    : isContactSidebarItemOpen('is_kanban_open')
+);
 
 const shopifyIntegration = useFunctionGetter(
   'integrations/getIntegration',
@@ -123,10 +134,24 @@ const onDragEnd = () => {
 };
 
 const closeContactPanel = () => {
+  if (embedded.value) {
+    embedded.value.setSidebarOpen(false);
+    return;
+  }
+
   updateUISettings({
     is_contact_sidebar_open: false,
     is_copilot_panel_open: false,
   });
+};
+
+const toggleKanban = value => {
+  if (embedded.value) {
+    isEmbeddedKanbanOpen.value = value;
+    return;
+  }
+
+  toggleSidebarUIState('is_kanban_open', value);
 };
 
 onMounted(() => {
@@ -151,10 +176,10 @@ onMounted(() => {
       <div class="conversation--actions">
         <AccordionItem
           :title="$t('CONVERSATION_SIDEBAR.ACCORDION.KANBAN')"
-          :is-open="isContactSidebarItemOpen('is_kanban_open')"
+          :is-open="isKanbanOpen"
           compact
           :draggable="false"
-          @toggle="value => toggleSidebarUIState('is_kanban_open', value)"
+          @toggle="toggleKanban"
         >
           <KanbanConversationCards :conversation-id="conversationId" />
         </AccordionItem>

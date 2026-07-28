@@ -5,6 +5,7 @@ import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useWindowSize } from '@vueuse/core';
 import { vOnClickOutside } from '@vueuse/components';
 import wootConstants from 'dashboard/constants/globals';
+import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
 
 defineProps({
   currentChat: {
@@ -14,9 +15,15 @@ defineProps({
 });
 
 const { uiSettings, updateUISettings } = useUISettings();
+const embeddedConversation = useEmbeddedConversation();
+const embedded = computed(() => embeddedConversation?.value);
 const { width: windowWidth } = useWindowSize();
 
 const activeTab = computed(() => {
+  if (embedded.value) {
+    return embedded.value.sidebarOpen ? 0 : null;
+  }
+
   const { is_contact_sidebar_open: isContactSidebarOpen } = uiSettings.value;
 
   if (isContactSidebarOpen) {
@@ -30,7 +37,14 @@ const isSmallScreen = computed(
 );
 
 const closeContactPanel = () => {
-  if (isSmallScreen.value && uiSettings.value?.is_contact_sidebar_open) {
+  if (!isSmallScreen.value) return;
+
+  if (embedded.value?.sidebarOpen) {
+    embedded.value.setSidebarOpen(false);
+    return;
+  }
+
+  if (uiSettings.value?.is_contact_sidebar_open) {
     updateUISettings({
       is_contact_sidebar_open: false,
       is_copilot_panel_open: false,

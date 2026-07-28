@@ -2,7 +2,16 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStore, useMapGetter } from 'dashboard/composables/store';
-import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
+import {
+  frontendURL,
+  conversationUrl,
+  kanbanConversationUrl,
+} from 'dashboard/helper/URLHelper';
+import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
+import {
+  currentEmbeddedDepth,
+  pushEmbedded,
+} from 'dashboard/helper/embeddedConversationHistory';
 import {
   isOnMentionsView,
   isOnUnattendedView,
@@ -21,6 +30,8 @@ const props = defineProps({
 const store = useStore();
 const route = useRoute();
 const router = useRouter();
+const embeddedConversation = useEmbeddedConversation();
+const embedded = computed(() => embeddedConversation?.value);
 
 const currentChat = useMapGetter('getSelectedChat');
 const uiFlags = useMapGetter('contactConversations/getUIFlags');
@@ -51,9 +62,15 @@ const contextMenu = ref({ x: null, y: null });
 
 const buildConversationUrl = conversationId => {
   const {
-    params: { accountId, inbox_id: inboxId, label, teamId },
+    params: { accountId, boardId, inbox_id: inboxId, label, teamId },
     name,
   } = route;
+
+  if (embedded.value) {
+    return frontendURL(
+      kanbanConversationUrl({ accountId, boardId, conversationId })
+    );
+  }
 
   let conversationType = '';
   if (isOnMentionsView({ route: { name } })) {
@@ -91,6 +108,11 @@ const onCardClick = (conversation, e) => {
       '_blank',
       'noopener,noreferrer'
     );
+    return;
+  }
+
+  if (embedded.value) {
+    pushEmbedded(router, { path }, currentEmbeddedDepth() + 1);
     return;
   }
 

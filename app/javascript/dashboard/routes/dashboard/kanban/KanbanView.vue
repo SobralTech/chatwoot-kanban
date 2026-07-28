@@ -11,7 +11,13 @@ import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
-import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
+import { frontendURL, kanbanConversationUrl } from 'dashboard/helper/URLHelper';
+import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
+import {
+  getKanbanBoardSnapshot,
+  removeKanbanBoardSnapshot,
+  saveKanbanBoardSnapshot,
+} from 'dashboard/helper/kanbanBoardSnapshot';
 import {
   DEFAULT_KANBAN_STAGE_COLOR,
   KANBAN_STAGE_COLOR_OPTIONS,
@@ -469,12 +475,97 @@ const showBoard = async boardId => {
     stageCardsLoading.value = {};
     stageCardsErrors.value = {};
     selectedBoard.value = normalizeKanbanPayload(response.data);
-  } catch {
+  } catch (error) {
     hasError.value = true;
     selectedBoard.value = null;
+    if ([403, 404].includes(error?.response?.status)) {
+      router.replace({
+        name: 'kanban_boards',
+        params: { accountId: route.params.accountId },
+      });
+    }
   } finally {
     isFetchingBoard.value = false;
   }
+};
+
+const getStageScrollElement = stageId =>
+  boardScrollContainer.value?.querySelector(
+    `[data-stage-scroll-id="${stageId}"]`
+  );
+
+const saveBoardSnapshot = card => {
+  if (!selectedBoard.value?.id) return;
+
+  saveKanbanBoardSnapshot({
+    accountId: route.params.accountId,
+    boardId: selectedBoard.value.id,
+    snapshot: {
+      scrollLeft: boardScrollContainer.value?.scrollLeft ?? 0,
+      stages: Object.fromEntries(
+        stages.value.map(stage => [
+          stage.id,
+          {
+            loadedCount: stage.cards.length,
+            scrollTop: getStageScrollElement(stage.id)?.scrollTop ?? 0,
+          },
+        ])
+      ),
+      filters: {
+        inboxIds: selectedInboxIds.value,
+        assigneeIds: selectedAssigneeIds.value,
+      },
+      openedFromStageId: findCardStageId(card) || null,
+    },
+  });
+};
+
+const applyBoardSnapshot = async snapshot => {
+  await Promise.all(
+    stages.value.map(async stage => {
+      const loadedCount = snapshot.stages?.[stage.id]?.loadedCount || 0;
+      if (loadedCount <= stage.cards.length) return;
+
+      const page = await fetchStageCardsPage(stage.id, { limit: loadedCount });
+      applyStageFirstPage(stage.id, page);
+    })
+  );
+
+  await refreshStageFirstPage(snapshot.openedFromStageId);
+  await nextTick();
+
+  if (boardScrollContainer.value) {
+    boardScrollContainer.value.scrollLeft = snapshot.scrollLeft || 0;
+  }
+
+  stages.value.forEach(stage => {
+    const stageScrollElement = getStageScrollElement(stage.id);
+    if (stageScrollElement) {
+      stageScrollElement.scrollTop =
+        snapshot.stages?.[stage.id]?.scrollTop || 0;
+    }
+  });
+};
+
+const showBoardWithSnapshot = async boardId => {
+  const snapshot = getKanbanBoardSnapshot({
+    accountId: route.params.accountId,
+    boardId,
+  });
+
+  if (snapshot) {
+    selectedInboxIds.value = snapshot.filters?.inboxIds || [];
+    selectedAssigneeIds.value = snapshot.filters?.assigneeIds || [];
+  }
+
+  await showBoard(boardId);
+  if (!snapshot || !selectedBoard.value) return;
+
+  await applyBoardSnapshot(snapshot);
+  removeKanbanBoardSnapshot({
+    accountId: route.params.accountId,
+    boardId,
+  });
 };
 
 const refreshSelectedBoard = async () => {
@@ -964,7 +1055,7 @@ const fetchBoards = async () => {
     }
 
     if (nextBoardId) {
-      await showBoard(nextBoardId);
+      await showBoardWithSnapshot(nextBoardId);
     }
   } catch {
     hasError.value = true;
@@ -988,15 +1079,17 @@ const removeStageMessageValue = computed(
 
 const getConversationPath = card =>
   frontendURL(
-    conversationUrl({
+    kanbanConversationUrl({
       accountId: route.params.accountId,
-      id: card.conversationId,
+      boardId: selectedBoard.value.id,
+      conversationId: card.conversationId,
     })
   );
 
 const openConversationInNewTab = card => {
   if (!card?.conversationId) return;
 
+  saveBoardSnapshot(card);
   window.open(
     `${window.chatwootConfig.hostURL}${getConversationPath(card)}`,
     '_blank',
@@ -1012,14 +1105,24 @@ const openConversation = (card, event = {}) => {
     return;
   }
 
-  const path = getConversationPath(card);
-
   if (event.metaKey || event.ctrlKey) {
     openConversationInNewTab(card);
     return;
   }
 
-  router.push({ path });
+  saveBoardSnapshot(card);
+  pushEmbedded(
+    router,
+    {
+      name: 'kanban_board_conversation',
+      params: {
+        accountId: route.params.accountId,
+        boardId: selectedBoard.value.id,
+        conversationId: card.conversationId,
+      },
+    },
+    0
+  );
 };
 
 const openDetails = card => {
@@ -1047,7 +1150,7 @@ const onOpportunityUpdated = updatedCard => {
 };
 
 const onOpportunityOpenConversation = card => {
-  openConversationInNewTab(card);
+  openConversation(card);
 };
 
 const onOpportunityRemoveCard = card => {
@@ -1064,7 +1167,7 @@ watch(activeBoardId, (boardId, previousBoardId) => {
   }
 
   closeBoardDropdown();
-  showBoard(boardId);
+  showBoardWithSnapshot(boardId);
 });
 
 onMounted(() => {
@@ -1439,6 +1542,7 @@ onUnmounted(() => {
                 </header>
 
                 <div
+                  :data-stage-scroll-id="stage.id"
                   class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
                   :class="
                     getKanbanStageBodyColorClass(getEffectiveStageColor(stage))

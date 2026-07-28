@@ -45,8 +45,8 @@ vi.mock('dashboard/composables', () => ({
 
 vi.mock('dashboard/helper/URLHelper', () => ({
   frontendURL: path => path,
-  conversationUrl: ({ accountId, id }) =>
-    `/app/accounts/${accountId}/conversations/${id}`,
+  kanbanConversationUrl: ({ accountId, boardId, conversationId }) =>
+    `/app/accounts/${accountId}/kanban/${boardId}/conversations/${conversationId}`,
 }));
 
 vi.mock('shared/helpers/mitt', () => ({
@@ -404,6 +404,10 @@ const emitKanbanRealtimeEvent = async payload => {
   await flushPromises();
   await nextTick();
 };
+
+beforeEach(() => {
+  sessionStorage.clear();
+});
 
 describe('KanbanView realtime events', () => {
   beforeEach(() => {
@@ -1463,8 +1467,35 @@ describe('KanbanView drag and drop', () => {
     await flushPromises();
 
     expect(mockPush).toHaveBeenCalledWith({
-      path: '/app/accounts/1/conversations/123',
+      name: 'kanban_board_conversation',
+      params: {
+        accountId: '1',
+        boardId: 10,
+        conversationId: 123,
+      },
+      state: { embeddedDepth: 0 },
     });
+  });
+
+  it('opens the kanban conversation URL in a new tab on ctrl-click', async () => {
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit(
+      'openConversation',
+      { id: 501, conversationId: 123 },
+      { ctrlKey: true }
+    );
+    await flushPromises();
+
+    expect(window.open).toHaveBeenCalledWith(
+      'http://localhost:3000/app/accounts/1/kanban/10/conversations/123',
+      '_blank',
+      'noopener,noreferrer'
+    );
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it('does not navigate from card openConversation event without conversationId', async () => {
@@ -1585,7 +1616,7 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
   });
 
-  it('opens conversation in a new tab on modal openConversation event', async () => {
+  it('opens conversation in the same tab on modal openConversation event', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1600,34 +1631,16 @@ describe('KanbanView drag and drop', () => {
     modal.vm.$emit('openConversation', { conversationId: 123 });
     await flushPromises();
 
-    expect(window.open).toHaveBeenCalledWith(
-      'http://localhost:3000/app/accounts/1/conversations/123',
-      '_blank',
-      'noopener,noreferrer'
-    );
-    expect(mockPush).not.toHaveBeenCalledWith({
-      path: '/app/accounts/1/conversations/123',
+    expect(window.open).not.toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_board_conversation',
+      params: {
+        accountId: '1',
+        boardId: 10,
+        conversationId: 123,
+      },
+      state: { embeddedDepth: 0 },
     });
-  });
-
-  it('keeps modal open after opening conversation in a new tab', async () => {
-    const wrapper = await mountView();
-    const cardComponent = wrapper.findComponent({
-      name: 'KanbanConversationCard',
-    });
-
-    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
-    await nextTick();
-
-    const modal = wrapper.findComponent({
-      name: 'KanbanOpportunityDetailsModal',
-    });
-    modal.vm.$emit('openConversation', { conversationId: 123 });
-    await flushPromises();
-
-    expect(
-      wrapper.findComponent({ name: 'KanbanOpportunityDetailsModal' }).exists()
-    ).toBe(true);
   });
 });
 
@@ -1777,7 +1790,22 @@ describe('KanbanView header navigation', () => {
     });
   });
 
+  it('returns to the kanban overview when the board is inaccessible', async () => {
+    const wrapper = await mountView();
+    KanbanBoardsAPI.show.mockRejectedValueOnce({
+      response: { status: 404 },
+    });
+
+    await wrapper.vm.$.setupState.showBoard(99);
+
+    expect(mockReplace).toHaveBeenCalledWith({
+      name: 'kanban_boards',
+      params: { accountId: '1' },
+    });
+  });
+
   it('creates a stage with Nova etapa when that temporary name is available', async () => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
     mockT.mockImplementation(key => {
       const translations = {
         'KANBAN.ACTIONS.NEW_STAGE_NAME': 'Nova etapa',

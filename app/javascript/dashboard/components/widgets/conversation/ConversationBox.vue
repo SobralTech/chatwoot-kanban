@@ -4,6 +4,8 @@ import ConversationHeader from './ConversationHeader.vue';
 import DashboardAppFrame from '../DashboardApp/Frame.vue';
 import EmptyState from './EmptyState/EmptyState.vue';
 import MessagesView from './MessagesView.vue';
+import NextButton from 'dashboard/components-next/button/Button.vue';
+import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
 
 export default {
   components: {
@@ -11,6 +13,7 @@ export default {
     DashboardAppFrame,
     EmptyState,
     MessagesView,
+    NextButton,
   },
   props: {
     inboxId: {
@@ -36,6 +39,11 @@ export default {
     },
   },
   emits: ['conversationSearchOpen', 'conversationSearchClose'],
+  setup() {
+    return {
+      embeddedConversation: useEmbeddedConversation(),
+    };
+  },
   data() {
     return {
       activeIndex: 0,
@@ -152,6 +160,17 @@ export default {
       );
     },
     closeSidePanels() {
+      if (this.embeddedConversation) {
+        this.embeddedConversation.setSidebarOpen(false);
+        this.$store.dispatch('updateUISettings', {
+          uiSettings: {
+            ...this.uiSettings,
+            is_copilot_panel_open: false,
+          },
+        });
+        return;
+      }
+
       this.$store.dispatch('updateUISettings', {
         uiSettings: {
           ...this.uiSettings,
@@ -190,6 +209,20 @@ export default {
       @open-conversation-search="toggleConversationSearch"
       @toggle-contact-details="onContactDetailsToggle"
     />
+    <div
+      v-else-if="embeddedConversation"
+      class="flex min-h-12 items-center border-b border-b-n-weak px-3 py-2"
+    >
+      <NextButton
+        slate
+        faded
+        sm
+        icon="i-lucide-arrow-left"
+        :label="$t('GENERAL_SETTINGS.BACK')"
+        data-testid="embedded-conversation-back"
+        @click="embeddedConversation.goBack()"
+      />
+    </div>
     <woot-tabs
       v-if="dashboardApps.length && currentChat.id"
       :index="activeIndex"

@@ -56,6 +56,7 @@ const mountView = ({
   routeName = 'inbox_conversation',
   conversationId = 1,
   replaceImpl = () => Promise.resolve(),
+  backRoute = null,
 } = {}) => {
   const store = createStoreMock(currentChat);
   const router = { replace: vi.fn(replaceImpl), push: vi.fn() };
@@ -64,6 +65,8 @@ const mountView = ({
     props: {
       conversationId,
       inboxId: 2,
+      backRoute,
+      expandSidebarItems: backRoute ? ['is_kanban_open'] : [],
     },
     global: {
       plugins: [store],
@@ -177,7 +180,30 @@ describe('ConversationView', () => {
     ).toBe(false);
   });
 
+  it('does not mount ChatList in embedded mode', () => {
+    const { wrapper } = mountView({
+      backRoute: { name: 'kanban_board_show' },
+    });
+
+    expect(wrapper.find('[data-testid="chat-list"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="conversation-box"]').exists()).toBe(
+      true
+    );
+  });
+
   describe('syncRouteWithArchivedState', () => {
+    it('does not redirect archived conversations in embedded mode', () => {
+      const { wrapper, router } = mountView({
+        currentChat: { id: 1, inbox_id: 2 },
+        conversationId: 1,
+        backRoute: { name: 'kanban_board_show' },
+      });
+
+      wrapper.vm.syncRouteWithArchivedState(1752230400);
+
+      expect(router.replace).not.toHaveBeenCalled();
+    });
+
     it('redirects to the archived route (with accountId) when the open conversation gets archived elsewhere', () => {
       // Covers both a live archive from another agent and opening an
       // already-archived conversation through a generic/old URL: both

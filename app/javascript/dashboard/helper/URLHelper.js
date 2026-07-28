@@ -33,6 +33,9 @@ export const conversationUrl = ({
   return url;
 };
 
+export const kanbanConversationUrl = ({ accountId, boardId, conversationId }) =>
+  `accounts/${accountId}/kanban/${boardId}/conversations/${conversationId}`;
+
 export const conversationListPageURL = ({
   accountId,
   conversationType = '',

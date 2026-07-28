@@ -1,8 +1,9 @@
 import { shallowMount } from '@vue/test-utils';
 import { createStore } from 'vuex';
-import { nextTick } from 'vue';
+import { nextTick, ref } from 'vue';
 
 import ConversationBox from '../ConversationBox.vue';
+import { EMBEDDED_CONVERSATION } from 'dashboard/composables/useEmbeddedConversation';
 
 describe('ConversationBox', () => {
   let currentChat;
@@ -11,7 +12,7 @@ describe('ConversationBox', () => {
   let updateUISettings;
   let uiSettings;
 
-  const createWrapper = () => {
+  const createWrapper = (embeddedContext = null) => {
     uiSettings = {
       is_contact_sidebar_open: false,
       is_copilot_panel_open: false,
@@ -45,6 +46,9 @@ describe('ConversationBox', () => {
       attachTo: document.body,
       global: {
         plugins: [store],
+        provide: embeddedContext
+          ? { [EMBEDDED_CONVERSATION]: ref(embeddedContext) }
+          : {},
         mocks: {
           $t: key => key,
         },
@@ -75,6 +79,19 @@ describe('ConversationBox', () => {
     createWrapper();
 
     expect(wrapper.findComponent({ name: 'MessagesView' }).exists()).toBe(true);
+  });
+
+  it('keeps the embedded back action visible when the conversation fails to load', () => {
+    currentChat = {};
+    createWrapper({
+      sidebarOpen: true,
+      setSidebarOpen: vi.fn(),
+      goBack: vi.fn(),
+    });
+
+    expect(
+      wrapper.find('[data-testid="embedded-conversation-back"]').exists()
+    ).toBe(true);
   });
 
   it('opens search panel with Ctrl+F when a conversation exists', async () => {
