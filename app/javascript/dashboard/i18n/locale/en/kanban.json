@@ -98,6 +98,27 @@
       "VIOLET": "violet",
       "IRIS": "iris"
     },
+    "CUSTOM_FIELDS": {
+      "LOADING": "Loading custom fields...",
+      "LOAD_ERROR": "Could not load custom fields.",
+      "EMPTY": "No custom fields yet.",
+      "KEY_PLACEHOLDER": "Field key",
+      "TYPES": {
+        "TEXT": "Text",
+        "NUMBER": "Number",
+        "DATE": "Date",
+        "BOOLEAN": "True/False"
+      },
+      "MULTIPLE_OPTIONS": {
+        "SINGLE": "Single",
+        "LIST": "List"
+      },
+      "ADD_FIELD": "Add field",
+      "REMOVE_FIELD": "Remove field",
+      "CREATE_ERROR": "Could not create the custom field.",
+      "UPDATE_ERROR": "Could not update the custom field.",
+      "DELETE_ERROR": "Could not remove the custom field."
+    },
     "SETTINGS": {
       "TITLE": "Funnel settings",
       "DESCRIPTION": "Manage who can use this funnel and which inboxes can create cards.",

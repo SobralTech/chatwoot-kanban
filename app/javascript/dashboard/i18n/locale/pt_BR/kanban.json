@@ -98,6 +98,27 @@
       "IRIS": "íris",
       "VIOLET": "violeta"
     },
+    "CUSTOM_FIELDS": {
+      "LOADING": "Carregando campos personalizados...",
+      "LOAD_ERROR": "Não foi possível carregar os campos personalizados.",
+      "EMPTY": "Nenhum campo personalizado ainda.",
+      "KEY_PLACEHOLDER": "Chave do campo",
+      "TYPES": {
+        "TEXT": "Texto",
+        "NUMBER": "Número",
+        "DATE": "Data",
+        "BOOLEAN": "Verdadeiro/Falso"
+      },
+      "MULTIPLE_OPTIONS": {
+        "SINGLE": "Único",
+        "LIST": "Lista"
+      },
+      "ADD_FIELD": "Adicionar campo",
+      "REMOVE_FIELD": "Remover campo",
+      "CREATE_ERROR": "Não foi possível criar o campo personalizado.",
+      "UPDATE_ERROR": "Não foi possível atualizar o campo personalizado.",
+      "DELETE_ERROR": "Não foi possível remover o campo personalizado."
+    },
     "SETTINGS": {
       "TITLE": "Configurações do funil",
       "DESCRIPTION": "Gerencie quem pode usar este funil e quais caixas de entrada podem criar cartões.",
