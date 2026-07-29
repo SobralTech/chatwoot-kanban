@@ -185,6 +185,11 @@ export default {
     initialize() {
       this.$store.dispatch('setActiveInbox', this.inboxId);
       this.setActiveChat();
+      // In embedded mode (e.g. opened from a kanban card), ChatList isn't
+      // rendered, so its conversation-load event never fires to trigger
+      // this. Check directly so a conversation missing from the store
+      // still gets fetched.
+      this.fetchConversationIfUnavailable();
     },
     fetchConversationIfUnavailable() {
       if (!this.conversationId) {
