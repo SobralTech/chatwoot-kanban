@@ -164,6 +164,43 @@
       "CONFIRM": "Remove",
       "CANCEL": "Cancel"
     },
+    "REASONS": {
+      "ADD_REASON": "Add new reason",
+      "LOST_COLUMN_TITLE": "Loss reasons",
+      "WON_COLUMN_TITLE": "Win reasons",
+      "EMPTY_LOST": "No loss reasons registered",
+      "EMPTY_WON": "No win reasons registered",
+      "EDIT_REASON": "Edit",
+      "REMOVE_REASON": "Remove",
+      "LOADING": "Loading reasons...",
+      "LOAD_ERROR": "Could not load reasons.",
+      "FORM": {
+        "ADD_TITLE": "Add new reason",
+        "EDIT_TITLE": "Edit reason",
+        "FIELD_TITLE": "Title",
+        "TITLE_PLACEHOLDER": "Reason title",
+        "FIELD_DESCRIPTION": "Description",
+        "DESCRIPTION_PLACEHOLDER": "Add an optional description",
+        "TYPE_LABEL": "Type",
+        "TYPE_LOST": "Loss",
+        "TYPE_WON": "Win",
+        "SAVE": "Save",
+        "CANCEL": "Cancel",
+        "REQUIRED_TITLE": "Title is required."
+      },
+      "REMOVE_CONFIRM": {
+        "TITLE": "Remove reason",
+        "MESSAGE": "Remove this reason?",
+        "CONFIRM": "Remove",
+        "CANCEL": "Cancel"
+      },
+      "CREATE_SUCCESS": "Reason created.",
+      "CREATE_ERROR": "Could not create the reason.",
+      "UPDATE_SUCCESS": "Reason updated.",
+      "UPDATE_ERROR": "Could not update the reason.",
+      "REMOVE_SUCCESS": "Reason removed.",
+      "REMOVE_ERROR": "Could not remove the reason."
+    },
     "OPPORTUNITY_DETAILS": {
       "TITLE": "Edit Opportunity",
       "TITLE_WITH_BOARD": "Edit opportunity in {boardName}",
