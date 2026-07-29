@@ -15,6 +15,21 @@ json.updated_at card.updated_at.to_i
 json.stage_entered_at card.stage_entered_at&.iso8601 if card.respond_to?(:stage_entered_at)
 json.origin card.origin if card.respond_to?(:origin)
 json.subject card.subject if card.respond_to?(:subject)
+json.kanban_reason_id card.kanban_reason_id if card.respond_to?(:kanban_reason_id)
+if card.respond_to?(:kanban_card_products)
+  json.products card.kanban_card_products.ordered do |product|
+    json.id product.id
+    json.sku product.sku
+    json.name product.name
+    json.brand product.brand
+    json.image_url product.image_url
+    json.quantity product.quantity
+    json.unit_price product.unit_price
+    json.price_type product.price_type
+    json.subtotal product.subtotal
+  end
+  json.value card.total_value
+end
 if stable_card
   json.description card.description
   json.starts_at card.starts_at&.iso8601

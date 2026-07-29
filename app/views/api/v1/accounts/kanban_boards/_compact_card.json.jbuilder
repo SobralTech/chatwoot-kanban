@@ -7,6 +7,19 @@ json.position card.position
 json.origin card.origin
 json.subject card.subject
 json.active card.active
+json.kanban_reason_id card.kanban_reason_id
+json.products card.kanban_card_products.ordered do |product|
+  json.id product.id
+  json.sku product.sku
+  json.name product.name
+  json.brand product.brand
+  json.image_url product.image_url
+  json.quantity product.quantity
+  json.unit_price product.unit_price
+  json.price_type product.price_type
+  json.subtotal product.subtotal
+end
+json.value card.total_value
 json.due_at card.due_at&.iso8601
 json.stage_entered_at card.stage_entered_at&.iso8601
 json.contact do
