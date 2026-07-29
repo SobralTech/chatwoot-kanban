@@ -189,7 +189,9 @@ export default {
       // rendered, so its conversation-load event never fires to trigger
       // this. Check directly so a conversation missing from the store
       // still gets fetched.
-      this.fetchConversationIfUnavailable();
+      if (this.isEmbedded) {
+        this.fetchConversationIfUnavailable();
+      }
     },
     fetchConversationIfUnavailable() {
       if (!this.conversationId) {
