@@ -20,6 +20,7 @@ import { debounce } from '@chatwoot/utils';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
 import KanbanPriorityDropdown from './KanbanPriorityDropdown.vue';
+import KanbanCardAdditionalDataTab from './KanbanCardAdditionalDataTab.vue';
 
 const props = defineProps({
   boardId: {
@@ -1416,10 +1417,7 @@ onMounted(() => {
           v-show="activeTabKey === 'additional_data'"
           data-testid="kanban-opportunity-additional-data-tab"
         >
-          <!-- TODO(onda-2-integracao): montar aqui o componente KanbanCardAdditionalDataTab.vue, props board-id="boardId" card-id="cardId" -->
-          <div class="p-6 text-sm text-n-slate-11">
-            {{ t('KANBAN.OPPORTUNITY_DETAILS.ADDITIONAL_DATA_PLACEHOLDER') }}
-          </div>
+          <KanbanCardAdditionalDataTab :board-id="boardId" :card-id="cardId" />
         </section>
       </template>
     </div>

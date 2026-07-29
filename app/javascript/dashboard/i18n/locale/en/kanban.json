@@ -273,7 +273,6 @@
         "PRODUCTS": "Products",
         "ADDITIONAL_DATA": "Additional data"
       },
-      "ADDITIONAL_DATA_PLACEHOLDER": "Additional data will be available here soon.",
       "TITLE": "Edit Opportunity",
       "TITLE_WITH_BOARD": "Edit opportunity in {boardName}",
       "CARD_ID": "#{id}",
