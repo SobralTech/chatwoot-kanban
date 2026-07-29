@@ -164,6 +164,43 @@
       "CONFIRM": "Remover",
       "CANCEL": "Cancelar"
     },
+    "REASONS": {
+      "ADD_REASON": "Adicionar novo motivo",
+      "LOST_COLUMN_TITLE": "Motivos de Perda",
+      "WON_COLUMN_TITLE": "Motivos de Ganho",
+      "EMPTY_LOST": "Nenhum motivo de perda cadastrado",
+      "EMPTY_WON": "Nenhum motivo de ganho cadastrado",
+      "EDIT_REASON": "Editar",
+      "REMOVE_REASON": "Remover",
+      "LOADING": "Carregando motivos...",
+      "LOAD_ERROR": "Não foi possível carregar os motivos.",
+      "FORM": {
+        "ADD_TITLE": "Adicionar novo motivo",
+        "EDIT_TITLE": "Editar motivo",
+        "FIELD_TITLE": "Título",
+        "TITLE_PLACEHOLDER": "Título do motivo",
+        "FIELD_DESCRIPTION": "Descrição",
+        "DESCRIPTION_PLACEHOLDER": "Adicione uma descrição opcional",
+        "TYPE_LABEL": "Tipo",
+        "TYPE_LOST": "Perda",
+        "TYPE_WON": "Ganho",
+        "SAVE": "Salvar",
+        "CANCEL": "Cancelar",
+        "REQUIRED_TITLE": "O título é obrigatório."
+      },
+      "REMOVE_CONFIRM": {
+        "TITLE": "Remover motivo",
+        "MESSAGE": "Remover este motivo?",
+        "CONFIRM": "Remover",
+        "CANCEL": "Cancelar"
+      },
+      "CREATE_SUCCESS": "Motivo criado.",
+      "CREATE_ERROR": "Não foi possível criar o motivo.",
+      "UPDATE_SUCCESS": "Motivo atualizado.",
+      "UPDATE_ERROR": "Não foi possível atualizar o motivo.",
+      "REMOVE_SUCCESS": "Motivo removido.",
+      "REMOVE_ERROR": "Não foi possível remover o motivo."
+    },
     "OPPORTUNITY_DETAILS": {
       "TITLE": "Editar Oportunidade",
       "TITLE_WITH_BOARD": "Editar oportunidade em {boardName}",

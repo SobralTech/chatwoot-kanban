@@ -125,6 +125,22 @@ class KanbanBoardsAPI extends ApiClient {
   deleteCardById(boardId, cardId) {
     return axios.delete(`${this.url}/${boardId}/cards/by_id/${cardId}`);
   }
+
+  getReasons(boardId) {
+    return axios.get(`${this.url}/${boardId}/reasons`);
+  }
+
+  createReason(boardId, payload) {
+    return axios.post(`${this.url}/${boardId}/reasons`, payload);
+  }
+
+  updateReason(boardId, reasonId, payload) {
+    return axios.patch(`${this.url}/${boardId}/reasons/${reasonId}`, payload);
+  }
+
+  deleteReason(boardId, reasonId) {
+    return axios.delete(`${this.url}/${boardId}/reasons/${reasonId}`);
+  }
 }
 
 export default new KanbanBoardsAPI();
