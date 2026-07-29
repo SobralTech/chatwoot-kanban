@@ -1585,8 +1585,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
   def compact_card_keys
     %w[
-      id kanban_stage_id position origin subject active due_at stage_entered_at contact inbox conversation_id priority conversation assignee
-      moved_by_id moved_at card_priority assignees
+      id kanban_stage_id position origin subject active kanban_reason_id products value due_at stage_entered_at contact inbox conversation_id
+      priority conversation assignee moved_by_id moved_at card_priority assignees
     ]
   end
 
