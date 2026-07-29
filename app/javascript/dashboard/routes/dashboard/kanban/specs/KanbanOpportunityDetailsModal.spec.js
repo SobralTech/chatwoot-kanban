@@ -82,11 +82,25 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     updateCardLabels: vi.fn(),
     getCardAssignees: vi.fn(),
     updateCardAssignees: vi.fn(),
+    getCardProducts: vi.fn(),
+    createCardProduct: vi.fn(),
+    updateCardProduct: vi.fn(),
+    deleteCardProduct: vi.fn(),
+  },
+}));
+
+vi.mock('dashboard/api/products', () => ({
+  default: {
+    search: vi.fn(),
   },
 }));
 
 vi.mock('dashboard/composables', () => ({
   useAlert: vi.fn(),
+}));
+
+vi.mock('dashboard/composables/useAdmin', () => ({
+  useAdmin: () => ({ isAdmin: { value: false } }),
 }));
 
 vi.mock('shared/helpers/clipboard', () => ({
@@ -99,6 +113,7 @@ vi.mock('dashboard/composables/store', async () => {
   return {
     useStore: () => ({ dispatch: storeMocks.dispatch }),
     useMapGetter: () => computed(() => storeMocks.labels),
+    useStoreGetters: () => ({ getCurrentRole: computed(() => 'agent') }),
   };
 });
 
@@ -230,15 +245,36 @@ const assignableUsers = [
   { id: 8, name: 'John Agent', avatar_url: 'john.png' },
 ];
 
+const tabBarStub = {
+  name: 'TabBar',
+  props: ['tabs', 'initialActiveTab'],
+  emits: ['tabChanged'],
+  template: `
+    <div>
+      <button
+        v-for="(tab, index) in tabs"
+        :key="index"
+        type="button"
+        :data-testid="'kanban-opportunity-tab-' + index"
+        @click="$emit('tabChanged', tab)"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
+  `,
+};
+
 const mountModal = async ({
   card = buildCard(),
   resolveLoad = true,
   resolveLabels = true,
   resolveAssignees = true,
+  resolveProducts = true,
   accountLabels = labels,
   assignedLabels = [labels[0]],
   assignedUsers = [assignableUsers[0]],
   availableAssignableUsers = assignableUsers,
+  cardProducts = [],
 } = {}) => {
   storeMocks.labels = accountLabels;
   storeMocks.dispatch.mockResolvedValue();
@@ -258,6 +294,10 @@ const mountModal = async ({
     });
   }
 
+  if (resolveProducts) {
+    KanbanBoardsAPI.getCardProducts.mockResolvedValue({ data: cardProducts });
+  }
+
   if (resolveLoad) {
     KanbanBoardsAPI.showCardById.mockResolvedValue({ data: card });
   }
@@ -275,6 +315,7 @@ const mountModal = async ({
         Popover: popoverStub,
         LabelDropdown: labelDropdownStub,
         Editor: editorStub,
+        TabBar: tabBarStub,
       },
     },
   });

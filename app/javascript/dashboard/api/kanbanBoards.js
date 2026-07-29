@@ -160,6 +160,30 @@ class KanbanBoardsAPI extends ApiClient {
   deleteCustomField(boardId, fieldId) {
     return axios.delete(`${this.url}/${boardId}/custom_fields/${fieldId}`);
   }
+
+  getCardProducts(boardId, cardId) {
+    return axios.get(`${this.url}/${boardId}/cards/by_id/${cardId}/products`);
+  }
+
+  createCardProduct(boardId, cardId, payload) {
+    return axios.post(
+      `${this.url}/${boardId}/cards/by_id/${cardId}/products`,
+      payload
+    );
+  }
+
+  updateCardProduct(boardId, cardId, productId, payload) {
+    return axios.patch(
+      `${this.url}/${boardId}/cards/by_id/${cardId}/products/${productId}`,
+      payload
+    );
+  }
+
+  deleteCardProduct(boardId, cardId, productId) {
+    return axios.delete(
+      `${this.url}/${boardId}/cards/by_id/${cardId}/products/${productId}`
+    );
+  }
 }
 
 export default new KanbanBoardsAPI();
