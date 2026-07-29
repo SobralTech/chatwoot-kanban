@@ -367,6 +367,17 @@
       "PRIORITY_UPDATE_ERROR": "Could not update the card priority.",
       "LAST_ACTIVITY": "Last activity: {time}"
     },
+    "CARD_ADDITIONAL_DATA": {
+      "LOADING": "Loading additional data...",
+      "LOAD_ERROR": "Could not load additional data.",
+      "EMPTY": "No custom fields configured for this funnel.",
+      "TAG_PLACEHOLDER": "Type a value and press Enter",
+      "ADD_DATE": "Add date",
+      "REMOVE_VALUE": "Remove value",
+      "SAVE": "Save",
+      "SAVE_SUCCESS": "Additional data saved.",
+      "SAVE_ERROR": "Could not save additional data."
+    },
     "NOTES": {
       "TITLE": "Contact notes",
       "LOADING": "Loading notes...",
