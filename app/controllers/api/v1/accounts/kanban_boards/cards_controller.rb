@@ -1,4 +1,4 @@
-class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::BaseController
+class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::BaseController # rubocop:disable Metrics/ClassLength
   before_action :fetch_kanban_board
   before_action :authorize_kanban_board_show
   before_action :fetch_manual_card_records, only: [:create_manual]
@@ -68,7 +68,9 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def card_params
-    params.require(:card).permit(:kanban_stage_id, :position, :subject, :description, :starts_at, :due_at, :priority, labels: [])
+    params.require(:card).permit(
+      :kanban_stage_id, :position, :subject, :description, :starts_at, :due_at, :priority, :kanban_reason_id, labels: []
+    )
   end
 
   def manual_card_params
@@ -80,6 +82,18 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def update_kanban_card
+    source_stage_id = @kanban_card.kanban_stage_id
+    transition_error = stable_card_move_params? && stage_reason_transition_error(source_stage_id, @kanban_stage)
+    return render json: transition_error, status: :unprocessable_content if transition_error
+
+    invalid_label_titles = perform_kanban_card_update!(source_stage_id)
+    return render_unknown_labels(invalid_label_titles) if invalid_label_titles.present?
+
+    dispatch_kanban_card_event(Events::Types::KANBAN_CARD_UPDATED)
+    render_card
+  end
+
+  def perform_kanban_card_update!(source_stage_id)
     invalid_label_titles = []
 
     KanbanCard.transaction do
@@ -88,31 +102,23 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
         raise ActiveRecord::Rollback
       end
 
-      if stable_card_move_params?
-        @kanban_card.reorder_to_position!(
-          kanban_stage: @kanban_stage,
-          position: card_params[:position] || target_card_position(@kanban_stage)
-        )
-      end
+      move_kanban_card!(source_stage_id, @kanban_stage, card_params[:position] || target_card_position(@kanban_stage)) if stable_card_move_params?
       @kanban_card.update!(stable_card_update_params)
       @kanban_card.update_labels(label_titles) if labels_param_present?
     end
 
-    return render_unknown_labels(invalid_label_titles) if invalid_label_titles.present?
-
-    dispatch_kanban_card_event(Events::Types::KANBAN_CARD_UPDATED)
-    render_card
+    invalid_label_titles
   end
 
   def reorder_kanban_card
     source_stage_id = @kanban_card.kanban_stage_id
     target_stage = target_card_stage_for_reorder
 
+    transition_error = stage_reason_transition_error(source_stage_id, target_stage)
+    return render json: transition_error, status: :unprocessable_content if transition_error
+
     KanbanCard.transaction do
-      @kanban_card.reorder_to_position!(
-        kanban_stage: target_stage,
-        position: params.dig(:card, :position) || next_card_position(target_stage)
-      )
+      move_kanban_card!(source_stage_id, target_stage, params.dig(:card, :position) || next_card_position(target_stage))
     end
 
     dispatch_kanban_card_reordered_event(source_stage_id)
@@ -170,6 +176,37 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     return @kanban_card.kanban_stage if stage_id.blank?
 
     @kanban_board.kanban_stages.active.find(stage_id)
+  end
+
+  def move_kanban_card!(source_stage_id, target_stage, position)
+    @kanban_card.reorder_to_position!(kanban_stage: target_stage, position: position)
+    apply_stage_reason_transition!(source_stage_id, target_stage)
+  end
+
+  def stage_reason_transition_error(source_stage_id, target_stage)
+    return nil if target_stage.id == source_stage_id
+    return nil unless target_stage.id == @kanban_board.lost_stage_id
+    return nil unless @kanban_board.lost_reason_required?
+    return nil if card_params[:kanban_reason_id].present?
+
+    { error: 'lost_reason_required' }
+  end
+
+  def apply_stage_reason_transition!(source_stage_id, target_stage)
+    return if target_stage.id == source_stage_id
+
+    @kanban_card.update!(kanban_reason_id: resolve_transition_reason_id(target_stage))
+  end
+
+  def resolve_transition_reason_id(target_stage)
+    reason_id = card_params[:kanban_reason_id]
+    return nil if reason_id.blank?
+
+    if target_stage.id == @kanban_board.lost_stage_id
+      @kanban_board.kanban_reasons.active.lost.find(reason_id).id
+    elsif target_stage.id == @kanban_board.won_stage_id
+      @kanban_board.kanban_reasons.active.won.find(reason_id).id
+    end
   end
 
   def dispatch_kanban_card_event(event_name, stage_id: @kanban_card.kanban_stage_id)
