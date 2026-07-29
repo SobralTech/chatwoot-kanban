@@ -149,6 +149,8 @@ Rails.application.routes.draw do
               put 'cards/by_id/:id/labels', to: 'cards/labels#update'
               get 'cards/by_id/:id/assignees', to: 'cards/assignees#index'
               put 'cards/by_id/:id/assignees', to: 'cards/assignees#update'
+              get 'cards/by_id/:id/field_values', to: 'cards/field_values#index'
+              put 'cards/by_id/:id/field_values', to: 'cards/field_values#update'
               resources :reasons, only: [:index, :create, :update, :destroy]
             end
           end

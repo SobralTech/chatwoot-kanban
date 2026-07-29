@@ -1,0 +1,2 @@
+json.kanban_custom_field_id field_value.kanban_custom_field_id
+json.value field_value.value
