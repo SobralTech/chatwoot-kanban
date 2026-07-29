@@ -170,6 +170,13 @@
   locked: false
 # ------- End of WhatsApp Channel Related Config ------- #
 
+# ------- Kanban Products API Config ------- #
+- name: KANBAN_PRODUCTS_API_TOKEN
+  display_title: 'Kanban Products API Token'
+  description: 'X-Agent-Token used to authenticate against the external products search API (produtos-api.sobraltec.com.br)'
+  locked: false
+# ------- End of Kanban Products API Config ------- #
+
 # MARK: Microsoft Email Channel Config
 - name: AZURE_APP_ID
   display_title: 'Azure App ID'

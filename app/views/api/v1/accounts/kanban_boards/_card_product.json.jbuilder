@@ -1,0 +1,10 @@
+json.id product.id
+json.sku product.sku
+json.name product.name
+json.brand product.brand
+json.image_url product.image_url
+json.quantity product.quantity
+json.unit_price product.unit_price
+json.price_type product.price_type
+json.price_list product.price_list
+json.subtotal product.subtotal
