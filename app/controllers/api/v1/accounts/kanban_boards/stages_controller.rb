@@ -60,7 +60,13 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   private
 
   def fetch_kanban_board
-    @kanban_board = policy_scope(KanbanBoard).find(params[:kanban_board_id])
+    # See KanbanBoardsController#fetch_kanban_board: admins editing a draft board (not yet
+    # activated) need to manage its stages before it becomes active.
+    @kanban_board = if Current.account_user&.administrator?
+                      KanbanBoard.where(account_id: Current.account.id).find(params[:kanban_board_id])
+                    else
+                      policy_scope(KanbanBoard).find(params[:kanban_board_id])
+                    end
   end
 
   def authorize_kanban_board_update

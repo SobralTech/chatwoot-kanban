@@ -31,7 +31,15 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
   private
 
   def fetch_kanban_board
-    @kanban_board = policy_scope(KanbanBoard).find(params[:id])
+    # Administrators manage boards through the single create/edit form, which needs to
+    # load and mutate a board while it is still a draft (active: false, not yet
+    # activated). policy_scope filters drafts out for everyone, so admins bypass it here;
+    # non-admins keep the existing active + visibility restriction.
+    @kanban_board = if Current.account_user&.administrator?
+                      KanbanBoard.where(account_id: Current.account.id).find(params[:id])
+                    else
+                      policy_scope(KanbanBoard).find(params[:id])
+                    end
   end
 
   def fetch_overview_data
