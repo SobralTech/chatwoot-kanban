@@ -139,6 +139,7 @@ Rails.application.routes.draw do
                 patch :reorder, on: :member
                 resources :cards, only: [:index], module: :stages
               end
+              resources :custom_fields, only: [:index, :create, :update, :destroy]
               post 'cards/manual', to: 'cards#create_manual'
               get 'cards/by_id/:id', to: 'cards#show'
               patch 'cards/by_id/:id', to: 'cards#update'
