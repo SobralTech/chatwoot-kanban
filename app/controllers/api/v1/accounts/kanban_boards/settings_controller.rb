@@ -49,6 +49,9 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
       :visibility_mode,
       :inbox_scope_mode,
       :auto_create_cards_from_conversations,
+      :won_stage_id,
+      :lost_stage_id,
+      :lost_reason_required,
       visible_user_ids: [],
       allowed_inbox_ids: []
     )

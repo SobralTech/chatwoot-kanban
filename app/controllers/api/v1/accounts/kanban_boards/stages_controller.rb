@@ -72,7 +72,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def kanban_stage_params
-    params.require(:stage).permit(:name, :position, :active, :color)
+    params.require(:stage).permit(:name, :position, :active, :color, :description)
   end
 
   def deactivating_stage_with_active_cards?

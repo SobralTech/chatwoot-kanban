@@ -57,6 +57,7 @@ class KanbanBoard < ApplicationRecord
   validates :position, presence: true, numericality: { only_integer: true }
   validate :validate_won_stage_consistency
   validate :validate_lost_stage_consistency
+  validate :validate_won_lost_stage_required_on_activation
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, id: :asc) }
@@ -97,5 +98,12 @@ class KanbanBoard < ApplicationRecord
     return if lost_stage.kanban_board_id == id && lost_stage.account_id == account_id
 
     errors.add(:lost_stage, :invalid)
+  end
+
+  def validate_won_lost_stage_required_on_activation
+    return unless will_save_change_to_active? && active?
+    return if won_stage_id.present? && lost_stage_id.present?
+
+    errors.add(:base, 'Won stage and lost stage must be set before activating this board')
   end
 end
