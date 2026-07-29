@@ -25,6 +25,53 @@
       "OPPORTUNITIES_COUNT": "{count} opportunities",
       "EXTRA_COUNT": "+{count}"
     },
+    "BOARD_EDIT": {
+      "CREATE_TITLE": "Creating: New Funnel",
+      "EDIT_TITLE": "Editing: {name}",
+      "DISCARD": "Discard",
+      "SAVE": "Save",
+      "SAVE_LOCKED_HELP": "Set the Won and Lost stages in the Stages and Data tab before saving.",
+      "LOADING": "Loading funnel...",
+      "LOAD_ERROR": "Could not load this funnel.",
+      "CREATE_ERROR": "Could not create the funnel.",
+      "ACTIVATE_ERROR": "Could not activate the funnel. Set the Won and Lost stages first.",
+      "DISCARD_ERROR": "Could not discard the funnel.",
+      "ACCESS_DENIED": "You are not authorized to manage this funnel.",
+      "NEW_BOARD_DEFAULT_NAME": "New Funnel",
+      "TABS": {
+        "STAGES": "Stages and Data",
+        "CUSTOM_FIELDS": "Global Custom Fields",
+        "SETTINGS": "Settings",
+        "REASONS": "Win and Loss Reasons"
+      },
+      "STAGES_TAB": {
+        "ACTIVE_STATUS": "Active status",
+        "NAME": "Name",
+        "DESCRIPTION": "Description",
+        "AGENTS_TITLE": "Funnel agents",
+        "AGENTS_SEARCH_PLACEHOLDER": "Search agents by name or email",
+        "AGENTS_EMPTY": "No agents found",
+        "CLEAR_SELECTION": "Clear selection",
+        "REMOVE_AGENT": "Remove {name}",
+        "INBOXES_TITLE": "Inboxes",
+        "STAGES_PANEL_TITLE": "Funnel stages",
+        "WON_STAGE": "Won stage",
+        "LOST_STAGE": "Lost stage",
+        "SELECT_STAGE_PLACEHOLDER": "Select a stage",
+        "WON_TAG": "Won",
+        "LOST_TAG": "Lost",
+        "STAGE_DESCRIPTION_PLACEHOLDER": "Stage description (optional)"
+      },
+      "CUSTOM_FIELDS_TAB_PLACEHOLDER": "Custom fields configuration",
+      "SETTINGS_TAB": {
+        "LOST_REASON_REQUIRED": "Require a loss reason",
+        "AUTOMATIONS_TITLE": "Automatically create cards from conversations",
+        "DANGER_ZONE_TITLE": "Danger zone",
+        "DANGER_ZONE_DESCRIPTION": "Deleting this funnel removes it from active Kanban navigation. Historical cards are not changed.",
+        "DELETE_FUNNEL": "Delete funnel"
+      },
+      "REASONS_TAB_PLACEHOLDER": "Win and loss reasons configuration"
+    },
     "BOARD_FORM": {
       "AUTO_CREATE_CARDS": "Create cards automatically for new conversations",
       "NO_STAGES_HELP": "Add a stage before enabling automatic card creation."

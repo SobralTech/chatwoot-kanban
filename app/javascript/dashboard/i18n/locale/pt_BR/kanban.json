@@ -25,6 +25,53 @@
       "OPPORTUNITIES_COUNT": "{count} oportunidades",
       "EXTRA_COUNT": "+{count}"
     },
+    "BOARD_EDIT": {
+      "CREATE_TITLE": "Criando: Novo Funil",
+      "EDIT_TITLE": "Editando: {name}",
+      "DISCARD": "Descartar",
+      "SAVE": "Salvar",
+      "SAVE_LOCKED_HELP": "Defina os estágios de Ganho e Perdido na aba Etapas e Dados antes de salvar.",
+      "LOADING": "Carregando funil...",
+      "LOAD_ERROR": "Não foi possível carregar este funil.",
+      "CREATE_ERROR": "Não foi possível criar o funil.",
+      "ACTIVATE_ERROR": "Não foi possível ativar o funil. Defina os estágios de Ganho e Perdido primeiro.",
+      "DISCARD_ERROR": "Não foi possível descartar o funil.",
+      "ACCESS_DENIED": "Você não tem autorização para administrar este funil.",
+      "NEW_BOARD_DEFAULT_NAME": "Novo Funil",
+      "TABS": {
+        "STAGES": "Etapas e Dados",
+        "CUSTOM_FIELDS": "Campos Personalizados Globais",
+        "SETTINGS": "Configurações",
+        "REASONS": "Motivos de Perda e Ganho"
+      },
+      "STAGES_TAB": {
+        "ACTIVE_STATUS": "Status Ativo",
+        "NAME": "Nome",
+        "DESCRIPTION": "Descrição",
+        "AGENTS_TITLE": "Agentes do Funil",
+        "AGENTS_SEARCH_PLACEHOLDER": "Buscar agentes por nome ou e-mail",
+        "AGENTS_EMPTY": "Nenhum agente encontrado",
+        "CLEAR_SELECTION": "Limpar seleção",
+        "REMOVE_AGENT": "Remover {name}",
+        "INBOXES_TITLE": "Caixas de entrada",
+        "STAGES_PANEL_TITLE": "Etapas do Funil",
+        "WON_STAGE": "Estágio de Ganho",
+        "LOST_STAGE": "Estágio de Perdido",
+        "SELECT_STAGE_PLACEHOLDER": "Selecione uma etapa",
+        "WON_TAG": "Ganho",
+        "LOST_TAG": "Perdido",
+        "STAGE_DESCRIPTION_PLACEHOLDER": "Descrição da etapa (opcional)"
+      },
+      "CUSTOM_FIELDS_TAB_PLACEHOLDER": "Configuração de campos personalizados",
+      "SETTINGS_TAB": {
+        "LOST_REASON_REQUIRED": "Motivo de Perda Obrigatório",
+        "AUTOMATIONS_TITLE": "Criar cartões automaticamente a partir de conversas",
+        "DANGER_ZONE_TITLE": "Zona de perigo",
+        "DANGER_ZONE_DESCRIPTION": "Excluir este funil o remove da navegação Kanban ativa. Os cartões históricos não são alterados.",
+        "DELETE_FUNNEL": "Excluir Funil"
+      },
+      "REASONS_TAB_PLACEHOLDER": "Configuração de motivos de perda e ganho"
+    },
     "BOARD_FORM": {
       "AUTO_CREATE_CARDS": "Criar cartões automaticamente para novas conversas",
       "NO_STAGES_HELP": "Adicione uma etapa antes de habilitar a criação automática de cartões."
