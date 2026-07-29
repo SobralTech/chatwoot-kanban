@@ -128,6 +128,7 @@ Rails.application.routes.draw do
           end
           resources :campaigns, only: [:index, :create, :show, :update, :destroy]
           resources :dashboard_apps, only: [:index, :show, :create, :update, :destroy]
+          get 'products/search', to: 'products#search'
           resources :kanban_boards, only: [:index, :create, :show, :destroy], constraints: { id: /\d+/ } do
             patch '', on: :member, action: :update
 
@@ -147,6 +148,10 @@ Rails.application.routes.draw do
               patch 'cards/by_id/:id/reorder', to: 'cards#reorder'
               get 'cards/by_id/:id/labels', to: 'cards/labels#index'
               put 'cards/by_id/:id/labels', to: 'cards/labels#update'
+              get 'cards/by_id/:id/products', to: 'cards/products#index'
+              post 'cards/by_id/:id/products', to: 'cards/products#create'
+              patch 'cards/by_id/:id/products/:product_id', to: 'cards/products#update'
+              delete 'cards/by_id/:id/products/:product_id', to: 'cards/products#destroy'
               get 'cards/by_id/:id/assignees', to: 'cards/assignees#index'
               put 'cards/by_id/:id/assignees', to: 'cards/assignees#update'
               get 'cards/by_id/:id/field_values', to: 'cards/field_values#index'
