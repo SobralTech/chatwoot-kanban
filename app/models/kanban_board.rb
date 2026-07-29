@@ -7,6 +7,7 @@
 #  auto_create_cards_from_conversations :boolean          default(FALSE), not null
 #  description                          :text
 #  inbox_scope_mode                     :string           default("all_inboxes"), not null
+#  lost_reason_required                 :boolean          default(FALSE), not null
 #  name                                 :string           not null
 #  position                             :integer          default(0), not null
 #  use_opportunity_card_reads           :boolean          default(TRUE), not null
@@ -14,6 +15,8 @@
 #  created_at                           :datetime         not null
 #  updated_at                           :datetime         not null
 #  account_id                           :bigint           not null
+#  lost_stage_id                        :bigint
+#  won_stage_id                         :bigint
 #
 # Indexes
 #
@@ -21,6 +24,8 @@
 #  index_kanban_boards_on_account_id                  (account_id)
 #  index_kanban_boards_on_account_id_and_active       (account_id,active)
 #  index_kanban_boards_on_account_id_and_position     (account_id,position)
+#  index_kanban_boards_on_lost_stage_id               (lost_stage_id)
+#  index_kanban_boards_on_won_stage_id                (won_stage_id)
 #
 class KanbanBoard < ApplicationRecord
   INBOX_SCOPE_MODES = %w[all_inboxes selected_inboxes].freeze
@@ -35,6 +40,11 @@ class KanbanBoard < ApplicationRecord
   has_many :visible_users, through: :kanban_board_members, source: :user
   has_many :kanban_board_inboxes, dependent: :destroy_async
   has_many :allowed_inboxes, through: :kanban_board_inboxes, source: :inbox
+  has_many :kanban_custom_fields, dependent: :destroy_async
+  has_many :kanban_reasons, dependent: :destroy_async
+
+  belongs_to :won_stage, class_name: 'KanbanStage', optional: true, inverse_of: false
+  belongs_to :lost_stage, class_name: 'KanbanStage', optional: true, inverse_of: false
 
   attribute :visibility_mode, :string, default: 'all_agents'
   enum :visibility_mode, VISIBILITY_MODES.index_by(&:itself), validate: true
@@ -45,6 +55,8 @@ class KanbanBoard < ApplicationRecord
   validates :account_id, presence: true
   validates :name, presence: true, uniqueness: { scope: :account_id, conditions: -> { active } }, if: :active?
   validates :position, presence: true, numericality: { only_integer: true }
+  validate :validate_won_stage_consistency
+  validate :validate_lost_stage_consistency
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, id: :asc) }
@@ -69,5 +81,21 @@ class KanbanBoard < ApplicationRecord
     else
       kanban_board_inboxes.exists?(inbox_id: inbox_id)
     end
+  end
+
+  private
+
+  def validate_won_stage_consistency
+    return if won_stage.blank?
+    return if won_stage.kanban_board_id == id && won_stage.account_id == account_id
+
+    errors.add(:won_stage, :invalid)
+  end
+
+  def validate_lost_stage_consistency
+    return if lost_stage.blank?
+    return if lost_stage.kanban_board_id == id && lost_stage.account_id == account_id
+
+    errors.add(:lost_stage, :invalid)
   end
 end

@@ -5,6 +5,7 @@
 #  id              :bigint           not null, primary key
 #  active          :boolean          default(TRUE), not null
 #  color           :string           default("slate"), not null
+#  description     :text
 #  name            :string           not null
 #  position        :integer          default(0), not null
 #  created_at      :datetime         not null

@@ -22,6 +22,7 @@
 #  conversation_id    :bigint
 #  inbox_id           :bigint           not null
 #  kanban_board_id    :bigint           not null
+#  kanban_reason_id   :bigint
 #  kanban_stage_id    :bigint           not null
 #
 # Indexes
@@ -35,6 +36,7 @@
 #  index_kanban_cards_on_conversation_id              (conversation_id)
 #  index_kanban_cards_on_conversation_subject_unique  (kanban_board_id,conversation_id,inbox_id,normalized_subject) UNIQUE WHERE (((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL) AND (normalized_subject IS NOT NULL))
 #  index_kanban_cards_on_kanban_board_id_and_active   (kanban_board_id,active)
+#  index_kanban_cards_on_kanban_reason_id             (kanban_reason_id)
 #
 # rubocop:enable Layout/LineLength
 class KanbanCard < ApplicationRecord
@@ -46,9 +48,12 @@ class KanbanCard < ApplicationRecord
   belongs_to :contact
   belongs_to :inbox
   belongs_to :conversation, optional: true
+  belongs_to :kanban_reason, optional: true
 
   has_many :kanban_card_assignees, dependent: :destroy
   has_many :assignees, through: :kanban_card_assignees, source: :user
+  has_many :kanban_card_products, dependent: :destroy
+  has_many :kanban_card_field_values, dependent: :destroy
 
   enum :origin, {
     conversation: 'conversation',
@@ -84,6 +89,10 @@ class KanbanCard < ApplicationRecord
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
+
+  def total_value
+    kanban_card_products.sum { |product| product.unit_price * product.quantity }
+  end
 
   def self.normalize_positions_for_stage!(kanban_board:, kanban_stage:)
     transaction do
@@ -282,7 +291,9 @@ class KanbanCard < ApplicationRecord
     validate_account_for(:contact)
     validate_account_for(:inbox)
     validate_account_for(:conversation)
+    validate_account_for(:kanban_reason)
     validate_board_for_stage
+    validate_board_for_reason
     validate_conversation_contact
     validate_conversation_inbox
   end
@@ -298,6 +309,12 @@ class KanbanCard < ApplicationRecord
     return if kanban_stage.blank? || kanban_board.blank? || kanban_stage.kanban_board_id == kanban_board_id
 
     errors.add(:kanban_stage, :invalid)
+  end
+
+  def validate_board_for_reason
+    return if kanban_reason.blank? || kanban_board.blank? || kanban_reason.kanban_board_id == kanban_board_id
+
+    errors.add(:kanban_reason, :invalid)
   end
 
   def validate_conversation_contact
