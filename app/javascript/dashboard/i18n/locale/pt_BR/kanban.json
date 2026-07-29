@@ -366,6 +366,17 @@
       "PRIORITY_UPDATE_ERROR": "Não foi possível atualizar a prioridade do cartão.",
       "LAST_ACTIVITY": "Última atividade: {time}"
     },
+    "CARD_ADDITIONAL_DATA": {
+      "LOADING": "Carregando dados adicionais...",
+      "LOAD_ERROR": "Não foi possível carregar os dados adicionais.",
+      "EMPTY": "Nenhum campo personalizado configurado para este funil.",
+      "TAG_PLACEHOLDER": "Digite um valor e pressione Enter",
+      "ADD_DATE": "Adicionar data",
+      "REMOVE_VALUE": "Remover valor",
+      "SAVE": "Salvar",
+      "SAVE_SUCCESS": "Dados adicionais salvos.",
+      "SAVE_ERROR": "Não foi possível salvar os dados adicionais."
+    },
     "NOTES": {
       "TITLE": "Notas do contato",
       "LOADING": "Carregando notas...",
