@@ -18,6 +18,8 @@ import {
   KANBAN_STAGE_COLOR_OPTIONS,
   getKanbanStageColorOption,
 } from 'dashboard/helper/kanbanStageColors';
+import KanbanCustomFieldsTab from './KanbanCustomFieldsTab.vue';
+import KanbanReasonsTab from './KanbanReasonsTab.vue';
 
 const TAB_KEYS = ['stages', 'custom_fields', 'settings', 'reasons'];
 
@@ -1173,10 +1175,7 @@ onMounted(async () => {
         v-show="activeTabKey === 'custom_fields'"
         data-testid="kanban-board-form-custom-fields-tab"
       >
-        <!-- TODO(onda-2-integracao): montar aqui o componente KanbanCustomFieldsTab.vue, prop board-id="boardId" -->
-        <div class="p-6 text-sm text-n-slate-11">
-          {{ t('KANBAN.BOARD_EDIT.CUSTOM_FIELDS_TAB_PLACEHOLDER') }}
-        </div>
+        <KanbanCustomFieldsTab v-if="boardId" :board-id="boardId" />
       </section>
 
       <section
@@ -1241,10 +1240,7 @@ onMounted(async () => {
         v-show="activeTabKey === 'reasons'"
         data-testid="kanban-board-form-reasons-tab"
       >
-        <!-- TODO(onda-2-integracao): montar aqui o componente KanbanReasonsTab.vue, prop board-id="boardId" -->
-        <div class="p-6 text-sm text-n-slate-11">
-          {{ t('KANBAN.BOARD_EDIT.REASONS_TAB_PLACEHOLDER') }}
-        </div>
+        <KanbanReasonsTab v-if="boardId" :board-id="boardId" />
       </section>
     </div>
 

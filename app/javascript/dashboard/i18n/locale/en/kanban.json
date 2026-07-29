@@ -62,15 +62,13 @@
         "LOST_TAG": "Lost",
         "STAGE_DESCRIPTION_PLACEHOLDER": "Stage description (optional)"
       },
-      "CUSTOM_FIELDS_TAB_PLACEHOLDER": "Custom fields configuration",
       "SETTINGS_TAB": {
         "LOST_REASON_REQUIRED": "Require a loss reason",
         "AUTOMATIONS_TITLE": "Automatically create cards from conversations",
         "DANGER_ZONE_TITLE": "Danger zone",
         "DANGER_ZONE_DESCRIPTION": "Deleting this funnel removes it from active Kanban navigation. Historical cards are not changed.",
         "DELETE_FUNNEL": "Delete funnel"
-      },
-      "REASONS_TAB_PLACEHOLDER": "Win and loss reasons configuration"
+      }
     },
     "BOARD_FORM": {
       "AUTO_CREATE_CARDS": "Create cards automatically for new conversations",

@@ -62,15 +62,13 @@
         "LOST_TAG": "Perdido",
         "STAGE_DESCRIPTION_PLACEHOLDER": "Descrição da etapa (opcional)"
       },
-      "CUSTOM_FIELDS_TAB_PLACEHOLDER": "Configuração de campos personalizados",
       "SETTINGS_TAB": {
         "LOST_REASON_REQUIRED": "Motivo de Perda Obrigatório",
         "AUTOMATIONS_TITLE": "Criar cartões automaticamente a partir de conversas",
         "DANGER_ZONE_TITLE": "Zona de perigo",
         "DANGER_ZONE_DESCRIPTION": "Excluir este funil o remove da navegação Kanban ativa. Os cartões históricos não são alterados.",
         "DELETE_FUNNEL": "Excluir Funil"
-      },
-      "REASONS_TAB_PLACEHOLDER": "Configuração de motivos de perda e ganho"
+      }
     },
     "BOARD_FORM": {
       "AUTO_CREATE_CARDS": "Criar cartões automaticamente para novas conversas",
