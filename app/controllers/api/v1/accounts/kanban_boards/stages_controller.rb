@@ -8,14 +8,9 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
       KanbanStage.normalize_positions_for_board!(@kanban_board)
 
       # Always insert new stages at the end, after all active stages on this board.
-      next_position = @kanban_board.kanban_stages.active.count + 1
-
       @kanban_stage = @kanban_board.kanban_stages.create!(
-        kanban_stage_params.except(:position).merge(account: Current.account, position: next_position)
+        kanban_stage_params.except(:position).merge(account: Current.account, position: KanbanStage.next_active_position(@kanban_board))
       )
-
-      KanbanStage.normalize_positions_for_board!(@kanban_board)
-      @kanban_stage.reload
     end
 
     dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_CREATED)

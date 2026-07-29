@@ -35,6 +35,10 @@ class KanbanStage < ApplicationRecord
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
 
+  def self.next_active_position(kanban_board)
+    kanban_board.kanban_stages.active.maximum(:position).to_i + 1
+  end
+
   def self.normalize_positions_for_board!(kanban_board)
     transaction do
       lock_reorder_stages_for_board!(kanban_board)
