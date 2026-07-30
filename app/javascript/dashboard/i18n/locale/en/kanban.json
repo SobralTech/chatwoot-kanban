@@ -129,7 +129,8 @@
       "REORDER_DISABLED_FILTERED": "Clear the inbox/agent filters to reorder cards.",
       "REMOVE_STAGE_SUCCESS": "Kanban stage removed.",
       "REMOVE_STAGE_ERROR": "Could not remove the kanban stage.",
-      "REMOVE_STAGE_NOT_EMPTY": "Move or remove all cards before removing this stage."
+      "REMOVE_STAGE_NOT_EMPTY": "Move or remove all cards before removing this stage.",
+      "DRAG_LOST_REASON_REQUIRED": "This stage requires a loss reason — open the card and use the status badge to pick one before moving it here."
     },
     "COLORS": {
       "SLATE": "slate",
@@ -413,7 +414,22 @@
       "PRIORITY": "Priority: {priority}",
       "CHANGE_PRIORITY": "Change priority",
       "PRIORITY_UPDATE_ERROR": "Could not update the card priority.",
-      "LAST_ACTIVITY": "Last activity: {time}"
+      "LAST_ACTIVITY": "Last activity: {time}",
+      "STATUS": {
+        "OPEN": "Open",
+        "WON": "Won",
+        "LOST": "Lost",
+        "CHANGE": "Change status",
+        "MARK_AS_WON": "Mark as won",
+        "MARK_AS_LOST": "Mark as lost",
+        "REASON_LABEL": "Reason",
+        "REASON_PLACEHOLDER": "No reason",
+        "REASON_REQUIRED": "Select a reason to continue.",
+        "CONFIRM": "Confirm",
+        "BACK": "Back",
+        "UPDATE_SUCCESS": "Card status updated.",
+        "UPDATE_ERROR": "Could not update the card status."
+      }
     },
     "CARD_ADDITIONAL_DATA": {
       "LOADING": "Loading additional data...",

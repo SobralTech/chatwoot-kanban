@@ -129,7 +129,8 @@
       "REORDER_CARD_ERROR": "Não foi possível reordenar o cartão.",
       "REMOVE_STAGE_SUCCESS": "Etapa do kanban removida.",
       "REMOVE_STAGE_ERROR": "Não foi possível remover a etapa do kanban.",
-      "REMOVE_STAGE_NOT_EMPTY": "Mova ou remova todos os cartões antes de remover esta etapa."
+      "REMOVE_STAGE_NOT_EMPTY": "Mova ou remova todos os cartões antes de remover esta etapa.",
+      "DRAG_LOST_REASON_REQUIRED": "Esta etapa exige um motivo de perda — abra o cartão e use o selo de status para escolher um motivo antes de movê-lo para cá."
     },
     "COLORS": {
       "SLATE": "cinza",
@@ -412,7 +413,22 @@
       "PRIORITY": "Prioridade: {priority}",
       "CHANGE_PRIORITY": "Alterar prioridade",
       "PRIORITY_UPDATE_ERROR": "Não foi possível atualizar a prioridade do cartão.",
-      "LAST_ACTIVITY": "Última atividade: {time}"
+      "LAST_ACTIVITY": "Última atividade: {time}",
+      "STATUS": {
+        "OPEN": "Aberto",
+        "WON": "Ganho",
+        "LOST": "Perdido",
+        "CHANGE": "Alterar status",
+        "MARK_AS_WON": "Marcar como ganho",
+        "MARK_AS_LOST": "Marcar como perdido",
+        "REASON_LABEL": "Motivo",
+        "REASON_PLACEHOLDER": "Sem motivo",
+        "REASON_REQUIRED": "Selecione um motivo para continuar.",
+        "CONFIRM": "Confirmar",
+        "BACK": "Voltar",
+        "UPDATE_SUCCESS": "Status do cartão atualizado.",
+        "UPDATE_ERROR": "Não foi possível atualizar o status do cartão."
+      }
     },
     "CARD_ADDITIONAL_DATA": {
       "LOADING": "Carregando dados adicionais...",

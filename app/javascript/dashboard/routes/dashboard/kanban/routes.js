@@ -1,7 +1,6 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import KanbanOverview from './KanbanOverview.vue';
 import KanbanView from './KanbanView.vue';
-import KanbanBoardSettings from './KanbanBoardSettings.vue';
 import KanbanBoardForm from './KanbanBoardForm.vue';
 import ConversationView from '../conversation/ConversationView.vue';
 
@@ -39,12 +38,6 @@ export const routes = [
         },
       },
     }),
-  },
-  {
-    path: frontendURL('accounts/:accountId/kanban/:boardId/settings'),
-    name: 'kanban_board_settings',
-    component: KanbanBoardSettings,
-    meta,
   },
   {
     path: frontendURL('accounts/:accountId/kanban/new'),

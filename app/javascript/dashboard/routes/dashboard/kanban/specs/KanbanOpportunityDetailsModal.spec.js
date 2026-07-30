@@ -77,6 +77,7 @@ vi.mock('vue-i18n', () => ({
 vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     showCardById: vi.fn(),
+    updateCardById: vi.fn(),
     updateCardDetailsById: vi.fn(),
     getCardLabels: vi.fn(),
     updateCardLabels: vi.fn(),
@@ -86,6 +87,8 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     createCardProduct: vi.fn(),
     updateCardProduct: vi.fn(),
     deleteCardProduct: vi.fn(),
+    showBoard: vi.fn(),
+    getReasons: vi.fn(),
   },
 }));
 
@@ -275,9 +278,14 @@ const mountModal = async ({
   assignedUsers = [assignableUsers[0]],
   availableAssignableUsers = assignableUsers,
   cardProducts = [],
+  board = null,
+  reasons = [],
 } = {}) => {
   storeMocks.labels = accountLabels;
   storeMocks.dispatch.mockResolvedValue();
+
+  KanbanBoardsAPI.showBoard.mockResolvedValue({ data: board || {} });
+  KanbanBoardsAPI.getReasons.mockResolvedValue({ data: reasons });
 
   if (resolveLabels) {
     KanbanBoardsAPI.getCardLabels.mockResolvedValue({
@@ -901,5 +909,46 @@ describe('KanbanOpportunityDetailsModal', () => {
       .trigger('click');
 
     expect(wrapper.emitted('removeCard')[0][0]).toMatchObject(card);
+  });
+
+  it('does not render the status badge when the board has no won/lost stages', async () => {
+    const wrapper = await mountModal();
+
+    expect(
+      wrapper.find('[data-testid="kanban-card-status-badge"]').exists()
+    ).toBe(false);
+  });
+
+  it('renders the status badge and updates the card status when configured', async () => {
+    KanbanBoardsAPI.updateCardById.mockResolvedValue({
+      data: { ...buildCard(), kanban_stage_id: 20 },
+    });
+
+    const wrapper = await mountModal({
+      card: buildCard({ kanban_stage_id: 15 }),
+      board: {
+        won_stage_id: 20,
+        lost_stage_id: 30,
+        lost_reason_required: false,
+      },
+      reasons: [{ id: 1, title: 'Good fit', reason_type: 'won' }],
+    });
+
+    expect(
+      wrapper.find('[data-testid="kanban-card-status-badge"]').exists()
+    ).toBe(true);
+
+    await wrapper
+      .find('[data-testid="kanban-card-status-option-won"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-card-status-confirm"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardById).toHaveBeenCalledWith(10, 501, {
+      card: { kanban_stage_id: 20, kanban_reason_id: null },
+    });
+    expect(wrapper.emitted('updated')).toBeTruthy();
   });
 });

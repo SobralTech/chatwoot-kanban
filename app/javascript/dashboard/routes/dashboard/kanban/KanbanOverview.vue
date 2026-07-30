@@ -7,8 +7,6 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { getInboxIconByType } from 'dashboard/helper/inbox';
 import { getKanbanStageColorClass } from 'dashboard/helper/kanbanStageColors';
-import KanbanCreateBoardDialog from './KanbanCreateBoardDialog.vue';
-import { useKanbanBoardCreation } from './useKanbanBoardCreation';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -22,14 +20,13 @@ const error = useMapGetter('kanbanBoards/kanbanBoardsError');
 const hasFetched = ref(false);
 
 const hasBoards = computed(() => boards.value.length > 0);
-const {
-  showCreateBoardDialog,
-  createBoardError,
-  isCreatingBoard,
-  openCreateBoardDialog,
-  closeCreateBoardDialog,
-  createBoard,
-} = useKanbanBoardCreation({ boards, t });
+
+const goToCreateBoard = () => {
+  router.push({
+    name: 'kanban_board_create_form',
+    params: { accountId: route.params.accountId },
+  });
+};
 
 const openBoard = boardId => {
   router.push({
@@ -100,18 +97,10 @@ onMounted(async () => {
             :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
             color="blue"
             size="sm"
-            @click="openCreateBoardDialog"
+            @click="goToCreateBoard"
           />
         </div>
       </header>
-
-      <KanbanCreateBoardDialog
-        v-model="showCreateBoardDialog"
-        :is-creating="isCreatingBoard"
-        :error="createBoardError"
-        @create="createBoard"
-        @close="closeCreateBoardDialog"
-      />
 
       <div
         v-if="isLoading"
@@ -181,7 +170,7 @@ onMounted(async () => {
             :label="t('KANBAN.ACTIONS.CONFIRM_CREATE_BOARD')"
             color="blue"
             size="md"
-            @click="openCreateBoardDialog"
+            @click="goToCreateBoard"
           />
         </section>
       </div>

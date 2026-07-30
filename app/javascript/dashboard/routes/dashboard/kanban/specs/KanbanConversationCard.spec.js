@@ -67,11 +67,22 @@ const buildManualCard = overrides =>
     ...overrides,
   });
 
-const mountCard = ({ card = buildCard(), activeActionKey = '' } = {}) =>
+const mountCard = ({
+  card = buildCard(),
+  activeActionKey = '',
+  wonStageId = null,
+  lostStageId = null,
+  reasons = [],
+  lostReasonRequired = false,
+} = {}) =>
   shallowMount(KanbanConversationCard, {
     props: {
       card,
       activeActionKey,
+      wonStageId,
+      lostStageId,
+      reasons,
+      lostReasonRequired,
     },
     global: {
       stubs: {
@@ -311,5 +322,46 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.find('textarea').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Show notes');
     expect(wrapper.text()).not.toContain('Hide notes');
+  });
+
+  it('passes status props through and re-emits changeStatus with the card', () => {
+    const card = buildCard({ kanbanStageId: 2 });
+    const wrapper = mountCard({
+      card,
+      wonStageId: 3,
+      lostStageId: 4,
+      reasons: [{ id: 1, title: 'Price', reason_type: 'lost' }],
+      lostReasonRequired: true,
+    });
+
+    const badge = wrapper.findComponent({ name: 'KanbanCardStatusBadge' });
+    expect(badge.exists()).toBe(true);
+    expect(badge.props()).toMatchObject({
+      kanbanStageId: 2,
+      wonStageId: 3,
+      lostStageId: 4,
+      lostReasonRequired: true,
+    });
+
+    const payload = { targetStageId: 4, reasonId: 1 };
+    badge.vm.$emit('change', payload);
+
+    expect(wrapper.emitted('changeStatus')).toEqual([[card, payload]]);
+  });
+
+  it('shows the formatted card value when value is present', () => {
+    const wrapper = mountCard({ card: buildCard({ value: 1234.5 }) });
+
+    expect(wrapper.find('[data-testid="kanban-card-value"]').exists()).toBe(
+      true
+    );
+  });
+
+  it('does not show a value badge when value is missing', () => {
+    const wrapper = mountCard({ card: buildCard({ value: 0 }) });
+
+    expect(wrapper.find('[data-testid="kanban-card-value"]').exists()).toBe(
+      false
+    );
   });
 });

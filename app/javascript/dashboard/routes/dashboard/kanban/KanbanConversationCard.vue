@@ -11,6 +11,7 @@ import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import InboxName from 'dashboard/components/widgets/InboxName.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
+import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
 
 const props = defineProps({
   card: {
@@ -21,6 +22,22 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  wonStageId: {
+    type: Number,
+    default: null,
+  },
+  lostStageId: {
+    type: Number,
+    default: null,
+  },
+  reasons: {
+    type: Array,
+    default: () => [],
+  },
+  lostReasonRequired: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits([
@@ -28,6 +45,7 @@ const emit = defineEmits([
   'openConversation',
   'removeCard',
   'updatePriority',
+  'changeStatus',
 ]);
 
 const { t } = useI18n();
@@ -130,6 +148,14 @@ const dueAtClasses = computed(() => {
   }
 });
 
+const cardValue = computed(() => Number(props.card.value) || 0);
+const formattedCardValue = computed(() =>
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(cardValue.value)
+);
+
 const openDetails = () => {
   emit('openDetails', props.card);
 };
@@ -137,6 +163,10 @@ const openDetails = () => {
 const onSelectPriority = (option, hide) => {
   emit('updatePriority', props.card, option.value);
   hide?.();
+};
+
+const onChangeStatus = payload => {
+  emit('changeStatus', props.card, payload);
 };
 
 const openConversation = event => {
@@ -299,7 +329,26 @@ const openConversation = event => {
           </Popover>
         </span>
 
+        <span class="no-drag inline-flex flex-shrink-0" @click.stop>
+          <KanbanCardStatusBadge
+            :kanban-stage-id="card.kanbanStageId"
+            :won-stage-id="wonStageId"
+            :lost-stage-id="lostStageId"
+            :reasons="reasons"
+            :lost-reason-required="lostReasonRequired"
+            :disabled="!!activeActionKey"
+            @change="onChangeStatus"
+          />
+        </span>
+
         <div class="flex min-w-0 items-center justify-end gap-1.5">
+          <span
+            v-if="cardValue > 0"
+            data-testid="kanban-card-value"
+            class="inline-flex flex-shrink-0 items-center truncate font-medium text-n-slate-11"
+          >
+            {{ formattedCardValue }}
+          </span>
           <span
             v-if="dueAtLabel"
             class="inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5"
