@@ -57,6 +57,10 @@ en:
       presence: must not be blank
     webhook:
       invalid: Invalid events
+    kanban_card_field_value:
+      value:
+        invalid_for_field_type: 'is invalid for "%{field_key}" (expected a valid %{field_type} value)'
+        multiple_not_allowed: 'for "%{field_key}" does not accept multiple values'
     signup:
       disposable_email: We do not allow disposable emails
       blocked_domain: This domain is not allowed. If you believe this is a mistake, please contact support.

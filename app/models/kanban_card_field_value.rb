@@ -54,11 +54,17 @@ class KanbanCardFieldValue < ApplicationRecord
     values = Array(value)
 
     if !kanban_custom_field.multiple? && values.size > 1
-      errors.add(:value, :invalid)
+      errors.add(:value, I18n.t('errors.kanban_card_field_value.value.multiple_not_allowed', field_key: kanban_custom_field.key))
       return
     end
 
-    errors.add(:value, :invalid) unless values.all? { |item| valid_value_for_field_type?(item) }
+    return if values.all? { |item| valid_value_for_field_type?(item) }
+
+    errors.add(:value, I18n.t(
+                         'errors.kanban_card_field_value.value.invalid_for_field_type',
+                         field_key: kanban_custom_field.key,
+                         field_type: kanban_custom_field.field_type
+                       ))
   end
 
   def valid_value_for_field_type?(item)
