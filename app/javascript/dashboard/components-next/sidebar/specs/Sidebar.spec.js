@@ -219,7 +219,7 @@ describe('Sidebar', () => {
     const boardChild = findKanbanGroup(wrapper).props('children')[1];
 
     expect(boardChild).toMatchObject({
-      activeOn: ['kanban_board_show', 'kanban_board_settings'],
+      activeOn: ['kanban_board_show', 'kanban_board_edit_form'],
       to: {
         name: 'kanban_board_show',
         params: { accountId: 1, boardId: 7 },
@@ -236,7 +236,7 @@ describe('Sidebar', () => {
     expect(overview.activeOn).toEqual(['kanban_boards']);
     expect(board.activeOn).toEqual([
       'kanban_board_show',
-      'kanban_board_settings',
+      'kanban_board_edit_form',
     ]);
     expect(board.to.params.boardId).toBe(7);
   });
