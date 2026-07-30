@@ -1628,7 +1628,7 @@ onUnmounted(() => {
       v-if="selectedOpportunityCardId && selectedBoard"
       :show="!!selectedOpportunityCardId"
       :show-close-button="false"
-      size="modal-big"
+      size="modal-fit-content"
       :on-close="closeOpportunityDetails"
     >
       <KanbanOpportunityDetailsModal

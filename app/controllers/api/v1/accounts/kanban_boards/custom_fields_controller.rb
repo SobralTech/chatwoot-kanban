@@ -28,7 +28,15 @@ class Api::V1::Accounts::KanbanBoards::CustomFieldsController < Api::V1::Account
   private
 
   def fetch_kanban_board
-    @kanban_board = policy_scope(KanbanBoard).find(params[:kanban_board_id])
+    # Administrators manage boards through the single create/edit form, which needs to
+    # load and mutate a board while it is still a draft (active: false, not yet
+    # activated). policy_scope filters drafts out for everyone, so admins bypass it here;
+    # non-admins keep the existing active + visibility restriction.
+    @kanban_board = if Current.account_user&.administrator?
+                      KanbanBoard.where(account_id: Current.account.id).find(params[:kanban_board_id])
+                    else
+                      policy_scope(KanbanBoard).find(params[:kanban_board_id])
+                    end
   end
 
   def authorize_kanban_board_update

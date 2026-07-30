@@ -88,11 +88,11 @@ services:
     ports:
       - '5432:5432'
     volumes:
-      - postgres:/data/postgres
+      - postgres:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=chatwoot
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=
+      - POSTGRES_PASSWORD=chatwoot_local
 
   redis:
     image: redis:alpine

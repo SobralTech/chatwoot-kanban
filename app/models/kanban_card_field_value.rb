@@ -31,6 +31,7 @@ class KanbanCardFieldValue < ApplicationRecord
   validates :kanban_custom_field_id, uniqueness: { scope: :kanban_card_id }
   validate :validate_account_consistency
   validate :validate_board_consistency
+  validate :validate_value_matches_field_type
 
   private
 
@@ -45,5 +46,34 @@ class KanbanCardFieldValue < ApplicationRecord
     return if kanban_custom_field.kanban_board_id == kanban_card.kanban_board_id
 
     errors.add(:kanban_custom_field, :invalid)
+  end
+
+  def validate_value_matches_field_type
+    return if kanban_custom_field.blank?
+
+    values = Array(value)
+
+    if !kanban_custom_field.multiple? && values.size > 1
+      errors.add(:value, :invalid)
+      return
+    end
+
+    errors.add(:value, :invalid) unless values.all? { |item| valid_value_for_field_type?(item) }
+  end
+
+  def valid_value_for_field_type?(item)
+    case kanban_custom_field.field_type
+    when 'number'
+      item.is_a?(Numeric) || item.to_s.match?(/\A-?\d+(\.\d+)?\z/)
+    when 'date'
+      Date.iso8601(item.to_s)
+      true
+    when 'boolean'
+      [true, false].include?(item)
+    else
+      true
+    end
+  rescue ArgumentError, TypeError
+    false
   end
 end

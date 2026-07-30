@@ -63,7 +63,14 @@ const handleInput = event => {
   let value = event.target.value;
   // Convert to number if type is number and value is not empty
   if (props.type === 'number' && value !== '') {
-    value = Number(value);
+    const numericValue = Number(value);
+    // Ignore input that the browser failed to sanitize into a valid number
+    // (e.g. pasted text), instead of propagating NaN to the model.
+    if (Number.isNaN(numericValue)) {
+      event.target.value = props.modelValue ?? '';
+      return;
+    }
+    value = numericValue;
   }
   emit('update:modelValue', value);
   emit('input', event);
@@ -126,6 +133,8 @@ onMounted(() => {
         {
           error: messageType === 'error',
           focus: isFocused,
+          '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none':
+            type === 'number',
         },
       ]"
       :type="type"
@@ -137,7 +146,7 @@ onMounted(() => {
           ? max
           : undefined
       "
-      class="block w-full reset-base text-sm !mb-0 outline outline-1 border-none border-0 outline-offset-[-1px] rounded-lg bg-n-alpha-black2 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-n-slate-10 dark:placeholder:text-n-slate-10 disabled:cursor-not-allowed disabled:opacity-50 text-n-slate-12 transition-all duration-500 ease-in-out [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      class="block w-full reset-base text-sm !mb-0 outline outline-1 border-none border-0 outline-offset-[-1px] rounded-lg bg-n-alpha-black2 file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-n-slate-10 dark:placeholder:text-n-slate-10 disabled:cursor-not-allowed disabled:opacity-50 text-n-slate-12 transition-all duration-500 ease-in-out"
       @input="handleInput"
       @focus="handleFocus"
       @blur="handleBlur"

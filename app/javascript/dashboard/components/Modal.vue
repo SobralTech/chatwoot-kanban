@@ -132,6 +132,10 @@ onMounted(() => {
   @apply w-full;
 }
 
+.modal-fit-content {
+  @apply w-auto;
+}
+
 .modal-narrow {
   @apply w-[23.5rem];
 }

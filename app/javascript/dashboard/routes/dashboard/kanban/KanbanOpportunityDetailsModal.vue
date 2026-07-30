@@ -645,7 +645,7 @@ onMounted(() => {
 
 <template>
   <div
-    class="mx-auto flex max-h-[92vh] w-full max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl bg-n-background xl:max-w-[96rem] 2xl:max-w-[118rem]"
+    class="mx-auto flex max-h-[92vh] w-full max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl bg-n-background xl:max-w-[64rem] 2xl:max-w-[72rem]"
   >
     <div
       class="flex items-center justify-between gap-4 border-b border-n-weak px-2 py-4"
