@@ -29,7 +29,6 @@ import { BUS_EVENTS } from 'shared/constants/busEvents';
 import KanbanConversationCard from './KanbanConversationCard.vue';
 import KanbanOpportunityDetailsModal from './KanbanOpportunityDetailsModal.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
-import { useKanbanBoardCreation } from './useKanbanBoardCreation';
 
 const route = useRoute();
 const router = useRouter();
@@ -39,14 +38,6 @@ const store = useStore();
 const agents = useMapGetter('agents/getAgents');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
-const {
-  showCreateBoardDialog: isAddingBoardInline,
-  createBoardError: addBoardInlineError,
-  isCreatingBoard: isAddingBoardInlineSubmitting,
-  openCreateBoardDialog: openAddBoardInline,
-  closeCreateBoardDialog: closeAddBoardInline,
-  createBoard: submitNewBoard,
-} = useKanbanBoardCreation({ boards, t, navigateOnCreate: false });
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
@@ -58,8 +49,6 @@ const hasError = ref(false);
 const selectedInboxIds = ref([]);
 const selectedAssigneeIds = ref([]);
 const isBoardDropdownOpen = ref(false);
-const newBoardName = ref('');
-const newBoardNameInput = ref(null);
 const openStageMenuId = ref(null);
 const editingStageId = ref(null);
 const stageNames = ref({});
@@ -251,6 +240,15 @@ const showActionError = (error, fallbackMessage) => {
 const isRefreshRequiredError = error =>
   error?.response?.status === 409 &&
   error?.response?.data?.error === 'refresh_required';
+
+const isLostReasonRequiredError = error =>
+  error?.response?.data?.error === 'lost_reason_required';
+
+const formatCurrency = value =>
+  new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(Number(value) || 0);
 
 const getStageCardsError = stageId => stageCardsErrors.value[stageId] || '';
 
@@ -609,7 +607,7 @@ const openBoardSettings = () => {
   if (!selectedBoard.value?.id) return;
 
   router.push({
-    name: 'kanban_board_settings',
+    name: 'kanban_board_edit_form',
     params: {
       accountId: route.params.accountId,
       boardId: selectedBoard.value.id,
@@ -930,7 +928,10 @@ const onCardDragChange = async (stage, event) => {
     );
     await refreshStageFirstPages([card.kanbanStageId, stage.id]);
   } catch (error) {
-    showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
+    const message = isLostReasonRequiredError(error)
+      ? t('KANBAN.ACTIONS.DRAG_LOST_REASON_REQUIRED')
+      : getErrorMessage(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
+    useAlert(message);
     await refreshStageFirstPages([card.kanbanStageId, stage.id]);
   } finally {
     isPersistingCardDrag.value = false;
@@ -1002,9 +1003,29 @@ const updateCardPriority = async (card, priorityValue) => {
   }
 };
 
+const onChangeCardStatus = async (card, { targetStageId, reasonId }) => {
+  if (!selectedBoard.value?.id || activeActionKey.value) return;
+
+  activeActionKey.value = `change-status-${card.id}`;
+
+  try {
+    await KanbanBoardsAPI.updateCardById(selectedBoard.value.id, card.id, {
+      card: {
+        kanban_stage_id: targetStageId,
+        kanban_reason_id: reasonId || null,
+      },
+    });
+    await refreshStageFirstPages([card.kanbanStageId, targetStageId]);
+    useAlert(t('KANBAN.CARD.STATUS.UPDATE_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.CARD.STATUS.UPDATE_ERROR'));
+  } finally {
+    activeActionKey.value = '';
+  }
+};
+
 const closeBoardDropdown = () => {
   isBoardDropdownOpen.value = false;
-  closeAddBoardInline();
 };
 
 const selectBoard = boardId => {
@@ -1020,19 +1041,13 @@ const selectBoard = boardId => {
   });
 };
 
-const confirmAddBoardInline = () => {
-  const name = newBoardName.value.trim();
-  if (!name || isAddingBoardInlineSubmitting.value) return;
-  submitNewBoard(name);
+const goToCreateBoard = () => {
+  closeBoardDropdown();
+  router.push({
+    name: 'kanban_board_create_form',
+    params: { accountId: route.params.accountId },
+  });
 };
-
-watch(isAddingBoardInline, isOpen => {
-  if (isOpen) {
-    nextTick(() => newBoardNameInput.value?.focus());
-    return;
-  }
-  newBoardName.value = '';
-});
 
 const fetchBoards = async () => {
   hasError.value = false;
@@ -1218,60 +1233,15 @@ onUnmounted(() => {
                   />
                 </button>
                 <div class="border-t border-n-weak p-2">
-                  <form
-                    v-if="isAddingBoardInline"
-                    class="flex items-center gap-2"
-                    @submit.prevent="confirmAddBoardInline"
-                  >
-                    <input
-                      ref="newBoardNameInput"
-                      v-model="newBoardName"
-                      type="text"
-                      class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-2 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-                      :placeholder="t('KANBAN.ACTIONS.BOARD_NAME_PLACEHOLDER')"
-                      data-testid="kanban-add-board-inline-input"
-                      @keydown.escape.prevent="closeAddBoardInline"
-                    />
-                    <button
-                      type="submit"
-                      class="flex size-9 flex-shrink-0 items-center justify-center rounded-md border border-n-weak bg-n-surface-2 text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                      :disabled="
-                        !newBoardName.trim() || isAddingBoardInlineSubmitting
-                      "
-                      :aria-label="t('KANBAN.ACTIONS.CONFIRM_CREATE_BOARD')"
-                      :title="t('KANBAN.ACTIONS.CONFIRM_CREATE_BOARD')"
-                      data-testid="kanban-add-board-inline-confirm"
-                    >
-                      <i class="i-lucide-check size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      class="flex size-9 flex-shrink-0 items-center justify-center rounded-md border border-n-weak bg-n-surface-2 text-n-slate-12"
-                      :aria-label="t('KANBAN.ACTIONS.CANCEL_CREATE_BOARD')"
-                      :title="t('KANBAN.ACTIONS.CANCEL_CREATE_BOARD')"
-                      data-testid="kanban-add-board-inline-cancel"
-                      @click="closeAddBoardInline"
-                    >
-                      <i class="i-lucide-x size-4" />
-                    </button>
-                  </form>
                   <button
-                    v-else
                     type="button"
                     class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-n-brand hover:bg-n-alpha-1"
-                    data-testid="kanban-add-board-inline-toggle"
-                    @click="openAddBoardInline"
+                    data-testid="kanban-board-switcher-create-new"
+                    @click="goToCreateBoard"
                   >
                     <i class="i-lucide-plus size-4" />
                     {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
                   </button>
-                  <p
-                    v-if="addBoardInlineError"
-                    class="mt-1 px-2 text-xs text-n-ruby-11"
-                    data-testid="kanban-add-board-inline-error"
-                  >
-                    {{ addBoardInlineError }}
-                  </p>
                 </div>
               </div>
             </div>
@@ -1478,6 +1448,13 @@ onUnmounted(() => {
                       >
                         {{ stage.cardsCount }}
                       </span>
+                      <span
+                        v-if="stage.totalValue > 0"
+                        data-testid="kanban-stage-total-value"
+                        class="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
+                      >
+                        {{ formatCurrency(stage.totalValue) }}
+                      </span>
                     </div>
                     <div class="flex flex-shrink-0 gap-1">
                       <button
@@ -1579,10 +1556,17 @@ onUnmounted(() => {
                       <KanbanConversationCard
                         :card="card"
                         :active-action-key="activeActionKey"
+                        :won-stage-id="selectedBoard?.wonStageId"
+                        :lost-stage-id="selectedBoard?.lostStageId"
+                        :reasons="selectedBoard?.reasons || []"
+                        :lost-reason-required="
+                          selectedBoard?.lostReasonRequired
+                        "
                         @open-details="openDetails"
                         @open-conversation="openConversation"
                         @remove-card="openRemoveCardConfirmation"
                         @update-priority="updateCardPriority"
+                        @change-status="onChangeCardStatus"
                       />
                     </template>
                   </Draggable>

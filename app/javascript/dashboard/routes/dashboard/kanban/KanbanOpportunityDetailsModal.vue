@@ -21,6 +21,7 @@ import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
 import KanbanPriorityDropdown from './KanbanPriorityDropdown.vue';
 import KanbanCardAdditionalDataTab from './KanbanCardAdditionalDataTab.vue';
+import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
 
 const props = defineProps({
   boardId: {
@@ -76,6 +77,8 @@ const subjectError = ref('');
 const selectedLabelTitles = ref([]);
 const assignedUsers = ref([]);
 const assignableUsers = ref([]);
+const board = ref(null);
+const reasons = ref([]);
 
 const modalTitle = computed(() => t('KANBAN.OPPORTUNITY_DETAILS.TITLE'));
 const cardDisplayId = computed(() => card.value?.id || props.cardId);
@@ -244,6 +247,51 @@ const loadCard = async () => {
     );
   } finally {
     isLoading.value = false;
+  }
+};
+
+const loadBoard = async () => {
+  try {
+    const response = await KanbanBoardsAPI.showBoard(props.boardId);
+    const payload = response?.data || {};
+    board.value = {
+      wonStageId: payload.wonStageId ?? payload.won_stage_id,
+      lostStageId: payload.lostStageId ?? payload.lost_stage_id,
+      lostReasonRequired:
+        payload.lostReasonRequired ?? payload.lost_reason_required,
+    };
+  } catch {
+    board.value = null;
+  }
+};
+
+const loadReasons = async () => {
+  try {
+    const response = await KanbanBoardsAPI.getReasons(props.boardId);
+    reasons.value = response?.data || [];
+  } catch {
+    reasons.value = [];
+  }
+};
+
+const onChangeCardStatus = async ({ targetStageId, reasonId }) => {
+  try {
+    const response = await KanbanBoardsAPI.updateCardById(
+      props.boardId,
+      props.cardId,
+      {
+        card: {
+          kanban_stage_id: targetStageId,
+          kanban_reason_id: reasonId || null,
+        },
+      }
+    );
+    const updatedCard = normalizeCard(response.data || {});
+    setFormState(updatedCard);
+    emit('updated', updatedCard);
+    useAlert(t('KANBAN.CARD.STATUS.UPDATE_SUCCESS'));
+  } catch (error) {
+    useAlert(getErrorMessage(error, t('KANBAN.CARD.STATUS.UPDATE_ERROR')));
   }
 };
 
@@ -590,6 +638,8 @@ onMounted(() => {
   loadLabels();
   loadAssignees();
   loadCardProducts();
+  loadBoard();
+  loadReasons();
 });
 </script>
 
@@ -665,6 +715,21 @@ onMounted(() => {
           v-show="activeTabKey === 'general'"
           data-testid="kanban-opportunity-general-tab"
         >
+          <div
+            v-if="board"
+            data-testid="kanban-opportunity-status"
+            class="mb-4"
+          >
+            <KanbanCardStatusBadge
+              :kanban-stage-id="card.kanbanStageId"
+              :won-stage-id="board.wonStageId"
+              :lost-stage-id="board.lostStageId"
+              :reasons="reasons"
+              :lost-reason-required="board.lostReasonRequired"
+              @change="onChangeCardStatus"
+            />
+          </div>
+
           <form
             data-testid="kanban-opportunity-form"
             class="grid gap-5"
