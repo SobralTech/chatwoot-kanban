@@ -54,6 +54,13 @@ class KanbanStage < ApplicationRecord
     where(kanban_board: kanban_board).active.order(:id).lock.each(&:id)
   end
 
+  def total_value
+    KanbanCardProduct.joins(:kanban_card)
+                     .merge(KanbanCard.active)
+                     .where(kanban_cards: { kanban_stage_id: id })
+                     .sum('kanban_card_products.unit_price * kanban_card_products.quantity')
+  end
+
   private
 
   def validate_board_account
