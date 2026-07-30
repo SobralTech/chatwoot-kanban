@@ -1675,42 +1675,24 @@ describe('KanbanView header navigation', () => {
     expect(dropdown.text()).toContain('Renewals Board');
     expect(dropdown.text()).toContain('KANBAN.OVERVIEW.CREATE_BOARD');
     expect(
-      wrapper.find('[data-testid="kanban-add-board-inline-toggle"]').exists()
+      wrapper.find('[data-testid="kanban-board-switcher-create-new"]').exists()
     ).toBe(true);
   });
 
-  it('shows an inline input and confirm button to create a board from the dropdown', async () => {
+  it('navigates to the create board form from the dropdown', async () => {
     const wrapper = await mountView();
 
     await wrapper
       .find('[data-testid="kanban-board-switcher"]')
       .trigger('click');
     await wrapper
-      .find('[data-testid="kanban-add-board-inline-toggle"]')
+      .find('[data-testid="kanban-board-switcher-create-new"]')
       .trigger('click');
 
-    expect(
-      wrapper.find('[data-testid="kanban-add-board-inline-input"]').exists()
-    ).toBe(true);
-
-    await wrapper
-      .find('[data-testid="kanban-add-board-inline-input"]')
-      .setValue('Support Board');
-    KanbanBoardsAPI.create.mockResolvedValueOnce({
-      data: { id: 99, name: 'Support Board' },
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_board_create_form',
+      params: { accountId: '1' },
     });
-    await wrapper
-      .find('[data-testid="kanban-board-switcher-dropdown"] form')
-      .trigger('submit');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
-      kanban_board: { name: 'Support Board', position: 2 },
-    });
-    expect(mockPush).not.toHaveBeenCalled();
-    expect(
-      wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
-    ).toBe(true);
   });
 
   it('does not render a create board button in the board header', async () => {
@@ -2098,7 +2080,7 @@ describe('KanbanView header navigation', () => {
       .trigger('click');
 
     expect(mockPush).toHaveBeenCalledWith({
-      name: 'kanban_board_settings',
+      name: 'kanban_board_edit_form',
       params: { accountId: '1', boardId: 10 },
     });
   });
@@ -2135,7 +2117,7 @@ describe('KanbanView header navigation', () => {
       wrapper.find('[data-testid="kanban-board-switcher-dropdown"]').exists()
     ).toBe(true);
     expect(
-      wrapper.find('[data-testid="kanban-add-board-inline-toggle"]').exists()
+      wrapper.find('[data-testid="kanban-board-switcher-create-new"]').exists()
     ).toBe(true);
   });
 
