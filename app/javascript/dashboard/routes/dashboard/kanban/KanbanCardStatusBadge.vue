@@ -8,7 +8,7 @@ import Select from 'dashboard/components-next/select/Select.vue';
 const props = defineProps({
   kanbanStageId: {
     type: Number,
-    required: true,
+    default: null,
   },
   wonStageId: {
     type: Number,
