@@ -133,6 +133,7 @@ export default {
       newConversationModalActive: false,
       showArticleSearchPopover: false,
       hasRecordedAudio: false,
+      isSendingAudioRecording: false,
       copilotAcceptedMessages: {},
     };
   },
@@ -551,6 +552,18 @@ export default {
       handler(lastEmail) {
         if (!lastEmail) return;
         this.setCCAndToEmailsFromLastChat();
+      },
+      deep: true,
+    },
+    attachedFiles: {
+      handler(files) {
+        if (
+          this.isSendingAudioRecording &&
+          files.some(file => file?.isRecordedAudio)
+        ) {
+          this.isSendingAudioRecording = false;
+          this.onSendReply();
+        }
       },
       deep: true,
     },
@@ -1167,6 +1180,12 @@ export default {
         this.$refs.audioRecorderInput.playPause();
       }
     },
+    sendAudioRecording() {
+      if (!this.isRecordingAudio || this.isSendingAudioRecording) return;
+
+      this.isSendingAudioRecording = true;
+      this.$refs.audioRecorderInput?.stopRecording();
+    },
     onTypingOn() {
       this.toggleTyping('on');
     },
@@ -1391,6 +1410,7 @@ export default {
       this.isRecordingAudio = false;
       this.recordingAudioState = '';
       this.hasRecordedAudio = false;
+      this.isSendingAudioRecording = false;
       // Only clear the recorded audio when we click toggle button.
       this.attachedFiles = this.attachedFiles.filter(
         file => !file?.isRecordedAudio
@@ -1571,6 +1591,7 @@ export default {
         :is-editor-disabled="isEditorDisabled"
         :on-file-upload="onFileUpload"
         :on-send="onSendReply"
+        :on-send-audio-recording="sendAudioRecording"
         :conversation-type="conversationType"
         :recording-audio-duration-text="recordingAudioDurationText"
         :recording-audio-state="recordingAudioState"

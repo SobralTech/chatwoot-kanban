@@ -27,6 +27,10 @@ export default {
       type: Function,
       default: () => {},
     },
+    onSendAudioRecording: {
+      type: Function,
+      default: () => {},
+    },
     sendButtonText: {
       type: String,
       default: '',
@@ -461,7 +465,16 @@ export default {
         @click="toggleAudioRecorderPlayPause"
       />
       <NextButton
-        v-if="showMicToggleButton"
+        v-if="showAudioRecorderButton && isCapturingAudio"
+        v-tooltip.top-end="sendButtonText"
+        icon="i-ph-paper-plane-right-fill"
+        color="blue"
+        sm
+        :label="singleLine ? undefined : sendButtonText"
+        @click="onSendAudioRecording"
+      />
+      <NextButton
+        v-else-if="showMicToggleButton"
         v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"
         icon="i-ph-microphone"
         :variant="shouldUseLargeActionIcons ? 'link' : null"
