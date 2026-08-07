@@ -8,6 +8,8 @@
 #  description                          :text
 #  inbox_scope_mode                     :string           default("all_inboxes"), not null
 #  lost_reason_required                 :boolean          default(FALSE), not null
+#  lost_recurrence_enabled              :boolean          default(FALSE), not null
+#  lost_recurrence_window_hours        :integer
 #  name                                 :string           not null
 #  position                             :integer          default(0), not null
 #  use_opportunity_card_reads           :boolean          default(TRUE), not null
@@ -16,6 +18,8 @@
 #  updated_at                           :datetime         not null
 #  account_id                           :bigint           not null
 #  lost_stage_id                        :bigint
+#  won_recurrence_enabled               :boolean          default(FALSE), not null
+#  won_recurrence_window_hours         :integer
 #  won_stage_id                         :bigint
 #
 # Indexes
@@ -59,6 +63,7 @@ class KanbanBoard < ApplicationRecord
   validate :validate_lost_stage_consistency
   validate :validate_won_lost_stages_are_different
   validate :validate_won_lost_stage_required_on_activation
+  validate :validate_recurrence_windows
 
   after_update :reposition_special_stages, if: :special_stage_assignment_changed?
 
@@ -115,6 +120,15 @@ class KanbanBoard < ApplicationRecord
     return if kanban_stages.active.where.not(id: [won_stage_id, lost_stage_id]).exists?
 
     errors.add(:base, 'Won stage, lost stage, and an active regular stage must be set before activating this board')
+  end
+
+  def validate_recurrence_windows
+    %i[won lost].each do |stage_type|
+      enabled = public_send("#{stage_type}_recurrence_enabled")
+      window_attribute = "#{stage_type}_recurrence_window_hours"
+
+      errors.add(window_attribute, :blank) if enabled && public_send(window_attribute).blank?
+    end
   end
 
   def special_stage_assignment_changed?

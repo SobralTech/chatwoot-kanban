@@ -8,6 +8,13 @@ RSpec.describe KanbanBoard do
       expect(board.auto_create_cards_from_conversations).to be(false)
     end
 
+    it 'disables contact recurrence for new boards' do
+      board = described_class.new
+
+      expect(board.won_recurrence_enabled).to be(false)
+      expect(board.lost_recurrence_enabled).to be(false)
+    end
+
     it 'keeps new boards visible to all agents' do
       board = described_class.new
 
@@ -94,6 +101,26 @@ RSpec.describe KanbanBoard do
 
       expect(board).not_to be_valid
       expect(board.errors[:inbox_scope_mode]).to be_present
+    end
+
+    it 'requires the won recurrence window when recurrence is enabled' do
+      board = build(:kanban_board, won_recurrence_enabled: true)
+
+      expect(board).not_to be_valid
+      expect(board.errors[:won_recurrence_window_hours]).to be_present
+    end
+
+    it 'requires the lost recurrence window when recurrence is enabled' do
+      board = build(:kanban_board, lost_recurrence_enabled: true)
+
+      expect(board).not_to be_valid
+      expect(board.errors[:lost_recurrence_window_hours]).to be_present
+    end
+
+    it 'allows recurrence to remain disabled without a window' do
+      board = build(:kanban_board, account: create(:account), won_recurrence_enabled: false, lost_recurrence_enabled: false)
+
+      expect(board).to be_valid
     end
   end
 

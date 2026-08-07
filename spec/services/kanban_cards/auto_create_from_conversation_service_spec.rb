@@ -193,6 +193,21 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect { service.perform! }.not_to change(KanbanCard, :count)
     end
 
+    it 'does not apply the old toggle when the contact has terminal history' do
+      board.update!(won_stage: first_stage)
+      create(
+        :kanban_card,
+        account: account,
+        kanban_board: board,
+        kanban_stage: first_stage,
+        contact: contact,
+        inbox: inbox,
+        subject: 'Terminal opportunity'
+      )
+
+      expect { service.perform! }.not_to change(KanbanCard, :count)
+    end
+
     it 'creates when opportunity-card reads are disabled' do
       board.update!(use_opportunity_card_reads: false)
 

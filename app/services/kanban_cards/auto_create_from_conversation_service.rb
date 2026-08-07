@@ -1,6 +1,9 @@
 class KanbanCards::AutoCreateFromConversationService
-  def initialize(conversation)
+  def initialize(conversation, kanban_board: nil, inbox: nil, recreated_from_card_id: nil)
     @conversation = conversation
+    @kanban_board = kanban_board
+    @provided_inbox = inbox
+    @recreated_from_card_id = recreated_from_card_id
     @summary = summary_hash
   end
 
@@ -16,12 +19,22 @@ class KanbanCards::AutoCreateFromConversationService
 
   private
 
-  attr_reader :conversation, :summary
+  attr_reader :conversation, :kanban_board, :provided_inbox, :recreated_from_card_id, :summary
 
   def eligible_boards
+    return targeted_board if kanban_board.present?
+
+    boards = KanbanBoard.active
+                        .where(account_id: conversation.account_id, auto_create_cards_from_conversations: true)
+                        .accepting_inbox(inbox.id)
+
+    boards.where.not(id: boards_with_terminal_history_ids)
+  end
+
+  def targeted_board
     KanbanBoard.active
-               .where(account_id: conversation.account_id, auto_create_cards_from_conversations: true)
-               .accepting_inbox(conversation.inbox_id)
+               .where(account_id: conversation.account_id, id: kanban_board.id)
+               .accepting_inbox(inbox.id)
   end
 
   def create_for_board(kanban_board)
@@ -68,7 +81,8 @@ class KanbanCards::AutoCreateFromConversationService
       subject: default_subject,
       origin: 'conversation',
       position: 1,
-      active: true
+      active: true,
+      recreated_from_card_id: recreated_from_card_id
     )
   end
 
@@ -95,7 +109,26 @@ class KanbanCards::AutoCreateFromConversationService
   end
 
   def automatic_card_exists?(kanban_board)
-    KanbanCard.conversation.exists?(kanban_board: kanban_board, conversation_id: conversation.id)
+    return KanbanCard.conversation.exists?(kanban_board: kanban_board, conversation_id: conversation.id) if recreated_from_card_id.blank?
+
+    KanbanCard.active.where(kanban_board: kanban_board, contact_id: contact.id)
+              .where.not(kanban_stage_id: terminal_stage_ids(kanban_board))
+              .exists?
+  end
+
+  def boards_with_terminal_history_ids
+    KanbanCard.joins(:kanban_board)
+              .where(kanban_cards: { account_id: conversation.account_id, contact_id: contact.id })
+              .where(<<~SQL.squish)
+                kanban_cards.kanban_stage_id = kanban_boards.won_stage_id OR
+                kanban_cards.kanban_stage_id = kanban_boards.lost_stage_id
+              SQL
+              .distinct
+              .pluck(:kanban_board_id)
+  end
+
+  def terminal_stage_ids(board)
+    [board.won_stage_id, board.lost_stage_id].compact.uniq
   end
 
   def default_subject
@@ -115,7 +148,7 @@ class KanbanCards::AutoCreateFromConversationService
   end
 
   def inbox
-    @inbox ||= conversation.inbox
+    @inbox ||= provided_inbox || conversation.inbox
   end
 
   def skip_existing_card
