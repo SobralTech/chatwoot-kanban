@@ -26,6 +26,7 @@ const groupsEnabled = ref(false);
 const signingEnabled = ref(false);
 const autoReconnect = ref(true);
 const autoReadReceipts = ref(true);
+const typingSimulationEnabled = ref(true);
 
 const createdInboxId = ref(null);
 const sessionStatus = ref('');
@@ -100,6 +101,7 @@ async function createChannel(months) {
         signing_enabled: signingEnabled.value,
         auto_reconnect: autoReconnect.value,
         auto_read_receipts: autoReadReceipts.value,
+        typing_simulation_enabled: typingSimulationEnabled.value,
         import_on_connect_months: months,
       },
     });

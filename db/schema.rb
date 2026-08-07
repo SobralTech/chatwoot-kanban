@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_07_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_07_110000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -605,6 +605,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_100000) do
     t.boolean "connected_number_locked", default: false, null: false
     t.jsonb "import_state", default: {}, null: false
     t.integer "import_on_connect_months"
+    t.boolean "typing_simulation_enabled", default: true, null: false
     t.index ["account_id"], name: "index_channel_waha_on_account_id"
     t.index ["webhook_token"], name: "index_channel_waha_on_webhook_token", unique: true
   end

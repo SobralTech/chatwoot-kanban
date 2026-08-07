@@ -117,6 +117,7 @@ export default {
       wahaSigningEnabled: false,
       wahaAutoReconnect: true,
       wahaAutoReadReceipts: true,
+      wahaTypingSimulationEnabled: true,
     };
   },
   computed: {
@@ -509,6 +510,8 @@ export default {
       this.wahaSigningEnabled = wahaConfig.signing_enabled || false;
       this.wahaAutoReconnect = wahaConfig.auto_reconnect ?? true;
       this.wahaAutoReadReceipts = wahaConfig.auto_read_receipts ?? true;
+      this.wahaTypingSimulationEnabled =
+        wahaConfig.typing_simulation_enabled ?? true;
 
       const savedBubbleSettings = LocalStorage.get(
         this.widgetBuilderStorageKey
@@ -640,6 +643,8 @@ export default {
           payload.channel.signing_enabled = this.wahaSigningEnabled;
           payload.channel.auto_reconnect = this.wahaAutoReconnect;
           payload.channel.auto_read_receipts = this.wahaAutoReadReceipts;
+          payload.channel.typing_simulation_enabled =
+            this.wahaTypingSimulationEnabled;
         }
         if (this.avatarFile) {
           payload.avatar = this.avatarFile;
@@ -1309,6 +1314,19 @@ export default {
                 "
                 :description="
                   $t('INBOX_MGMT.WAHA_API_SETTINGS.AUTO_READ_RECEIPTS.HELP')
+                "
+              />
+              <SettingsToggleSection
+                v-model="wahaTypingSimulationEnabled"
+                :header="
+                  $t(
+                    'INBOX_MGMT.WAHA_API_SETTINGS.TYPING_SIMULATION_ENABLED.LABEL'
+                  )
+                "
+                :description="
+                  $t(
+                    'INBOX_MGMT.WAHA_API_SETTINGS.TYPING_SIMULATION_ENABLED.HELP'
+                  )
                 "
               />
             </SettingsAccordion>

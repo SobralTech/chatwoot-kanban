@@ -15,6 +15,7 @@
 #  session_status           :string
 #  signing_enabled          :boolean          default(FALSE), not null
 #  status_history           :jsonb
+#  typing_simulation_enabled :boolean         default(TRUE), not null
 #  waha_url                 :string           not null
 #  webhook_token            :string           not null
 #  created_at               :datetime         not null
@@ -38,7 +39,8 @@ class Channel::Waha < ApplicationRecord
   has_many :import_chats, class_name: 'WahaImportChat', foreign_key: :channel_waha_id,
                           dependent: :delete_all, inverse_of: :channel
   EDITABLE_ATTRS = [:phone_number, :waha_url, :api_key, :session_name,
-                    :groups_enabled, :auto_reconnect, :auto_read_receipts, :signing_enabled,
+                    :groups_enabled, :auto_reconnect, :auto_read_receipts, :typing_simulation_enabled,
+                    :signing_enabled,
                     :import_on_connect_months].freeze
 
   # Cap on how far back any import window can reach, even after a very long outage.

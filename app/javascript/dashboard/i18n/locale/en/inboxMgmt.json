@@ -475,6 +475,10 @@
         "AUTO_READ_RECEIPTS": {
           "LABEL": "Auto-mark messages as read"
         },
+        "TYPING_SIMULATION_ENABLED": {
+          "LABEL": "Simulate typing before sending",
+          "HELP": "Show typing or recording presence and wait proportionally before sending messages."
+        },
         "SESSION": {
           "STATUS_LABEL": "Connection status",
           "STARTING": "Starting...",
@@ -772,6 +776,10 @@
       "AUTO_READ_RECEIPTS": {
         "LABEL": "Auto read receipts",
         "HELP": "Automatically mark incoming messages as read."
+      },
+      "TYPING_SIMULATION_ENABLED": {
+        "LABEL": "Simulate typing before sending",
+        "HELP": "Show typing or recording presence and wait proportionally before sending messages."
       }
     },
     "VOICE_CONFIGURATION": {

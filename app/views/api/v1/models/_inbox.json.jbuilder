@@ -160,5 +160,6 @@ if resource.waha?
     json.signing_enabled resource.channel.signing_enabled
     json.auto_reconnect resource.channel.auto_reconnect
     json.auto_read_receipts resource.channel.auto_read_receipts
+    json.typing_simulation_enabled resource.channel.typing_simulation_enabled
   end
 end
