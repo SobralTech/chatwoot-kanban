@@ -106,14 +106,22 @@ class KanbanCards::AutoCreateFromConversationService
   end
 
   def boards_with_terminal_history_ids
+    latest_terminal_cards_per_board.select do |row|
+      (row.kanban_stage_id == row.won_stage_id && row.won_recurrence_enabled) ||
+        (row.kanban_stage_id == row.lost_stage_id && row.lost_recurrence_enabled)
+    end.map(&:kanban_board_id)
+  end
+
+  def latest_terminal_cards_per_board
     KanbanCard.joins(:kanban_board)
               .where(kanban_cards: { account_id: conversation.account_id, contact_id: contact.id })
-              .where(
-                '(kanban_cards.kanban_stage_id = kanban_boards.won_stage_id AND kanban_boards.won_recurrence_enabled) OR ' \
-                '(kanban_cards.kanban_stage_id = kanban_boards.lost_stage_id AND kanban_boards.lost_recurrence_enabled)'
+              .where('kanban_cards.kanban_stage_id IN (kanban_boards.won_stage_id, kanban_boards.lost_stage_id)')
+              .select(
+                'DISTINCT ON (kanban_cards.kanban_board_id) kanban_cards.kanban_board_id, ' \
+                'kanban_cards.kanban_stage_id, kanban_boards.won_stage_id, kanban_boards.won_recurrence_enabled, ' \
+                'kanban_boards.lost_stage_id, kanban_boards.lost_recurrence_enabled'
               )
-              .distinct
-              .pluck(:kanban_board_id)
+              .order('kanban_cards.kanban_board_id, kanban_cards.stage_entered_at DESC, kanban_cards.id DESC')
   end
 
   def default_subject
