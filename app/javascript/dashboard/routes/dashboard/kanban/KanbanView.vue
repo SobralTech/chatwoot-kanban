@@ -21,7 +21,6 @@ import {
 import {
   DEFAULT_KANBAN_STAGE_COLOR,
   KANBAN_STAGE_COLOR_OPTIONS,
-  getKanbanStageBodyColorClass,
   getKanbanStageColorOption,
 } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
@@ -1374,11 +1373,7 @@ onUnmounted(() => {
                 class="flex w-80 flex-shrink-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
               >
                 <header
-                  class="stage-drag-handle cursor-grab flex min-h-10 items-center justify-between gap-2 px-3 py-1.5 text-white"
-                  :class="
-                    getStageColorOption(getEffectiveStageColor(stage))
-                      .headerClass
-                  "
+                  class="stage-drag-handle cursor-grab flex min-h-10 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
                 >
                   <form
                     v-if="editingStageId === stage.id"
@@ -1390,7 +1385,7 @@ onUnmounted(() => {
                         :ref="element => setStageNameInput(stage.id, element)"
                         v-model="stageNames[stage.id]"
                         type="text"
-                        class="min-w-0 flex-1 rounded-md border border-white/30 bg-white/90 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-white"
+                        class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
                         :placeholder="
                           t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')
                         "
@@ -1398,7 +1393,7 @@ onUnmounted(() => {
                       />
                       <button
                         type="submit"
-                        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-n-weak text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
                         :disabled="
                           !String(stageNames[stage.id] || '').trim() ||
                           !!activeActionKey
@@ -1410,7 +1405,7 @@ onUnmounted(() => {
                       </button>
                       <button
                         type="button"
-                        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20"
+                        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
                         :aria-label="t('KANBAN.ACTIONS.CANCEL')"
                         :title="t('KANBAN.ACTIONS.CANCEL')"
                         @click="cancelEditingStage"
@@ -1426,12 +1421,12 @@ onUnmounted(() => {
                         v-for="colorOption in stageColorOptions"
                         :key="colorOption.value"
                         type="button"
-                        class="size-5 rounded-full border border-white/40 ring-offset-2"
+                        class="size-5 rounded-full border border-n-weak ring-offset-2"
                         :class="[
                           colorOption.swatchClass,
                           stageColors[stage.id] === colorOption.value
-                            ? 'ring-2 ring-white'
-                            : 'hover:ring-2 hover:ring-white/70',
+                            ? 'ring-2 ring-n-brand'
+                            : 'hover:ring-2 hover:ring-n-slate-6',
                         ]"
                         :aria-label="getSelectStageColorLabel(colorOption)"
                         @click="stageColors[stage.id] = colorOption.value"
@@ -1440,18 +1435,28 @@ onUnmounted(() => {
                   </form>
                   <template v-else>
                     <div class="flex min-w-0 flex-1 items-center gap-2">
-                      <h3 class="truncate text-sm font-medium text-white">
+                      <span
+                        class="size-2.5 flex-shrink-0 rounded-full"
+                        :class="
+                          getStageColorOption(getEffectiveStageColor(stage))
+                            .headerClass
+                        "
+                        aria-hidden="true"
+                      />
+                      <h3
+                        class="truncate text-sm font-semibold text-n-slate-12"
+                      >
                         {{ stage.name }}
                       </h3>
                       <span
-                        class="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
+                        class="flex-shrink-0 rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
                       >
                         {{ stage.cardsCount }}
                       </span>
                       <span
                         v-if="stage.totalValue > 0"
                         data-testid="kanban-stage-total-value"
-                        class="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium"
+                        class="flex-shrink-0 rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
                       >
                         {{ formatCurrency(stage.totalValue) }}
                       </span>
@@ -1460,7 +1465,7 @@ onUnmounted(() => {
                       <button
                         type="button"
                         data-testid="kanban-add-item-button"
-                        class="flex size-8 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        class="flex size-8 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
                         :disabled="!!activeActionKey"
                         :aria-label="t('KANBAN.ACTIONS.ADD_ITEM')"
                         :title="t('KANBAN.ACTIONS.ADD_ITEM')"
@@ -1471,7 +1476,7 @@ onUnmounted(() => {
                       <div class="relative">
                         <button
                           type="button"
-                          class="flex size-8 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          class="flex size-8 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
                           :disabled="!!activeActionKey"
                           :aria-label="t('KANBAN.ACTIONS.STAGE_OPTIONS')"
                           @click="
@@ -1516,9 +1521,6 @@ onUnmounted(() => {
                 <div
                   :data-stage-scroll-id="stage.id"
                   class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
-                  :class="
-                    getKanbanStageBodyColorClass(getEffectiveStageColor(stage))
-                  "
                 >
                   <Draggable
                     :list="stage.cards"

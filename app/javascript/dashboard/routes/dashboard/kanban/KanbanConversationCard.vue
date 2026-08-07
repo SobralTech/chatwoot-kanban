@@ -178,7 +178,7 @@ const openConversation = event => {
 
 <template>
   <article
-    class="card-drag-handle group relative cursor-pointer rounded-lg border border-n-weak bg-n-surface-1 p-2"
+    class="card-drag-handle group relative cursor-pointer rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-slate-6"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openConversation"
@@ -210,7 +210,7 @@ const openConversation = event => {
     <div class="min-w-0 text-left">
       <p
         v-if="subject"
-        class="truncate text-sm font-medium leading-4 text-n-slate-12"
+        class="truncate text-sm font-semibold leading-4 text-n-slate-12"
         :title="subject"
       >
         {{ subject }}
