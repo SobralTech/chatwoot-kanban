@@ -13,19 +13,6 @@ const STAGE_COLOR_CLASSES = {
   iris: 'bg-n-iris-9',
 };
 
-const STAGE_BODY_COLOR_CLASSES = {
-  slate: 'bg-n-slate-3 dark:bg-n-slate-2',
-  blue: 'bg-n-blue-3 dark:bg-n-blue-2',
-  teal: 'bg-n-teal-3 dark:bg-n-teal-2',
-  green: 'bg-green-100 dark:bg-green-950/30',
-  amber: 'bg-n-amber-3 dark:bg-n-amber-2',
-  orange: 'bg-orange-100 dark:bg-orange-950/30',
-  ruby: 'bg-n-ruby-3 dark:bg-n-ruby-2',
-  rose: 'bg-rose-100 dark:bg-rose-950/30',
-  violet: 'bg-n-violet-3 dark:bg-n-violet-2',
-  iris: 'bg-n-iris-3 dark:bg-n-iris-2',
-};
-
 export const KANBAN_STAGE_COLOR_OPTIONS = [
   'slate',
   'blue',
@@ -49,6 +36,3 @@ export const getKanbanStageColorOption = color =>
 
 export const getKanbanStageColorClass = color =>
   getKanbanStageColorOption(color).headerClass;
-
-export const getKanbanStageBodyColorClass = color =>
-  STAGE_BODY_COLOR_CLASSES[getKanbanStageColorOption(color).value];

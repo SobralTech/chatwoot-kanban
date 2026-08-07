@@ -9,7 +9,6 @@ import { useAlert } from 'dashboard/composables';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
 import {
   KANBAN_STAGE_COLOR_OPTIONS,
-  getKanbanStageBodyColorClass,
   getKanbanStageColorClass,
 } from 'dashboard/helper/kanbanStageColors';
 import enKanbanMessages from 'dashboard/i18n/locale/en/kanban.json';
@@ -2019,12 +2018,6 @@ describe('KanbanView header navigation', () => {
   it('keeps rendering existing stage colors and falls back to slate', () => {
     expect(getKanbanStageColorClass('blue')).toBe('bg-n-blue-9');
     expect(getKanbanStageColorClass('unexpected')).toBe('bg-n-slate-9');
-    expect(getKanbanStageBodyColorClass('blue')).toBe(
-      'bg-n-blue-3 dark:bg-n-blue-2'
-    );
-    expect(getKanbanStageBodyColorClass('unexpected')).toBe(
-      'bg-n-slate-3 dark:bg-n-slate-2'
-    );
   });
 
   it('shows board settings button for administrators', async () => {
