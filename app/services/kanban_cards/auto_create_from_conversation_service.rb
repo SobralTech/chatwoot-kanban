@@ -108,7 +108,10 @@ class KanbanCards::AutoCreateFromConversationService
   def boards_with_terminal_history_ids
     KanbanCard.joins(:kanban_board)
               .where(kanban_cards: { account_id: conversation.account_id, contact_id: contact.id })
-              .where('kanban_cards.kanban_stage_id IN (kanban_boards.won_stage_id, kanban_boards.lost_stage_id)')
+              .where(
+                '(kanban_cards.kanban_stage_id = kanban_boards.won_stage_id AND kanban_boards.won_recurrence_enabled) OR ' \
+                '(kanban_cards.kanban_stage_id = kanban_boards.lost_stage_id AND kanban_boards.lost_recurrence_enabled)'
+              )
               .distinct
               .pluck(:kanban_board_id)
   end

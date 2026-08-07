@@ -3,7 +3,7 @@ class KanbanCardListener < BaseListener
     conversation = event.data[:conversation]
     return if conversation.blank?
 
-    accepting_boards(conversation).each do |kanban_board|
+    recurrence_enabled_boards(conversation).each do |kanban_board|
       KanbanCards::EvaluateContactRecurrenceJob.perform_later(
         conversation.id,
         kanban_board.id,
@@ -21,7 +21,7 @@ class KanbanCardListener < BaseListener
     conversation = message.conversation
     return if conversation.blank?
 
-    accepting_boards(conversation, message.inbox_id).each do |kanban_board|
+    recurrence_enabled_boards(conversation, message.inbox_id).each do |kanban_board|
       KanbanCards::EvaluateContactRecurrenceJob.perform_later(
         conversation.id,
         kanban_board.id,
@@ -32,8 +32,9 @@ class KanbanCardListener < BaseListener
 
   private
 
-  def accepting_boards(conversation, inbox_id = conversation.inbox_id)
+  def recurrence_enabled_boards(conversation, inbox_id = conversation.inbox_id)
     KanbanBoard.accepting_inbox_for_account(conversation.account_id, inbox_id)
+               .where('kanban_boards.won_recurrence_enabled OR kanban_boards.lost_recurrence_enabled')
   end
 
   def ignore_message_created_event?(event)

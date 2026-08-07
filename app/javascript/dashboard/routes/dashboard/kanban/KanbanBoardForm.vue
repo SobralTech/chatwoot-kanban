@@ -82,6 +82,10 @@ const form = reactive({
   wonStageId: null,
   lostStageId: null,
   lostReasonRequired: false,
+  wonRecurrenceEnabled: false,
+  wonRecurrenceWindowHours: null,
+  lostRecurrenceEnabled: false,
+  lostRecurrenceWindowHours: null,
 });
 
 const stageListModel = computed({
@@ -178,6 +182,10 @@ const applySettings = payload => {
   form.wonStageId = settings.wonStageId || null;
   form.lostStageId = settings.lostStageId || null;
   form.lostReasonRequired = settings.lostReasonRequired || false;
+  form.wonRecurrenceEnabled = settings.wonRecurrenceEnabled || false;
+  form.wonRecurrenceWindowHours = settings.wonRecurrenceWindowHours ?? null;
+  form.lostRecurrenceEnabled = settings.lostRecurrenceEnabled || false;
+  form.lostRecurrenceWindowHours = settings.lostRecurrenceWindowHours ?? null;
 };
 
 const applyBoard = payload => {
@@ -255,6 +263,10 @@ const buildSettingsPayload = () => ({
     won_stage_id: form.wonStageId,
     lost_stage_id: form.lostStageId,
     lost_reason_required: form.lostReasonRequired,
+    won_recurrence_enabled: form.wonRecurrenceEnabled,
+    won_recurrence_window_hours: form.wonRecurrenceWindowHours,
+    lost_recurrence_enabled: form.lostRecurrenceEnabled,
+    lost_recurrence_window_hours: form.lostRecurrenceWindowHours,
   },
 });
 
@@ -344,6 +356,26 @@ const onLostStageChange = value => {
 
 const onLostReasonRequiredChange = checked => {
   form.lostReasonRequired = checked;
+  persistSettings();
+};
+
+const onWonRecurrenceEnabledChange = checked => {
+  form.wonRecurrenceEnabled = checked;
+  persistSettings();
+};
+
+const onWonRecurrenceWindowHoursChange = value => {
+  form.wonRecurrenceWindowHours = value === '' ? null : Number(value);
+  persistSettings();
+};
+
+const onLostRecurrenceEnabledChange = checked => {
+  form.lostRecurrenceEnabled = checked;
+  persistSettings();
+};
+
+const onLostRecurrenceWindowHoursChange = value => {
+  form.lostRecurrenceWindowHours = value === '' ? null : Number(value);
   persistSettings();
 };
 
@@ -1252,6 +1284,89 @@ onMounted(async () => {
               {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.AUTOMATIONS_TITLE') }}
             </span>
           </label>
+
+          <div
+            class="grid gap-3 rounded-md border border-n-weak bg-n-surface-2 p-3"
+          >
+            <h3 class="text-sm font-medium text-n-slate-12">
+              {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.TITLE') }}
+            </h3>
+            <p class="text-sm text-n-slate-11">
+              {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.DESCRIPTION') }}
+            </p>
+
+            <label
+              class="flex items-center justify-between gap-3 text-sm text-n-slate-12"
+            >
+              {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_ENABLED') }}
+              <input
+                type="checkbox"
+                :checked="form.wonRecurrenceEnabled"
+                data-testid="kanban-board-form-won-recurrence-enabled"
+                class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
+                @change="onWonRecurrenceEnabledChange($event.target.checked)"
+              />
+            </label>
+            <label
+              v-if="form.wonRecurrenceEnabled"
+              class="grid gap-1 text-sm font-medium text-n-slate-12"
+            >
+              {{
+                t(
+                  'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_WINDOW_HOURS_LABEL'
+                )
+              }}
+              <input
+                :value="form.wonRecurrenceWindowHours"
+                type="number"
+                min="1"
+                data-testid="kanban-board-form-won-recurrence-window-hours"
+                class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                :placeholder="
+                  t(
+                    'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
+                  )
+                "
+                @change="onWonRecurrenceWindowHoursChange($event.target.value)"
+              />
+            </label>
+
+            <label
+              class="flex items-center justify-between gap-3 text-sm text-n-slate-12"
+            >
+              {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_ENABLED') }}
+              <input
+                type="checkbox"
+                :checked="form.lostRecurrenceEnabled"
+                data-testid="kanban-board-form-lost-recurrence-enabled"
+                class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
+                @change="onLostRecurrenceEnabledChange($event.target.checked)"
+              />
+            </label>
+            <label
+              v-if="form.lostRecurrenceEnabled"
+              class="grid gap-1 text-sm font-medium text-n-slate-12"
+            >
+              {{
+                t(
+                  'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_WINDOW_HOURS_LABEL'
+                )
+              }}
+              <input
+                :value="form.lostRecurrenceWindowHours"
+                type="number"
+                min="1"
+                data-testid="kanban-board-form-lost-recurrence-window-hours"
+                class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                :placeholder="
+                  t(
+                    'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
+                  )
+                "
+                @change="onLostRecurrenceWindowHoursChange($event.target.value)"
+              />
+            </label>
+          </div>
         </section>
 
         <section class="grid gap-3">

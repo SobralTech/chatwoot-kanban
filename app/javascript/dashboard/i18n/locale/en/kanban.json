@@ -208,7 +208,16 @@
         "IGNORE_GROUPS": "Ignore groups",
         "SKIP_IMPORT": "Do not import now",
         "IMPORT_SUCCESS": "Existing conversation import started.",
-        "IMPORT_ERROR": "Could not start existing conversation import."
+        "IMPORT_ERROR": "Could not start existing conversation import.",
+        "RECURRENCE": {
+          "TITLE": "Recurrence",
+          "DESCRIPTION": "Create a new card automatically when a contact with a won or lost card starts a new conversation after the configured window.",
+          "WON_ENABLED": "Re-open won contacts",
+          "WON_WINDOW_HOURS_LABEL": "Hours after won before recreating",
+          "LOST_ENABLED": "Re-open lost contacts",
+          "LOST_WINDOW_HOURS_LABEL": "Hours after lost before recreating",
+          "WINDOW_HOURS_PLACEHOLDER": "Hours"
+        }
       },
       "DELETE": {
         "TITLE": "Delete funnel",

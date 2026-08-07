@@ -208,7 +208,16 @@
         "IGNORE_GROUPS": "Ignorar grupos",
         "SKIP_IMPORT": "Não importar agora",
         "IMPORT_SUCCESS": "Importação de conversas existentes iniciada.",
-        "IMPORT_ERROR": "Não foi possível iniciar a importação de conversas existentes."
+        "IMPORT_ERROR": "Não foi possível iniciar a importação de conversas existentes.",
+        "RECURRENCE": {
+          "TITLE": "Recorrência",
+          "DESCRIPTION": "Criar um novo cartão automaticamente quando um contato com um cartão ganho ou perdido iniciar uma nova conversa após a janela configurada.",
+          "WON_ENABLED": "Reabrir contatos ganhos",
+          "WON_WINDOW_HOURS_LABEL": "Horas após ganho antes de recriar",
+          "LOST_ENABLED": "Reabrir contatos perdidos",
+          "LOST_WINDOW_HOURS_LABEL": "Horas após perdido antes de recriar",
+          "WINDOW_HOURS_PLACEHOLDER": "Horas"
+        }
       },
       "DELETE": {
         "TITLE": "Excluir funil",
