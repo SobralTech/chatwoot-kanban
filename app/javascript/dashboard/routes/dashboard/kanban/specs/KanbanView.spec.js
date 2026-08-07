@@ -1537,7 +1537,7 @@ describe('KanbanView drag and drop', () => {
 
     const modal = wrapper.findComponent({ name: 'WootModal' });
     expect(modal.props('showCloseButton')).toBe(false);
-    expect(modal.props('size')).toBe('modal-big');
+    expect(modal.props('size')).toBe('modal-fit-content');
   });
 
   it('closes opportunity modal and clears selected card', async () => {
