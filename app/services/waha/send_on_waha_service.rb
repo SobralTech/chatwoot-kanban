@@ -27,22 +27,17 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def deliver_message
-    result = message.attachments.any? ? send_attachment : send_text
+    result = attachment ? send_attachment : send_text
     message.update!(source_id: result['id']) if result&.dig('id').present?
   end
 
   def reserve_and_queue_delivery
     duration_ms = (Waha::TypingSimulator.duration_for(message.content) * 1000).round
     queue_wait_ms, total_wait_ms = conversation_clock.reserve(duration_ms)
-    emit_typing_presence(queue_wait_ms)
+    if queue_wait_ms <= TYPING_PRESENCE_QUEUE_WAIT_LIMIT
+      presence_client.public_send(audio_message? ? :recording : :typing, chat_id)
+    end
     Waha::DeliverJob.set(wait: total_wait_ms / 1000.0).perform_later(message.id)
-  end
-
-  def emit_typing_presence(queue_wait_ms)
-    return if queue_wait_ms > TYPING_PRESENCE_QUEUE_WAIT_LIMIT
-
-    presence = audio_message? ? :recording : :typing
-    presence_client.public_send(presence, chat_id)
   end
 
   def pause_presence
@@ -55,7 +50,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   def send_seen
     return if skip_presence || !channel.auto_read_receipts || presence_excluded?
 
-    source_id = conversation.messages.incoming.where.not(source_id: nil).last&.source_id
+    source_id = conversation.last_incoming_message&.source_id
     return if source_id.blank?
 
     presence_client.seen(chat_id, message_ids: [source_id])
@@ -68,23 +63,19 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def presence_excluded?
-    campaign_message? || group_chat?
-  end
-
-  def campaign_message?
-    message.additional_attributes['campaign_id'].present?
-  end
-
-  def group_chat?
-    chat_id.to_s.end_with?('@g.us')
+    message.additional_attributes['campaign_id'].present? || Waha::Jid.group?(chat_id)
   end
 
   def text_message?
-    message.attachments.blank? && message.content.present?
+    attachment.blank? && message.content.present?
   end
 
   def audio_message?
-    message.attachments.first&.file_type.to_s == 'audio'
+    attachment&.file_type.to_s == 'audio'
+  end
+
+  def attachment
+    @attachment ||= message.attachments.to_a.first
   end
 
   def conversation_clock
@@ -100,7 +91,6 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def send_attachment
-    attachment = message.attachments.first
     file_url = attachment_url(attachment)
     return if file_url.blank?
 

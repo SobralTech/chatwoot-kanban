@@ -15,9 +15,7 @@ class Waha::ConversationClock
     -- Acima do teto, comprime a digitação até o incremento mínimo,
     -- preservando a monotonicidade dos horários.
     local effective = dur
-    if backlog >= cap then
-      effective = gap
-    elseif backlog + dur > cap then
+    if backlog + dur > cap then
       effective = math.max(cap - backlog, gap)
     end
 
