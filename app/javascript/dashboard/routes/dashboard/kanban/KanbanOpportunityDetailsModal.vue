@@ -274,24 +274,39 @@ const loadReasons = async () => {
   }
 };
 
-const onChangeCardStatus = async ({ targetStageId, reasonId }) => {
+const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
   try {
-    const response = await KanbanBoardsAPI.updateCardById(
-      props.boardId,
-      props.cardId,
-      {
-        card: {
-          kanban_stage_id: targetStageId,
-          kanban_reason_id: reasonId || null,
-        },
-      }
-    );
+    const response = reopen
+      ? await KanbanBoardsAPI.reopenCardById(props.boardId, props.cardId)
+      : await KanbanBoardsAPI.updateCardById(props.boardId, props.cardId, {
+          card: {
+            kanban_stage_id: targetStageId,
+            kanban_reason_id: reasonId || null,
+          },
+        });
     const updatedCard = normalizeCard(response.data || {});
     setFormState(updatedCard);
     emit('updated', updatedCard);
-    useAlert(t('KANBAN.CARD.STATUS.UPDATE_SUCCESS'));
+    useAlert(
+      t(
+        reopen
+          ? 'KANBAN.CARD.STATUS.REOPEN_SUCCESS'
+          : 'KANBAN.CARD.STATUS.UPDATE_SUCCESS'
+      )
+    );
   } catch (error) {
-    useAlert(getErrorMessage(error, t('KANBAN.CARD.STATUS.UPDATE_ERROR')));
+    const message =
+      error?.response?.data?.error === 'direct_won_lost_transition_not_allowed'
+        ? t('KANBAN.CARD.STATUS.DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED')
+        : getErrorMessage(
+            error,
+            t(
+              reopen
+                ? 'KANBAN.CARD.STATUS.REOPEN_ERROR'
+                : 'KANBAN.CARD.STATUS.UPDATE_ERROR'
+            )
+          );
+    useAlert(message);
   }
 };
 

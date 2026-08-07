@@ -89,6 +89,33 @@ const stageListModel = computed({
     stages.value = nextStages;
   },
 });
+const wonStageOptions = computed(() =>
+  stages.value.filter(stage => stage.id !== form.lostStageId)
+);
+const lostStageOptions = computed(() =>
+  stages.value.filter(stage => stage.id !== form.wonStageId)
+);
+const hasStageSelectionConflict = computed(
+  () =>
+    form.wonStageId && form.lostStageId && form.wonStageId === form.lostStageId
+);
+const canMoveStage = event => {
+  const draggedStage = event?.draggedContext?.element;
+  if (
+    draggedStage?.id === form.wonStageId ||
+    draggedStage?.id === form.lostStageId
+  ) {
+    return false;
+  }
+
+  const futureIndex = event?.draggedContext?.futureIndex;
+  if (futureIndex === undefined) return true;
+
+  const regularStageCount = stages.value.filter(
+    stage => stage.id !== form.wonStageId && stage.id !== form.lostStageId
+  ).length;
+  return futureIndex < regularStageCount;
+};
 
 const tabItems = computed(() => [
   { label: t('KANBAN.BOARD_EDIT.TABS.STAGES') },
@@ -253,6 +280,7 @@ const persistSettings = async () => {
       buildSettingsPayload()
     );
     applySettings(response.data);
+    await refreshBoard();
     await store.dispatch('kanbanBoards/refreshBoards');
   } catch (error) {
     useAlert(getErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR')));
@@ -300,12 +328,28 @@ const clearAgentSelection = () => {
 };
 
 const onWonStageChange = value => {
-  form.wonStageId = value ? Number(value) : null;
+  const nextStageId = value ? Number(value) : null;
+  if (nextStageId && nextStageId === form.lostStageId) {
+    stageError.value = t(
+      'KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_SELECTION_CONFLICT'
+    );
+    return;
+  }
+
+  form.wonStageId = nextStageId;
   persistSettings();
 };
 
 const onLostStageChange = value => {
-  form.lostStageId = value ? Number(value) : null;
+  const nextStageId = value ? Number(value) : null;
+  if (nextStageId && nextStageId === form.wonStageId) {
+    stageError.value = t(
+      'KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_SELECTION_CONFLICT'
+    );
+    return;
+  }
+
+  form.lostStageId = nextStageId;
   persistSettings();
 };
 
@@ -909,7 +953,7 @@ onMounted(async () => {
                   }}
                 </option>
                 <option
-                  v-for="stage in stages"
+                  v-for="stage in wonStageOptions"
                   :key="stage.id"
                   :value="stage.id"
                 >
@@ -931,7 +975,7 @@ onMounted(async () => {
                   }}
                 </option>
                 <option
-                  v-for="stage in stages"
+                  v-for="stage in lostStageOptions"
                   :key="stage.id"
                   :value="stage.id"
                 >
@@ -940,6 +984,10 @@ onMounted(async () => {
               </select>
             </label>
           </div>
+
+          <p v-if="hasStageSelectionConflict" class="text-sm text-n-ruby-11">
+            {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_SELECTION_CONFLICT') }}
+          </p>
 
           <div
             v-if="showCreateStageForm"
@@ -1028,6 +1076,7 @@ onMounted(async () => {
             data-testid="kanban-board-form-stage-list"
             class="grid gap-2"
             handle=".stage-drag-handle"
+            :move="canMoveStage"
             ghost-class="opacity-60"
             chosen-class="opacity-90"
             :animation="180"

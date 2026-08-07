@@ -57,7 +57,10 @@ class KanbanBoard < ApplicationRecord
   validates :position, presence: true, numericality: { only_integer: true }
   validate :validate_won_stage_consistency
   validate :validate_lost_stage_consistency
+  validate :validate_won_lost_stages_are_different
   validate :validate_won_lost_stage_required_on_activation
+
+  after_update :reposition_special_stages, if: :special_stage_assignment_changed?
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, id: :asc) }
@@ -100,10 +103,30 @@ class KanbanBoard < ApplicationRecord
     errors.add(:lost_stage, :invalid)
   end
 
+  def validate_won_lost_stages_are_different
+    return if won_stage_id.blank? || lost_stage_id.blank? || won_stage_id != lost_stage_id
+
+    errors.add(:lost_stage, 'must be different from the won stage')
+  end
+
   def validate_won_lost_stage_required_on_activation
     return unless will_save_change_to_active? && active?
-    return if won_stage_id.present? && lost_stage_id.present?
+    return if won_stage_id.blank? || lost_stage_id.blank?
+    return if kanban_stages.active.where.not(id: [won_stage_id, lost_stage_id]).exists?
 
-    errors.add(:base, 'Won stage and lost stage must be set before activating this board')
+    errors.add(:base, 'Won stage, lost stage, and an active regular stage must be set before activating this board')
+  end
+
+  def special_stage_assignment_changed?
+    saved_change_to_won_stage_id? || saved_change_to_lost_stage_id?
+  end
+
+  def reposition_special_stages
+    newly_assigned_stage_ids = %i[won_stage_id lost_stage_id].filter_map do |attribute|
+      previous_id, current_id = saved_change_to_attribute(attribute)
+      current_id if previous_id != current_id && current_id.present?
+    end
+
+    KanbanStage.reposition_special_stages_for_board!(self, newly_assigned_stage_ids: newly_assigned_stage_ids)
   end
 end

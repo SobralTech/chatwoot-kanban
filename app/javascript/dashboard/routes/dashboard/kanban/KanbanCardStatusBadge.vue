@@ -92,6 +92,8 @@ const canConfirm = computed(
   () => !isReasonRequired.value || !!selectedReasonId.value
 );
 
+const isReopenConfirmation = computed(() => chosenType.value === 'reopen');
+
 const resetSelection = () => {
   chosenType.value = null;
   selectedReasonId.value = '';
@@ -109,6 +111,13 @@ const backToChoices = () => {
 
 const confirm = hide => {
   if (!canConfirm.value) return;
+
+  if (isReopenConfirmation.value) {
+    emit('change', { reopen: true });
+    hide?.();
+    resetSelection();
+    return;
+  }
 
   const targetStageId =
     chosenType.value === 'won' ? props.wonStageId : props.lostStageId;
@@ -147,7 +156,7 @@ const confirm = hide => {
       <div
         class="block visible w-56 rounded-lg border border-n-strong bg-n-alpha-3 p-3 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
       >
-        <div v-if="!chosenType" class="grid gap-1.5">
+        <div v-if="!chosenType && status === 'open'" class="grid gap-1.5">
           <button
             type="button"
             data-testid="kanban-card-status-option-won"
@@ -166,6 +175,44 @@ const confirm = hide => {
             <i class="i-lucide-x-circle size-4 text-n-ruby-11" />
             {{ t('KANBAN.CARD.STATUS.MARK_AS_LOST') }}
           </button>
+        </div>
+
+        <div v-else-if="!chosenType" class="grid gap-1.5">
+          <button
+            type="button"
+            data-testid="kanban-card-status-option-reopen"
+            class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+            @click="chooseType('reopen')"
+          >
+            <i class="i-lucide-rotate-ccw size-4 text-n-brand" />
+            {{ t('KANBAN.CARD.STATUS.REOPEN_OPPORTUNITY') }}
+          </button>
+        </div>
+
+        <div v-else-if="isReopenConfirmation" class="grid gap-2">
+          <p class="mb-0 text-sm text-n-slate-12">
+            {{ t('KANBAN.CARD.STATUS.REOPEN_CONFIRMATION') }}
+          </p>
+
+          <div class="flex items-center justify-between gap-2 pt-1">
+            <button
+              type="button"
+              data-testid="kanban-card-status-back"
+              class="text-xs font-medium text-n-slate-11 hover:text-n-slate-12"
+              @click="backToChoices"
+            >
+              {{ t('KANBAN.CARD.STATUS.BACK') }}
+            </button>
+            <button
+              type="button"
+              data-testid="kanban-card-status-confirm"
+              class="rounded-md bg-n-brand px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="!canConfirm"
+              @click="confirm(hide)"
+            >
+              {{ t('KANBAN.CARD.STATUS.CONFIRM') }}
+            </button>
+          </div>
         </div>
 
         <div v-else class="grid gap-2">

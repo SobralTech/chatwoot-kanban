@@ -22,6 +22,8 @@
 #  index_kanban_stages_on_kanban_board_id_and_position  (kanban_board_id,position)
 #
 class KanbanStage < ApplicationRecord
+  SPECIAL_STAGE_ORDER_ERROR = 'special_stages_must_be_last'.freeze
+
   belongs_to :account
   belongs_to :kanban_board
 
@@ -37,16 +39,59 @@ class KanbanStage < ApplicationRecord
   scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
 
   def self.next_active_position(kanban_board)
-    kanban_board.kanban_stages.active.maximum(:position).to_i + 1
+    return 1 if special_stage_ids(kanban_board).blank?
+
+    kanban_board.kanban_stages.active.where.not(id: special_stage_ids(kanban_board)).maximum(:position).to_i + 1
   end
 
   def self.normalize_positions_for_board!(kanban_board)
     transaction do
       lock_reorder_stages_for_board!(kanban_board)
 
-      kanban_board.kanban_stages.active.ordered.each.with_index(1) do |stage, position|
+      ordered_stages_for_board(kanban_board).each.with_index(1) do |stage, position|
         stage.update!(position: position) if stage.position != position
       end
+    end
+  end
+
+  def self.reposition_special_stages_for_board!(kanban_board, newly_assigned_stage_ids: [])
+    transaction do
+      lock_reorder_stages_for_board!(kanban_board)
+
+      special_ids = special_stage_ids(kanban_board)
+      stages = kanban_board.kanban_stages.active.ordered.to_a
+      regular_stages, special_stages = stages.partition { |stage| special_ids.exclude?(stage.id) }
+      newly_assigned_stages = special_stages.select { |stage| newly_assigned_stage_ids.include?(stage.id) }
+      special_stages -= newly_assigned_stages
+
+      (regular_stages + special_stages + newly_assigned_stages).each.with_index(1) do |stage, position|
+        stage.update!(position: position) if stage.position != position
+      end
+    end
+  end
+
+  def self.shift_active_positions_from!(kanban_board, position)
+    kanban_board.kanban_stages.active.where('position >= ?', position).update_all( # rubocop:disable Rails/SkipsModelValidations
+      ['position = position + 1, updated_at = ?', Time.current]
+    )
+  end
+
+  def self.ordered_stages_for_board(kanban_board)
+    special_ids = special_stage_ids(kanban_board)
+    kanban_board.kanban_stages.active.ordered.to_a.partition { |stage| special_ids.exclude?(stage.id) }.flatten
+  end
+
+  def self.special_stage_ids(kanban_board)
+    [kanban_board.won_stage_id, kanban_board.lost_stage_id].compact.uniq
+  end
+
+  def self.valid_special_stage_order?(kanban_board, stages)
+    special_ids = special_stage_ids(kanban_board)
+    special_count = stages.count { |stage| special_ids.include?(stage.id) }
+    return true if special_count.zero?
+
+    stages.each_with_index.none? do |stage, index|
+      special_ids.include?(stage.id) && index < stages.length - special_count
     end
   end
 

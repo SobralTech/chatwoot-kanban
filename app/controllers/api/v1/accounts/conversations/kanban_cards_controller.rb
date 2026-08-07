@@ -4,6 +4,7 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
   before_action :fetch_kanban_board, only: [:create]
   before_action :authorize_kanban_board_show, only: [:create]
   before_action :fetch_kanban_stage, only: [:create]
+  before_action :reject_terminal_stage_card_creation, only: [:create]
 
   def index
     @kanban_cards = linked_kanban_cards.select { |kanban_card| KanbanCardPolicy.new(user_context, kanban_card).show? }
@@ -47,6 +48,12 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
 
   def fetch_kanban_stage
     @kanban_stage = @kanban_board.kanban_stages.find(card_params[:kanban_stage_id])
+  end
+
+  def reject_terminal_stage_card_creation
+    return unless [@kanban_board.won_stage_id, @kanban_board.lost_stage_id].include?(@kanban_stage.id)
+
+    render json: { error: 'terminal_stage_card_creation_not_allowed' }, status: :unprocessable_content
   end
 
   def linked_kanban_cards

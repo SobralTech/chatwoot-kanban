@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_29_181021) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_07_091000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1147,6 +1147,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_181021) do
     t.text "description"
     t.integer "priority"
     t.bigint "kanban_reason_id"
+    t.bigint "previous_stage_id"
     t.index ["account_id", "active"], name: "index_kanban_cards_on_account_id_and_active"
     t.index ["account_id", "contact_id"], name: "index_kanban_cards_on_account_id_and_contact_id"
     t.index ["account_id", "inbox_id"], name: "index_kanban_cards_on_account_id_and_inbox_id"
@@ -1157,6 +1158,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_181021) do
     t.index ["kanban_board_id", "kanban_stage_id", "position", "created_at", "id"], name: "index_active_kanban_cards_on_board_stage_order", where: "(active = true)"
     t.index ["kanban_board_id", "kanban_stage_id", "position"], name: "index_kanban_cards_on_board_stage_position"
     t.index ["kanban_reason_id"], name: "index_kanban_cards_on_kanban_reason_id"
+    t.index ["previous_stage_id"], name: "index_kanban_cards_on_previous_stage_id"
   end
 
   create_table "kanban_custom_fields", force: :cascade do |t|
@@ -1636,6 +1638,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_29_181021) do
   add_foreign_key "kanban_card_field_values", "kanban_custom_fields"
   add_foreign_key "kanban_card_products", "accounts"
   add_foreign_key "kanban_card_products", "kanban_cards"
+  add_foreign_key "kanban_cards", "kanban_stages", column: "previous_stage_id", on_delete: :nullify
   add_foreign_key "kanban_custom_fields", "accounts"
   add_foreign_key "kanban_custom_fields", "kanban_boards"
   add_foreign_key "kanban_reasons", "accounts"

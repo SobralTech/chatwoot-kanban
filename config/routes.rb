@@ -143,6 +143,7 @@ Rails.application.routes.draw do
               resources :custom_fields, only: [:index, :create, :update, :destroy]
               post 'cards/manual', to: 'cards#create_manual'
               get 'cards/by_id/:id', to: 'cards#show'
+              patch 'cards/by_id/:id/reopen', to: 'cards#reopen'
               patch 'cards/by_id/:id', to: 'cards#update'
               delete 'cards/by_id/:id', to: 'cards#destroy'
               patch 'cards/by_id/:id/reorder', to: 'cards#reorder'

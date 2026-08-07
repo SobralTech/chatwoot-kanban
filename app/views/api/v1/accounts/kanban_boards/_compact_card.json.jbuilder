@@ -3,6 +3,7 @@ assignee = conversation&.assignee
 
 json.id card.id
 json.kanban_stage_id card.kanban_stage_id
+json.previous_stage_id card.previous_stage_id
 json.position card.position
 json.origin card.origin
 json.subject card.subject

@@ -19,6 +19,10 @@ class KanbanCardPolicy < ApplicationPolicy
     show?
   end
 
+  def reopen?
+    show?
+  end
+
   private
 
   def valid_card_scope?

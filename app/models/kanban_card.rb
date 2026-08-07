@@ -24,6 +24,7 @@
 #  kanban_board_id    :bigint           not null
 #  kanban_reason_id   :bigint
 #  kanban_stage_id    :bigint           not null
+#  previous_stage_id  :bigint
 #
 # Indexes
 #
@@ -37,6 +38,7 @@
 #  index_kanban_cards_on_conversation_subject_unique  (kanban_board_id,conversation_id,inbox_id,normalized_subject) UNIQUE WHERE (((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL) AND (normalized_subject IS NOT NULL))
 #  index_kanban_cards_on_kanban_board_id_and_active   (kanban_board_id,active)
 #  index_kanban_cards_on_kanban_reason_id             (kanban_reason_id)
+#  index_kanban_cards_on_previous_stage_id            (previous_stage_id)
 #
 # rubocop:enable Layout/LineLength
 class KanbanCard < ApplicationRecord
@@ -45,6 +47,7 @@ class KanbanCard < ApplicationRecord
   belongs_to :account
   belongs_to :kanban_board
   belongs_to :kanban_stage
+  belongs_to :previous_stage, class_name: 'KanbanStage', optional: true, inverse_of: false
   belongs_to :contact
   belongs_to :inbox
   belongs_to :conversation, optional: true

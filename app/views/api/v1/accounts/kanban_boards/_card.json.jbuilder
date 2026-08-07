@@ -6,6 +6,7 @@ json.id card.id
 json.account_id card.account_id
 json.kanban_board_id card.kanban_board_id
 json.kanban_stage_id card.kanban_stage_id
+json.previous_stage_id card.previous_stage_id if card.respond_to?(:previous_stage_id)
 json.conversation_id card.conversation&.display_id
 json.position card.position
 json.moved_by_id nil

@@ -163,6 +163,23 @@ const stageListModel = computed({
     selectedBoard.value = { ...selectedBoard.value, stages: nextStages };
   },
 });
+const terminalStageIds = computed(() =>
+  [selectedBoard.value?.wonStageId, selectedBoard.value?.lostStageId].filter(
+    Boolean
+  )
+);
+const isTerminalStage = stage => terminalStageIds.value.includes(stage?.id);
+const canMoveStage = event => {
+  const draggedStage = event?.draggedContext?.element;
+  if (isTerminalStage(draggedStage)) return false;
+
+  const futureIndex = event?.draggedContext?.futureIndex;
+  if (futureIndex === undefined) return true;
+
+  return (
+    futureIndex < stages.value.filter(stage => !isTerminalStage(stage)).length
+  );
+};
 const hasActiveFilters = computed(
   () =>
     selectedInboxIds.value.length > 0 || selectedAssigneeIds.value.length > 0
@@ -229,10 +246,15 @@ const isNameTakenError = error => {
   return errorMessage.includes('name') && errorMessage.includes('taken');
 };
 
+const isSpecialStageOrderError = error =>
+  error?.response?.data?.error === 'special_stages_must_be_last';
+
 const showActionError = (error, fallbackMessage) => {
-  const message = isNameTakenError(error)
-    ? t('KANBAN.ACTIONS.STAGE_NAME_TAKEN')
-    : getErrorMessage(error, fallbackMessage);
+  let message = getErrorMessage(error, fallbackMessage);
+  if (isNameTakenError(error)) message = t('KANBAN.ACTIONS.STAGE_NAME_TAKEN');
+  if (isSpecialStageOrderError(error))
+    message = t('KANBAN.ACTIONS.STAGE_ORDER_INVALID');
+
   useAlert(message);
 };
 
@@ -242,6 +264,9 @@ const isRefreshRequiredError = error =>
 
 const isLostReasonRequiredError = error =>
   error?.response?.data?.error === 'lost_reason_required';
+
+const isDirectWonLostTransitionError = error =>
+  error?.response?.data?.error === 'direct_won_lost_transition_not_allowed';
 
 const formatCurrency = value =>
   new Intl.NumberFormat('pt-BR', {
@@ -927,9 +952,17 @@ const onCardDragChange = async (stage, event) => {
     );
     await refreshStageFirstPages([card.kanbanStageId, stage.id]);
   } catch (error) {
-    const message = isLostReasonRequiredError(error)
-      ? t('KANBAN.ACTIONS.DRAG_LOST_REASON_REQUIRED')
-      : getErrorMessage(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
+    let message = getErrorMessage(
+      error,
+      t('KANBAN.ACTIONS.REORDER_CARD_ERROR')
+    );
+    if (isLostReasonRequiredError(error)) {
+      message = t('KANBAN.ACTIONS.DRAG_LOST_REASON_REQUIRED');
+    }
+    if (isDirectWonLostTransitionError(error)) {
+      message = t('KANBAN.ACTIONS.DRAG_DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED');
+    }
+
     useAlert(message);
     await refreshStageFirstPages([card.kanbanStageId, stage.id]);
   } finally {
@@ -1002,22 +1035,45 @@ const updateCardPriority = async (card, priorityValue) => {
   }
 };
 
-const onChangeCardStatus = async (card, { targetStageId, reasonId }) => {
+const onChangeCardStatus = async (
+  card,
+  { targetStageId, reasonId, reopen }
+) => {
   if (!selectedBoard.value?.id || activeActionKey.value) return;
 
   activeActionKey.value = `change-status-${card.id}`;
 
   try {
-    await KanbanBoardsAPI.updateCardById(selectedBoard.value.id, card.id, {
-      card: {
-        kanban_stage_id: targetStageId,
-        kanban_reason_id: reasonId || null,
-      },
-    });
-    await refreshStageFirstPages([card.kanbanStageId, targetStageId]);
-    useAlert(t('KANBAN.CARD.STATUS.UPDATE_SUCCESS'));
+    const response = reopen
+      ? await KanbanBoardsAPI.reopenCardById(selectedBoard.value.id, card.id)
+      : await KanbanBoardsAPI.updateCardById(selectedBoard.value.id, card.id, {
+          card: {
+            kanban_stage_id: targetStageId,
+            kanban_reason_id: reasonId || null,
+          },
+        });
+    const updatedCard = normalizePayload(response.data);
+    const nextStageId = updatedCard.kanbanStageId || targetStageId;
+    await refreshStageFirstPages([card.kanbanStageId, nextStageId]);
+    useAlert(
+      t(
+        reopen
+          ? 'KANBAN.CARD.STATUS.REOPEN_SUCCESS'
+          : 'KANBAN.CARD.STATUS.UPDATE_SUCCESS'
+      )
+    );
   } catch (error) {
-    showActionError(error, t('KANBAN.CARD.STATUS.UPDATE_ERROR'));
+    const message = isDirectWonLostTransitionError(error)
+      ? t('KANBAN.CARD.STATUS.DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED')
+      : getErrorMessage(
+          error,
+          t(
+            reopen
+              ? 'KANBAN.CARD.STATUS.REOPEN_ERROR'
+              : 'KANBAN.CARD.STATUS.UPDATE_ERROR'
+          )
+        );
+    useAlert(message);
   } finally {
     activeActionKey.value = '';
   }
@@ -1362,6 +1418,7 @@ onUnmounted(() => {
             item-key="id"
             class="flex min-h-0 gap-4"
             handle=".stage-drag-handle"
+            :move="canMoveStage"
             ghost-class="opacity-60"
             chosen-class="opacity-90"
             :animation="180"
@@ -1463,6 +1520,7 @@ onUnmounted(() => {
                     </div>
                     <div class="flex flex-shrink-0 gap-1">
                       <button
+                        v-if="!isTerminalStage(stage)"
                         type="button"
                         data-testid="kanban-add-item-button"
                         class="flex size-8 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
