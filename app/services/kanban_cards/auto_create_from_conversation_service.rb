@@ -22,19 +22,10 @@ class KanbanCards::AutoCreateFromConversationService
   attr_reader :conversation, :kanban_board, :provided_inbox, :recreated_from_card_id, :summary
 
   def eligible_boards
-    return targeted_board if kanban_board.present?
+    scope = KanbanBoard.accepting_inbox_for_account(conversation.account_id, inbox.id)
+    return scope.where(id: kanban_board.id) if kanban_board.present?
 
-    boards = KanbanBoard.active
-                        .where(account_id: conversation.account_id, auto_create_cards_from_conversations: true)
-                        .accepting_inbox(inbox.id)
-
-    boards.where.not(id: boards_with_terminal_history_ids)
-  end
-
-  def targeted_board
-    KanbanBoard.active
-               .where(account_id: conversation.account_id, id: kanban_board.id)
-               .accepting_inbox(inbox.id)
+    scope.where(auto_create_cards_from_conversations: true).where.not(id: boards_with_terminal_history_ids)
   end
 
   def create_for_board(kanban_board)
@@ -111,24 +102,15 @@ class KanbanCards::AutoCreateFromConversationService
   def automatic_card_exists?(kanban_board)
     return KanbanCard.conversation.exists?(kanban_board: kanban_board, conversation_id: conversation.id) if recreated_from_card_id.blank?
 
-    KanbanCard.active.where(kanban_board: kanban_board, contact_id: contact.id)
-              .where.not(kanban_stage_id: terminal_stage_ids(kanban_board))
-              .exists?
+    KanbanCard.active_non_terminal_for(kanban_board, contact.id).exists?
   end
 
   def boards_with_terminal_history_ids
     KanbanCard.joins(:kanban_board)
               .where(kanban_cards: { account_id: conversation.account_id, contact_id: contact.id })
-              .where(<<~SQL.squish)
-                kanban_cards.kanban_stage_id = kanban_boards.won_stage_id OR
-                kanban_cards.kanban_stage_id = kanban_boards.lost_stage_id
-              SQL
+              .where('kanban_cards.kanban_stage_id IN (kanban_boards.won_stage_id, kanban_boards.lost_stage_id)')
               .distinct
               .pluck(:kanban_board_id)
-  end
-
-  def terminal_stage_ids(board)
-    [board.won_stage_id, board.lost_stage_id].compact.uniq
   end
 
   def default_subject

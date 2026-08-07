@@ -193,7 +193,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect { service.perform! }.not_to change(KanbanCard, :count)
     end
 
-    it 'does not apply the old toggle when the contact has terminal history' do
+    it 'does not create a card for a contact with unresolved terminal history on the board' do
       board.update!(won_stage: first_stage)
       create(
         :kanban_card,

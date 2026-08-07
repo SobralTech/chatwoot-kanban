@@ -75,6 +75,9 @@ class KanbanBoard < ApplicationRecord
                                 .select('1').to_sql
     where("inbox_scope_mode = 'all_inboxes' OR (inbox_scope_mode = 'selected_inboxes' AND EXISTS (#{joins_sql}))")
   }
+  scope :accepting_inbox_for_account, lambda { |account_id, inbox_id|
+    active.where(account_id: account_id).accepting_inbox(inbox_id)
+  }
 
   def assignable_users
     all_agents? ? account.users : visible_users
@@ -90,6 +93,11 @@ class KanbanBoard < ApplicationRecord
     else
       kanban_board_inboxes.exists?(inbox_id: inbox_id)
     end
+  end
+
+  def recurrence_window_hours_for(stage_id)
+    return won_recurrence_window_hours if stage_id == won_stage_id && won_recurrence_enabled?
+    return lost_recurrence_window_hours if stage_id == lost_stage_id && lost_recurrence_enabled?
   end
 
   private

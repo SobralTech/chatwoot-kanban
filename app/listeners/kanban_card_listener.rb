@@ -33,7 +33,7 @@ class KanbanCardListener < BaseListener
   private
 
   def accepting_boards(conversation, inbox_id = conversation.inbox_id)
-    KanbanBoard.active.where(account_id: conversation.account_id).accepting_inbox(inbox_id)
+    KanbanBoard.accepting_inbox_for_account(conversation.account_id, inbox_id)
   end
 
   def ignore_message_created_event?(event)

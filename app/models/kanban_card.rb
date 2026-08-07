@@ -95,6 +95,10 @@ class KanbanCard < ApplicationRecord
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
+  scope :active_non_terminal_for, lambda { |kanban_board, contact_id|
+    active.where(kanban_board: kanban_board, contact_id: contact_id)
+          .where.not(kanban_stage_id: KanbanStage.special_stage_ids(kanban_board))
+  }
 
   def total_value
     kanban_card_products.sum { |product| product.unit_price * product.quantity }
