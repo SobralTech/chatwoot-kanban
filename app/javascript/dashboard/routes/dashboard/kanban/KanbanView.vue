@@ -8,7 +8,12 @@ import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
+import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
+import {
+  getCardStatusChangeErrorMessage,
+  isDirectWonLostTransitionError,
+} from 'dashboard/helper/kanbanCardStatus';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { frontendURL, kanbanConversationUrl } from 'dashboard/helper/URLHelper';
@@ -163,23 +168,11 @@ const stageListModel = computed({
     selectedBoard.value = { ...selectedBoard.value, stages: nextStages };
   },
 });
-const terminalStageIds = computed(() =>
-  [selectedBoard.value?.wonStageId, selectedBoard.value?.lostStageId].filter(
-    Boolean
-  )
-);
-const isTerminalStage = stage => terminalStageIds.value.includes(stage?.id);
-const canMoveStage = event => {
-  const draggedStage = event?.draggedContext?.element;
-  if (isTerminalStage(draggedStage)) return false;
-
-  const futureIndex = event?.draggedContext?.futureIndex;
-  if (futureIndex === undefined) return true;
-
-  return (
-    futureIndex < stages.value.filter(stage => !isTerminalStage(stage)).length
-  );
-};
+const { isTerminalStage, canMoveStage } = useKanbanStageOrder({
+  stages,
+  wonStageId: computed(() => selectedBoard.value?.wonStageId),
+  lostStageId: computed(() => selectedBoard.value?.lostStageId),
+});
 const hasActiveFilters = computed(
   () =>
     selectedInboxIds.value.length > 0 || selectedAssigneeIds.value.length > 0
@@ -264,9 +257,6 @@ const isRefreshRequiredError = error =>
 
 const isLostReasonRequiredError = error =>
   error?.response?.data?.error === 'lost_reason_required';
-
-const isDirectWonLostTransitionError = error =>
-  error?.response?.data?.error === 'direct_won_lost_transition_not_allowed';
 
 const formatCurrency = value =>
   new Intl.NumberFormat('pt-BR', {
@@ -1063,17 +1053,9 @@ const onChangeCardStatus = async (
       )
     );
   } catch (error) {
-    const message = isDirectWonLostTransitionError(error)
-      ? t('KANBAN.CARD.STATUS.DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED')
-      : getErrorMessage(
-          error,
-          t(
-            reopen
-              ? 'KANBAN.CARD.STATUS.REOPEN_ERROR'
-              : 'KANBAN.CARD.STATUS.UPDATE_ERROR'
-          )
-        );
-    useAlert(message);
+    useAlert(
+      getCardStatusChangeErrorMessage(error, { reopen, t, getErrorMessage })
+    );
   } finally {
     activeActionKey.value = '';
   }

@@ -42,7 +42,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
           raise ActiveRecord::Rollback
         end
 
-        apply_stage_order(reordered_stages)
+        KanbanStage.apply_position_order!(reordered_stages)
       end
 
       KanbanStage.normalize_positions_for_board!(@kanban_board)
@@ -155,12 +155,6 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     reordered_stages.delete_at(current_index)
     reordered_stages.insert(clamped_index, @kanban_stage)
     reordered_stages
-  end
-
-  def apply_stage_order(ordered_stages)
-    ordered_stages.each_with_index do |stage, index|
-      stage.update!(position: index + 1) if stage.position != index + 1
-    end
   end
 
   def render_invalid_stage_order

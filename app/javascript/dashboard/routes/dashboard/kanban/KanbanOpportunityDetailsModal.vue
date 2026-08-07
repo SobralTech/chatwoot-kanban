@@ -15,6 +15,7 @@ import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
+import { getCardStatusChangeErrorMessage } from 'dashboard/helper/kanbanCardStatus';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { debounce } from '@chatwoot/utils';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
@@ -295,18 +296,9 @@ const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
       )
     );
   } catch (error) {
-    const message =
-      error?.response?.data?.error === 'direct_won_lost_transition_not_allowed'
-        ? t('KANBAN.CARD.STATUS.DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED')
-        : getErrorMessage(
-            error,
-            t(
-              reopen
-                ? 'KANBAN.CARD.STATUS.REOPEN_ERROR'
-                : 'KANBAN.CARD.STATUS.UPDATE_ERROR'
-            )
-          );
-    useAlert(message);
+    useAlert(
+      getCardStatusChangeErrorMessage(error, { reopen, t, getErrorMessage })
+    );
   }
 };
 

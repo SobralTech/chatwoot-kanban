@@ -238,7 +238,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def terminal_stage_id?(stage_id)
-    stage_id == @kanban_board.won_stage_id || stage_id == @kanban_board.lost_stage_id
+    terminal_stage_ids.include?(stage_id)
   end
 
   def reopen_target_stage
@@ -251,7 +251,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def terminal_stage_ids
-    [@kanban_board.won_stage_id, @kanban_board.lost_stage_id].compact.uniq
+    @terminal_stage_ids ||= KanbanStage.special_stage_ids(@kanban_board)
   end
 
   def render_no_reopen_stage

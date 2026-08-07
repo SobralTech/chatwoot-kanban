@@ -48,9 +48,7 @@ class KanbanStage < ApplicationRecord
     transaction do
       lock_reorder_stages_for_board!(kanban_board)
 
-      ordered_stages_for_board(kanban_board).each.with_index(1) do |stage, position|
-        stage.update!(position: position) if stage.position != position
-      end
+      apply_position_order!(ordered_stages_for_board(kanban_board))
     end
   end
 
@@ -64,9 +62,13 @@ class KanbanStage < ApplicationRecord
       newly_assigned_stages = special_stages.select { |stage| newly_assigned_stage_ids.include?(stage.id) }
       special_stages -= newly_assigned_stages
 
-      (regular_stages + special_stages + newly_assigned_stages).each.with_index(1) do |stage, position|
-        stage.update!(position: position) if stage.position != position
-      end
+      apply_position_order!(regular_stages + special_stages + newly_assigned_stages)
+    end
+  end
+
+  def self.apply_position_order!(stages)
+    stages.each.with_index(1) do |stage, position|
+      stage.update!(position: position) if stage.position != position
     end
   end
 
@@ -78,7 +80,8 @@ class KanbanStage < ApplicationRecord
 
   def self.ordered_stages_for_board(kanban_board)
     special_ids = special_stage_ids(kanban_board)
-    kanban_board.kanban_stages.active.ordered.to_a.partition { |stage| special_ids.exclude?(stage.id) }.flatten
+    regular_stages, special_stages = kanban_board.kanban_stages.active.ordered.to_a.partition { |stage| special_ids.exclude?(stage.id) }
+    regular_stages + special_stages
   end
 
   def self.special_stage_ids(kanban_board)
@@ -88,11 +91,8 @@ class KanbanStage < ApplicationRecord
   def self.valid_special_stage_order?(kanban_board, stages)
     special_ids = special_stage_ids(kanban_board)
     special_count = stages.count { |stage| special_ids.include?(stage.id) }
-    return true if special_count.zero?
 
-    stages.each_with_index.none? do |stage, index|
-      special_ids.include?(stage.id) && index < stages.length - special_count
-    end
+    stages.last(special_count).count { |stage| special_ids.include?(stage.id) } == special_count
   end
 
   def self.lock_reorder_stages_for_board!(kanban_board)

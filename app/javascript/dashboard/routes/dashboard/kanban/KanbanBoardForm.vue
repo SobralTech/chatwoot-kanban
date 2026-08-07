@@ -7,6 +7,7 @@ import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
+import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -99,23 +100,11 @@ const hasStageSelectionConflict = computed(
   () =>
     form.wonStageId && form.lostStageId && form.wonStageId === form.lostStageId
 );
-const canMoveStage = event => {
-  const draggedStage = event?.draggedContext?.element;
-  if (
-    draggedStage?.id === form.wonStageId ||
-    draggedStage?.id === form.lostStageId
-  ) {
-    return false;
-  }
-
-  const futureIndex = event?.draggedContext?.futureIndex;
-  if (futureIndex === undefined) return true;
-
-  const regularStageCount = stages.value.filter(
-    stage => stage.id !== form.wonStageId && stage.id !== form.lostStageId
-  ).length;
-  return futureIndex < regularStageCount;
-};
+const { canMoveStage } = useKanbanStageOrder({
+  stages,
+  wonStageId: computed(() => form.wonStageId),
+  lostStageId: computed(() => form.lostStageId),
+});
 
 const tabItems = computed(() => [
   { label: t('KANBAN.BOARD_EDIT.TABS.STAGES') },
