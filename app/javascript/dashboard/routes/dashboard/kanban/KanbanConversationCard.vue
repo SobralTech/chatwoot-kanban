@@ -192,7 +192,7 @@ const openConversation = event => {
       :disabled="!!activeActionKey"
       @click.stop="openDetails"
     >
-      <i class="i-lucide-settings size-5" />
+      <i class="i-lucide-pencil size-5" />
     </button>
 
     <button
