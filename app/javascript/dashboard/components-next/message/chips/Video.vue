@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick, useTemplateRef } from 'vue';
+import { ref, computed, watch, useTemplateRef } from 'vue';
 import Icon from 'next/icon/Icon.vue';
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
 import { useMediaRetry } from 'dashboard/composables/useMediaRetry';
@@ -17,20 +17,15 @@ const showGallery = ref(false);
 
 const { filteredCurrentChatAttachments } = useMessageContext();
 
-const { hasError, cacheBustedUrl, scheduleRetry, reset } = useMediaRetry();
-
 const videoPlayer = useTemplateRef('videoPlayer');
+
+const { hasError, cacheBustedUrl, createRetryHandler, reset } = useMediaRetry();
 
 watch(() => attachment.id, reset);
 
 const videoUrl = computed(() => cacheBustedUrl(attachment.dataUrl));
 
-const handleError = () => {
-  scheduleRetry(async () => {
-    await nextTick();
-    videoPlayer.value?.load();
-  });
-};
+const handleError = createRetryHandler(videoPlayer);
 </script>
 
 <template>

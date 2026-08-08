@@ -5,7 +5,6 @@ import {
   useTemplateRef,
   ref,
   watch,
-  nextTick,
   getCurrentInstance,
 } from 'vue';
 import Icon from 'next/icon/Icon.vue';
@@ -29,7 +28,7 @@ defineOptions({
   inheritAttrs: false,
 });
 
-const { hasError, cacheBustedUrl, scheduleRetry, reset } = useMediaRetry();
+const { hasError, cacheBustedUrl, createRetryHandler, reset } = useMediaRetry();
 
 const timeStampURL = computed(() => cacheBustedUrl(attachment.dataUrl));
 
@@ -153,12 +152,7 @@ const downloadAudio = async () => {
   downloadFile({ url: dataUrl, type: fileType, extension });
 };
 
-const onAudioError = () => {
-  scheduleRetry(async () => {
-    await nextTick();
-    audioPlayer.value?.load();
-  });
-};
+const onAudioError = createRetryHandler(audioPlayer);
 </script>
 
 <template>

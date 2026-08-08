@@ -1,4 +1,4 @@
-import { ref, onBeforeUnmount } from 'vue';
+import { ref, onBeforeUnmount, nextTick } from 'vue';
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_DELAY = 1000; // ms, doubles each attempt: 1s, 2s, 4s
@@ -32,14 +32,12 @@ export const useMediaRetry = (config = {}) => {
 
   const scheduleRetry = reload => {
     if (attempts >= maxRetries) {
-      clearTimer();
       hasError.value = true;
       return;
     }
 
     const delay = baseDelay * 2 ** attempts;
     attempts += 1;
-    clearTimer();
     timer = setTimeout(() => {
       timer = null;
       cacheBustParam.value += 1;
@@ -53,7 +51,23 @@ export const useMediaRetry = (config = {}) => {
     return url.toString();
   };
 
+  // Ready-made <audio>/<video> @error handler: retries by reloading the
+  // element itself once Vue has re-rendered it with the cache-busted src.
+  const createRetryHandler = elRef => () => {
+    scheduleRetry(async () => {
+      await nextTick();
+      elRef.value?.load();
+    });
+  };
+
   onBeforeUnmount(clearTimer);
 
-  return { hasError, cacheBustParam, cacheBustedUrl, scheduleRetry, reset };
+  return {
+    hasError,
+    cacheBustParam,
+    cacheBustedUrl,
+    scheduleRetry,
+    createRetryHandler,
+    reset,
+  };
 };

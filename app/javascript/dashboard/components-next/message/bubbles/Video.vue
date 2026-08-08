@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick, useTemplateRef } from 'vue';
+import { ref, computed, watch, useTemplateRef } from 'vue';
 import BaseBubble from './Base.vue';
 import Icon from 'next/icon/Icon.vue';
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
@@ -11,9 +11,9 @@ import { ATTACHMENT_TYPES } from '../constants';
 const showGallery = ref(false);
 const { filteredCurrentChatAttachments, attachments } = useMessageContext();
 
-const { hasError, cacheBustedUrl, scheduleRetry, reset } = useMediaRetry();
-
 const videoPlayer = useTemplateRef('videoPlayer');
+
+const { hasError, cacheBustedUrl, createRetryHandler, reset } = useMediaRetry();
 
 const attachment = computed(() => {
   return attachments.value[0];
@@ -23,12 +23,7 @@ watch(() => attachment.value?.id, reset);
 
 const videoUrl = computed(() => cacheBustedUrl(attachment.value.dataUrl));
 
-const handleError = () => {
-  scheduleRetry(async () => {
-    await nextTick();
-    videoPlayer.value?.load();
-  });
-};
+const handleError = createRetryHandler(videoPlayer);
 
 const isReel = computed(() => {
   return attachment.value.fileType === ATTACHMENT_TYPES.IG_REEL;
