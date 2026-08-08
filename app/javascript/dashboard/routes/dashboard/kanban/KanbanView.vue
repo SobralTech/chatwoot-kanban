@@ -15,6 +15,7 @@ import {
   isDirectWonLostTransitionError,
 } from 'dashboard/helper/kanbanCardStatus';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import NextButton from 'dashboard/components-next/button/Button.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { frontendURL, kanbanConversationUrl } from 'dashboard/helper/URLHelper';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
@@ -48,6 +49,9 @@ const selectedBoard = ref(null);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
 const selectedOpportunityCardId = ref(null);
+const opportunityModalRef = ref(null);
+const showUnsavedOpportunityChangesConfirm = ref(false);
+const isSavingOpportunityBeforeExit = ref(false);
 const activeActionKey = ref('');
 const hasError = ref(false);
 const selectedInboxIds = ref([]);
@@ -1187,6 +1191,37 @@ const openDetails = card => {
 
 const closeOpportunityDetails = () => {
   selectedOpportunityCardId.value = null;
+  showUnsavedOpportunityChangesConfirm.value = false;
+};
+
+const attemptCloseOpportunityDetails = () => {
+  if (opportunityModalRef.value?.hasUnsavedChanges) {
+    showUnsavedOpportunityChangesConfirm.value = true;
+    return;
+  }
+
+  closeOpportunityDetails();
+};
+
+const keepEditingOpportunity = () => {
+  showUnsavedOpportunityChangesConfirm.value = false;
+};
+
+const discardOpportunityChanges = () => {
+  closeOpportunityDetails();
+};
+
+const saveAndCloseOpportunity = async () => {
+  if (isSavingOpportunityBeforeExit.value) return;
+
+  isSavingOpportunityBeforeExit.value = true;
+
+  try {
+    const saved = await opportunityModalRef.value?.saveCard();
+    if (saved) closeOpportunityDetails();
+  } finally {
+    isSavingOpportunityBeforeExit.value = false;
+  }
 };
 
 const onOpportunityUpdated = updatedCard => {
@@ -1671,16 +1706,54 @@ onUnmounted(() => {
       :show="!!selectedOpportunityCardId"
       :show-close-button="false"
       size="modal-fit-content"
-      :on-close="closeOpportunityDetails"
+      :on-close="attemptCloseOpportunityDetails"
     >
       <KanbanOpportunityDetailsModal
+        ref="opportunityModalRef"
         :board-id="selectedBoard.id"
         :card-id="selectedOpportunityCardId"
-        @close="closeOpportunityDetails"
+        @close="attemptCloseOpportunityDetails"
         @updated="onOpportunityUpdated"
         @open-conversation="openConversation"
         @remove-card="onOpportunityRemoveCard"
       />
+    </woot-modal>
+
+    <woot-modal
+      :show="showUnsavedOpportunityChangesConfirm"
+      :show-close-button="false"
+      size="modal-narrow"
+      :on-close="keepEditingOpportunity"
+    >
+      <div class="p-6">
+        <h2 class="mb-2 text-base font-semibold text-n-slate-12">
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_TITLE') }}
+        </h2>
+        <p class="mb-6 text-sm text-n-slate-11">
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_MESSAGE') }}
+        </p>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <NextButton
+            outline
+            slate
+            sm
+            :label="t('KANBAN.OPPORTUNITY_DETAILS.KEEP_EDITING')"
+            @click="keepEditingOpportunity"
+          />
+          <NextButton
+            ruby
+            sm
+            :label="t('KANBAN.OPPORTUNITY_DETAILS.DISCARD_CHANGES')"
+            @click="discardOpportunityChanges"
+          />
+          <NextButton
+            sm
+            :is-loading="isSavingOpportunityBeforeExit"
+            :label="t('KANBAN.OPPORTUNITY_DETAILS.SAVE_AND_EXIT')"
+            @click="saveAndCloseOpportunity"
+          />
+        </div>
+      </div>
     </woot-modal>
 
     <woot-modal

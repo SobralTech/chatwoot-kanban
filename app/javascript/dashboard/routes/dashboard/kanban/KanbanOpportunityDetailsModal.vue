@@ -127,6 +127,27 @@ const selectedLabelsSummary = computed(() => {
   return selectedLabelTitles.value.join(', ');
 });
 
+const additionalDataTabRef = ref(null);
+
+const savedSnapshot = ref('');
+const buildSnapshot = () =>
+  JSON.stringify({
+    subject: subject.value,
+    description: description.value,
+    dueAt: dueAt.value,
+    priority: priority.value,
+    labels: [...selectedLabelTitles.value].sort(),
+    assigneeIds: selectedAssigneeIds.value.slice().sort((a, b) => a - b),
+  });
+const captureSnapshot = () => {
+  savedSnapshot.value = buildSnapshot();
+};
+const hasUnsavedChanges = computed(
+  () =>
+    (!!card.value && buildSnapshot() !== savedSnapshot.value) ||
+    !!additionalDataTabRef.value?.hasUnsavedChanges
+);
+
 const normalizeCard = payload => ({
   ...payload,
   accountId: payload.accountId ?? payload.account_id,
@@ -287,6 +308,7 @@ const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
         });
     const updatedCard = normalizeCard(response.data || {});
     setFormState(updatedCard);
+    captureSnapshot();
     emit('updated', updatedCard);
     useAlert(
       t(
@@ -303,7 +325,7 @@ const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
 };
 
 const saveCard = async () => {
-  if (isSaving.value) return;
+  if (isSaving.value) return false;
 
   const trimmedSubject = subject.value.trim();
   subjectError.value = '';
@@ -311,7 +333,7 @@ const saveCard = async () => {
 
   if (!trimmedSubject) {
     subjectError.value = t('KANBAN.OPPORTUNITY_DETAILS.REQUIRED_TITLE');
-    return;
+    return false;
   }
 
   isSaving.value = true;
@@ -353,13 +375,23 @@ const saveCard = async () => {
     assignableUsers.value =
       assigneesResponse?.data?.assignable_users || assignableUsers.value;
 
+    captureSnapshot();
+
+    if (additionalDataTabRef.value?.hasUnsavedChanges) {
+      const additionalDataSaved =
+        await additionalDataTabRef.value.saveFieldValues();
+      if (!additionalDataSaved) return false;
+    }
+
     emit('updated', updatedCard);
     useAlert(t('KANBAN.OPPORTUNITY_DETAILS.SAVE_SUCCESS'));
+    return true;
   } catch (error) {
     saveError.value = getErrorMessage(
       error,
       t('KANBAN.OPPORTUNITY_DETAILS.SAVE_ERROR')
     );
+    return false;
   } finally {
     isSaving.value = false;
   }
@@ -640,14 +672,16 @@ const removeCardProduct = async product => {
   }
 };
 
-onMounted(() => {
-  loadCard();
-  loadLabels();
-  loadAssignees();
+onMounted(async () => {
   loadCardProducts();
   loadBoard();
   loadReasons();
+
+  await Promise.allSettled([loadCard(), loadLabels(), loadAssignees()]);
+  captureSnapshot();
 });
+
+defineExpose({ saveCard, hasUnsavedChanges });
 </script>
 
 <template>
@@ -657,10 +691,18 @@ onMounted(() => {
     <div
       class="flex items-center justify-between gap-4 border-b border-n-weak px-2 py-4"
     >
-      <div class="min-w-0">
+      <div class="flex min-w-0 items-center gap-2">
         <h2 class="mb-0 truncate text-base font-semibold text-n-slate-12">
           {{ modalTitle }}
         </h2>
+        <span
+          v-if="hasUnsavedChanges"
+          data-testid="kanban-opportunity-unsaved-indicator"
+          class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-n-amber-2 px-2 py-0.5 text-xs font-medium text-n-amber-11"
+        >
+          <span class="size-1.5 rounded-full bg-n-amber-9" />
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_INDICATOR') }}
+        </span>
       </div>
       <div v-if="cardDisplayId" class="flex flex-shrink-0 items-center gap-2">
         <span
@@ -781,6 +823,17 @@ onMounted(() => {
                     />
                     <span class="min-w-0 truncate">{{ contactName }}</span>
                   </p>
+                </section>
+
+                <section class="grid gap-2 rounded-lg border border-n-weak p-3">
+                  <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+                    {{ t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY') }}
+                  </h3>
+                  <KanbanPriorityDropdown
+                    v-model="priority"
+                    test-id="kanban-opportunity-priority"
+                    :none-label="t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY_NONE')"
+                  />
                 </section>
 
                 <div class="grid min-w-0 gap-1.5">
@@ -1025,35 +1078,21 @@ onMounted(() => {
                   </p>
                 </section>
 
-                <section class="grid gap-2 rounded-lg border border-n-weak p-3">
-                  <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                    {{ t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY') }}
-                  </h3>
-                  <KanbanPriorityDropdown
-                    v-model="priority"
-                    test-id="kanban-opportunity-priority"
-                    :none-label="t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY_NONE')"
-                  />
-                </section>
+                <section class="grid gap-4 rounded-lg border border-n-weak p-3">
+                  <div class="grid gap-1">
+                    <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+                      {{
+                        t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.TOTAL_VALUE')
+                      }}
+                    </h3>
+                    <p
+                      data-testid="kanban-opportunity-total-value"
+                      class="mb-0 text-sm text-n-slate-11"
+                    >
+                      {{ formattedTotalValue }}
+                    </p>
+                  </div>
 
-                <section class="grid gap-1 rounded-lg border border-n-weak p-3">
-                  <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                    {{
-                      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.TOTAL_VALUE')
-                    }}
-                  </h3>
-                  <p
-                    data-testid="kanban-opportunity-total-value"
-                    class="mb-0 text-sm text-n-slate-11"
-                  >
-                    {{ formattedTotalValue }}
-                  </p>
-                </section>
-
-                <section class="grid gap-3 rounded-lg border border-n-weak p-3">
-                  <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                    {{ t('KANBAN.OPPORTUNITY_DETAILS.DATES') }}
-                  </h3>
                   <KanbanDueDatePicker
                     v-model="dueAt"
                     data-testid="kanban-opportunity-due-at"
@@ -1072,32 +1111,6 @@ onMounted(() => {
             >
               {{ saveError }}
             </p>
-
-            <div
-              class="flex items-center justify-end gap-3 border-t border-n-weak pt-4"
-            >
-              <NextButton
-                type="button"
-                outline
-                slate
-                sm
-                data-testid="kanban-opportunity-cancel"
-                :label="t('KANBAN.OPPORTUNITY_DETAILS.CANCEL')"
-                @click="emit('close')"
-              />
-              <NextButton
-                type="submit"
-                sm
-                data-testid="kanban-opportunity-save"
-                :label="
-                  isSaving
-                    ? t('KANBAN.OPPORTUNITY_DETAILS.SAVING')
-                    : t('KANBAN.OPPORTUNITY_DETAILS.SAVE')
-                "
-                :disabled="isSaving"
-                :is-loading="isSaving"
-              />
-            </div>
           </form>
         </section>
 
@@ -1489,9 +1502,42 @@ onMounted(() => {
           v-show="activeTabKey === 'additional_data'"
           data-testid="kanban-opportunity-additional-data-tab"
         >
-          <KanbanCardAdditionalDataTab :board-id="boardId" :card-id="cardId" />
+          <KanbanCardAdditionalDataTab
+            ref="additionalDataTabRef"
+            :board-id="boardId"
+            :card-id="cardId"
+          />
         </section>
       </template>
+    </div>
+
+    <div
+      v-if="hasUnsavedChanges"
+      data-testid="kanban-opportunity-savebar"
+      class="flex flex-none items-center justify-end gap-3 border-t border-n-weak bg-n-background px-4 py-3"
+    >
+      <NextButton
+        type="button"
+        outline
+        slate
+        sm
+        data-testid="kanban-opportunity-cancel"
+        :label="t('KANBAN.OPPORTUNITY_DETAILS.CANCEL')"
+        @click="emit('close')"
+      />
+      <NextButton
+        type="button"
+        sm
+        data-testid="kanban-opportunity-save"
+        :label="
+          isSaving
+            ? t('KANBAN.OPPORTUNITY_DETAILS.SAVING')
+            : t('KANBAN.OPPORTUNITY_DETAILS.SAVE_CHANGES')
+        "
+        :disabled="isSaving"
+        :is-loading="isSaving"
+        @click="saveCard"
+      />
     </div>
   </div>
 </template>

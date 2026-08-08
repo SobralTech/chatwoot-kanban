@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 
@@ -18,10 +18,18 @@ const { t } = useI18n();
 
 const isLoading = ref(false);
 const loadError = ref('');
-const isSaving = ref(false);
 const customFields = ref([]);
 const valuesByFieldId = reactive({});
 const tagDrafts = reactive({});
+
+const savedSnapshot = ref('');
+const buildSnapshot = () => JSON.stringify(valuesByFieldId);
+const captureSnapshot = () => {
+  savedSnapshot.value = buildSnapshot();
+};
+const hasUnsavedChanges = computed(
+  () => customFields.value.length > 0 && buildSnapshot() !== savedSnapshot.value
+);
 
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.message || fallback;
@@ -68,6 +76,8 @@ const fetchData = async () => {
       );
       tagDrafts[field.id] = '';
     });
+
+    captureSnapshot();
   } catch (error) {
     loadError.value = getErrorMessage(
       error,
@@ -135,25 +145,26 @@ const buildPayload = () => {
 };
 
 const saveFieldValues = async () => {
-  isSaving.value = true;
-
   try {
     await KanbanBoardsAPI.updateCardFieldValues(
       props.boardId,
       props.cardId,
       buildPayload()
     );
+    captureSnapshot();
     useAlert(t('KANBAN.CARD_ADDITIONAL_DATA.SAVE_SUCCESS'));
+    return true;
   } catch (error) {
     useAlert(
       getErrorMessage(error, t('KANBAN.CARD_ADDITIONAL_DATA.SAVE_ERROR'))
     );
-  } finally {
-    isSaving.value = false;
+    return false;
   }
 };
 
 onMounted(fetchData);
+
+defineExpose({ hasUnsavedChanges, saveFieldValues });
 </script>
 
 <template>
@@ -283,14 +294,6 @@ onMounted(fetchData);
           </template>
         </div>
       </div>
-
-      <Button
-        data-testid="kanban-card-additional-data-save"
-        :label="t('KANBAN.CARD_ADDITIONAL_DATA.SAVE')"
-        :is-loading="isSaving"
-        class="w-fit"
-        @click="saveFieldValues"
-      />
     </template>
   </div>
 </template>
