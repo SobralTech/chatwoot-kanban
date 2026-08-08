@@ -347,7 +347,46 @@ onMounted(fetchReasons);
           }}
         </h3>
 
-        <form class="grid gap-4" @submit.prevent="saveReason">
+        <form
+          class="grid w-full gap-5 !self-stretch !p-0"
+          @submit.prevent="saveReason"
+        >
+          <div class="grid gap-2">
+            <span class="text-sm font-medium text-n-slate-12">
+              {{ t('KANBAN.REASONS.FORM.TYPE_LABEL') }}
+            </span>
+            <div class="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                data-testid="kanban-reason-type-lost"
+                class="flex flex-col items-center gap-2 rounded-lg border-2 px-4 py-5 text-sm font-medium transition-colors"
+                :class="
+                  form.reasonType === 'lost'
+                    ? 'border-n-ruby-9 bg-n-ruby-3 text-n-ruby-11'
+                    : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-2'
+                "
+                @click="form.reasonType = 'lost'"
+              >
+                <i class="i-lucide-x-circle size-6" />
+                {{ t('KANBAN.REASONS.FORM.TYPE_LOST') }}
+              </button>
+              <button
+                type="button"
+                data-testid="kanban-reason-type-won"
+                class="flex flex-col items-center gap-2 rounded-lg border-2 px-4 py-5 text-sm font-medium transition-colors"
+                :class="
+                  form.reasonType === 'won'
+                    ? 'border-n-teal-9 bg-n-teal-3 text-n-teal-11'
+                    : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-2'
+                "
+                @click="form.reasonType = 'won'"
+              >
+                <i class="i-lucide-check-circle-2 size-6" />
+                {{ t('KANBAN.REASONS.FORM.TYPE_WON') }}
+              </button>
+            </div>
+          </div>
+
           <NextInput
             v-model="form.title"
             data-testid="kanban-reason-title"
@@ -369,40 +408,6 @@ onMounted(fetchReasons);
               class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
             />
           </label>
-
-          <div class="grid gap-1">
-            <span class="text-sm font-medium text-n-slate-12">
-              {{ t('KANBAN.REASONS.FORM.TYPE_LABEL') }}
-            </span>
-            <div class="flex gap-2">
-              <button
-                type="button"
-                data-testid="kanban-reason-type-lost"
-                class="flex-1 rounded-md border px-3 py-2 text-sm font-medium"
-                :class="
-                  form.reasonType === 'lost'
-                    ? 'border-n-ruby-9 bg-n-ruby-3 text-n-ruby-11'
-                    : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-2'
-                "
-                @click="form.reasonType = 'lost'"
-              >
-                {{ t('KANBAN.REASONS.FORM.TYPE_LOST') }}
-              </button>
-              <button
-                type="button"
-                data-testid="kanban-reason-type-won"
-                class="flex-1 rounded-md border px-3 py-2 text-sm font-medium"
-                :class="
-                  form.reasonType === 'won'
-                    ? 'border-n-teal-9 bg-n-teal-3 text-n-teal-11'
-                    : 'border-n-weak text-n-slate-11 hover:bg-n-alpha-2'
-                "
-                @click="form.reasonType = 'won'"
-              >
-                {{ t('KANBAN.REASONS.FORM.TYPE_WON') }}
-              </button>
-            </div>
-          </div>
 
           <div class="flex justify-end gap-2">
             <Button
