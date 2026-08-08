@@ -4,12 +4,14 @@ import {
   onMounted,
   useTemplateRef,
   ref,
+  watch,
+  nextTick,
   getCurrentInstance,
 } from 'vue';
 import Icon from 'next/icon/Icon.vue';
-import { timeStampAppendedURL } from 'dashboard/helper/URLHelper';
 import { downloadFile } from '@chatwoot/utils';
 import { useEmitter } from 'dashboard/composables/emitter';
+import { useMediaRetry } from 'dashboard/composables/useMediaRetry';
 import { emitter } from 'shared/helpers/mitt';
 
 const { attachment } = defineProps({
@@ -27,9 +29,15 @@ defineOptions({
   inheritAttrs: false,
 });
 
+const { hasError, cacheBustParam, scheduleRetry, reset } = useMediaRetry();
+
 const timeStampURL = computed(() => {
-  return timeStampAppendedURL(attachment.dataUrl);
+  const url = new URL(attachment.dataUrl);
+  url.searchParams.set('t', cacheBustParam.value);
+  return url.toString();
 });
+
+watch(() => attachment.id, reset);
 
 const audioPlayer = useTemplateRef('audioPlayer');
 
@@ -148,6 +156,13 @@ const downloadAudio = async () => {
   const { fileType, dataUrl, extension } = attachment;
   downloadFile({ url: dataUrl, type: fileType, extension });
 };
+
+const onAudioError = () => {
+  scheduleRetry(async () => {
+    await nextTick();
+    audioPlayer.value?.load();
+  });
+};
 </script>
 
 <template>
@@ -159,10 +174,20 @@ const downloadAudio = async () => {
     @loadedmetadata="onLoadedMetadata"
     @timeupdate="onTimeUpdate"
     @ended="onEnd"
+    @error="onAudioError"
   >
     <source :src="timeStampURL" />
   </audio>
   <div
+    v-if="hasError"
+    v-bind="$attrs"
+    class="rounded-xl w-full gap-1 p-3 bg-n-alpha-white flex items-center justify-center border border-n-container text-xs text-n-slate-11"
+  >
+    <Icon icon="i-lucide-circle-off" class="text-n-slate-11" />
+    {{ $t('COMPONENTS.MEDIA.AUDIO_UNAVAILABLE') }}
+  </div>
+  <div
+    v-else
     v-bind="$attrs"
     class="rounded-xl w-full gap-2 p-1.5 bg-n-alpha-white flex flex-col items-center border border-n-container shadow-[0px_2px_8px_0px_rgba(94,94,94,0.06)]"
   >
