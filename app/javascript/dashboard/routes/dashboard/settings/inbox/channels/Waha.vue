@@ -244,6 +244,16 @@ onUnmounted(() => {
           <input v-model="autoReadReceipts" type="checkbox" class="checkbox" />
           {{ $t('INBOX_MGMT.ADD.WAHA_CHANNEL.AUTO_READ_RECEIPTS.LABEL') }}
         </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input
+            v-model="typingSimulationEnabled"
+            type="checkbox"
+            class="checkbox"
+          />
+          {{
+            $t('INBOX_MGMT.ADD.WAHA_CHANNEL.TYPING_SIMULATION_ENABLED.LABEL')
+          }}
+        </label>
       </div>
 
       <div class="mt-2 flex gap-2">

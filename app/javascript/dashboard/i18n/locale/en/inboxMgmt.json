@@ -473,7 +473,7 @@
           "LABEL": "Auto-reconnect when session drops"
         },
         "AUTO_READ_RECEIPTS": {
-          "LABEL": "Auto-mark messages as read"
+          "LABEL": "Mark messages as read when replying"
         },
         "TYPING_SIMULATION_ENABLED": {
           "LABEL": "Simulate typing before sending",
@@ -775,7 +775,7 @@
       },
       "AUTO_READ_RECEIPTS": {
         "LABEL": "Auto read receipts",
-        "HELP": "Automatically mark incoming messages as read."
+        "HELP": "Send a read receipt for the latest incoming message whenever you reply."
       },
       "TYPING_SIMULATION_ENABLED": {
         "LABEL": "Simulate typing before sending",
