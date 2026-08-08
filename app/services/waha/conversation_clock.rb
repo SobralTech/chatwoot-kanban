@@ -1,6 +1,6 @@
 class Waha::ConversationClock
   MAX_BACKLOG = 30_000
-  # Keep adjacent DeliverJobs in separate scheduled-job polling cycles.
+  # Usually places adjacent DeliverJobs in different scheduled-job polling cycles.
   MIN_GAP = 6_000
 
   SCRIPT = <<~LUA.freeze
@@ -16,7 +16,10 @@ class Waha::ConversationClock
     -- Acima do teto, comprime a digitação até o incremento mínimo,
     -- preservando a monotonicidade dos horários.
     local effective = dur
-    if backlog + dur > cap then
+    if backlog > 0 and effective < gap then
+      effective = gap
+    end
+    if backlog + effective > cap then
       effective = math.max(cap - backlog, gap)
     end
 

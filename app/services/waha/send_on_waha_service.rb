@@ -34,14 +34,14 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def reserve_and_queue_delivery
-    humanized = humanize?
-    duration_ms = humanized ? typing_duration_ms : Waha::ConversationClock::MIN_GAP
+    humanized = humanization_enabled?
+    duration_ms = humanized ? typing_duration_ms : 0
     queue_wait_ms, total_wait_ms = conversation_clock.reserve(duration_ms)
     if humanized && queue_wait_ms <= TYPING_PRESENCE_QUEUE_WAIT_LIMIT
       presence_client.public_send(audio_message? ? :recording : :typing, chat_id)
     end
     Waha::DeliverJob.set(wait: total_wait_ms / 1000.0).perform_later(message.id)
-  rescue Redis::BaseError => e
+  rescue Redis::BaseError, ConnectionPool::TimeoutError => e
     Rails.logger.warn "[WAHA] Conversation clock unavailable for message #{message.id}: #{e.message}"
     deliver_message
   end
@@ -52,10 +52,12 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
 
   def pause_presence
     return unless skip_presence
-    return unless humanization_enabled?
+    return unless clock_enabled?
     return if conversation_clock.backlog?
 
     presence_client.paused(chat_id)
+  rescue Redis::BaseError, ConnectionPool::TimeoutError => e
+    Rails.logger.warn "[WAHA] Conversation clock unavailable for message #{message.id}: #{e.message}"
   end
 
   def send_seen
@@ -65,10 +67,6 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     return if source_id.blank?
 
     presence_client.seen(chat_id, message_ids: [source_id])
-  end
-
-  def humanize?
-    humanization_enabled?
   end
 
   def clock_enabled?
