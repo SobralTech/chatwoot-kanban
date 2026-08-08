@@ -29,13 +29,9 @@ defineOptions({
   inheritAttrs: false,
 });
 
-const { hasError, cacheBustParam, scheduleRetry, reset } = useMediaRetry();
+const { hasError, cacheBustedUrl, scheduleRetry, reset } = useMediaRetry();
 
-const timeStampURL = computed(() => {
-  const url = new URL(attachment.dataUrl);
-  url.searchParams.set('t', cacheBustParam.value);
-  return url.toString();
-});
+const timeStampURL = computed(() => cacheBustedUrl(attachment.dataUrl));
 
 watch(() => attachment.id, reset);
 

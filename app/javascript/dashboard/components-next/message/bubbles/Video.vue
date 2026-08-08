@@ -8,11 +8,10 @@ import { useMessageContext } from '../provider.js';
 import GalleryView from 'dashboard/components/widgets/conversation/components/GalleryView.vue';
 import { ATTACHMENT_TYPES } from '../constants';
 
-const emit = defineEmits(['error']);
 const showGallery = ref(false);
 const { filteredCurrentChatAttachments, attachments } = useMessageContext();
 
-const { hasError, cacheBustParam, scheduleRetry, reset } = useMediaRetry();
+const { hasError, cacheBustedUrl, scheduleRetry, reset } = useMediaRetry();
 
 const videoPlayer = useTemplateRef('videoPlayer');
 
@@ -20,23 +19,15 @@ const attachment = computed(() => {
   return attachments.value[0];
 });
 
-watch(
-  () => attachment.value?.id,
-  () => reset()
-);
+watch(() => attachment.value?.id, reset);
 
-const videoUrl = computed(() => {
-  const url = new URL(attachment.value.dataUrl);
-  url.searchParams.set('t', cacheBustParam.value);
-  return url.toString();
-});
+const videoUrl = computed(() => cacheBustedUrl(attachment.value.dataUrl));
 
 const handleError = () => {
   scheduleRetry(async () => {
     await nextTick();
     videoPlayer.value?.load();
   });
-  if (hasError.value) emit('error');
 };
 
 const isReel = computed(() => {

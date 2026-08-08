@@ -17,17 +17,13 @@ const showGallery = ref(false);
 
 const { filteredCurrentChatAttachments } = useMessageContext();
 
-const { hasError, cacheBustParam, scheduleRetry, reset } = useMediaRetry();
+const { hasError, cacheBustedUrl, scheduleRetry, reset } = useMediaRetry();
 
 const videoPlayer = useTemplateRef('videoPlayer');
 
 watch(() => attachment.id, reset);
 
-const videoUrl = computed(() => {
-  const url = new URL(attachment.dataUrl);
-  url.searchParams.set('t', cacheBustParam.value);
-  return url.toString();
-});
+const videoUrl = computed(() => cacheBustedUrl(attachment.dataUrl));
 
 const handleError = () => {
   scheduleRetry(async () => {

@@ -47,7 +47,13 @@ export const useMediaRetry = (config = {}) => {
     }, delay);
   };
 
+  const cacheBustedUrl = dataUrl => {
+    const url = new URL(dataUrl);
+    url.searchParams.set('t', cacheBustParam.value);
+    return url.toString();
+  };
+
   onBeforeUnmount(clearTimer);
 
-  return { hasError, cacheBustParam, scheduleRetry, reset };
+  return { hasError, cacheBustParam, cacheBustedUrl, scheduleRetry, reset };
 };
