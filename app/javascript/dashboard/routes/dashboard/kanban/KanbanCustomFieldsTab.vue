@@ -232,7 +232,7 @@ onMounted(fetchFields);
               data-testid="kanban-custom-field-key"
               type="text"
               :placeholder="t('KANBAN.CUSTOM_FIELDS.KEY_PLACEHOLDER')"
-              class="min-w-40 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+              class="min-w-40 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none !mb-0 placeholder:text-n-slate-10 focus:border-n-brand"
               @input="onKeyInput(row)"
               @blur="onKeyBlur(row)"
             />

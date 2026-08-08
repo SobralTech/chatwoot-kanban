@@ -1244,6 +1244,7 @@ onMounted(async () => {
       <section
         v-show="activeTabKey === 'custom_fields'"
         data-testid="kanban-board-form-custom-fields-tab"
+        class="mx-auto grid w-full max-w-2xl gap-6 p-6"
       >
         <KanbanCustomFieldsTab v-if="boardId" :board-id="boardId" />
       </section>
