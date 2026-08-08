@@ -42,7 +42,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     end
     Waha::DeliverJob.set(wait: total_wait_ms / 1000.0).perform_later(message.id)
   rescue Redis::BaseError, ConnectionPool::TimeoutError => e
-    Rails.logger.warn "[WAHA] Conversation clock unavailable for message #{message.id}: #{e.message}"
+    warn_clock_unavailable(e)
     deliver_message
   end
 
@@ -51,13 +51,16 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def pause_presence
-    return unless skip_presence
     return unless clock_enabled?
     return if conversation_clock.backlog?
 
     presence_client.paused(chat_id)
   rescue Redis::BaseError, ConnectionPool::TimeoutError => e
-    Rails.logger.warn "[WAHA] Conversation clock unavailable for message #{message.id}: #{e.message}"
+    warn_clock_unavailable(e)
+  end
+
+  def warn_clock_unavailable(error)
+    Rails.logger.warn "[WAHA] Conversation clock unavailable for message #{message.id}: #{error.message}"
   end
 
   def send_seen
