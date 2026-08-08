@@ -18,8 +18,10 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     if skip_presence
       pause_presence
       deliver_message
-    else
+    elsif clock_enabled?
       reserve_and_queue_delivery
+    else
+      deliver_message
     end
   rescue StandardError => e
     Rails.logger.error "[WAHA] Send failed for message #{message.id}: #{e.message}"
@@ -33,12 +35,15 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
 
   def reserve_and_queue_delivery
     humanized = humanize?
-    duration_ms = humanized ? typing_duration_ms : 0
+    duration_ms = humanized ? typing_duration_ms : Waha::ConversationClock::MIN_GAP
     queue_wait_ms, total_wait_ms = conversation_clock.reserve(duration_ms)
     if humanized && queue_wait_ms <= TYPING_PRESENCE_QUEUE_WAIT_LIMIT
       presence_client.public_send(audio_message? ? :recording : :typing, chat_id)
     end
     Waha::DeliverJob.set(wait: total_wait_ms / 1000.0).perform_later(message.id)
+  rescue Redis::BaseError => e
+    Rails.logger.warn "[WAHA] Conversation clock unavailable for message #{message.id}: #{e.message}"
+    deliver_message
   end
 
   def typing_duration_ms
@@ -63,13 +68,15 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def humanize?
-    return false if skip_presence
-
     humanization_enabled?
   end
 
+  def clock_enabled?
+    channel.typing_simulation_enabled? && !presence_excluded?
+  end
+
   def humanization_enabled?
-    return false unless channel.typing_simulation_enabled? && !presence_excluded?
+    return false unless clock_enabled?
 
     text_message? || audio_message?
   end

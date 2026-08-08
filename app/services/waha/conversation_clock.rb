@@ -1,6 +1,7 @@
 class Waha::ConversationClock
   MAX_BACKLOG = 30_000
-  MIN_GAP = 1_000
+  # Keep adjacent DeliverJobs in separate scheduled-job polling cycles.
+  MIN_GAP = 6_000
 
   SCRIPT = <<~LUA.freeze
     -- KEYS[1] = waha:typing_clock:<conversation_id>
