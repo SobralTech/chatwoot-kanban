@@ -484,7 +484,11 @@
           "LABEL": "Reconectar automaticamente quando a sessão cair"
         },
         "AUTO_READ_RECEIPTS": {
-          "LABEL": "Marcar mensagens como lidas automaticamente"
+          "LABEL": "Marcar mensagens como lidas ao responder"
+        },
+        "TYPING_SIMULATION_ENABLED": {
+          "LABEL": "Simular digitação antes de enviar",
+          "HELP": "Exibe o status de digitando ou gravando e aguarda um tempo proporcional antes de enviar as mensagens."
         },
         "WEBHOOK_URL": {
           "LABEL": "URL do Webhook",
@@ -770,7 +774,11 @@
       },
       "AUTO_READ_RECEIPTS": {
         "LABEL": "Confirmação de leitura automática",
-        "HELP": "Marca mensagens recebidas como lidas automaticamente."
+        "HELP": "Envia a confirmação de leitura da última mensagem recebida sempre que você responder."
+      },
+      "TYPING_SIMULATION_ENABLED": {
+        "LABEL": "Simular digitação antes de enviar",
+        "HELP": "Exibe o status de digitando ou gravando e aguarda um tempo proporcional antes de enviar as mensagens."
       }
     },
     "VOICE_CONFIGURATION": {
