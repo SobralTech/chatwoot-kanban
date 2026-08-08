@@ -18,6 +18,11 @@ end
 Sidekiq.configure_server do |config|
   config.redis = Redis::Config.app
 
+  # The default of 5s makes every `set(wait:)` job fire up to 5s late, which is
+  # too coarse for short delays (e.g. WAHA's typing simulation). Polling once a
+  # second costs one extra ZRANGEBYSCORE per process per second.
+  config[:average_scheduled_poll_interval] = ENV.fetch('SIDEKIQ_SCHEDULED_POLL_INTERVAL', 1).to_i
+
   if ActiveModel::Type::Boolean.new.cast(ENV.fetch('ENABLE_SIDEKIQ_DEQUEUE_LOGGER', false))
     config.server_middleware do |chain|
       chain.add ChatwootDequeuedLogger

@@ -1,7 +1,9 @@
 class Waha::ConversationClock
   MAX_BACKLOG = 30_000
   # Usually places adjacent DeliverJobs in different scheduled-job polling cycles.
-  MIN_GAP = 6_000
+  # Kept just above Sidekiq's average_scheduled_poll_interval (set to 1s) so the
+  # gap stays short enough to keep bursts feeling natural.
+  MIN_GAP = 2_000
 
   SCRIPT = <<~LUA.freeze
     -- KEYS[1] = waha:typing_clock:<conversation_id>
