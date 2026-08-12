@@ -13,7 +13,7 @@ import NextButton from 'dashboard/components-next/button/Button.vue';
 import SettingsToggleSection from 'dashboard/components-next/Settings/SettingsToggleSection.vue';
 import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
-import TagInput from 'dashboard/components-next/taginput/TagInput.vue';
+import AgentTagInput from 'dashboard/components-next/taginput/AgentTagInput.vue';
 import assignmentPoliciesAPI from 'dashboard/api/assignmentPolicies';
 import { useI18n } from 'vue-i18n';
 
@@ -42,35 +42,6 @@ const availablePolicies = ref([]);
 const isLoadingPolicies = ref(false);
 const showPolicyDropdown = ref(false);
 const isLinkingPolicy = ref(false);
-
-const agentList = computed(() => store.getters['agents/getAgents']);
-
-const selectedAgentNames = computed(() =>
-  selectedAgentIds.value.map(
-    id => agentList.value.find(a => a.id === id)?.name ?? ''
-  )
-);
-
-const agentMenuItems = computed(() =>
-  agentList.value
-    .filter(({ id }) => !selectedAgentIds.value.includes(id))
-    .map(({ id, name, thumbnail, avatar_url }) => ({
-      label: name,
-      value: id,
-      action: 'select',
-      thumbnail: { name, src: thumbnail || avatar_url || '' },
-    }))
-);
-
-const handleAgentAdd = ({ value }) => {
-  if (!selectedAgentIds.value.includes(value)) {
-    selectedAgentIds.value.push(value);
-  }
-};
-
-const handleAgentRemove = index => {
-  selectedAgentIds.value.splice(index, 1);
-};
 
 const isFeatureEnabled = feature => {
   const accountId = Number(route.params.accountId);
@@ -367,20 +338,11 @@ onMounted(() => {
       :help-text="$t('INBOX_MGMT.SETTINGS_POPUP.INBOX_AGENTS_SUB_TEXT')"
       class="[&>div]:!items-start"
     >
-      <div
-        class="rounded-xl outline outline-1 -outline-offset-1 outline-n-weak hover:outline-n-strong px-2 py-2"
-      >
-        <TagInput
-          :model-value="selectedAgentNames"
-          :placeholder="$t('INBOX_MGMT.ADD.AGENTS.PICK_AGENTS')"
-          :menu-items="agentMenuItems"
-          show-dropdown
-          skip-label-dedup
-          :auto-open-dropdown="false"
-          @add="handleAgentAdd"
-          @remove="handleAgentRemove"
-        />
-      </div>
+      <AgentTagInput
+        v-model="selectedAgentIds"
+        :placeholder="$t('INBOX_MGMT.ADD.AGENTS.PICK_AGENTS')"
+        :auto-open-dropdown="false"
+      />
 
       <template #extra>
         <div class="grid grid-cols-1 lg:grid-cols-8">

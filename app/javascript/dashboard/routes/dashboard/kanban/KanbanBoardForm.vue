@@ -13,7 +13,7 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
-import TagInput from 'dashboard/components-next/taginput/TagInput.vue';
+import AgentTagInput from 'dashboard/components-next/taginput/AgentTagInput.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import {
   DEFAULT_KANBAN_STAGE_COLOR,
@@ -30,7 +30,6 @@ const route = useRoute();
 const router = useRouter();
 const store = useStore();
 
-const agents = useMapGetter('agents/getAgents');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
 const { isAdmin } = useAdmin();
 
@@ -41,6 +40,7 @@ const isActivating = ref(false);
 const isTogglingActive = ref(false);
 const isDiscarding = ref(false);
 const isSavingSettings = ref(false);
+let hasPendingSettingsSave = false;
 const isSavingAutomation = ref(false);
 const isDeleting = ref(false);
 const isCreatingStage = ref(false);
@@ -140,28 +140,6 @@ const inboxOptions = computed(() =>
     value: inbox.id,
     label: inbox.name,
   }))
-);
-
-const agentLabel = agent => agent?.name || agent?.email || '';
-
-const selectedAgentNames = computed(() =>
-  form.visibleUserIds.map(id =>
-    agentLabel(agents.value.find(agent => agent.id === id))
-  )
-);
-
-const agentMenuItems = computed(() =>
-  agents.value
-    .filter(agent => !form.visibleUserIds.includes(agent.id))
-    .map(agent => ({
-      label: agentLabel(agent),
-      value: agent.id,
-      action: 'select',
-      thumbnail: {
-        name: agentLabel(agent),
-        src: agent.thumbnail || agent.avatar_url || '',
-      },
-    }))
 );
 
 const getErrorMessage = (error, fallbackMessage) =>
@@ -274,7 +252,14 @@ const buildSettingsPayload = () => ({
 });
 
 const persistSettings = async () => {
-  if (!form.name.trim() || isSavingSettings.value || !isAdmin.value) return;
+  if (!form.name.trim() || !isAdmin.value) return;
+
+  // A change made while a save is in flight is coalesced into a follow-up save
+  // instead of being dropped, so the last edit always reaches the server.
+  if (isSavingSettings.value) {
+    hasPendingSettingsSave = true;
+    return;
+  }
 
   isSavingSettings.value = true;
 
@@ -283,13 +268,21 @@ const persistSettings = async () => {
       boardId.value,
       buildSettingsPayload()
     );
-    applySettings(response.data);
-    await refreshBoard();
-    await store.dispatch('kanbanBoards/refreshBoards');
+    // Skip syncing from a response a newer local change has already superseded.
+    if (!hasPendingSettingsSave) {
+      applySettings(response.data);
+      await refreshBoard();
+      await store.dispatch('kanbanBoards/refreshBoards');
+    }
   } catch (error) {
     useAlert(getErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR')));
   } finally {
     isSavingSettings.value = false;
+  }
+
+  if (hasPendingSettingsSave) {
+    hasPendingSettingsSave = false;
+    await persistSettings();
   }
 };
 
@@ -303,21 +296,9 @@ const onAllowedInboxIdsChange = value => {
   persistSettings();
 };
 
-const setVisibilityFromSelection = () => {
-  form.visibilityMode = form.visibleUserIds.length
-    ? 'selected_agents'
-    : 'all_agents';
-};
-
-const handleAgentAdd = ({ value }) => {
-  form.visibleUserIds = [...form.visibleUserIds, value];
-  setVisibilityFromSelection();
-  persistSettings();
-};
-
-const handleAgentRemove = index => {
-  form.visibleUserIds = form.visibleUserIds.filter((_, idx) => idx !== index);
-  setVisibilityFromSelection();
+const onVisibleUserIdsChange = userIds => {
+  form.visibleUserIds = userIds;
+  form.visibilityMode = userIds.length ? 'selected_agents' : 'all_agents';
   persistSettings();
 };
 
@@ -831,23 +812,15 @@ onMounted(async () => {
             <h2 class="text-base font-medium text-n-slate-12">
               {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.AGENTS_TITLE') }}
             </h2>
-            <div
-              class="rounded-xl outline outline-1 -outline-offset-1 outline-n-weak hover:outline-n-strong px-2 py-2"
-            >
-              <TagInput
-                :model-value="selectedAgentNames"
-                data-testid="kanban-board-form-agent-picker"
-                :placeholder="
-                  t('KANBAN.BOARD_EDIT.STAGES_TAB.AGENTS_SEARCH_PLACEHOLDER')
-                "
-                :menu-items="agentMenuItems"
-                show-dropdown
-                skip-label-dedup
-                :auto-open-dropdown="false"
-                @add="handleAgentAdd"
-                @remove="handleAgentRemove"
-              />
-            </div>
+            <AgentTagInput
+              :model-value="form.visibleUserIds"
+              data-testid="kanban-board-form-agent-picker"
+              :placeholder="
+                t('KANBAN.BOARD_EDIT.STAGES_TAB.AGENTS_SEARCH_PLACEHOLDER')
+              "
+              :auto-open-dropdown="false"
+              @update:model-value="onVisibleUserIdsChange"
+            />
           </div>
 
           <div class="grid gap-3 border-t border-n-weak pt-4">
