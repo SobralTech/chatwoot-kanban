@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_07_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_12_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -18,6 +18,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_110000) do
   enable_extension "plpgsql"
   enable_extension "unaccent"
   enable_extension "vector"
+
+  execute <<~'SQL'
+    CREATE OR REPLACE FUNCTION public.immutable_unaccent(text)
+     RETURNS text
+     LANGUAGE sql
+     IMMUTABLE PARALLEL SAFE STRICT
+    AS $function$ SELECT unaccent('unaccent', $1) $function$
+  SQL
 
   create_table "access_tokens", force: :cascade do |t|
     t.string "owner_type"
@@ -692,7 +700,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_110000) do
     t.string "country_code", default: ""
     t.boolean "blocked", default: false, null: false
     t.bigint "company_id"
+    t.index "immutable_unaccent(lower((name)::text)) gin_trgm_ops", name: "index_contacts_on_name_trgm", using: :gin
+    t.index "lower((email)::text) gin_trgm_ops", name: "index_contacts_on_email_trgm", using: :gin
     t.index "lower((email)::text), account_id", name: "index_contacts_on_lower_email_account_id"
+    t.index "regexp_replace((phone_number)::text, '\\D'::text, ''::text, 'g'::text) gin_trgm_ops", name: "index_contacts_on_phone_digits_trgm", using: :gin
     t.index ["account_id", "contact_type"], name: "index_contacts_on_account_id_and_contact_type"
     t.index ["account_id", "email", "phone_number", "identifier"], name: "index_contacts_on_nonempty_fields", where: "(((email)::text <> ''::text) OR ((phone_number)::text <> ''::text) OR ((identifier)::text <> ''::text))"
     t.index ["account_id", "last_activity_at"], name: "index_contacts_on_account_id_and_last_activity_at", order: { last_activity_at: "DESC NULLS LAST" }
@@ -1154,6 +1165,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_07_110000) do
     t.bigint "kanban_reason_id"
     t.bigint "previous_stage_id"
     t.bigint "recreated_from_card_id"
+    t.index "immutable_unaccent(lower((subject)::text)) gin_trgm_ops", name: "index_kanban_cards_on_subject_trgm", where: "(active = true)", using: :gin
     t.index ["account_id", "active"], name: "index_kanban_cards_on_account_id_and_active"
     t.index ["account_id", "contact_id"], name: "index_kanban_cards_on_account_id_and_contact_id"
     t.index ["account_id", "inbox_id"], name: "index_kanban_cards_on_account_id_and_inbox_id"
