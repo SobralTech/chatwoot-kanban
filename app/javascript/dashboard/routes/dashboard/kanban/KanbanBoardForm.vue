@@ -318,14 +318,6 @@ const handleAgentRemove = index => {
   persistSettings();
 };
 
-const clearAgentSelection = () => {
-  if (!form.visibleUserIds.length) return;
-
-  form.visibleUserIds = [];
-  setVisibilityFromSelection();
-  persistSettings();
-};
-
 const onWonStageChange = value => {
   const nextStageId = value ? Number(value) : null;
   if (nextStageId && nextStageId === form.lostStageId) {
@@ -853,17 +845,6 @@ onMounted(async () => {
                 @remove="handleAgentRemove"
               />
             </div>
-            <Button
-              v-if="form.visibleUserIds.length"
-              type="button"
-              data-testid="kanban-board-form-clear-agents"
-              variant="link"
-              color="slate"
-              size="sm"
-              class="w-fit"
-              :label="t('KANBAN.BOARD_EDIT.STAGES_TAB.CLEAR_SELECTION')"
-              @click="clearAgentSelection"
-            />
           </div>
 
           <div class="grid gap-3 border-t border-n-weak pt-4">
