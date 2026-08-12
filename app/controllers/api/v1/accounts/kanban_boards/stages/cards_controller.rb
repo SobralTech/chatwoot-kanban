@@ -13,7 +13,8 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       limit: @limit,
       cursor: params[:cursor],
       filtered_inbox_ids: sanitized_inbox_filter_ids,
-      filtered_assignee_ids: sanitized_assignee_filter_ids
+      filtered_assignee_ids: sanitized_assignee_filter_ids,
+      search_query: sanitized_search_query
     ).call
   rescue KanbanCards::VisibleStageCardsQuery::RefreshRequiredError
     render json: { error: 'refresh_required' }, status: :conflict
@@ -64,6 +65,13 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
         validate_account_user_ids!(assignee_ids)
         assignee_ids
       end
+  end
+
+  def sanitized_search_query
+    return @sanitized_search_query if defined?(@sanitized_search_query)
+
+    query = params[:q].to_s.strip.gsub(/\s+/, ' ').first(100)
+    @sanitized_search_query = query.length >= 2 ? query : nil
   end
 
   def validate_account_inbox_ids!(inbox_ids)

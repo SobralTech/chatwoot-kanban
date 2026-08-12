@@ -109,6 +109,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
         limit: @stage_card_limit,
         filtered_inbox_ids: sanitized_inbox_filter_ids,
         filtered_assignee_ids: sanitized_assignee_filter_ids,
+        search_query: sanitized_search_query,
         visible_inbox_ids: board_list_inbox_ids,
         visible_team_ids: board_list_team_ids,
         account_user: Current.account_user
@@ -148,6 +149,13 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def normalized_assignee_filter_ids
     Array(params[:assignee_ids]).filter_map(&:presence).map(&:to_i).uniq
+  end
+
+  def sanitized_search_query
+    return @sanitized_search_query if defined?(@sanitized_search_query)
+
+    query = params[:q].to_s.strip.gsub(/\s+/, ' ').first(100)
+    @sanitized_search_query = query.length >= 2 ? query : nil
   end
 
   def validate_account_inbox_ids!(inbox_ids)

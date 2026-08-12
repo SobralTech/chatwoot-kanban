@@ -12,6 +12,7 @@ json.stages do
     json.partial! 'api/v1/accounts/kanban_boards/stage', formats: [:json], kanban_stage: kanban_stage
 
     stage_card_result = @stage_card_results.fetch(kanban_stage)
+    json.total_value stage_card_result.total_value
     json.cards do
       json.array! stage_card_result.cards do |card|
         json.partial!(
