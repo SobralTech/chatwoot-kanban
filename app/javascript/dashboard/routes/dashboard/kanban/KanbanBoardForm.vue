@@ -13,6 +13,7 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
+import TagInput from 'dashboard/components-next/taginput/TagInput.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import {
   DEFAULT_KANBAN_STAGE_COLOR,
@@ -67,7 +68,6 @@ const editStageColor = ref(DEFAULT_KANBAN_STAGE_COLOR);
 const stagePendingRemoval = ref(null);
 const ignoreGroupsForImport = ref(false);
 
-const agentSearchQuery = ref('');
 const activeTabIndex = ref(0);
 
 const form = reactive({
@@ -142,23 +142,21 @@ const inboxOptions = computed(() =>
   }))
 );
 
-const filteredAgentResults = computed(() => {
-  const query = agentSearchQuery.value.trim().toLowerCase();
+const selectedAgentNames = computed(() =>
+  form.visibleUserIds.map(
+    id => agents.value.find(agent => agent.id === id)?.name ?? ''
+  )
+);
 
-  return agents.value.filter(agent => {
-    if (form.visibleUserIds.includes(agent.id)) return false;
-    if (!query) return true;
-
-    const name = (agent.name || '').toLowerCase();
-    const email = (agent.email || '').toLowerCase();
-    return name.includes(query) || email.includes(query);
-  });
-});
-
-const selectedAgents = computed(() =>
-  form.visibleUserIds
-    .map(id => agents.value.find(agent => agent.id === id))
-    .filter(Boolean)
+const agentMenuItems = computed(() =>
+  agents.value
+    .filter(agent => !form.visibleUserIds.includes(agent.id))
+    .map(({ id, name, email, thumbnail, avatar_url }) => ({
+      label: name || email,
+      value: id,
+      action: 'select',
+      thumbnail: { name: name || email, src: thumbnail || avatar_url || '' },
+    }))
 );
 
 const getErrorMessage = (error, fallbackMessage) =>
@@ -306,16 +304,16 @@ const setVisibilityFromSelection = () => {
     : 'all_agents';
 };
 
-const addAgent = agent => {
-  if (form.visibleUserIds.includes(agent.id)) return;
+const handleAgentAdd = ({ value }) => {
+  if (form.visibleUserIds.includes(value)) return;
 
-  form.visibleUserIds = [...form.visibleUserIds, agent.id];
+  form.visibleUserIds = [...form.visibleUserIds, value];
   setVisibilityFromSelection();
   persistSettings();
 };
 
-const removeAgent = agent => {
-  form.visibleUserIds = form.visibleUserIds.filter(id => id !== agent.id);
+const handleAgentRemove = index => {
+  form.visibleUserIds = form.visibleUserIds.filter((_, idx) => idx !== index);
   setVisibilityFromSelection();
   persistSettings();
 };
@@ -838,63 +836,25 @@ onMounted(async () => {
             <h2 class="text-base font-medium text-n-slate-12">
               {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.AGENTS_TITLE') }}
             </h2>
-            <input
-              v-model="agentSearchQuery"
-              data-testid="kanban-board-form-agent-search"
-              type="text"
-              class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-              :placeholder="
-                t('KANBAN.BOARD_EDIT.STAGES_TAB.AGENTS_SEARCH_PLACEHOLDER')
-              "
-            />
             <div
-              v-if="filteredAgentResults.length"
-              class="grid max-h-40 gap-1 overflow-y-auto rounded-md border border-n-weak bg-n-surface-2 p-1"
+              class="rounded-xl outline outline-1 -outline-offset-1 outline-n-weak hover:outline-n-strong px-2 py-2"
             >
-              <button
-                v-for="agent in filteredAgentResults"
-                :key="agent.id"
-                type="button"
-                data-testid="kanban-board-form-agent-option"
-                class="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
-                @click="addAgent(agent)"
-              >
-                <span class="min-w-0 truncate">{{
-                  agent.name || agent.email
-                }}</span>
-                <i class="i-lucide-plus size-4 flex-none text-n-slate-10" />
-              </button>
-            </div>
-            <p v-else class="text-sm text-n-slate-11">
-              {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.AGENTS_EMPTY') }}
-            </p>
-
-            <div
-              v-if="selectedAgents.length"
-              data-testid="kanban-board-form-selected-agents"
-              class="flex flex-wrap gap-2"
-            >
-              <span
-                v-for="agent in selectedAgents"
-                :key="agent.id"
-                class="inline-flex items-center gap-2 rounded-full border border-n-weak bg-n-alpha-1 px-3 py-1 text-xs font-medium text-n-slate-11"
-              >
-                {{ agent.name || agent.email }}
-                <button
-                  type="button"
-                  :aria-label="
-                    t('KANBAN.BOARD_EDIT.STAGES_TAB.REMOVE_AGENT', {
-                      name: agent.name || agent.email,
-                    })
-                  "
-                  @click="removeAgent(agent)"
-                >
-                  <i class="i-lucide-x size-3" />
-                </button>
-              </span>
+              <TagInput
+                :model-value="selectedAgentNames"
+                data-testid="kanban-board-form-agent-search"
+                :placeholder="
+                  t('KANBAN.BOARD_EDIT.STAGES_TAB.AGENTS_SEARCH_PLACEHOLDER')
+                "
+                :menu-items="agentMenuItems"
+                show-dropdown
+                skip-label-dedup
+                :auto-open-dropdown="false"
+                @add="handleAgentAdd"
+                @remove="handleAgentRemove"
+              />
             </div>
             <Button
-              v-if="selectedAgents.length"
+              v-if="form.visibleUserIds.length"
               type="button"
               data-testid="kanban-board-form-clear-agents"
               variant="link"
