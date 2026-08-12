@@ -10,6 +10,14 @@
     "EMPTY_CARDS": "No cards in this stage.",
     "NO_BOARD_SELECTED": "Select a board",
     "ERROR": "Could not load kanban data.",
+    "SEARCH": {
+      "OPEN": "Search cards",
+      "PLACEHOLDER": "Search by subject, contact, phone or email",
+      "CLEAR": "Clear search",
+      "CLOSE": "Close search",
+      "NO_RESULTS": "No cards found for \"%{term}\"",
+      "NO_RESULTS_DESCRIPTION": "Try a different term or clear the search to see all cards."
+    },
     "OVERVIEW": {
       "TITLE": "Funnels",
       "DESCRIPTION": "Organize your conversations into manual workflows.",
@@ -124,7 +132,7 @@
       "REORDER_STAGE_ERROR": "Could not reorder the kanban stage.",
       "REORDER_CARD_SUCCESS": "Card reordered.",
       "REORDER_CARD_ERROR": "Could not reorder the card.",
-      "REORDER_DISABLED_FILTERED": "Clear the inbox/agent filters to reorder cards.",
+      "REORDER_DISABLED_FILTERED": "Clear the inbox/agent/search filters to reorder cards.",
       "STAGE_ORDER_INVALID": "Won and lost stages must remain at the end of the board.",
       "REMOVE_STAGE_SUCCESS": "Kanban stage removed.",
       "REMOVE_STAGE_ERROR": "Could not remove the kanban stage.",

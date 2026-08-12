@@ -10,6 +10,14 @@
     "EMPTY_CARDS": "Não há cartões nesta etapa.",
     "NO_BOARD_SELECTED": "Selecione um quadro",
     "ERROR": "Não foi possível carregar os dados do kanban.",
+    "SEARCH": {
+      "OPEN": "Buscar cards",
+      "PLACEHOLDER": "Buscar por assunto, contato, telefone ou e-mail",
+      "CLEAR": "Limpar busca",
+      "CLOSE": "Fechar busca",
+      "NO_RESULTS": "Nenhum card encontrado para \"%{term}\"",
+      "NO_RESULTS_DESCRIPTION": "Tente outro termo ou limpe a busca para ver todos os cards."
+    },
     "OVERVIEW": {
       "TITLE": "Funis",
       "DESCRIPTION": "Organize suas conversas em fluxos de trabalho manuais.",
@@ -125,6 +133,7 @@
       "REORDER_STAGE_ERROR": "Não foi possível reordenar a etapa do kanban.",
       "REORDER_CARD_SUCCESS": "Cartão reordenado.",
       "REORDER_CARD_ERROR": "Não foi possível reordenar o cartão.",
+      "REORDER_DISABLED_FILTERED": "Limpe os filtros de caixa de entrada, agente ou busca para reordenar os cards.",
       "STAGE_ORDER_INVALID": "Os estágios de Ganho e Perdido devem permanecer no final do quadro.",
       "REMOVE_STAGE_SUCCESS": "Etapa do kanban removida.",
       "REMOVE_STAGE_ERROR": "Não foi possível remover a etapa do kanban.",
