@@ -142,20 +142,25 @@ const inboxOptions = computed(() =>
   }))
 );
 
+const agentLabel = agent => agent?.name || agent?.email || '';
+
 const selectedAgentNames = computed(() =>
-  form.visibleUserIds.map(
-    id => agents.value.find(agent => agent.id === id)?.name ?? ''
+  form.visibleUserIds.map(id =>
+    agentLabel(agents.value.find(agent => agent.id === id))
   )
 );
 
 const agentMenuItems = computed(() =>
   agents.value
     .filter(agent => !form.visibleUserIds.includes(agent.id))
-    .map(({ id, name, email, thumbnail, avatar_url }) => ({
-      label: name || email,
-      value: id,
+    .map(agent => ({
+      label: agentLabel(agent),
+      value: agent.id,
       action: 'select',
-      thumbnail: { name: name || email, src: thumbnail || avatar_url || '' },
+      thumbnail: {
+        name: agentLabel(agent),
+        src: agent.thumbnail || agent.avatar_url || '',
+      },
     }))
 );
 
@@ -305,8 +310,6 @@ const setVisibilityFromSelection = () => {
 };
 
 const handleAgentAdd = ({ value }) => {
-  if (form.visibleUserIds.includes(value)) return;
-
   form.visibleUserIds = [...form.visibleUserIds, value];
   setVisibilityFromSelection();
   persistSettings();
@@ -833,7 +836,7 @@ onMounted(async () => {
             >
               <TagInput
                 :model-value="selectedAgentNames"
-                data-testid="kanban-board-form-agent-search"
+                data-testid="kanban-board-form-agent-picker"
                 :placeholder="
                   t('KANBAN.BOARD_EDIT.STAGES_TAB.AGENTS_SEARCH_PLACEHOLDER')
                 "

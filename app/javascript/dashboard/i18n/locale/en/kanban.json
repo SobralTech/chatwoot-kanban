@@ -49,7 +49,7 @@
         "NAME": "Name",
         "DESCRIPTION": "Description",
         "AGENTS_TITLE": "Funnel agents",
-        "AGENTS_SEARCH_PLACEHOLDER": "Search agents by name or email",
+        "AGENTS_SEARCH_PLACEHOLDER": "Search agents",
         "INBOXES_TITLE": "Inboxes",
         "STAGES_PANEL_TITLE": "Funnel stages",
         "WON_STAGE": "Won stage",
