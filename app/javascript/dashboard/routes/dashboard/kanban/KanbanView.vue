@@ -16,6 +16,8 @@ import {
 } from 'dashboard/helper/kanbanCardStatus';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import Icon from 'dashboard/components-next/icon/Icon.vue';
+import Input from 'dashboard/components-next/input/Input.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { frontendURL, kanbanConversationUrl } from 'dashboard/helper/URLHelper';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
@@ -80,10 +82,8 @@ const defaultStageColor = DEFAULT_KANBAN_STAGE_COLOR;
 const newStageColor = ref(defaultStageColor);
 const boardScrollContainer = ref(null);
 const pendingScrollToStageId = ref(null);
-const isSearchOpen = ref(false);
 const searchInput = ref('');
 const activeSearchTerm = ref('');
-const searchInputRef = ref(null);
 let searchDebounceTimer = null;
 let searchRequestToken = 0;
 const preSearchScrollLeft = ref(null);
@@ -193,7 +193,7 @@ const hasActiveFilters = computed(
     activeSearchTerm.value.length >= 2
 );
 const isSearchLoading = computed(
-  () => isFetchingBoard.value && isSearchOpen.value
+  () => isFetchingBoard.value && searchInput.value !== ''
 );
 const isCardDragDisabled = computed(
   () =>
@@ -655,7 +655,6 @@ const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   selectedAssigneeIds.value = snapshot.filters?.assigneeIds || [];
   searchInput.value = snapshot.filters?.searchTerm || '';
   activeSearchTerm.value = snapshot.filters?.searchTerm || '';
-  isSearchOpen.value = activeSearchTerm.value !== '';
 
   if (generation !== requestGeneration) return;
   await showBoard(boardId, generation);
@@ -735,23 +734,13 @@ const runSearch = async () => {
   else if (generation === requestGeneration) restorePreSearchScroll();
 };
 
-const openSearch = () => {
-  isSearchOpen.value = true;
-  nextTick(() => searchInputRef.value?.focus());
-};
 const clearSearch = () => {
   searchInput.value = '';
-  nextTick(() => searchInputRef.value?.focus());
-};
-const closeSearch = () => {
-  if (searchInput.value !== '') return;
-  isSearchOpen.value = false;
 };
 const onSearchKeydown = event => {
-  if (event.key !== 'Escape') return;
+  if (event.key !== 'Escape' || searchInput.value === '') return;
   event.preventDefault();
-  if (searchInput.value !== '') clearSearch();
-  else closeSearch();
+  clearSearch();
 };
 const searchResultCount = computed(() =>
   stages.value.reduce((total, stage) => total + (stage.cardsCount || 0), 0)
@@ -1426,7 +1415,6 @@ watch(activeBoardId, (boardId, previousBoardId) => {
     clearTimeout(searchDebounceTimer);
     searchInput.value = '';
     activeSearchTerm.value = '';
-    isSearchOpen.value = false;
     preSearchScrollLeft.value = null;
   }
 
@@ -1457,9 +1445,9 @@ watch(searchInput, () => {
   <main class="flex h-full min-h-0 w-full bg-n-surface-1 text-n-slate-12">
     <section class="flex min-w-0 flex-1 flex-col">
       <header
-        class="flex min-h-16 flex-nowrap items-center justify-between gap-4 overflow-hidden border-b border-n-weak px-6 py-3"
+        class="flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-n-weak px-6 py-3"
       >
-        <div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+        <div class="flex min-w-0 flex-1 items-center gap-1">
           <OnClickOutside @trigger="closeBoardDropdown">
             <div class="relative inline-flex min-w-0 max-w-full flex-col">
               <button
@@ -1509,70 +1497,30 @@ watch(searchInput, () => {
               </div>
             </div>
           </OnClickOutside>
-          <OnClickOutside
+          <div
             v-if="selectedBoard"
-            class="flex min-w-0 flex-shrink-0 items-center"
-            @trigger="closeSearch"
+            class="w-64 max-w-full flex-none ltr:ml-2 rtl:mr-2"
           >
-            <button
-              v-if="!isSearchOpen"
-              type="button"
-              class="flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
-              :aria-label="t('KANBAN.SEARCH.OPEN')"
-              :title="t('KANBAN.SEARCH.OPEN')"
-              @click="openSearch"
+            <Input
+              v-model="searchInput"
+              type="search"
+              size="sm"
+              class="group min-w-0 [&>input]:!rounded-[0.625rem] [&>input]:ltr:!pl-8 [&>input]:rtl:!pr-8"
+              :placeholder="t('KANBAN.SEARCH.PLACEHOLDER')"
+              data-testid="kanban-search-input"
+              @keydown="onSearchKeydown"
             >
-              <i class="i-lucide-search size-4" />
-            </button>
-            <Transition
-              enter-active-class="overflow-hidden transition-[width,opacity] duration-200 ease-out"
-              enter-from-class="w-0 opacity-0"
-              enter-to-class="w-72 opacity-100"
-              leave-active-class="overflow-hidden transition-[width,opacity] duration-150 ease-in"
-              leave-from-class="w-72 opacity-100"
-              leave-to-class="w-0 opacity-0"
-            >
-              <div
-                v-if="isSearchOpen"
-                class="flex h-8 w-72 max-w-[calc(100vw-2rem)] min-w-0 flex-shrink-0 items-center overflow-hidden rounded-md border border-n-weak bg-n-surface-1 transition-colors focus-within:border-n-brand"
-              >
-                <i
-                  v-if="!isSearchLoading"
-                  class="i-lucide-search ml-2 size-4 flex-shrink-0 text-n-slate-11"
-                />
-                <i
-                  v-else
-                  class="i-lucide-loader-2 ml-2 size-4 flex-shrink-0 animate-spin text-n-slate-11"
-                />
-                <input
-                  ref="searchInputRef"
-                  v-model="searchInput"
-                  type="text"
-                  class="h-full min-w-0 flex-1 bg-transparent px-2 text-sm leading-8 text-n-slate-12 outline-none"
-                  :placeholder="t('KANBAN.SEARCH.PLACEHOLDER')"
-                  :aria-label="t('KANBAN.SEARCH.PLACEHOLDER')"
-                  @keydown="onSearchKeydown"
-                />
-                <button
-                  type="button"
-                  class="mr-1 flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 transition-colors hover:bg-n-alpha-2 hover:text-n-slate-12 focus:outline-none focus:ring-2 focus:ring-n-brand focus:ring-inset"
-                  :aria-label="
-                    searchInput !== ''
-                      ? t('KANBAN.SEARCH.CLEAR')
-                      : t('KANBAN.SEARCH.CLOSE')
+              <template #prefix>
+                <Icon
+                  :icon="
+                    isSearchLoading ? 'i-lucide-loader-2' : 'i-lucide-search'
                   "
-                  :title="
-                    searchInput !== ''
-                      ? t('KANBAN.SEARCH.CLEAR')
-                      : t('KANBAN.SEARCH.CLOSE')
-                  "
-                  @click="searchInput !== '' ? clearSearch() : closeSearch()"
-                >
-                  <i class="i-lucide-x size-4" />
-                </button>
-              </div>
-            </Transition>
-          </OnClickOutside>
+                  class="absolute top-1/2 size-3.5 -translate-y-1/2 text-n-slate-11 group-focus-within:text-n-brand ltr:left-2.5 rtl:right-2.5"
+                  :class="{ 'animate-spin': isSearchLoading }"
+                />
+              </template>
+            </Input>
+          </div>
         </div>
         <div
           class="flex flex-shrink-0 flex-wrap items-center justify-end gap-2"

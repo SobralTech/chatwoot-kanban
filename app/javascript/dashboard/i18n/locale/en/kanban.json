@@ -11,10 +11,8 @@
     "NO_BOARD_SELECTED": "Select a board",
     "ERROR": "Could not load kanban data.",
     "SEARCH": {
-      "OPEN": "Search cards",
-      "PLACEHOLDER": "Search by subject, contact, phone or email",
+      "PLACEHOLDER": "Search cards...",
       "CLEAR": "Clear search",
-      "CLOSE": "Close search",
       "NO_RESULTS": "No cards found for \"%{term}\"",
       "NO_RESULTS_DESCRIPTION": "Try a different term or clear the search to see all cards."
     },
