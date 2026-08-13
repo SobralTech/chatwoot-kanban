@@ -270,6 +270,8 @@
   },
   "SIDEBAR": {
     "NO_ITEMS": "Nenhum item",
+    "EXPAND": "Expandir barra lateral",
+    "COLLAPSE": "Recolher barra lateral",
     "CURRENTLY_VIEWING_ACCOUNT": "Visualização atual:",
     "SWITCH": "Trocar",
     "INBOX_VIEW": "Caixa de entrada",
@@ -278,6 +280,8 @@
     "KANBAN_OVERVIEW": "Visão geral",
     "INBOX": "Caixa de Entrada",
     "ALL_CONVERSATIONS": "Todas as conversas",
+    "MY_CONVERSATIONS": "Minhas Conversas",
+    "EMAIL_CONVERSATIONS": "E-mails",
     "ARCHIVED_CONVERSATIONS": "Arquivadas",
     "MENTIONED_CONVERSATIONS": "Menções",
     "PARTICIPATING_CONVERSATIONS": "Participantes",

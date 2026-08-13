@@ -463,6 +463,8 @@
       "UNKNOWN_STATUS": "Desconhecido",
       "UNKNOWN_LAST_ACTIVITY": "Sem atividade",
       "UNASSIGNED": "Não atribuído",
+      "EDIT": "Editar cartão",
+      "DELETE": "Excluir cartão",
       "CONVERSATION_ID": "#{id}",
       "OPEN_CONVERSATION": "Abrir conversa com {contactName}",
       "INBOX": "Caixa de entrada: {inbox}",

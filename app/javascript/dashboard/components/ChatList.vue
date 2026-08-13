@@ -88,10 +88,10 @@ const isWideScreenOnLoad =
   window.innerWidth >= wootConstants.SMALL_SCREEN_BREAKPOINT;
 
 const listWidth = ref(
-  isWideScreenOnLoad
-    ? CONVERSATION_LIST_MIN_WIDTH
-    : uiSettings.value.conversation_list_width ||
-        CONVERSATION_LIST_DEFAULT_WIDTH
+  uiSettings.value.conversation_list_width ||
+    (isWideScreenOnLoad
+      ? CONVERSATION_LIST_MIN_WIDTH
+      : CONVERSATION_LIST_DEFAULT_WIDTH)
 );
 const isResizingList = ref(false);
 const resizeStartX = ref(0);
@@ -156,7 +156,7 @@ const advancedFilterTypes = ref(
 const currentUser = useMapGetter('getCurrentUser');
 const chatLists = useMapGetter('getFilteredConversations');
 const allChatList = useMapGetter('getAllStatusChats');
-const mineChatList = useFunctionGetter('getMineChats');
+const mineChatList = useMapGetter('getMineChats');
 const chatListLoading = useMapGetter('getChatListLoadingStatus');
 const activeInbox = useMapGetter('getSelectedInbox');
 const conversationStats = useMapGetter('conversationStats/getStats');
