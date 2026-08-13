@@ -1880,28 +1880,6 @@ watch(searchInput, () => {
                     @change="onCardDragChange(stage, $event)"
                     @end="onCardDragEnd"
                   >
-                    <button
-                      v-if="canAddCardInEmptyStage(stage)"
-                      type="button"
-                      data-testid="kanban-empty-stage-add-card"
-                      :data-stage-id="stage.id"
-                      class="no-drag flex min-h-24 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-n-weak px-3 py-6 text-sm font-medium text-n-slate-11 hover:border-n-brand hover:bg-n-alpha-1 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                      :disabled="!!activeActionKey"
-                      @click="toggleAddItemPicker(stage)"
-                    >
-                      <i class="i-lucide-plus size-5" />
-                      {{ t('KANBAN.ACTIONS.ADD_FIRST_CARD') }}
-                    </button>
-                    <p
-                      v-else-if="stage.cards.length === 0"
-                      class="pointer-events-none px-1 py-2 text-sm text-n-slate-10"
-                    >
-                      {{
-                        hasActiveFilters
-                          ? t('KANBAN.EMPTY_CARDS_FILTERED')
-                          : t('KANBAN.EMPTY_CARDS')
-                      }}
-                    </p>
                     <template #item="{ element: card }">
                       <KanbanConversationCard
                         :card="card"
@@ -1918,6 +1896,30 @@ watch(searchInput, () => {
                         @update-priority="updateCardPriority"
                         @change-status="onChangeCardStatus"
                       />
+                    </template>
+                    <template #footer>
+                      <button
+                        v-if="canAddCardInEmptyStage(stage)"
+                        type="button"
+                        data-testid="kanban-empty-stage-add-card"
+                        :data-stage-id="stage.id"
+                        class="no-drag flex min-h-24 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-n-weak px-3 py-6 text-sm font-medium text-n-slate-11 hover:border-n-brand hover:bg-n-alpha-1 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="!!activeActionKey"
+                        @click="toggleAddItemPicker(stage)"
+                      >
+                        <i class="i-lucide-plus size-5" />
+                        {{ t('KANBAN.ACTIONS.ADD_FIRST_CARD') }}
+                      </button>
+                      <p
+                        v-else-if="stage.cards.length === 0"
+                        class="pointer-events-none px-1 py-2 text-sm text-n-slate-10"
+                      >
+                        {{
+                          hasActiveFilters
+                            ? t('KANBAN.EMPTY_CARDS_FILTERED')
+                            : t('KANBAN.EMPTY_CARDS')
+                        }}
+                      </p>
                     </template>
                   </Draggable>
 

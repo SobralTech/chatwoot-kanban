@@ -336,7 +336,7 @@ const mountView = async (
             },
           },
           template:
-            '<div><slot /><slot name="item" v-for="(element, index) in draggableItems" :key="index" :element="element" :index="index" /></div>',
+            '<div><slot name="item" v-for="(element, index) in draggableItems" :key="index" :element="element" :index="index" /><slot name="footer" /></div>',
         },
         WootDeleteModal: {
           name: 'WootDeleteModal',
