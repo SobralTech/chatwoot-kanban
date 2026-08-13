@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, shallowRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
+import { useEventListener } from '@vueuse/core';
 import camelcaseKeys from 'camelcase-keys';
 import Draggable from 'vuedraggable';
 
@@ -72,9 +73,7 @@ const stageReconcileWarning = ref('');
 
 const activeTabIndex = ref(0);
 const isFreshDraft = ref(false);
-const isRedirectingNewDraft = ref(false);
-const savedSnapshot = ref(null);
-const lastSavedPayload = ref(null);
+const savedSnapshot = shallowRef(null);
 const pendingNavigation = ref(null);
 
 const form = reactive({
@@ -191,9 +190,7 @@ const isDirty = computed(
       JSON.stringify(savedSnapshot.value)
 );
 
-const cloneSettings = settings => JSON.parse(JSON.stringify(settings));
-
-const applySettings = (payload, shouldUpdateSnapshot = true) => {
+const applySettings = payload => {
   const settings = camelcaseKeys(payload || {}, { deep: true });
 
   form.name = settings.name || '';
@@ -213,10 +210,7 @@ const applySettings = (payload, shouldUpdateSnapshot = true) => {
   form.lostRecurrenceEnabled = settings.lostRecurrenceEnabled || false;
   form.lostRecurrenceWindowHours = settings.lostRecurrenceWindowHours ?? null;
 
-  if (shouldUpdateSnapshot) {
-    lastSavedPayload.value = cloneSettings(settings);
-    savedSnapshot.value = normalizeForDiff(form);
-  }
+  savedSnapshot.value = normalizeForDiff(form);
 };
 
 const applyBoard = payload => {
@@ -280,18 +274,13 @@ const ensureDraftBoard = async () => {
     boardId.value = created.id;
     isFreshDraft.value = true;
 
-    isRedirectingNewDraft.value = true;
-    try {
-      await router.replace({
-        name: 'kanban_board_edit_form',
-        params: {
-          accountId: route.params.accountId,
-          boardId: boardId.value,
-        },
-      });
-    } finally {
-      isRedirectingNewDraft.value = false;
-    }
+    await router.replace({
+      name: 'kanban_board_edit_form',
+      params: {
+        accountId: route.params.accountId,
+        boardId: boardId.value,
+      },
+    });
   } catch (error) {
     loadError.value = getErrorMessage(
       error,
@@ -333,8 +322,10 @@ const persistSettings = async () => {
       buildSettingsPayload()
     );
     applySettings(response.data);
-    await refreshBoard();
-    await store.dispatch('kanbanBoards/refreshBoards');
+    await Promise.all([
+      refreshBoard(),
+      store.dispatch('kanbanBoards/refreshBoards'),
+    ]);
     return true;
   } catch (error) {
     useAlert(getErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR')));
@@ -342,14 +333,6 @@ const persistSettings = async () => {
   } finally {
     isSavingSettings.value = false;
   }
-};
-
-const setInboxScopeMode = mode => {
-  form.inboxScopeMode = mode;
-};
-
-const onAllowedInboxIdsChange = value => {
-  form.allowedInboxIds = value;
 };
 
 const onVisibleUserIdsChange = userIds => {
@@ -381,20 +364,8 @@ const onLostStageChange = value => {
   form.lostStageId = nextStageId;
 };
 
-const onLostReasonRequiredChange = checked => {
-  form.lostReasonRequired = checked;
-};
-
-const onWonRecurrenceEnabledChange = checked => {
-  form.wonRecurrenceEnabled = checked;
-};
-
 const onWonRecurrenceWindowHoursChange = value => {
   form.wonRecurrenceWindowHours = value === '' ? null : Number(value);
-};
-
-const onLostRecurrenceEnabledChange = checked => {
-  form.lostRecurrenceEnabled = checked;
 };
 
 const onLostRecurrenceWindowHoursChange = value => {
@@ -416,10 +387,6 @@ const onAutoCreateChange = async checked => {
     const settings = camelcaseKeys(response.data || {}, { deep: true });
     form.autoCreateCardsFromConversations =
       settings.autoCreateCardsFromConversations ?? checked;
-    if (lastSavedPayload.value) {
-      lastSavedPayload.value.autoCreateCardsFromConversations =
-        form.autoCreateCardsFromConversations;
-    }
     await store.dispatch('kanbanBoards/refreshBoards');
 
     if (checked) {
@@ -640,9 +607,6 @@ const onActiveToggle = async () => {
       kanban_board: { active: desired },
     });
     form.active = camelcaseKeys(response.data || {}, { deep: true }).active;
-    if (lastSavedPayload.value) {
-      lastSavedPayload.value.active = form.active;
-    }
     if (form.active) isFreshDraft.value = false;
     await store.dispatch('kanbanBoards/refreshBoards');
   } catch (error) {
@@ -659,25 +623,25 @@ const onActiveToggle = async () => {
 
 const goBack = () => router.push(backDestination.value);
 
-const closePendingNavigation = () => {
-  const next = pendingNavigation.value;
-  pendingNavigation.value = null;
-  next?.(false);
-};
-
-const proceedPendingNavigation = () => {
-  const next = pendingNavigation.value;
-  pendingNavigation.value = null;
-  next?.();
-};
-
-const keepEditing = () => {
+// Closes whichever leave-guard modal is open and settles the navigation it
+// intercepted: `proceed` lets the router continue, otherwise it is cancelled.
+const resolveNavigation = proceed => {
   showUnsavedChangesModal.value = false;
-  closePendingNavigation();
+  showDiscardDraftModal.value = false;
+
+  const next = pendingNavigation.value;
+  pendingNavigation.value = null;
+
+  if (!next) return;
+  if (proceed) next();
+  else next(false);
 };
+
+const keepEditing = () => resolveNavigation(false);
 
 const restoreSavedSettings = () => {
-  if (lastSavedPayload.value) applySettings(lastSavedPayload.value, false);
+  if (savedSnapshot.value)
+    Object.assign(form, normalizeForDiff(savedSnapshot.value));
 };
 
 const discardSettings = () => {
@@ -687,25 +651,11 @@ const discardSettings = () => {
 
 const discardChangesAndExit = () => {
   restoreSavedSettings();
-  showUnsavedChangesModal.value = false;
-  proceedPendingNavigation();
+  resolveNavigation(true);
 };
 
 const saveAndExit = async () => {
-  const saved = await persistSettings();
-  if (saved) {
-    showUnsavedChangesModal.value = false;
-    proceedPendingNavigation();
-    return;
-  }
-
-  showUnsavedChangesModal.value = false;
-  closePendingNavigation();
-};
-
-const keepEditingDraft = () => {
-  showDiscardDraftModal.value = false;
-  closePendingNavigation();
+  resolveNavigation(await persistSettings());
 };
 
 const discardDraft = async () => {
@@ -716,8 +666,7 @@ const discardDraft = async () => {
   try {
     await KanbanBoardsAPI.delete(boardId.value);
     await store.dispatch('kanbanBoards/refreshBoards');
-    showDiscardDraftModal.value = false;
-    proceedPendingNavigation();
+    resolveNavigation(true);
   } catch (error) {
     useAlert(getErrorMessage(error, t('KANBAN.BOARD_EDIT.DISCARD_ERROR')));
   } finally {
@@ -759,15 +708,19 @@ const onTabChanged = tab => {
   if (index !== -1) activeTabIndex.value = index;
 };
 
-const handleBeforeUnload = event => {
+useEventListener(window, 'beforeunload', event => {
   if (!isDirty.value) return;
 
   event.preventDefault();
   event.returnValue = '';
-};
+});
 
 onBeforeRouteLeave((to, from, next) => {
-  if (isRedirectingNewDraft.value) {
+  // The draft's own create -> edit redirect is not a real exit.
+  if (
+    to.name === 'kanban_board_edit_form' &&
+    Number(to.params.boardId) === boardId.value
+  ) {
     next();
     return;
   }
@@ -788,7 +741,6 @@ onBeforeRouteLeave((to, from, next) => {
 });
 
 onMounted(async () => {
-  window.addEventListener('beforeunload', handleBeforeUnload);
   await ensureDraftBoard();
 
   if (loadError.value || !boardId.value) {
@@ -797,10 +749,6 @@ onMounted(async () => {
   }
 
   await loadBoard();
-});
-
-onUnmounted(() => {
-  window.removeEventListener('beforeunload', handleBeforeUnload);
 });
 </script>
 
@@ -811,16 +759,16 @@ onUnmounted(() => {
     <header
       class="flex flex-none items-center justify-between gap-4 border-b border-n-weak px-6 py-4"
     >
-      <button
-        type="button"
+      <Button
         data-testid="kanban-board-form-back"
-        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+        icon="i-lucide-chevron-left"
+        variant="ghost"
+        color="slate"
+        size="sm"
         :aria-label="backLabel"
         :title="backLabel"
         @click="goBack"
-      >
-        <i class="i-lucide-chevron-left size-4" />
-      </button>
+      />
       <div class="flex min-w-0 flex-1 items-center gap-2">
         <h1 class="min-w-0 truncate text-lg font-medium text-n-slate-12">
           {{ pageTitle }}
@@ -866,21 +814,12 @@ onUnmounted(() => {
       {{ t('KANBAN.BOARD_EDIT.ACTIVATE_LOCKED_HELP') }}
     </p>
 
-    <div
-      class="flex flex-none items-center justify-between gap-3 border-b border-n-weak px-6 py-3"
-    >
+    <div class="flex-none border-b border-n-weak px-6 py-3">
       <TabBar
         :tabs="tabItems"
         :initial-active-tab="activeTabIndex"
         @tab-changed="onTabChanged"
       />
-      <span
-        v-if="isDirty"
-        data-testid="kanban-board-form-unsaved-tab-indicator"
-        class="flex-none rounded-full bg-n-amber-2 px-2 py-0.5 text-xs font-medium text-n-amber-11"
-      >
-        {{ t('KANBAN.BOARD_EDIT.UNSAVED_INDICATOR') }}
-      </span>
     </div>
 
     <div
@@ -958,30 +897,29 @@ onUnmounted(() => {
             <div class="flex flex-wrap gap-2">
               <label class="flex items-center gap-2 text-sm text-n-slate-12">
                 <input
+                  v-model="form.inboxScopeMode"
                   type="radio"
-                  :checked="form.inboxScopeMode === 'all_inboxes'"
-                  @change="setInboxScopeMode('all_inboxes')"
+                  value="all_inboxes"
                 />
                 {{ t('KANBAN.SETTINGS.INBOXES.ALL') }}
               </label>
               <label class="flex items-center gap-2 text-sm text-n-slate-12">
                 <input
+                  v-model="form.inboxScopeMode"
                   type="radio"
-                  :checked="form.inboxScopeMode === 'selected_inboxes'"
-                  @change="setInboxScopeMode('selected_inboxes')"
+                  value="selected_inboxes"
                 />
                 {{ t('KANBAN.SETTINGS.INBOXES.SELECTED') }}
               </label>
             </div>
             <TagMultiSelectComboBox
               v-if="form.inboxScopeMode === 'selected_inboxes'"
-              :model-value="form.allowedInboxIds"
+              v-model="form.allowedInboxIds"
               data-testid="kanban-board-form-inbox-select"
               :options="inboxOptions"
               :placeholder="t('KANBAN.SETTINGS.INBOXES.PLACEHOLDER')"
               :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
               :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
-              @update:model-value="onAllowedInboxIdsChange"
             />
           </div>
         </div>
@@ -1312,10 +1250,9 @@ onUnmounted(() => {
         >
           {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.LOST_REASON_REQUIRED') }}
           <input
+            v-model="form.lostReasonRequired"
             type="checkbox"
-            :checked="form.lostReasonRequired"
             class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
-            @change="onLostReasonRequiredChange($event.target.checked)"
           />
         </label>
 
@@ -1354,11 +1291,10 @@ onUnmounted(() => {
             >
               {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_ENABLED') }}
               <input
+                v-model="form.wonRecurrenceEnabled"
                 type="checkbox"
-                :checked="form.wonRecurrenceEnabled"
                 data-testid="kanban-board-form-won-recurrence-enabled"
                 class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
-                @change="onWonRecurrenceEnabledChange($event.target.checked)"
               />
             </label>
             <label
@@ -1390,11 +1326,10 @@ onUnmounted(() => {
             >
               {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_ENABLED') }}
               <input
+                v-model="form.lostRecurrenceEnabled"
                 type="checkbox"
-                :checked="form.lostRecurrenceEnabled"
                 data-testid="kanban-board-form-lost-recurrence-enabled"
                 class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
-                @change="onLostRecurrenceEnabledChange($event.target.checked)"
               />
             </label>
             <label
@@ -1471,39 +1406,15 @@ onUnmounted(() => {
       :reject-text="t('KANBAN.REMOVE_STAGE.CANCEL')"
     />
 
-    <woot-modal
-      :show="showDiscardSettingsConfirmation"
-      :show-close-button="false"
-      size="modal-narrow"
+    <woot-delete-modal
+      v-model:show="showDiscardSettingsConfirmation"
       :on-close="() => (showDiscardSettingsConfirmation = false)"
-    >
-      <div class="p-6" data-testid="kanban-board-form-discard-settings-modal">
-        <h2 class="mb-2 text-base font-semibold text-n-slate-12">
-          {{ t('KANBAN.BOARD_EDIT.DISCARD_CONFIRM_TITLE') }}
-        </h2>
-        <p class="mb-6 text-sm text-n-slate-11">
-          {{ t('KANBAN.BOARD_EDIT.DISCARD_CONFIRM_MESSAGE') }}
-        </p>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            color="slate"
-            size="sm"
-            :label="t('KANBAN.ACTIONS.CANCEL')"
-            @click="showDiscardSettingsConfirmation = false"
-          />
-          <Button
-            type="button"
-            data-testid="kanban-board-form-confirm-discard"
-            color="ruby"
-            size="sm"
-            :label="t('KANBAN.BOARD_EDIT.DISCARD')"
-            @click="discardSettings"
-          />
-        </div>
-      </div>
-    </woot-modal>
+      :on-confirm="discardSettings"
+      :title="t('KANBAN.BOARD_EDIT.DISCARD_CONFIRM_TITLE')"
+      :message="t('KANBAN.BOARD_EDIT.DISCARD_CONFIRM_MESSAGE')"
+      :confirm-text="t('KANBAN.BOARD_EDIT.DISCARD')"
+      :reject-text="t('KANBAN.ACTIONS.CANCEL')"
+    />
 
     <woot-modal
       :show="showUnsavedChangesModal"
@@ -1540,7 +1451,7 @@ onUnmounted(() => {
             color="blue"
             size="sm"
             :label="t('KANBAN.BOARD_EDIT.SAVE_AND_EXIT')"
-            :disabled="!form.name.trim()"
+            :disabled="saveDisabled"
             :is-loading="isSavingSettings"
             @click="saveAndExit"
           />
@@ -1548,41 +1459,16 @@ onUnmounted(() => {
       </div>
     </woot-modal>
 
-    <woot-modal
-      :show="showDiscardDraftModal"
-      :show-close-button="false"
-      size="modal-narrow"
-      :on-close="keepEditingDraft"
-    >
-      <div class="p-6" data-testid="kanban-board-form-discard-draft-modal">
-        <h2 class="mb-2 text-base font-semibold text-n-slate-12">
-          {{ t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_TITLE') }}
-        </h2>
-        <p class="mb-6 text-sm text-n-slate-11">
-          {{ t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_MESSAGE') }}
-        </p>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            color="slate"
-            size="sm"
-            :label="t('KANBAN.BOARD_EDIT.KEEP_EDITING')"
-            :disabled="isDiscarding"
-            @click="keepEditingDraft"
-          />
-          <Button
-            type="button"
-            data-testid="kanban-board-form-confirm-discard-draft"
-            color="ruby"
-            size="sm"
-            :label="t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_CONFIRM')"
-            :is-loading="isDiscarding"
-            @click="discardDraft"
-          />
-        </div>
-      </div>
-    </woot-modal>
+    <woot-delete-modal
+      v-model:show="showDiscardDraftModal"
+      :on-close="keepEditing"
+      :on-confirm="discardDraft"
+      :is-loading="isDiscarding"
+      :title="t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_TITLE')"
+      :message="t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_MESSAGE')"
+      :confirm-text="t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_CONFIRM')"
+      :reject-text="t('KANBAN.BOARD_EDIT.KEEP_EDITING')"
+    />
 
     <woot-modal
       v-model:show="showImportExistingConversationsModal"

@@ -180,7 +180,12 @@ const mountForm = async ({ settings, board } = {}) => {
   return wrapper;
 };
 
-const invokeRouteLeave = next => routeLeaveGuard({}, {}, next);
+const invokeRouteLeave = next =>
+  routeLeaveGuard(
+    { name: 'kanban_boards', params: { accountId: '1' } },
+    {},
+    next
+  );
 
 describe('KanbanBoardForm', () => {
   beforeEach(() => {
@@ -323,12 +328,12 @@ describe('KanbanBoardForm', () => {
 
     expect(
       wrapper
-        .find('[data-testid="kanban-board-form-discard-draft-modal"]')
+        .find('[data-testid="kanban-board-form-delete-modal-confirm"]')
         .exists()
     ).toBe(true);
 
     await wrapper
-      .find('[data-testid="kanban-board-form-confirm-discard-draft"]')
+      .find('[data-testid="kanban-board-form-delete-modal-confirm"]')
       .trigger('click');
     await flushPromises();
 
