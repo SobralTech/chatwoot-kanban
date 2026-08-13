@@ -29,6 +29,35 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.delete(`${this.url}/${boardId}/stages/${stageId}`);
   }
 
+  copyStage(boardId, stageId, payload) {
+    return axios.post(`${this.url}/${boardId}/stages/${stageId}/copy`, payload);
+  }
+
+  moveStage(boardId, stageId, payload) {
+    return axios.patch(
+      `${this.url}/${boardId}/stages/${stageId}/move`,
+      payload
+    );
+  }
+
+  sortStageCards(boardId, stageId, payload) {
+    return axios.patch(
+      `${this.url}/${boardId}/stages/${stageId}/sort_cards`,
+      payload
+    );
+  }
+
+  moveAllStageCards(boardId, stageId, payload) {
+    return axios.patch(
+      `${this.url}/${boardId}/stages/${stageId}/move_cards`,
+      payload
+    );
+  }
+
+  deleteAllStageCards(boardId, stageId) {
+    return axios.delete(`${this.url}/${boardId}/stages/${stageId}/cards`);
+  }
+
   getBoards(config = {}) {
     return axios.get(this.url, config);
   }

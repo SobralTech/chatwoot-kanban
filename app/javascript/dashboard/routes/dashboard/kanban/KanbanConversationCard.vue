@@ -102,6 +102,7 @@ const extraAssigneeCount = computed(() =>
   Math.max(assignees.value.length - 1, 0)
 );
 const subject = computed(() => props.card.subject || '');
+const labels = computed(() => props.card.labels || props.card.label_list || []);
 
 const toUnixTimestamp = value => {
   if (!value) return null;
@@ -271,6 +272,16 @@ const openConversation = event => {
             class="max-w-full"
           />
         </div>
+      </div>
+
+      <div v-if="labels.length" class="mt-1 flex flex-wrap gap-1">
+        <span
+          v-for="label in labels"
+          :key="label"
+          class="max-w-full truncate rounded-full bg-n-slate-3 px-1.5 py-0.5 text-[11px] font-medium leading-4 text-n-slate-11"
+        >
+          {{ label }}
+        </span>
       </div>
 
       <div

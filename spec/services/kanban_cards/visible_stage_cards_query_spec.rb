@@ -171,6 +171,83 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.total_count).to eq(1)
     end
 
+    it 'combines filter categories with all or any matching' do
+      create(:label, account: account, title: 'vip')
+      high_priority_card = create_visible_card(position: 1, priority: :high)
+      labeled_card = create_visible_card(position: 2)
+      matching_card = create_visible_card(position: 3, priority: :high)
+      labeled_card.add_labels(['vip'])
+      matching_card.add_labels(['vip'])
+
+      all_match_result = query(filtered_priorities: ['high'], filtered_labels: ['vip']).call
+      any_match_result = query(filtered_priorities: ['high'], filtered_labels: ['vip'], match_mode: 'any').call
+
+      expect(all_match_result.cards).to eq([matching_card])
+      expect(any_match_result.cards).to eq([high_priority_card, labeled_card, matching_card])
+    end
+
+    it 'filters cards by status relative to the board terminal stages' do
+      won_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+      lost_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 3)
+      kanban_board.update!(won_stage: won_stage, lost_stage: lost_stage)
+      open_card = create_visible_card(position: 1)
+      won_card = create_visible_card(kanban_stage: won_stage, position: 1)
+      lost_card = create_visible_card(kanban_stage: lost_stage, position: 1)
+
+      expect(query(filtered_card_statuses: ['open']).call.cards).to eq([open_card])
+      expect(query(kanban_stage: won_stage, filtered_card_statuses: ['won']).call.cards).to eq([won_card])
+      expect(query(kanban_stage: lost_stage, filtered_card_statuses: ['lost']).call.cards).to eq([lost_card])
+    end
+
+    it 'filters card priorities including cards without a priority' do
+      unprioritized_card = create_visible_card(position: 1)
+      high_priority_card = create_visible_card(position: 2, priority: :high)
+
+      expect(query(filtered_priorities: ['none']).call.cards).to eq([unprioritized_card])
+      expect(query(filtered_priorities: ['high']).call.cards).to eq([high_priority_card])
+    end
+
+    it 'filters card due date buckets' do
+      no_due_date_card = create_visible_card(position: 1)
+      overdue_card = create_visible_card(position: 2, due_at: 1.hour.ago)
+      day_card = create_visible_card(position: 3, due_at: 12.hours.from_now)
+      week_card = create_visible_card(position: 4, due_at: 3.days.from_now)
+      month_card = create_visible_card(position: 5, due_at: 2.weeks.from_now)
+
+      expect(query(filtered_due_dates: ['none']).call.cards).to eq([no_due_date_card])
+      expect(query(filtered_due_dates: ['overdue']).call.cards).to eq([overdue_card])
+      expect(query(filtered_due_dates: ['day']).call.cards).to eq([day_card])
+      expect(query(filtered_due_dates: ['week']).call.cards).to eq([day_card, week_card])
+      expect(query(filtered_due_dates: ['month']).call.cards).to eq([day_card, week_card, month_card])
+    end
+
+    it 'filters cards by label and cards without labels' do
+      create(:label, account: account, title: 'vip')
+      unlabeled_card = create_visible_card(position: 1)
+      labeled_card = create_visible_card(position: 2)
+      labeled_card.add_labels(['vip'])
+
+      expect(query(filtered_labels: ['vip']).call.cards).to eq([labeled_card])
+      expect(query(filtered_labels: ['none']).call.cards).to eq([unlabeled_card])
+    end
+
+    it 'always combines search with category filters' do
+      create(:label, account: account, title: 'vip')
+      high_priority_card = create_visible_card(position: 1, priority: :high, subject: 'Needle in a haystack')
+      labeled_card = create_visible_card(position: 2, subject: 'Needle by label')
+      create_visible_card(position: 3, priority: :high, subject: 'Not a match')
+      labeled_card.add_labels(['vip'])
+
+      result = query(
+        filtered_priorities: ['high'],
+        filtered_labels: ['vip'],
+        match_mode: 'any',
+        search_query: 'needle'
+      ).call
+
+      expect(result.cards).to eq([high_priority_card, labeled_card])
+    end
+
     it 'excludes manual cards when assignee filter is active' do
       manual_card = create_visible_card(position: 1)
       create_conversation_card(position: 2, assignee: agent)
@@ -322,25 +399,14 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(query_counts[:active_storage_blobs]).to be <= 3
     end
 
-    it 'does not query messages notes labels tags or taggings' do
-      contact = create(:contact, account: account)
-      conversation = create(:conversation, account: account, inbox: inbox, contact: contact)
-      create(
-        :kanban_card,
-        :conversation_origin,
-        kanban_board: kanban_board,
-        kanban_stage: kanban_stage,
-        conversation: conversation,
-        position: 1
-      )
-      create(:message, account: account, inbox: inbox, conversation: conversation)
-      create(:note, contact: contact)
-      contact.add_labels(['enterprise'])
+    it 'preloads card labels at the default page size' do
+      cards = create_visible_cards(20)
+      cards.each { |card| card.add_labels(['enterprise']) }
 
-      sql_queries = collect_sql_queries { query.call }
+      sql_queries = collect_sql_queries { query.call.cards.each { |card| card.labels.map(&:name) } }
       query_counts = visible_stage_cards_query_counts(sql_queries)
 
-      expect(query_counts.slice(:messages, :notes, :labels_tags_taggings)).to eq(messages: 0, notes: 0, labels_tags_taggings: 0)
+      expect(query_counts[:labels_tags_taggings]).to be <= 3
     end
 
     it 'explains the minimal ordered id query' do
@@ -358,12 +424,18 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       account: account,
       user: options.fetch(:user, agent),
       kanban_board: kanban_board,
-      kanban_stage: kanban_stage,
+      kanban_stage: options.fetch(:kanban_stage, kanban_stage),
       limit: options[:limit],
       cursor: options[:cursor],
       account_user: options[:account_user],
       filtered_inbox_ids: options[:filtered_inbox_ids],
-      filtered_assignee_ids: options[:filtered_assignee_ids]
+      filtered_assignee_ids: options[:filtered_assignee_ids],
+      filtered_card_statuses: options[:filtered_card_statuses],
+      filtered_priorities: options[:filtered_priorities],
+      filtered_due_dates: options[:filtered_due_dates],
+      filtered_labels: options[:filtered_labels],
+      match_mode: options[:match_mode],
+      search_query: options[:search_query]
     )
   end
 

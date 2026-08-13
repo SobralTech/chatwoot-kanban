@@ -1,7 +1,8 @@
+# rubocop:disable Metrics/ClassLength
 class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::BaseController
   before_action :fetch_kanban_board
   before_action :authorize_kanban_board_update
-  before_action :fetch_kanban_stage, only: [:update, :destroy, :reorder]
+  before_action :fetch_kanban_stage, only: [:update, :destroy, :reorder, :copy, :move]
 
   def create
     KanbanStage.transaction do
@@ -15,6 +16,29 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     end
 
     dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_CREATED)
+  end
+
+  def copy
+    source_stage = @kanban_stage
+
+    KanbanStage.transaction do
+      KanbanStage.normalize_positions_for_board!(@kanban_board)
+      source_stage.reload
+      position = [source_stage.position + 1, KanbanStage.next_active_position(@kanban_board)].min
+      KanbanStage.shift_active_positions_from!(@kanban_board, position)
+
+      @kanban_stage = @kanban_board.kanban_stages.create!(
+        account: Current.account,
+        name: copy_stage_params[:name],
+        color: source_stage.color,
+        description: source_stage.description,
+        position: position
+      )
+      KanbanStage.normalize_positions_for_board!(@kanban_board)
+    end
+
+    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_CREATED)
+    render :create
   end
 
   def update
@@ -55,13 +79,38 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     render :update
   end
 
-  def destroy
-    if stage_has_active_cards?
-      render_stage_not_empty_error
-      return
+  def move
+    target_board = target_kanban_board
+    return reorder unless target_board && target_board != @kanban_board
+    return render_stage_move_error('stage_not_empty') if stage_has_active_cards?
+    return render_stage_move_error('special_stage_cannot_move_board') if special_stage?
+
+    source_board = @kanban_board
+    target_position = requested_target_position(target_board)
+
+    KanbanStage.transaction do
+      lock_stages_for_boards!(source_board, target_board)
+      KanbanStage.shift_active_positions_from!(target_board, target_position)
+      @kanban_stage.update!(kanban_board: target_board, position: target_position)
+      KanbanStage.normalize_positions_for_board!(source_board)
+      KanbanStage.normalize_positions_for_board!(target_board)
     end
 
-    @kanban_stage.update!(active: false)
+    @kanban_board = target_board
+    @kanban_stage.reload
+    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_UPDATED, board_id: source_board.id)
+    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_UPDATED, board_id: target_board.id)
+    render :update
+  end
+
+  def destroy
+    KanbanStage.transaction do
+      @kanban_stage.kanban_cards.active.destroy_all
+      clear_special_stage_reference!
+      @kanban_stage.update!(active: false)
+      KanbanStage.normalize_positions_for_board!(@kanban_board)
+    end
+
     dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_DELETED)
     head :no_content
   end
@@ -90,6 +139,10 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     params.require(:stage).permit(:name, :position, :active, :color, :description)
   end
 
+  def copy_stage_params
+    params.require(:stage).permit(:name)
+  end
+
   def deactivating_stage_with_active_cards?
     return false unless kanban_stage_params.key?(:active)
     return false if ActiveModel::Type::Boolean.new.cast(kanban_stage_params[:active])
@@ -101,17 +154,47 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     @kanban_stage.kanban_cards.active.exists?
   end
 
+  def special_stage?
+    KanbanStage.special_stage_ids(@kanban_board).include?(@kanban_stage.id)
+  end
+
+  def clear_special_stage_reference!
+    attributes = {}
+    attributes[:won_stage_id] = nil if @kanban_board.won_stage_id == @kanban_stage.id
+    attributes[:lost_stage_id] = nil if @kanban_board.lost_stage_id == @kanban_stage.id
+    @kanban_board.update!(attributes) if attributes.present?
+  end
+
+  def target_kanban_board
+    return if params[:kanban_board_id].blank?
+
+    Current.account.kanban_boards.find(params[:kanban_board_id])
+  end
+
+  def requested_target_position(target_board)
+    maximum_position = KanbanStage.next_active_position(target_board)
+    (params[:position].presence || maximum_position).to_i.clamp(1, maximum_position)
+  end
+
+  def lock_stages_for_boards!(*boards)
+    KanbanStage.where(kanban_board: boards).active.order(:id).lock.each(&:id)
+  end
+
+  def render_stage_move_error(error)
+    render json: { error: error }, status: :unprocessable_content
+  end
+
   def render_stage_not_empty_error
     render json: { error: 'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.' },
            status: :unprocessable_content
   end
 
-  def dispatch_kanban_stage_event(event_name)
+  def dispatch_kanban_stage_event(event_name, board_id: @kanban_stage.kanban_board_id)
     Rails.configuration.dispatcher.dispatch(
       event_name,
       Time.zone.now,
       account_id: @kanban_stage.account_id,
-      board_id: @kanban_stage.kanban_board_id,
+      board_id: board_id,
       stage_id: @kanban_stage.id
     )
   end
@@ -161,3 +244,4 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     render json: { error: KanbanStage::SPECIAL_STAGE_ORDER_ERROR }, status: :unprocessable_content
   end
 end
+# rubocop:enable Metrics/ClassLength

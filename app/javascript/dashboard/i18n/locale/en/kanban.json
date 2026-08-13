@@ -94,8 +94,100 @@
       "NO_STAGES_HELP": "Add a stage before enabling automatic card creation."
     },
     "FILTERS": {
+      "TITLE": "Filters",
+      "CLEAR_ALL": "Clear all",
       "INBOXES": "Inboxes",
-      "AGENTS": "Agents"
+      "AGENTS": "Agents",
+      "CARD_STATUS": "Card status",
+      "LABELS": "Labels",
+      "LABELS_NONE": "No labels",
+      "MATCH_MODE": "Match cards",
+      "MATCH_ALL": "Match all",
+      "MATCH_ANY": "Match any",
+      "STATUS": {
+        "OPEN": "Open",
+        "WON": "Won",
+        "LOST": "Lost"
+      },
+      "PRIORITY": {
+        "TITLE": "Priority",
+        "NONE": "No priority",
+        "URGENT": "Urgent",
+        "HIGH": "High",
+        "MEDIUM": "Medium",
+        "LOW": "Low"
+      },
+      "DUE_DATE": {
+        "TITLE": "Due date",
+        "NONE": "No due date",
+        "OVERDUE": "Overdue",
+        "DAY": "Due in the next day",
+        "WEEK": "Due in the next week",
+        "MONTH": "Due in the next month"
+      }
+    },
+    "STAGE_MENU": {
+      "TITLE": "List actions",
+      "BACK": "Back",
+      "CLOSE": "Close",
+      "ADD_CARD": "Add card",
+      "EDIT": "Edit list",
+      "DELETE_STAGE": "Delete this list",
+      "DELETE_CARDS": "Delete all cards in this list",
+      "CARD_COUNT": "{count} cards",
+      "COPY": {
+        "LABEL": "Copy list",
+        "TITLE": "Copy list",
+        "NAME": "List name",
+        "SUBMIT": "Create list"
+      },
+      "MOVE": {
+        "LABEL": "Move list",
+        "TITLE": "Move list",
+        "BOARD": "Board",
+        "POSITION": "Position",
+        "POSITION_VALUE": "Position {position}",
+        "SUBMIT": "Move list",
+        "NONEMPTY_HINT": "Move all cards before moving this list to another board."
+      },
+      "MOVE_CARDS": {
+        "LABEL": "Move all cards in this list",
+        "TITLE": "Move all cards",
+        "TARGET": "Move here",
+        "CURRENT": "Current",
+        "EMPTY": "There are no regular lists available."
+      },
+      "SORT": {
+        "LABEL": "Sort by",
+        "TITLE": "Sort cards",
+        "NEWEST": "Newest first",
+        "OLDEST": "Oldest first",
+        "NAME": "Card name"
+      },
+      "DELETE_STAGE_CONFIRM": {
+        "TITLE": "Delete list",
+        "MESSAGE": "This permanently deletes this list and all its cards: ",
+        "CONFIRM": "Delete list",
+        "CANCEL": "Cancel"
+      },
+      "DELETE_CARDS_CONFIRM": {
+        "TITLE": "Delete all cards",
+        "MESSAGE": "This permanently deletes all cards in this list: ",
+        "CONFIRM": "Delete cards",
+        "CANCEL": "Cancel"
+      },
+      "SUCCESS": {
+        "COPY": "List copied.",
+        "MOVE": "List moved.",
+        "MOVE_CARDS": "Cards moved.",
+        "SORT": "Cards sorted.",
+        "DELETE_CARDS": "Cards deleted."
+      },
+      "ERRORS": {
+        "STAGE_NOT_EMPTY": "Move all cards before moving this list to another board.",
+        "SPECIAL_STAGE_CANNOT_MOVE_BOARD": "Won and lost lists cannot be moved to another board.",
+        "TERMINAL_STAGE_NOT_ALLOWED": "Cards can only be moved to a regular list."
+      }
     },
     "ACTIONS": {
       "CREATE_BOARD": "Add",

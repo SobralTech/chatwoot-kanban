@@ -8,8 +8,6 @@ import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { useAlert } from 'dashboard/composables';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
-import enKanbanMessages from 'dashboard/i18n/locale/en/kanban.json';
-import ptBRKanbanMessages from 'dashboard/i18n/locale/pt_BR/kanban.json';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -120,6 +118,18 @@ const createTestStore = (
         },
         getters: {
           getAgents: state => state.records,
+        },
+        actions: {
+          get: vi.fn(),
+        },
+      },
+      labels: {
+        namespaced: true,
+        state: {
+          records: [],
+        },
+        getters: {
+          getLabels: state => state.records,
         },
         actions: {
           get: vi.fn(),
@@ -246,17 +256,16 @@ const mountView = async (
           template:
             '<button v-bind="$attrs" class="btn-stub" @click="$emit(\'click\')">{{ label }}<slot /></button>',
         },
-        TagMultiSelectComboBox: {
-          name: 'TagMultiSelectComboBox',
-          props: [
-            'modelValue',
-            'options',
-            'disabled',
-            'placeholder',
-            'searchPlaceholder',
-            'emptyState',
-          ],
-          template: '<div class="tag-multi-select-stub" />',
+        KanbanFilterMenu: {
+          name: 'KanbanFilterMenu',
+          props: ['modelValue', 'inboxOptions', 'agentOptions'],
+          template: '<div class="kanban-filter-menu-stub" />',
+        },
+        KanbanStageMenu: {
+          name: 'KanbanStageMenu',
+          props: ['stage'],
+          template:
+            '<button data-testid="kanban-stage-menu-add-card" @click="$emit(\'addCard\')" />',
         },
         KanbanConversationCard: {
           name: 'KanbanConversationCard',
@@ -383,22 +392,25 @@ const expectEmptyStageState = (wrapper, { hasAddCard, label }) => {
   expect(findEmptyStageDraggable(wrapper).text()).toContain(label);
 };
 
-const findAddItemButtons = wrapper =>
-  wrapper.findAll('[data-testid="kanban-add-item-button"]');
+const findStageMenus = wrapper =>
+  wrapper.findAllComponents({ name: 'KanbanStageMenu' });
+const addCardFromStageMenu = (wrapper, index) =>
+  findStageMenus(wrapper)
+    [index].find('[data-testid="kanban-stage-menu-add-card"]')
+    .trigger('click');
 
 const findLoadMoreButtons = wrapper =>
   wrapper.findAll('[data-testid="kanban-load-more-cards"]');
 
 const findAddItemPicker = wrapper =>
   wrapper.findComponent({ name: 'KanbanOpportunityPicker' });
-const findInboxFilter = wrapper =>
-  wrapper.findAllComponents({ name: 'TagMultiSelectComboBox' })[0];
-const findAgentFilter = wrapper =>
-  wrapper.findAllComponents({ name: 'TagMultiSelectComboBox' })[1];
-const findInboxFilterWrapper = wrapper =>
-  wrapper.find('[data-testid="kanban-inbox-filter"]');
-const findAgentFilterWrapper = wrapper =>
-  wrapper.find('[data-testid="kanban-agent-filter"]');
+const findFilterMenu = wrapper =>
+  wrapper.findComponent({ name: 'KanbanFilterMenu' });
+const updateBoardFilters = (wrapper, filters) =>
+  findFilterMenu(wrapper).vm.$emit('update:modelValue', {
+    ...findFilterMenu(wrapper).props('modelValue'),
+    ...filters,
+  });
 
 const getStageCardIds = wrapper =>
   findCardDraggables(wrapper).map(draggable =>
@@ -1139,7 +1151,7 @@ describe('KanbanView drag and drop', () => {
   it('shows a filtered empty state instead of the add card action', async () => {
     const wrapper = await mountView();
 
-    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [1]);
+    await updateBoardFilters(wrapper, { inboxIds: [1] });
     await flushPromises();
 
     expectEmptyStageState(wrapper, {
@@ -1171,31 +1183,26 @@ describe('KanbanView drag and drop', () => {
     });
   });
 
-  it('shows an add item action in each stage body', async () => {
+  it('renders a list action menu in each stage header', async () => {
     const wrapper = await mountView();
-    const addItemButtons = findAddItemButtons(wrapper);
+    const stageMenus = findStageMenus(wrapper);
 
-    expect(addItemButtons).toHaveLength(2);
-    expect(addItemButtons[0].attributes('aria-label')).toBe(
-      'KANBAN.ACTIONS.ADD_ITEM'
-    );
-    expect(addItemButtons[1].attributes('aria-label')).toBe(
-      'KANBAN.ACTIONS.ADD_ITEM'
-    );
+    expect(stageMenus).toHaveLength(2);
+    expect(stageMenus[0].props('stage').id).toBe(100);
+    expect(stageMenus[1].props('stage').id).toBe(200);
   });
 
-  it('opens and toggles the inline add item picker for the selected stage', async () => {
+  it('opens and toggles the manual picker from the selected list menu', async () => {
     const wrapper = await mountView();
-    const addItemButtons = findAddItemButtons(wrapper);
 
-    await addItemButtons[1].trigger('click');
+    await addCardFromStageMenu(wrapper, 1);
 
     let picker = findAddItemPicker(wrapper);
     expect(picker.exists()).toBe(true);
     expect(picker.props('kanbanBoardId')).toBe(10);
     expect(picker.props('kanbanStageId')).toBe(200);
 
-    await addItemButtons[1].trigger('click');
+    await addCardFromStageMenu(wrapper, 1);
 
     picker = findAddItemPicker(wrapper);
     expect(picker.exists()).toBe(false);
@@ -1204,7 +1211,7 @@ describe('KanbanView drag and drop', () => {
   it('closes the inline add item picker using the close action', async () => {
     const wrapper = await mountView();
 
-    await findAddItemButtons(wrapper)[0].trigger('click');
+    await addCardFromStageMenu(wrapper, 0);
     expect(findAddItemPicker(wrapper).exists()).toBe(true);
 
     await findAddItemPicker(wrapper).vm.$emit('close');
@@ -1215,7 +1222,7 @@ describe('KanbanView drag and drop', () => {
   it('renders the add item picker outside card draggables', async () => {
     const wrapper = await mountView();
 
-    await findAddItemButtons(wrapper)[0].trigger('click');
+    await addCardFromStageMenu(wrapper, 0);
 
     const cardDraggables = findCardDraggables(wrapper);
     expect(findAddItemPicker(wrapper).exists()).toBe(true);
@@ -1229,7 +1236,7 @@ describe('KanbanView drag and drop', () => {
   it('does not trigger card drag behavior from add item controls', async () => {
     const wrapper = await mountView();
 
-    await findAddItemButtons(wrapper)[0].trigger('click');
+    await addCardFromStageMenu(wrapper, 0);
     await findAddItemPicker(wrapper).vm.$emit('close');
 
     expect(KanbanBoardsAPI.reorderCardById).not.toHaveBeenCalled();
@@ -1244,7 +1251,7 @@ describe('KanbanView drag and drop', () => {
     });
     const wrapper = await mountView();
 
-    await findAddItemButtons(wrapper)[0].trigger('click');
+    await addCardFromStageMenu(wrapper, 0);
     KanbanBoardsAPI.show.mockClear();
 
     await findAddItemPicker(wrapper).vm.$emit('created');
@@ -1285,7 +1292,7 @@ describe('KanbanView drag and drop', () => {
       })
     );
 
-    await findAddItemButtons(wrapper)[0].trigger('click');
+    await addCardFromStageMenu(wrapper, 0);
     await findAddItemPicker(wrapper).vm.$emit('created');
     await flushPromises();
 
@@ -1302,7 +1309,7 @@ describe('KanbanView drag and drop', () => {
   it('opens the manual picker for every board', async () => {
     const wrapper = await mountView();
 
-    await findAddItemButtons(wrapper)[0].trigger('click');
+    await addCardFromStageMenu(wrapper, 0);
 
     expect(findAddItemPicker(wrapper).exists()).toBe(true);
   });
@@ -2093,17 +2100,19 @@ describe('KanbanView header navigation', () => {
     );
   });
 
-  it('renders board settings after the agent filter and before the create stage button', async () => {
+  it('renders board settings after the filter menu and before create stage', async () => {
     const wrapper = await mountView(buildBoardResponse(), 'administrator');
     const settingsButton = wrapper.find(
       '[data-testid="kanban-board-settings-button"]'
     );
-    const agentFilter = findAgentFilterWrapper(wrapper);
+    const filterMenu = wrapper.find(
+      '[data-testid="kanban-filter-menu-container"]'
+    );
     const createStageButton = wrapper.find(
       '[data-testid="kanban-create-stage-toggle"]'
     );
 
-    expect(agentFilter.element.nextElementSibling).toBe(settingsButton.element);
+    expect(filterMenu.element.nextElementSibling).toBe(settingsButton.element);
     expect(settingsButton.element.nextElementSibling).toBe(
       createStageButton.element
     );
@@ -2130,20 +2139,15 @@ describe('KanbanView header navigation', () => {
     });
   });
 
-  it('keeps board header filters compact', async () => {
+  it('renders the unified board filter menu', async () => {
     const wrapper = await mountView();
-    const compactClasses = ['w-48', 'max-w-full', 'flex-none'];
 
-    compactClasses.forEach(className => {
-      expect(findInboxFilterWrapper(wrapper).classes()).toContain(className);
-      expect(findAgentFilterWrapper(wrapper).classes()).toContain(className);
-    });
-
-    expect(findInboxFilterWrapper(wrapper).classes().join(' ')).not.toContain(
-      'tag-multi-select-trigger'
+    expect(findFilterMenu(wrapper).exists()).toBe(true);
+    expect(wrapper.find('[data-testid="kanban-inbox-filter"]').exists()).toBe(
+      false
     );
-    expect(findAgentFilterWrapper(wrapper).classes().join(' ')).not.toContain(
-      'tag-multi-select-trigger'
+    expect(wrapper.find('[data-testid="kanban-agent-filter"]').exists()).toBe(
+      false
     );
   });
 
@@ -2236,7 +2240,7 @@ describe('KanbanView header navigation', () => {
   });
 });
 
-describe('KanbanView inbox filter', () => {
+describe('KanbanView filters', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockT.mockImplementation(key => key);
@@ -2244,7 +2248,7 @@ describe('KanbanView inbox filter', () => {
     mockRoute.params.boardId = '10';
   });
 
-  it('renders only allowed inbox options for selected_inboxes boards', async () => {
+  it('passes board-scoped inbox and agent options to the filter menu', async () => {
     const wrapper = await mountView({
       boardResponse: buildBoardResponse([], {
         inbox_scope_mode: 'selected_inboxes',
@@ -2252,155 +2256,49 @@ describe('KanbanView inbox filter', () => {
       }),
     });
 
-    expect(findInboxFilter(wrapper).props('options')).toEqual([
+    expect(findFilterMenu(wrapper).props('inboxOptions')).toEqual([
       { value: 2, label: 'Sales' },
       { value: 3, label: 'Onboarding' },
     ]);
-  });
-
-  it('refetches the board with inbox_ids when the filter changes', async () => {
-    const wrapper = await mountView();
-
-    KanbanBoardsAPI.show.mockClear();
-    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2, 2]);
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
-      params: { inbox_ids: [2] },
-    });
-  });
-
-  it('preserves inbox_ids on load more requests', async () => {
-    const wrapper = await mountView(
-      buildBoardResponse([buildCard()], {
-        stages: [
-          buildBoardResponse().stages[0],
-          {
-            id: 200,
-            name: 'Stage B',
-            active: true,
-            position: 2,
-            cards: [buildCard()],
-            cards_count: 2,
-            pagination: buildPagination({
-              has_more: true,
-              next_cursor: { after_id: 502 },
-            }),
-          },
-        ],
-      })
-    );
-
-    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
-    await flushPromises();
-    KanbanBoardsAPI.getStageCards.mockClear();
-
-    await findLoadMoreButtonByStageId(wrapper, 200).trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
-      limit: 20,
-      cursor: { after_id: 502 },
-      inbox_ids: [2],
-    });
-  });
-
-  it('preserves inbox_ids on realtime refreshes', async () => {
-    const wrapper = await mountView();
-
-    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
-    await flushPromises();
-    KanbanBoardsAPI.getStageCards.mockClear();
-
-    await emitKanbanRealtimeEvent({
-      event: 'kanban.card.created',
-      data: { board_id: 10, stage_id: 100, card_id: 700 },
-    });
-
-    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
-      limit: 20,
-      inbox_ids: [2],
-    });
-  });
-
-  it('clears the inbox filter when switching boards', async () => {
-    const wrapper = await mountView();
-
-    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
-    await flushPromises();
-    KanbanBoardsAPI.show.mockResolvedValueOnce({
-      data: buildBoardResponse([], { id: 11, name: 'Renewals Board' }),
-    });
-    KanbanBoardsAPI.show.mockClear();
-    mockRoute.params.boardId = '11';
-    await flushPromises();
-
-    expect(findInboxFilter(wrapper).props('modelValue')).toEqual([]);
-    expect(KanbanBoardsAPI.show).toHaveBeenLastCalledWith(11, undefined);
-  });
-
-  it('removes inbox_ids when the filter is cleared', async () => {
-    const wrapper = await mountView();
-
-    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
-    await flushPromises();
-    KanbanBoardsAPI.show.mockClear();
-
-    await findInboxFilter(wrapper).vm.$emit('update:modelValue', []);
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
-  });
-});
-
-describe('KanbanView assignee filter', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockT.mockImplementation(key => key);
-    vi.useRealTimers();
-    mockRoute.params.boardId = '10';
-  });
-
-  it('renders account agents as filter options', async () => {
-    const wrapper = await mountView();
-
-    expect(findAgentFilter(wrapper).props('options')).toEqual([
+    expect(findFilterMenu(wrapper).props('agentOptions')).toEqual([
       { value: 7, label: 'Ada Lovelace' },
       { value: 8, label: 'Grace Hopper' },
     ]);
+    expect(wrapper.dispatchSpy).toHaveBeenCalledWith('labels/get');
   });
 
-  it('uses the translated agents filter placeholder', async () => {
-    mockT.mockImplementation(key => {
-      const translations = {
-        'KANBAN.FILTERS.AGENTS': 'Agentes',
-      };
-      return translations[key] || key;
-    });
-    const wrapper = await mountView();
-
-    expect(findAgentFilter(wrapper).props('placeholder')).toBe('Agentes');
-    expect(mockT).toHaveBeenCalledWith('KANBAN.FILTERS.AGENTS');
-  });
-
-  it('defines agents filter labels for supported locales', () => {
-    expect(enKanbanMessages.KANBAN.FILTERS.AGENTS).toBe('Agents');
-    expect(ptBRKanbanMessages.KANBAN.FILTERS.AGENTS).toBe('Agentes');
-  });
-
-  it('refetches the board with assignee_ids when the filter changes', async () => {
+  it('refetches with all selected filter categories and match mode', async () => {
     const wrapper = await mountView();
 
     KanbanBoardsAPI.show.mockClear();
-    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7, 7]);
+    await updateBoardFilters(wrapper, {
+      inboxIds: [2],
+      assigneeIds: [7],
+      cardStatuses: ['open'],
+      priorities: ['high'],
+      dueDates: ['week'],
+      labels: ['vip'],
+      matchMode: 'any',
+    });
     await flushPromises();
 
     expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
-      params: { assignee_ids: [7] },
+      params: {
+        inbox_ids: [2],
+        assignee_ids: [7],
+        card_statuses: ['open'],
+        priorities: ['high'],
+        due_dates: ['week'],
+        labels: ['vip'],
+        match_mode: 'any',
+      },
     });
+    expect(wrapper.find('[data-testid="kanban-filter-count"]').text()).toBe(
+      '6'
+    );
   });
 
-  it('preserves assignee_ids on load more requests', async () => {
+  it('preserves active filters on load more and realtime refreshes', async () => {
     const wrapper = await mountView(
       buildBoardResponse([buildCard()], {
         stages: [
@@ -2421,7 +2319,10 @@ describe('KanbanView assignee filter', () => {
       })
     );
 
-    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
+    await updateBoardFilters(wrapper, {
+      priorities: ['high'],
+      matchMode: 'all',
+    });
     await flushPromises();
     KanbanBoardsAPI.getStageCards.mockClear();
 
@@ -2431,17 +2332,11 @@ describe('KanbanView assignee filter', () => {
     expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
       limit: 20,
       cursor: { after_id: 502 },
-      assignee_ids: [7],
+      priorities: ['high'],
+      match_mode: 'all',
     });
-  });
 
-  it('preserves assignee_ids on realtime refreshes', async () => {
-    const wrapper = await mountView();
-
-    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
-    await flushPromises();
     KanbanBoardsAPI.getStageCards.mockClear();
-
     await emitKanbanRealtimeEvent({
       event: 'kanban.card.created',
       data: { board_id: 10, stage_id: 100, card_id: 700 },
@@ -2449,34 +2344,37 @@ describe('KanbanView assignee filter', () => {
 
     expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
       limit: 20,
-      assignee_ids: [7],
+      priorities: ['high'],
+      match_mode: 'all',
     });
   });
 
-  it('uses a filtered server refresh for realtime card updates', async () => {
+  it('clears all board filters from the header action', async () => {
     const wrapper = await mountView();
 
-    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
+    await updateBoardFilters(wrapper, { inboxIds: [2] });
     await flushPromises();
-    KanbanBoardsAPI.showCardById.mockClear();
-    KanbanBoardsAPI.getStageCards.mockClear();
+    KanbanBoardsAPI.show.mockClear();
 
-    await emitKanbanRealtimeEvent({
-      event: 'kanban.card.updated',
-      data: { board_id: 10, stage_id: 100, card_id: 501 },
-    });
+    await wrapper.find('[data-testid="kanban-clear-filters"]').trigger('click');
+    await flushPromises();
 
-    expect(KanbanBoardsAPI.showCardById).not.toHaveBeenCalled();
-    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
-      limit: 20,
-      assignee_ids: [7],
+    expect(findFilterMenu(wrapper).props('modelValue')).toEqual({
+      inboxIds: [],
+      assigneeIds: [],
+      cardStatuses: [],
+      priorities: [],
+      dueDates: [],
+      labels: [],
+      matchMode: 'all',
     });
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
   });
 
-  it('clears the assignee filter when switching boards', async () => {
+  it('resets filters when switching boards', async () => {
     const wrapper = await mountView();
 
-    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
+    await updateBoardFilters(wrapper, { assigneeIds: [7] });
     await flushPromises();
     KanbanBoardsAPI.show.mockResolvedValueOnce({
       data: buildBoardResponse([], { id: 11, name: 'Renewals Board' }),
@@ -2485,22 +2383,15 @@ describe('KanbanView assignee filter', () => {
     mockRoute.params.boardId = '11';
     await flushPromises();
 
-    expect(findAgentFilter(wrapper).props('modelValue')).toEqual([]);
-    expect(KanbanBoardsAPI.show).toHaveBeenLastCalledWith(11, undefined);
-  });
-
-  it('preserves inbox and assignee filters together', async () => {
-    const wrapper = await mountView();
-
-    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [2]);
-    await flushPromises();
-    KanbanBoardsAPI.show.mockClear();
-
-    await findAgentFilter(wrapper).vm.$emit('update:modelValue', [7]);
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
-      params: { inbox_ids: [2], assignee_ids: [7] },
+    expect(findFilterMenu(wrapper).props('modelValue')).toEqual({
+      inboxIds: [],
+      assigneeIds: [],
+      cardStatuses: [],
+      priorities: [],
+      dueDates: [],
+      labels: [],
+      matchMode: 'all',
     });
+    expect(KanbanBoardsAPI.show).toHaveBeenLastCalledWith(11, undefined);
   });
 });

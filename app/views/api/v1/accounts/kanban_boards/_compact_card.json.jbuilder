@@ -22,6 +22,7 @@ json.products card.kanban_card_products.ordered do |product|
 end
 json.value card.total_value
 json.due_at card.due_at&.iso8601
+json.labels card.labels.map(&:name)
 json.stage_entered_at card.stage_entered_at&.iso8601
 json.contact do
   json.partial! 'api/v1/models/contact', formats: [:json], resource: card.contact

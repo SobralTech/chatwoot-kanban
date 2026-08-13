@@ -8,7 +8,9 @@ class KanbanCards::VisibleStageCardsQuery
 
   # rubocop:disable Metrics/ParameterLists
   def initialize(account:, user:, kanban_board:, kanban_stage:, limit: DEFAULT_LIMIT, cursor: nil, visible_inbox_ids: nil,
-                 visible_team_ids: nil, account_user: nil, filtered_inbox_ids: nil, filtered_assignee_ids: nil, search_query: nil)
+                 visible_team_ids: nil, account_user: nil, filtered_inbox_ids: nil, filtered_assignee_ids: nil,
+                 filtered_card_statuses: nil, filtered_priorities: nil, filtered_due_dates: nil, filtered_labels: nil,
+                 match_mode: 'all', search_query: nil)
     @account = account
     @user = user
     @kanban_board = kanban_board
@@ -18,10 +20,13 @@ class KanbanCards::VisibleStageCardsQuery
     @visible_inbox_ids = visible_inbox_ids
     @visible_team_ids = visible_team_ids
     @account_user = account_user
-    @filtered_inbox_ids =
-      filtered_inbox_ids.nil? ? nil : Array(filtered_inbox_ids).uniq
-    @filtered_assignee_ids =
-      filtered_assignee_ids.nil? ? nil : Array(filtered_assignee_ids).uniq
+    @filtered_inbox_ids = normalized_filter(filtered_inbox_ids)
+    @filtered_assignee_ids = normalized_filter(filtered_assignee_ids)
+    @filtered_card_statuses = normalized_filter(filtered_card_statuses)
+    @filtered_priorities = normalized_filter(filtered_priorities)
+    @filtered_due_dates = normalized_filter(filtered_due_dates)
+    @filtered_labels = normalized_filter(filtered_labels)
+    @match_mode = match_mode
     @search_query = search_query
   end
   # rubocop:enable Metrics/ParameterLists
@@ -49,7 +54,12 @@ class KanbanCards::VisibleStageCardsQuery
   private
 
   attr_reader :account, :user, :kanban_board, :kanban_stage, :limit, :cursor,
-              :filtered_inbox_ids, :filtered_assignee_ids, :search_query
+              :filtered_inbox_ids, :filtered_assignee_ids, :filtered_card_statuses,
+              :filtered_priorities, :filtered_due_dates, :filtered_labels, :match_mode, :search_query
+
+  def normalized_filter(values)
+    values.nil? ? nil : Array(values).uniq
+  end
 
   def empty_result
     Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0, total_value: 0)
@@ -63,18 +73,126 @@ class KanbanCards::VisibleStageCardsQuery
       kanban_stage.active?
   end
 
-  # rubocop:disable Metrics/AbcSize
   def visible_cards
-    @visible_cards ||= KanbanCard
-                       .active
-                       .left_outer_joins(:conversation, :contact)
-                       .where(account_id: account.id, kanban_board_id: kanban_board.id, kanban_stage_id: kanban_stage.id)
-                       .where(visibility_condition)
-                       .then { |scope| filtered_inbox_ids.nil? ? scope : scope.where(inbox_id: filtered_inbox_ids) }
-                       .then { |scope| filtered_assignee_ids.nil? ? scope : scope.where(conversations: { assignee_id: filtered_assignee_ids }) }
-                       .then { |scope| search_query.blank? ? scope : scope.where(search_condition) }
+    @visible_cards ||= begin
+      scope = KanbanCard
+              .active
+              .left_outer_joins(:conversation, :contact)
+              .where(account_id: account.id, kanban_board_id: kanban_board.id, kanban_stage_id: kanban_stage.id)
+              .where(visibility_condition)
+      scope = scope.where(combined_filter_condition) if combined_filter_condition
+      scope = scope.where(search_condition) if search_query.present?
+      scope
+    end
   end
-  # rubocop:enable Metrics/AbcSize
+
+  def combined_filter_condition
+    return if filter_conditions.blank?
+
+    filter_conditions.reduce(match_any? ? :or : :and)
+  end
+
+  def filter_conditions
+    [
+      inbox_condition,
+      assignee_condition,
+      card_status_condition,
+      priority_condition,
+      due_date_condition,
+      label_condition
+    ].compact
+  end
+
+  def inbox_condition
+    card_table[:inbox_id].in(filtered_inbox_ids) if filtered_inbox_ids.present?
+  end
+
+  def assignee_condition
+    conversation_table[:assignee_id].in(filtered_assignee_ids) if filtered_assignee_ids.present?
+  end
+
+  def card_status_condition
+    return if filtered_card_statuses.blank?
+
+    conditions = filtered_card_statuses.filter_map do |status|
+      case status
+      when 'open'
+        open_card_condition
+      when 'won'
+        card_status_stage_condition(kanban_board.won_stage_id)
+      when 'lost'
+        card_status_stage_condition(kanban_board.lost_stage_id)
+      end
+    end
+    or_condition(conditions)
+  end
+
+  def open_card_condition
+    special_stage_ids = KanbanStage.special_stage_ids(kanban_board)
+    return card_table[:id].not_eq(nil) if special_stage_ids.blank?
+
+    card_table[:kanban_stage_id].not_in(special_stage_ids)
+  end
+
+  def card_status_stage_condition(stage_id)
+    return card_table[:id].eq(nil) if stage_id.blank?
+
+    card_table[:kanban_stage_id].eq(stage_id)
+  end
+
+  def priority_condition
+    return if filtered_priorities.blank?
+
+    conditions = []
+    priority_values = filtered_priorities.filter_map { |priority| KanbanCard.priorities[priority] }
+    conditions << card_table[:priority].in(priority_values) if priority_values.present?
+    conditions << card_table[:priority].eq(nil) if filtered_priorities.include?('none')
+    or_condition(conditions)
+  end
+
+  def due_date_condition
+    return if filtered_due_dates.blank?
+
+    conditions = filtered_due_dates.filter_map do |due_date|
+      due_date_bucket_condition(due_date)
+    end
+    or_condition(conditions)
+  end
+
+  def due_date_bucket_condition(due_date)
+    return card_table[:due_at].eq(nil) if due_date == 'none'
+    return card_table[:due_at].lt(Time.current) if due_date == 'overdue'
+
+    due_date_window_condition(due_date)
+  end
+
+  def due_date_window_condition(due_date)
+    duration = { 'day' => 1.day, 'week' => 1.week, 'month' => 1.month }[due_date]
+    return unless duration
+
+    now = Time.current
+    card_table[:due_at].gteq(now).and(card_table[:due_at].lteq(now + duration))
+  end
+
+  def label_condition
+    return if filtered_labels.blank?
+
+    conditions = []
+    label_names = filtered_labels - ['none']
+    conditions << card_table[:id].in(card_ids_with_labels(label_names)) if label_names.present?
+    conditions << card_table[:id].not_in(card_ids_with_labels) if filtered_labels.include?('none')
+    or_condition(conditions)
+  end
+
+  def card_ids_with_labels(label_names = nil)
+    taggings = ActsAsTaggableOn::Tagging.where(taggable_type: 'KanbanCard', context: 'labels')
+    taggings = taggings.joins(:tag).where(tags: { name: label_names }) if label_names.present?
+    taggings.select(:taggable_id).arel
+  end
+
+  def match_any?
+    match_mode == 'any'
+  end
 
   def search_condition
     search_tokens
@@ -186,7 +304,8 @@ class KanbanCards::VisibleStageCardsQuery
                   .includes(
                     conversation: { assignee: { avatar_attachment: :blob } },
                     contact: { avatar_attachment: :blob },
-                    inbox: [:channel, { avatar_attachment: :blob }]
+                    inbox: [:channel, { avatar_attachment: :blob }],
+                    labels: :taggings
                   ).index_by(&:id)
 
     ids.filter_map { |id| cards_by_id[id] }

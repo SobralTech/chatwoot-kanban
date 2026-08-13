@@ -67,6 +67,11 @@ class KanbanCard < ApplicationRecord
   }
 
   enum :priority, { low: 0, medium: 1, high: 2, urgent: 3 }
+  SORT_ORDER_SQL = {
+    'created_at_desc' => 'kanban_cards.created_at DESC, kanban_cards.id DESC',
+    'created_at_asc' => 'kanban_cards.created_at ASC, kanban_cards.id ASC',
+    'name_asc' => "COALESCE(NULLIF(kanban_cards.subject, ''), contacts.name) ASC NULLS LAST, kanban_cards.id ASC"
+  }.freeze
 
   before_validation :normalize_subject
   before_validation :normalize_blank_description
@@ -188,7 +193,73 @@ class KanbanCard < ApplicationRecord
     SQL
   end
 
-  private_class_method :bulk_normalize_positions_for_stage!
+  def self.sort_active_cards_for_stage!(kanban_board:, kanban_stage:, sort_by:)
+    transaction do
+      lock_reorder_stages!([kanban_stage.id])
+      lock_active_cards_for_stages!(kanban_board, [kanban_stage.id])
+      bulk_sort_active_cards_for_stage!(kanban_board, kanban_stage, sort_by)
+    end
+  end
+
+  def self.move_active_cards_to_stage!(kanban_board:, source_stage:, target_stage:)
+    transaction do
+      stage_ids = [source_stage.id, target_stage.id].sort
+      lock_reorder_stages!(stage_ids)
+      lock_active_cards_for_stages!(kanban_board, stage_ids)
+
+      bulk_normalize_positions_for_stage!(kanban_board, target_stage)
+      target_card_count = stage_active_cards(kanban_board, target_stage).count
+      bulk_move_active_cards!(kanban_board, source_stage, target_stage, target_card_count)
+      bulk_normalize_positions_for_stage!(kanban_board, source_stage)
+      bulk_normalize_positions_for_stage!(kanban_board, target_stage)
+    end
+  end
+
+  def self.bulk_sort_active_cards_for_stage!(kanban_board, kanban_stage, sort_by)
+    order_sql = SORT_ORDER_SQL.fetch(sort_by)
+
+    connection.execute(<<~SQL.squish)
+      WITH ordered_cards AS (
+        SELECT kanban_cards.id, row_number() OVER (ORDER BY #{order_sql}) AS sorted_position
+        FROM #{quoted_table_name}
+        LEFT JOIN #{Contact.quoted_table_name} ON #{Contact.quoted_table_name}.id = #{quoted_table_name}.contact_id
+        WHERE #{quoted_table_name}.kanban_board_id = #{connection.quote(kanban_board.id)}
+          AND #{quoted_table_name}.kanban_stage_id = #{connection.quote(kanban_stage.id)}
+          AND #{quoted_table_name}.active = TRUE
+      )
+      UPDATE #{quoted_table_name}
+      SET position = ordered_cards.sorted_position,
+          updated_at = #{connection.quote(Time.current)}
+      FROM ordered_cards
+      WHERE #{quoted_table_name}.id = ordered_cards.id
+        AND #{quoted_table_name}.position != ordered_cards.sorted_position
+    SQL
+  end
+
+  def self.bulk_move_active_cards!(kanban_board, source_stage, target_stage, target_card_count)
+    current_time = connection.quote(Time.current)
+
+    connection.execute(<<~SQL.squish)
+      WITH source_cards AS (
+        SELECT id, row_number() OVER (ORDER BY position ASC, created_at ASC, id ASC) + #{target_card_count} AS target_position
+        FROM #{quoted_table_name}
+        WHERE kanban_board_id = #{connection.quote(kanban_board.id)}
+          AND kanban_stage_id = #{connection.quote(source_stage.id)}
+          AND active = TRUE
+      )
+      UPDATE #{quoted_table_name}
+      SET kanban_stage_id = #{connection.quote(target_stage.id)},
+          position = source_cards.target_position,
+          kanban_reason_id = NULL,
+          previous_stage_id = NULL,
+          stage_entered_at = #{current_time},
+          updated_at = #{current_time}
+      FROM source_cards
+      WHERE #{quoted_table_name}.id = source_cards.id
+    SQL
+  end
+
+  private_class_method :bulk_normalize_positions_for_stage!, :bulk_sort_active_cards_for_stage!, :bulk_move_active_cards!
 
   private
 
