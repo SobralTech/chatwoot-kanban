@@ -429,7 +429,6 @@
       "SEARCH_LABEL": "Search contacts",
       "SEARCHING": "Searching contacts...",
       "SEARCH_ERROR": "Could not search contacts. Try again.",
-      "NO_CONTACTS": "No contacts found.",
       "NO_CONTACTS_WITH_QUERY": "No contacts found for “{query}”.",
       "UNKNOWN_CONTACT": "Unknown contact",
       "NO_CONTACT_DETAILS": "No email or phone",
@@ -456,18 +455,17 @@
       "CREATE_OPPORTUNITY": "Create card",
       "SAVING": "Creating...",
       "BACK": "Back",
-      "SUBJECT_REQUIRED": "Enter a subject to create the opportunity.",
-      "CREATION_ERROR": "Could not create the opportunity. Try again.",
       "CREATE_SUCCESS": "Card created.",
+      "DISCARD_TITLE": "Discard card",
       "DISCARD_CONFIRM": "Discard the card being created?",
+      "DISCARD": "Discard",
+      "KEEP_EDITING": "Keep editing",
       "ERRORS": {
         "DUPLICATE_SUBJECT": "A card with this subject already exists for this contact and inbox.",
         "INBOX_NOT_ALLOWED": "This inbox is not allowed by the funnel.",
         "TERMINAL_STAGE": "Cards cannot be created in a won or lost stage.",
         "GENERIC": "Could not create the card. Try again."
       },
-      "LEGACY_UNAVAILABLE": "Manual opportunities are unavailable for legacy-read boards.",
-      "CLEAR_CONTACT": "Clear selected contact",
       "CLOSE": "Close card creator"
     },
     "CARD": {

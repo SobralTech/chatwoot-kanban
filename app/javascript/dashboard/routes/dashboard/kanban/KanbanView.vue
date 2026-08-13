@@ -931,23 +931,22 @@ const confirmRemoveStage = async () => {
   await removeStage(stage);
 };
 
+const closeAddItemPicker = () => {
+  activeAddItemStageId.value = null;
+  showDiscardAddItemConfirm.value = false;
+};
+
 const toggleAddItemPicker = stage => {
   if (activeAddItemStageId.value === stage.id) {
-    activeAddItemStageId.value = null;
-    showDiscardAddItemConfirm.value = false;
+    closeAddItemPicker();
     return;
   }
 
   activeAddItemStageId.value = stage.id;
 };
 
-function closeAddItemPicker() {
-  activeAddItemStageId.value = null;
-  showDiscardAddItemConfirm.value = false;
-}
-
 const attemptCloseAddItemPicker = () => {
-  if (addItemPickerRef.value?.hasUnsavedSubject?.()) {
+  if (addItemPickerRef.value?.hasUnsavedChanges) {
     showDiscardAddItemConfirm.value = true;
     return;
   }
@@ -957,10 +956,6 @@ const attemptCloseAddItemPicker = () => {
 
 const keepEditingAddItem = () => {
   showDiscardAddItemConfirm.value = false;
-};
-
-const discardAddItem = () => {
-  closeAddItemPicker();
 };
 
 const highlightCreatedCard = cardId => {
@@ -2105,32 +2100,14 @@ watch(searchInput, () => {
       />
     </woot-modal>
 
-    <woot-modal
-      :show="showDiscardAddItemConfirm"
-      :show-close-button="false"
-      size="modal-narrow"
+    <woot-delete-modal
+      v-model:show="showDiscardAddItemConfirm"
       :on-close="keepEditingAddItem"
-    >
-      <div class="p-6">
-        <p class="mb-6 text-sm text-n-slate-11">
-          {{ t('KANBAN.ADD_ITEM.DISCARD_CONFIRM') }}
-        </p>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <NextButton
-            outline
-            slate
-            sm
-            :label="t('KANBAN.OPPORTUNITY_DETAILS.KEEP_EDITING')"
-            @click="keepEditingAddItem"
-          />
-          <NextButton
-            ruby
-            sm
-            :label="t('KANBAN.BOARD_EDIT.DISCARD')"
-            @click="discardAddItem"
-          />
-        </div>
-      </div>
-    </woot-modal>
+      :on-confirm="closeAddItemPicker"
+      :title="t('KANBAN.ADD_ITEM.DISCARD_TITLE')"
+      :message="t('KANBAN.ADD_ITEM.DISCARD_CONFIRM')"
+      :confirm-text="t('KANBAN.ADD_ITEM.DISCARD')"
+      :reject-text="t('KANBAN.ADD_ITEM.KEEP_EDITING')"
+    />
   </main>
 </template>

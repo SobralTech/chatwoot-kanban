@@ -430,7 +430,6 @@
       "SEARCH_LABEL": "Pesquisar contatos",
       "SEARCHING": "Pesquisando contatos...",
       "SEARCH_ERROR": "Não foi possível pesquisar contatos. Tente novamente.",
-      "NO_CONTACTS": "Nenhum contato encontrado.",
       "NO_CONTACTS_WITH_QUERY": "Nenhum contato encontrado para “{query}”.",
       "UNKNOWN_CONTACT": "Contato desconhecido",
       "NO_CONTACT_DETAILS": "Sem email ou telefone",
@@ -457,18 +456,17 @@
       "CREATE_OPPORTUNITY": "Criar cartão",
       "SAVING": "Criando...",
       "BACK": "Voltar",
-      "SUBJECT_REQUIRED": "Informe um assunto para criar a oportunidade.",
-      "CREATION_ERROR": "Não foi possível criar a oportunidade. Tente novamente.",
       "CREATE_SUCCESS": "Cartão criado.",
+      "DISCARD_TITLE": "Descartar cartão",
       "DISCARD_CONFIRM": "Descartar o cartão que está sendo criado?",
+      "DISCARD": "Descartar",
+      "KEEP_EDITING": "Continuar editando",
       "ERRORS": {
         "DUPLICATE_SUBJECT": "Já existe um cartão com este assunto para este contato e caixa de entrada.",
         "INBOX_NOT_ALLOWED": "Esta caixa de entrada não é permitida pelo funil.",
         "TERMINAL_STAGE": "Não é possível criar cartões em uma etapa ganha ou perdida.",
         "GENERIC": "Não foi possível criar o cartão. Tente novamente."
       },
-      "LEGACY_UNAVAILABLE": "Oportunidades manuais não estão disponíveis para quadros em modo legado.",
-      "CLEAR_CONTACT": "Limpar contato selecionado",
       "CLOSE": "Fechar criador de cartão"
     },
     "CARD": {

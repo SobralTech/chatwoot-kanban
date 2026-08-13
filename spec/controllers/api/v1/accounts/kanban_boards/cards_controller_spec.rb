@@ -236,7 +236,7 @@ RSpec.describe 'Kanban Cards API', type: :request do
 
   describe 'GET /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/lookup' do
     it 'returns only active cards for the selected contact' do
-      card = create_manual_card(conversation: conversation, subject: 'Recent quote')
+      create_manual_card(conversation: conversation, subject: 'Recent quote')
       create_manual_card(conversation: conversation, subject: 'Inactive quote', active: false)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/lookup",
@@ -247,9 +247,6 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body).to contain_exactly(
         {
-          'id' => card.id,
-          'subject' => 'Recent quote',
-          'kanban_stage_id' => stage.id,
           'stage_name' => stage.name,
           'conversation_id' => conversation.display_id,
           'terminal' => false

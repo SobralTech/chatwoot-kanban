@@ -240,7 +240,7 @@ describe('#KanbanBoardsAPI', () => {
 
       expect(axiosMock.get).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/lookup',
-        { params: { contact_id: 123 } }
+        { params: { contact_id: 123 }, signal: undefined }
       );
     });
 

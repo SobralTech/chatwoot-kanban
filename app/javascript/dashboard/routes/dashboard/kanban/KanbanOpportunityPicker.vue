@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 import { debounce } from '@chatwoot/utils';
@@ -7,6 +7,7 @@ import { useStore } from 'dashboard/composables/store';
 import ContactAPI from 'dashboard/api/contacts';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import Button from 'dashboard/components-next/button/Button.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
 
@@ -38,23 +39,23 @@ const emit = defineEmits(['created', 'close']);
 const { t } = useI18n();
 const store = useStore();
 
-const currentStep = ref(1);
+const CONTACT_SEARCH_MINIMUM_LENGTH = 2;
+const CONVERSATIONS_PAGE_SIZE = 20;
+
 const contactSearchQuery = ref('');
 const recentContacts = ref([]);
-const contactSearchResults = ref([]);
+const searchResults = ref([]);
 const selectedContact = ref(null);
 const isSearchingContacts = ref(false);
 const isLoadingRecentContacts = ref(false);
-const hasSearchedContacts = ref(false);
 const contactSearchError = ref(false);
 const contactSearchController = ref(null);
-const contactSearchMinimumLength = 2;
 
 const conversations = ref([]);
-const fetchedConversationsCount = ref(0);
+const hasMoreRecentConversations = ref(false);
 const contactableInboxes = ref([]);
 const selectedConversation = ref(null);
-const selectedInbox = ref(null);
+const selectedFallbackInbox = ref(null);
 const activeCards = ref([]);
 const isLoadingContactDetails = ref(false);
 const contactDetailsError = ref(false);
@@ -68,12 +69,21 @@ const contactSearchInputRef = ref(null);
 const subjectInputRef = ref(null);
 
 const trimmedSubject = computed(() => subject.value.trim());
+const hasUnsavedChanges = computed(() => trimmedSubject.value.length > 0);
 const isLoadingContacts = computed(
   () => isLoadingRecentContacts.value || isSearchingContacts.value
 );
-const hasRecentConversationsNote = computed(
-  () => fetchedConversationsCount.value === 20
+const isSearchActive = computed(
+  () => contactSearchQuery.value.trim().length >= CONTACT_SEARCH_MINIMUM_LENGTH
 );
+const selectedInbox = computed(
+  () => selectedConversation.value?.inbox || selectedFallbackInbox.value
+);
+const currentStep = computed(() => {
+  if (!selectedContact.value) return 1;
+
+  return selectedInbox.value ? 3 : 2;
+});
 const activeCardConversationIds = computed(
   () =>
     new Set(activeCards.value.map(card => card.conversationId).filter(Boolean))
@@ -91,25 +101,20 @@ const normalizeForSearch = value =>
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 
-const highlightSegments = (value, query) => {
+const highlightSegments = (value, query, normalizedQuery) => {
   const text = String(value || '');
-  const normalizedQuery = normalizeForSearch(query.trim());
-  const index = normalizeForSearch(text).indexOf(normalizedQuery);
+  const index = normalizedQuery
+    ? normalizeForSearch(text).indexOf(normalizedQuery)
+    : -1;
 
-  if (!normalizedQuery || index < 0) {
+  if (index < 0) {
     return [{ text, highlighted: false }];
   }
 
   return [
     { text: text.slice(0, index), highlighted: false },
-    {
-      text: text.slice(index, index + query.trim().length),
-      highlighted: true,
-    },
-    {
-      text: text.slice(index + query.trim().length),
-      highlighted: false,
-    },
+    { text: text.slice(index, index + query.length), highlighted: true },
+    { text: text.slice(index + query.length), highlighted: false },
   ];
 };
 
@@ -122,6 +127,26 @@ const contactDetailsSummary = contact =>
   contactDetails(contact).join(
     t('KANBAN.ADD_ITEM.CONTACT_DETAILS_SEPARATOR')
   ) || t('KANBAN.ADD_ITEM.NO_CONTACT_DETAILS');
+
+const displayedContacts = computed(() => {
+  const query = contactSearchQuery.value.trim();
+  const normalizedQuery = normalizeForSearch(query);
+  const contacts = isSearchActive.value
+    ? searchResults.value
+    : recentContacts.value;
+
+  return contacts.map(contact => ({
+    contact,
+    nameSegments: highlightSegments(
+      contactDisplayName(contact),
+      query,
+      normalizedQuery
+    ),
+    detailSegments: contactDetails(contact).map(detail =>
+      highlightSegments(detail, query, normalizedQuery)
+    ),
+  }));
+});
 
 const inboxDisplayName = inbox =>
   inbox?.name?.trim() || t('KANBAN.CARD.UNKNOWN_INBOX');
@@ -153,36 +178,32 @@ const conversationInbox = conversation => {
   };
 };
 
-const conversationStatusLabel = status => {
-  if (status === 'open') {
-    return t('KANBAN.ADD_ITEM.CONVERSATION_STATUS.OPEN');
-  }
+const conversationStatuses = computed(() => ({
+  open: {
+    label: t('KANBAN.ADD_ITEM.CONVERSATION_STATUS.OPEN'),
+    dotClass: 'bg-n-teal-9',
+  },
+  pending: {
+    label: t('KANBAN.ADD_ITEM.CONVERSATION_STATUS.PENDING'),
+    dotClass: 'bg-n-amber-9',
+  },
+  resolved: {
+    label: t('KANBAN.ADD_ITEM.CONVERSATION_STATUS.RESOLVED'),
+    dotClass: 'bg-n-slate-8',
+  },
+}));
 
-  if (status === 'pending') {
-    return t('KANBAN.ADD_ITEM.CONVERSATION_STATUS.PENDING');
-  }
-
-  return t('KANBAN.ADD_ITEM.CONVERSATION_STATUS.RESOLVED');
-};
-
-const conversationStatusClass = status => {
-  switch (status) {
-    case 'open':
-      return 'bg-n-teal-9';
-    case 'pending':
-      return 'bg-n-amber-9';
-    default:
-      return 'bg-n-slate-8';
-  }
-};
+const conversationStatus = status =>
+  conversationStatuses.value[status] || conversationStatuses.value.resolved;
 
 const conversationSnippet = conversation =>
   conversation?.messages?.[0]?.content || t('KANBAN.CARD.NO_MESSAGES');
 
+const lastActivityAt = conversation =>
+  Number(conversation?.lastActivityAt || conversation?.timestamp || 0);
+
 const conversationTimestamp = conversation => {
-  const timestamp = Number(
-    conversation?.lastActivityAt || conversation?.timestamp
-  );
+  const timestamp = lastActivityAt(conversation);
 
   return timestamp ? shortTimestamp(dynamicTime(timestamp), true) : '';
 };
@@ -197,20 +218,24 @@ const abortContactDetails = () => {
   contactDetailsController.value = null;
 };
 
-const resetSubmission = () => {
-  subject.value = '';
+const resetErrors = () => {
   subjectError.value = '';
   creationError.value = '';
+};
+
+const resetSubmission = () => {
+  subject.value = '';
   isSaving.value = false;
+  resetErrors();
 };
 
 const resetContactDetails = () => {
   abortContactDetails();
   conversations.value = [];
-  fetchedConversationsCount.value = 0;
+  hasMoreRecentConversations.value = false;
   contactableInboxes.value = [];
   selectedConversation.value = null;
-  selectedInbox.value = null;
+  selectedFallbackInbox.value = null;
   activeCards.value = [];
   isLoadingContactDetails.value = false;
   contactDetailsError.value = false;
@@ -226,49 +251,36 @@ const loadRecentContacts = async () => {
     } = await ContactAPI.get(1, 'last_activity_at');
 
     recentContacts.value = camelcaseKeys(payload, { deep: true });
-    if (contactSearchQuery.value.trim().length < contactSearchMinimumLength) {
-      contactSearchResults.value = recentContacts.value;
-    }
   } catch (error) {
-    if (contactSearchQuery.value.trim().length < contactSearchMinimumLength) {
-      contactSearchError.value = true;
-      contactSearchResults.value = [];
-    }
     recentContacts.value = [];
+    if (!isSearchActive.value) contactSearchError.value = true;
   } finally {
     isLoadingRecentContacts.value = false;
   }
 };
 
 const searchContacts = async query => {
-  const trimmedQuery = query.trim();
-  if (
-    trimmedQuery.length < contactSearchMinimumLength ||
-    trimmedQuery !== contactSearchQuery.value.trim()
-  ) {
-    return;
-  }
+  if (query !== contactSearchQuery.value.trim()) return;
 
   const controller = new AbortController();
   contactSearchController.value = controller;
   isSearchingContacts.value = true;
-  hasSearchedContacts.value = true;
   contactSearchError.value = false;
 
   try {
     const {
       data: { payload },
-    } = await ContactAPI.search(trimmedQuery, 1, 'name', '', {
+    } = await ContactAPI.search(query, 1, 'name', '', {
       signal: controller.signal,
     });
 
     if (controller.signal.aborted) return;
 
-    contactSearchResults.value = camelcaseKeys(payload || [], { deep: true });
+    searchResults.value = camelcaseKeys(payload || [], { deep: true });
   } catch (error) {
     if (!isAbortError(error)) {
       contactSearchError.value = true;
-      contactSearchResults.value = [];
+      searchResults.value = [];
     }
   } finally {
     if (contactSearchController.value === controller) {
@@ -284,16 +296,14 @@ const onContactSearchInput = () => {
   abortContactSearch();
   contactSearchError.value = false;
 
-  const trimmedQuery = contactSearchQuery.value.trim();
-  if (trimmedQuery.length < contactSearchMinimumLength) {
-    contactSearchResults.value = recentContacts.value;
-    hasSearchedContacts.value = false;
+  if (!isSearchActive.value) {
+    searchResults.value = [];
     isSearchingContacts.value = false;
     return;
   }
 
   isSearchingContacts.value = true;
-  debouncedSearchContacts(trimmedQuery);
+  debouncedSearchContacts(contactSearchQuery.value.trim());
 };
 
 const loadFallbackInboxes = async (contact, controller) => {
@@ -322,32 +332,34 @@ const loadContactDetails = async contact => {
 
   const [conversationsResult, cardsResult] = await Promise.allSettled([
     ContactAPI.getConversations(contact.id, { signal: controller.signal }),
-    KanbanBoardsAPI.lookupCards(props.kanbanBoardId, { contactId: contact.id }),
+    KanbanBoardsAPI.lookupCards(props.kanbanBoardId, {
+      contactId: contact.id,
+      signal: controller.signal,
+    }),
   ]);
 
   if (controller.signal.aborted) return;
 
   if (cardsResult.status === 'fulfilled') {
-    const payload = cardsResult.value.data?.payload ?? cardsResult.value.data;
-    activeCards.value = camelcaseKeys(payload || [], { deep: true });
+    activeCards.value = camelcaseKeys(cardsResult.value.data || [], {
+      deep: true,
+    });
   }
 
   if (conversationsResult.status === 'fulfilled') {
     const rawConversations = conversationsResult.value.data?.payload || [];
-    fetchedConversationsCount.value = rawConversations.length;
+    hasMoreRecentConversations.value =
+      rawConversations.length === CONVERSATIONS_PAGE_SIZE;
     conversations.value = camelcaseKeys(rawConversations, { deep: true })
       .filter(conversation => isInboxAllowed(conversation.inboxId))
       .sort(
         (firstConversation, secondConversation) =>
-          Number(
-            secondConversation.lastActivityAt ||
-              secondConversation.timestamp ||
-              0
-          ) -
-          Number(
-            firstConversation.lastActivityAt || firstConversation.timestamp || 0
-          )
-      );
+          lastActivityAt(secondConversation) - lastActivityAt(firstConversation)
+      )
+      .map(conversation => ({
+        ...conversation,
+        inbox: conversationInbox(conversation),
+      }));
 
     if (conversations.value.length === 0) {
       try {
@@ -370,45 +382,35 @@ const selectContact = contact => {
   abortContactSearch();
   resetSubmission();
   selectedContact.value = contact;
-  contactSearchResults.value = [];
   isSearchingContacts.value = false;
   contactSearchError.value = false;
-  currentStep.value = 2;
   loadContactDetails(contact);
 };
 
 const selectConversation = conversation => {
+  resetErrors();
+  selectedFallbackInbox.value = null;
   selectedConversation.value = conversation;
-  selectedInbox.value = conversationInbox(conversation);
-  subjectError.value = '';
-  creationError.value = '';
-  currentStep.value = 3;
 };
 
 const selectInbox = inbox => {
+  resetErrors();
   selectedConversation.value = null;
-  selectedInbox.value = inbox;
-  subjectError.value = '';
-  creationError.value = '';
-  currentStep.value = 3;
+  selectedFallbackInbox.value = inbox;
 };
 
 const changeContact = () => {
   resetContactDetails();
   resetSubmission();
   selectedContact.value = null;
-  contactSearchResults.value = recentContacts.value;
+  searchResults.value = [];
   contactSearchQuery.value = '';
-  hasSearchedContacts.value = false;
-  currentStep.value = 1;
 };
 
 const changeConversation = () => {
+  resetErrors();
   selectedConversation.value = null;
-  selectedInbox.value = null;
-  subjectError.value = '';
-  creationError.value = '';
-  currentStep.value = 2;
+  selectedFallbackInbox.value = null;
 };
 
 const goToStep = step => {
@@ -450,8 +452,7 @@ const translatedCreationError = error => {
 const createManualCard = async () => {
   if (isSaving.value) return;
 
-  subjectError.value = '';
-  creationError.value = '';
+  resetErrors();
 
   if (trimmedSubject.value.length < 3) {
     subjectError.value = t('KANBAN.ADD_ITEM.SUBJECT_MIN_LENGTH');
@@ -493,12 +494,14 @@ const createManualCard = async () => {
 
 const requestClose = () => emit('close');
 
-watch(currentStep, step => {
-  nextTick(() => {
+watch(
+  currentStep,
+  step => {
     if (step === 1) contactSearchInputRef.value?.focus();
     if (step === 3) subjectInputRef.value?.focus();
-  });
-});
+  },
+  { flush: 'post' }
+);
 
 onMounted(() => {
   contactSearchInputRef.value?.focus();
@@ -510,9 +513,7 @@ onUnmounted(() => {
   abortContactDetails();
 });
 
-defineExpose({
-  hasUnsavedSubject: () => trimmedSubject.value.length > 0,
-});
+defineExpose({ hasUnsavedChanges });
 </script>
 
 <template>
@@ -533,14 +534,15 @@ defineExpose({
             })
           }}
         </h2>
-        <button
-          type="button"
-          class="no-drag flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+        <Button
+          ghost
+          slate
+          xs
+          icon="i-lucide-x"
+          class="no-drag flex-shrink-0"
           :aria-label="t('KANBAN.ADD_ITEM.CLOSE')"
           @click="requestClose"
-        >
-          <i class="i-lucide-x size-4" />
-        </button>
+        />
       </div>
       <nav
         data-testid="kanban-picker-breadcrumb"
@@ -615,67 +617,55 @@ defineExpose({
           {{ t('KANBAN.ADD_ITEM.SEARCH_ERROR') }}
         </p>
         <div
-          v-else-if="contactSearchResults.length"
+          v-else-if="displayedContacts.length"
           data-testid="kanban-contact-search-results"
           class="mt-3 grid max-h-80 gap-1 overflow-y-auto"
         >
           <button
-            v-for="contact in contactSearchResults"
-            :key="contact.id"
+            v-for="row in displayedContacts"
+            :key="row.contact.id"
             type="button"
             class="no-drag flex min-w-0 items-center gap-3 rounded-md p-2 text-left hover:bg-n-alpha-2"
-            @click="selectContact(contact)"
+            @click="selectContact(row.contact)"
           >
             <Avatar
-              :name="contactDisplayName(contact)"
-              :src="contact.thumbnail"
+              :name="contactDisplayName(row.contact)"
+              :src="row.contact.thumbnail"
               :size="36"
               rounded-full
             />
             <span class="min-w-0">
               <span class="block truncate text-sm font-medium text-n-slate-12">
-                <template
-                  v-for="(segment, index) in highlightSegments(
-                    contactDisplayName(contact),
-                    contactSearchQuery
-                  )"
-                  :key="`${contact.id}-name-${index}`"
+                <span
+                  v-for="(segment, index) in row.nameSegments"
+                  :key="`name-${index}`"
+                  :class="{
+                    'font-semibold text-n-brand': segment.highlighted,
+                  }"
                 >
+                  {{ segment.text }}
+                </span>
+              </span>
+              <span
+                v-if="row.detailSegments.length"
+                class="block truncate text-xs text-n-slate-11"
+              >
+                <template
+                  v-for="(segments, detailIndex) in row.detailSegments"
+                  :key="`detail-${detailIndex}`"
+                >
+                  <span v-if="detailIndex" class="px-1">{{
+                    t('KANBAN.ADD_ITEM.CONTACT_DETAILS_SEPARATOR')
+                  }}</span>
                   <span
+                    v-for="(segment, index) in segments"
+                    :key="`detail-${detailIndex}-${index}`"
                     :class="{
                       'font-semibold text-n-brand': segment.highlighted,
                     }"
                   >
                     {{ segment.text }}
                   </span>
-                </template>
-              </span>
-              <span
-                v-if="contactDetails(contact).length"
-                class="block truncate text-xs text-n-slate-11"
-              >
-                <template
-                  v-for="(detail, index) in contactDetails(contact)"
-                  :key="`${contact.id}-detail-${detail}`"
-                >
-                  <span v-if="index" class="px-1">{{
-                    t('KANBAN.ADD_ITEM.CONTACT_DETAILS_SEPARATOR')
-                  }}</span>
-                  <template
-                    v-for="(segment, segmentIndex) in highlightSegments(
-                      detail,
-                      contactSearchQuery
-                    )"
-                    :key="`${contact.id}-detail-${index}-${segmentIndex}`"
-                  >
-                    <span
-                      :class="{
-                        'font-semibold text-n-brand': segment.highlighted,
-                      }"
-                    >
-                      {{ segment.text }}
-                    </span>
-                  </template>
                 </template>
               </span>
               <span v-else class="block truncate text-xs text-n-slate-11">
@@ -685,7 +675,7 @@ defineExpose({
           </button>
         </div>
         <p
-          v-else-if="hasSearchedContacts"
+          v-else-if="isSearchActive"
           data-testid="kanban-contact-search-empty"
           class="mb-0 mt-4 text-sm text-n-slate-11"
         >
@@ -698,7 +688,7 @@ defineExpose({
       </section>
 
       <section
-        v-else-if="currentStep === 2 && selectedContact"
+        v-else-if="currentStep === 2"
         data-testid="kanban-conversation-step"
       >
         <button
@@ -745,8 +735,12 @@ defineExpose({
         >
           {{ t('KANBAN.ADD_ITEM.INBOXES_ERROR') }}
         </p>
-        <template v-else-if="conversations.length">
-          <div data-testid="kanban-conversation-list" class="grid gap-2">
+        <template v-else>
+          <div
+            v-if="conversations.length"
+            data-testid="kanban-conversation-list"
+            class="grid gap-2"
+          >
             <button
               v-for="conversation in conversations"
               :key="conversation.id"
@@ -757,20 +751,20 @@ defineExpose({
               <span class="flex items-center justify-between gap-3">
                 <span class="flex min-w-0 items-center gap-2">
                   <ChannelIcon
-                    :inbox="conversationInbox(conversation)"
+                    :inbox="conversation.inbox"
                     class="size-3.5 flex-shrink-0 text-n-slate-11"
                   />
                   <span class="truncate text-xs font-medium text-n-slate-11">
-                    {{ inboxDisplayName(conversationInbox(conversation)) }}
+                    {{ inboxDisplayName(conversation.inbox) }}
                   </span>
                   <span
                     class="inline-flex items-center gap-1 text-xs text-n-slate-10"
                   >
                     <span
                       class="size-1.5 rounded-full"
-                      :class="conversationStatusClass(conversation.status)"
+                      :class="conversationStatus(conversation.status).dotClass"
                     />
-                    {{ conversationStatusLabel(conversation.status) }}
+                    {{ conversationStatus(conversation.status).label }}
                   </span>
                 </span>
                 <span class="flex flex-shrink-0 items-center gap-2">
@@ -791,16 +785,7 @@ defineExpose({
               </span>
             </button>
           </div>
-          <p
-            v-if="hasRecentConversationsNote"
-            data-testid="kanban-recent-conversations-note"
-            class="mb-0 mt-3 text-xs text-n-slate-10"
-          >
-            {{ t('KANBAN.ADD_ITEM.RECENT_CONVERSATIONS_NOTE') }}
-          </p>
-        </template>
-        <template v-else>
-          <div data-testid="kanban-fallback-inboxes">
+          <div v-else data-testid="kanban-fallback-inboxes">
             <p class="mb-3 text-sm text-n-slate-11">
               {{ t('KANBAN.ADD_ITEM.NO_ELIGIBLE_CONVERSATIONS') }}
             </p>
@@ -837,7 +822,7 @@ defineExpose({
             </p>
           </div>
           <p
-            v-if="hasRecentConversationsNote"
+            v-if="hasMoreRecentConversations"
             data-testid="kanban-recent-conversations-note"
             class="mb-0 mt-3 text-xs text-n-slate-10"
           >
@@ -846,10 +831,7 @@ defineExpose({
         </template>
       </section>
 
-      <section
-        v-else-if="currentStep === 3 && selectedContact && selectedInbox"
-        data-testid="kanban-card-step"
-      >
+      <section v-else data-testid="kanban-card-step">
         <button
           type="button"
           class="no-drag mb-4 inline-flex items-center gap-1.5 text-xs text-n-slate-11 hover:text-n-slate-12"
@@ -924,29 +906,27 @@ defineExpose({
             {{ creationError }}
           </p>
           <div class="mt-2 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              class="no-drag min-h-10 rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-11 hover:border-n-slate-6 hover:text-n-slate-12"
+            <Button
+              outline
+              slate
+              sm
+              class="no-drag"
+              :label="t('KANBAN.ADD_ITEM.BACK')"
               @click="changeConversation"
-            >
-              {{ t('KANBAN.ADD_ITEM.BACK') }}
-            </button>
-            <button
+            />
+            <Button
+              sm
               type="submit"
               data-testid="kanban-manual-card-submit"
-              class="no-drag flex min-h-10 items-center justify-center gap-2 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isSaving || trimmedSubject.length < 3"
-            >
-              <i
-                v-if="isSaving"
-                class="i-lucide-loader-2 size-4 animate-spin"
-              />
-              {{
+              class="no-drag"
+              :label="
                 isSaving
                   ? t('KANBAN.ADD_ITEM.SAVING')
                   : t('KANBAN.ADD_ITEM.CREATE_OPPORTUNITY')
-              }}
-            </button>
+              "
+              :is-loading="isSaving"
+              :disabled="isSaving || trimmedSubject.length < 3"
+            />
           </div>
         </form>
       </section>

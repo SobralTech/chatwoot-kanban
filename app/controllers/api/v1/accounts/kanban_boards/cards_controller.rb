@@ -28,18 +28,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def lookup
     contact = Current.account.contacts.find(params.require(:contact_id))
-    cards = @kanban_board.kanban_cards.active.includes(:conversation, :kanban_stage).where(contact: contact)
-
-    render json: cards.map { |card|
-      {
-        id: card.id,
-        subject: card.subject,
-        kanban_stage_id: card.kanban_stage_id,
-        stage_name: card.kanban_stage.name,
-        conversation_id: card.conversation&.display_id,
-        terminal: terminal_stage_id?(card.kanban_stage_id)
-      }
-    }
+    @kanban_cards = @kanban_board.kanban_cards.active.includes(:conversation, :kanban_stage).where(contact: contact)
+    @terminal_stage_ids = terminal_stage_ids
   end
 
   def update
@@ -115,7 +105,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def manual_card_params
-    params.require(:card).permit(:kanban_stage_id, :contact_id, :inbox_id, :subject, :conversation_display_id)
+    @manual_card_params ||= params.require(:card).permit(:kanban_stage_id, :contact_id, :inbox_id, :subject, :conversation_display_id)
   end
 
   def action_name_policy
