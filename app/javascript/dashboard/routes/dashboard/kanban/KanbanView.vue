@@ -201,6 +201,11 @@ const isCardDragDisabled = computed(
     !!activeActionKey.value ||
     hasActiveFilters.value
 );
+const canAddCardInEmptyStage = stage =>
+  stage.cards.length === 0 &&
+  !isTerminalStage(stage) &&
+  !hasActiveFilters.value &&
+  !isCardDragging.value;
 const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
 const normalizeKanbanPayload = data => {
@@ -1225,6 +1230,13 @@ const closeBoardDropdown = () => {
   isBoardDropdownOpen.value = false;
 };
 
+const goToOverview = () => {
+  router.push({
+    name: 'kanban_boards',
+    params: { accountId: route.params.accountId },
+  });
+};
+
 const selectBoard = boardId => {
   if (boardId === activeBoardId.value) return;
 
@@ -1448,6 +1460,16 @@ watch(searchInput, () => {
         class="flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-n-weak px-6 py-3"
       >
         <div class="flex min-w-0 flex-1 items-center gap-1">
+          <button
+            type="button"
+            data-testid="kanban-back-to-overview"
+            class="flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+            :aria-label="t('KANBAN.ACTIONS.BACK_TO_OVERVIEW')"
+            :title="t('KANBAN.ACTIONS.BACK_TO_OVERVIEW')"
+            @click="goToOverview"
+          >
+            <i class="i-lucide-chevron-left size-4" />
+          </button>
           <OnClickOutside @trigger="closeBoardDropdown">
             <div class="relative inline-flex min-w-0 max-w-full flex-col">
               <button
@@ -1858,11 +1880,27 @@ watch(searchInput, () => {
                     @change="onCardDragChange(stage, $event)"
                     @end="onCardDragEnd"
                   >
+                    <button
+                      v-if="canAddCardInEmptyStage(stage)"
+                      type="button"
+                      data-testid="kanban-empty-stage-add-card"
+                      :data-stage-id="stage.id"
+                      class="no-drag flex min-h-24 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-n-weak px-3 py-6 text-sm font-medium text-n-slate-11 hover:border-n-brand hover:bg-n-alpha-1 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="!!activeActionKey"
+                      @click="toggleAddItemPicker(stage)"
+                    >
+                      <i class="i-lucide-plus size-5" />
+                      {{ t('KANBAN.ACTIONS.ADD_FIRST_CARD') }}
+                    </button>
                     <p
-                      v-if="stage.cards.length === 0"
+                      v-else-if="stage.cards.length === 0"
                       class="pointer-events-none px-1 py-2 text-sm text-n-slate-10"
                     >
-                      {{ t('KANBAN.EMPTY_CARDS') }}
+                      {{
+                        hasActiveFilters
+                          ? t('KANBAN.EMPTY_CARDS_FILTERED')
+                          : t('KANBAN.EMPTY_CARDS')
+                      }}
                     </p>
                     <template #item="{ element: card }">
                       <KanbanConversationCard

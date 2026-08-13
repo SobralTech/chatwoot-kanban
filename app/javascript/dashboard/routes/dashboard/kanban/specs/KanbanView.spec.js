@@ -1105,15 +1105,76 @@ describe('KanbanView drag and drop', () => {
     );
 
     expect(emptyStageDraggable.classes()).toContain('min-h-48');
-    expect(emptyStageDraggable.text()).toContain('KANBAN.EMPTY_CARDS');
-    expect(
-      emptyStageDraggable.find('[data-testid="kanban-add-item-panel"]').exists()
-    ).toBe(false);
+    const addCardButton = emptyStageDraggable.find(
+      '[data-testid="kanban-empty-stage-add-card"]'
+    );
+    expect(addCardButton.exists()).toBe(true);
+    expect(addCardButton.attributes('data-stage-id')).toBe('200');
     expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(5);
     expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
     expect(emptyStageDraggable.props('invertedSwapThreshold')).toBe(1);
     expect(emptyStageDraggable.props('fallbackOnBody')).toBe(true);
     expect(emptyStageDraggable.props('forceFallback')).toBe(true);
+  });
+
+  it('opens the opportunity picker for an empty stage', async () => {
+    const wrapper = await mountView();
+
+    await wrapper
+      .find('[data-testid="kanban-empty-stage-add-card"]')
+      .trigger('click');
+
+    expect(findAddItemPicker(wrapper).props('kanbanStageId')).toBe(200);
+  });
+
+  it('shows a filtered empty state instead of the add card action', async () => {
+    const wrapper = await mountView();
+
+    await findInboxFilter(wrapper).vm.$emit('update:modelValue', [1]);
+    await flushPromises();
+
+    const emptyStageDraggable = findCardDraggables(wrapper).find(
+      draggable => draggable.props('list').length === 0
+    );
+    expect(
+      emptyStageDraggable
+        .find('[data-testid="kanban-empty-stage-add-card"]')
+        .exists()
+    ).toBe(false);
+    expect(emptyStageDraggable.text()).toContain('KANBAN.EMPTY_CARDS_FILTERED');
+  });
+
+  it('shows a filtered empty state while a search is active', async () => {
+    const wrapper = await mountView();
+
+    wrapper.vm.$.setupState.activeSearchTerm = 'sale';
+    await nextTick();
+
+    const emptyStageDraggable = findCardDraggables(wrapper).find(
+      draggable => draggable.props('list').length === 0
+    );
+    expect(
+      emptyStageDraggable
+        .find('[data-testid="kanban-empty-stage-add-card"]')
+        .exists()
+    ).toBe(false);
+    expect(emptyStageDraggable.text()).toContain('KANBAN.EMPTY_CARDS_FILTERED');
+  });
+
+  it('does not show the add card action for an empty terminal stage', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([], { won_stage_id: 200 })
+    );
+    const emptyStageDraggable = findCardDraggables(wrapper).find(
+      draggable => draggable.props('list').length === 0
+    );
+
+    expect(
+      emptyStageDraggable
+        .find('[data-testid="kanban-empty-stage-add-card"]')
+        .exists()
+    ).toBe(false);
+    expect(emptyStageDraggable.text()).toContain('KANBAN.EMPTY_CARDS');
   });
 
   it('shows an add item action in each stage body', async () => {
@@ -1657,6 +1718,19 @@ describe('KanbanView header navigation', () => {
     expect(
       wrapper.find('[data-testid="kanban-board-switcher"]').text()
     ).toContain('Sales Board');
+  });
+
+  it('navigates to the funnels overview from the back button', async () => {
+    const wrapper = await mountView();
+
+    await wrapper
+      .find('[data-testid="kanban-back-to-overview"]')
+      .trigger('click');
+
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_boards',
+      params: { accountId: '1' },
+    });
   });
 
   it('lists visible boards in the dropdown', async () => {
