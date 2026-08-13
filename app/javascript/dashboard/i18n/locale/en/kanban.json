@@ -419,7 +419,7 @@
       "CLOSE": "Close opportunity details"
     },
     "ADD_ITEM": {
-      "TITLE_WITH_STAGE": "New card in «{stageName}»",
+      "TITLE_WITH_STAGE": "New card in {stageName}",
       "STEPS": {
         "CONTACT": "contact",
         "CONVERSATION": "conversation",

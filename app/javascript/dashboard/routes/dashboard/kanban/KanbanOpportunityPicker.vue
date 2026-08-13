@@ -9,7 +9,13 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
-import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
+import Icon from 'dashboard/components-next/icon/Icon.vue';
+import Input from 'dashboard/components-next/input/Input.vue';
+import {
+  dateFormat,
+  dynamicTime,
+  shortTimestamp,
+} from 'shared/helpers/timeHelper';
 
 const props = defineProps({
   kanbanBoardId: {
@@ -83,6 +89,14 @@ const currentStep = computed(() => {
   if (!selectedContact.value) return 1;
 
   return selectedInbox.value ? 3 : 2;
+});
+
+const pickerTitle = computed(() => {
+  const title = t('KANBAN.ADD_ITEM.TITLE_WITH_STAGE', {
+    stageName: props.kanbanStageName,
+  });
+
+  return title.replace(`«${props.kanbanStageName}»`, props.kanbanStageName);
 });
 const activeCardConversationIds = computed(
   () =>
@@ -206,6 +220,14 @@ const conversationTimestamp = conversation => {
   const timestamp = lastActivityAt(conversation);
 
   return timestamp ? shortTimestamp(dynamicTime(timestamp), true) : '';
+};
+
+const selectedConversationTimestamp = conversation => {
+  const timestamp = Number(
+    conversation?.messages?.[0]?.createdAt || lastActivityAt(conversation)
+  );
+
+  return timestamp ? dateFormat(timestamp, 'dd/MM/yyyy HH:mm') : '';
 };
 
 const abortContactSearch = () => {
@@ -528,18 +550,14 @@ defineExpose({ hasUnsavedChanges });
           data-testid="kanban-add-item-title"
           class="mb-0 text-base font-semibold text-n-slate-12"
         >
-          {{
-            t('KANBAN.ADD_ITEM.TITLE_WITH_STAGE', {
-              stageName: kanbanStageName,
-            })
-          }}
+          {{ pickerTitle }}
         </h2>
         <Button
           ghost
           slate
-          xs
+          md
           icon="i-lucide-x"
-          class="no-drag flex-shrink-0"
+          class="no-drag flex-shrink-0 [&>span]:size-5"
           :aria-label="t('KANBAN.ADD_ITEM.CLOSE')"
           @click="requestClose"
         />
@@ -586,21 +604,24 @@ defineExpose({ hasUnsavedChanges });
         <label :for="`kanban-contact-search-${kanbanStageId}`" class="sr-only">
           {{ t('KANBAN.ADD_ITEM.SEARCH_LABEL') }}
         </label>
-        <div class="relative">
-          <i
-            class="i-lucide-search pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-10"
-          />
-          <input
-            :id="`kanban-contact-search-${kanbanStageId}`"
-            ref="contactSearchInputRef"
-            v-model="contactSearchQuery"
-            type="search"
-            data-testid="kanban-contact-search-input"
-            class="no-drag min-h-10 w-full rounded-md border border-n-weak bg-n-surface-1 py-2 pl-9 pr-3 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-            :placeholder="t('KANBAN.ADD_ITEM.PLACEHOLDER')"
-            @input="onContactSearchInput"
-          />
-        </div>
+        <Input
+          :id="`kanban-contact-search-${kanbanStageId}`"
+          ref="contactSearchInputRef"
+          v-model="contactSearchQuery"
+          type="search"
+          data-testid="kanban-contact-search-input"
+          class="group w-full"
+          custom-input-class="no-drag !h-10 !rounded-md !bg-n-surface-1 !py-2 !pl-10 !pr-3"
+          :placeholder="t('KANBAN.ADD_ITEM.PLACEHOLDER')"
+          @input="onContactSearchInput"
+        >
+          <template #prefix>
+            <Icon
+              icon="i-lucide-search"
+              class="pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 text-n-slate-10 group-focus-within:text-n-brand ltr:left-3 rtl:right-3"
+            />
+          </template>
+        </Input>
 
         <p
           v-if="isLoadingContacts"
@@ -841,16 +862,60 @@ defineExpose({ hasUnsavedChanges });
           {{ t('KANBAN.ADD_ITEM.CHANGE_CONVERSATION') }}
         </button>
 
-        <div class="mb-4 rounded-md border border-n-weak bg-n-surface-1 p-3">
-          <p class="mb-0 truncate text-sm font-medium text-n-slate-12">
-            {{ contactDisplayName(selectedContact) }}
-          </p>
-          <p class="mb-0 mt-1 truncate text-xs text-n-slate-11">
-            {{
-              selectedConversation
-                ? conversationSnippet(selectedConversation)
-                : inboxDisplayName(selectedInbox)
-            }}
+        <div
+          data-testid="kanban-card-selection-summary"
+          class="mb-4 rounded-md border border-n-weak bg-n-surface-1 p-3"
+        >
+          <div
+            data-testid="kanban-card-selection-contact"
+            class="flex min-w-0 items-center gap-3"
+          >
+            <Avatar
+              :name="contactDisplayName(selectedContact)"
+              :src="selectedContact.thumbnail"
+              :size="36"
+              rounded-full
+            />
+            <div class="min-w-0">
+              <p class="mb-0 truncate text-sm font-medium text-n-slate-12">
+                {{ contactDisplayName(selectedContact) }}
+              </p>
+              <p class="mb-0 truncate text-xs text-n-slate-11">
+                {{ contactDetailsSummary(selectedContact) }}
+              </p>
+            </div>
+          </div>
+          <div
+            data-testid="kanban-card-selection-inbox"
+            class="mt-3 flex min-w-0 items-center gap-3 border-t border-n-weak pt-3"
+          >
+            <Avatar
+              :name="inboxDisplayName(selectedInbox)"
+              :src="selectedInbox.avatarUrl"
+              :size="32"
+              rounded-full
+            />
+            <div class="min-w-0">
+              <p class="mb-0 truncate text-sm font-medium text-n-slate-12">
+                {{ inboxDisplayName(selectedInbox) }}
+              </p>
+              <p
+                v-if="selectedConversation"
+                data-testid="kanban-card-selection-last-message-at"
+                class="mb-0 truncate text-xs text-n-slate-11"
+              >
+                {{ selectedConversationTimestamp(selectedConversation) }}
+              </p>
+              <p v-else class="mb-0 truncate text-xs text-n-slate-11">
+                {{ formatChannelType(selectedInbox.channelType) }}
+              </p>
+            </div>
+          </div>
+          <p
+            v-if="selectedConversation"
+            class="mb-0 mt-3 truncate text-sm text-n-slate-12"
+          >
+            {{ conversationSnippet(selectedConversation) }}
           </p>
         </div>
 
@@ -868,7 +933,7 @@ defineExpose({ hasUnsavedChanges });
 
         <form
           data-testid="kanban-manual-card-form"
-          class="grid gap-2"
+          class="grid gap-2 !p-0"
           @submit.prevent="createManualCard"
         >
           <label

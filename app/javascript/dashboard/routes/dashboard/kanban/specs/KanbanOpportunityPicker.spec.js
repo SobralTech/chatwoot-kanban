@@ -9,7 +9,13 @@ const storeMock = vi.hoisted(() => ({
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
-    t: (key, values) => (values?.query ? `${key}:${values.query}` : key),
+    t: (key, values) => {
+      if (key === 'KANBAN.ADD_ITEM.TITLE_WITH_STAGE') {
+        return `New card in «${values.stageName}»`;
+      }
+
+      return values?.query ? `${key}:${values.query}` : key;
+    },
   }),
 }));
 
@@ -95,7 +101,9 @@ const setUpContactSearch = () => {
 };
 
 const searchAndSelectContact = async wrapper => {
-  const input = wrapper.find('[data-testid="kanban-contact-search-input"]');
+  const input = wrapper.find(
+    'input[data-testid="kanban-contact-search-input"]'
+  );
   await input.setValue('Ja');
   await vi.advanceTimersByTimeAsync(300);
   await flushPromises();
@@ -155,6 +163,14 @@ describe('KanbanOpportunityPicker', () => {
     ).toContain('Jane Cooper');
   });
 
+  it('renders the stage name without decorative quotation marks', () => {
+    const wrapper = mountPicker();
+
+    expect(wrapper.find('[data-testid="kanban-add-item-title"]').text()).toBe(
+      'New card in Prospecting'
+    );
+  });
+
   it('searches from two characters with debounce and aborts stale requests', async () => {
     const signals = [];
     ContactAPI.search.mockImplementation((...args) => {
@@ -162,7 +178,9 @@ describe('KanbanOpportunityPicker', () => {
       return new Promise(() => {});
     });
     const wrapper = mountPicker();
-    const input = wrapper.find('[data-testid="kanban-contact-search-input"]');
+    const input = wrapper.find(
+      'input[data-testid="kanban-contact-search-input"]'
+    );
 
     await input.setValue('J');
     await vi.advanceTimersByTimeAsync(350);
@@ -199,6 +217,40 @@ describe('KanbanOpportunityPicker', () => {
     expect(conversations).toHaveLength(1);
     expect(conversations[0].text()).toContain('Email Inbox');
     expect(ContactAPI.getContactableInboxes).not.toHaveBeenCalled();
+  });
+
+  it('shows the selected contact, inbox, and last message timestamp', async () => {
+    setUpContactSearch();
+    ContactAPI.getConversations.mockResolvedValue({
+      data: {
+        payload: [
+          buildConversation({
+            messages: [
+              {
+                content: 'I need help with my order.',
+                created_at: 1_700_000_100,
+              },
+            ],
+          }),
+        ],
+      },
+    });
+    const wrapper = mountPicker();
+
+    await searchAndSelectContact(wrapper);
+    await selectConversation(wrapper);
+
+    expect(
+      wrapper.find('[data-testid="kanban-card-selection-contact"]').text()
+    ).toContain('Jane Cooper');
+    expect(
+      wrapper.find('[data-testid="kanban-card-selection-inbox"]').text()
+    ).toContain('Email Inbox');
+    expect(
+      wrapper
+        .find('[data-testid="kanban-card-selection-last-message-at"]')
+        .text()
+    ).toMatch(/\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
   });
 
   it('marks an eligible conversation that already has a card', async () => {

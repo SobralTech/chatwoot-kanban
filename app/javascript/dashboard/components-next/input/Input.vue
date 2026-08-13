@@ -101,6 +101,10 @@ const handleEnter = event => {
   emit('enter', event);
 };
 
+const focus = () => inputRef.value?.focus();
+
+defineExpose({ focus });
+
 onMounted(() => {
   if (props.autofocus) {
     nextTick(() => {
