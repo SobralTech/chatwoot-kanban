@@ -241,17 +241,59 @@ describe('KanbanOpportunityPicker', () => {
     await selectConversation(wrapper);
 
     expect(
-      wrapper.find('[data-testid="kanban-card-selection-contact"]').text()
+      wrapper.find('[data-testid="kanban-card-selection-summary"]').text()
     ).toContain('Jane Cooper');
     expect(
-      wrapper.find('[data-testid="kanban-card-selection-inbox"]').text()
-    ).toContain('Email Inbox');
+      wrapper
+        .find('[data-testid="kanban-card-selection-inbox"]')
+        .attributes('title')
+    ).toBe('Email Inbox');
     expect(
       wrapper
         .find('[data-testid="kanban-card-selection-last-message-at"]')
         .text()
     ).toMatch(/\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
+    expect(
+      wrapper.find('[data-testid="kanban-card-selection-last-message"]').text()
+    ).toContain('I need help with my order.');
   });
+
+  it.each([
+    ['audio', 'ogg', 'i-lucide-audio-lines', 'OGG'],
+    ['video', 'mp4', 'i-lucide-video', 'MP4'],
+    ['file', 'pdf', 'i-lucide-paperclip', 'PDF'],
+  ])(
+    'shows the last %s attachment when the conversation messages are empty',
+    async (fileType, extension, iconClass, preview) => {
+      setUpContactSearch();
+      ContactAPI.getConversations.mockResolvedValue({
+        data: {
+          payload: [
+            buildConversation({
+              messages: [],
+              last_non_activity_message: {
+                created_at: 1_700_000_100,
+                message_type: 1,
+                attachments: [{ file_type: fileType, extension }],
+              },
+            }),
+          ],
+        },
+      });
+      const wrapper = mountPicker();
+
+      await searchAndSelectContact(wrapper);
+      await selectConversation(wrapper);
+
+      expect(wrapper.find(`.${iconClass}`).exists()).toBe(true);
+      expect(wrapper.find('.i-lucide-check-check').exists()).toBe(true);
+      expect(
+        wrapper
+          .find('[data-testid="kanban-card-selection-last-message"]')
+          .text()
+      ).toContain(preview);
+    }
+  );
 
   it('marks an eligible conversation that already has a card', async () => {
     setUpContactSearch();

@@ -16,6 +16,8 @@ import {
   dynamicTime,
   shortTimestamp,
 } from 'shared/helpers/timeHelper';
+import { MESSAGE_TYPE } from 'shared/constants/messages';
+import { ATTACHMENT_TYPES } from 'dashboard/components-next/message/constants';
 
 const props = defineProps({
   kanbanBoardId: {
@@ -47,6 +49,13 @@ const store = useStore();
 
 const CONTACT_SEARCH_MINIMUM_LENGTH = 2;
 const CONVERSATIONS_PAGE_SIZE = 20;
+
+const ATTACHMENT_PREVIEW_ICONS = {
+  [ATTACHMENT_TYPES.IMAGE]: 'i-lucide-image',
+  [ATTACHMENT_TYPES.AUDIO]: 'i-lucide-audio-lines',
+  [ATTACHMENT_TYPES.VIDEO]: 'i-lucide-video',
+  [ATTACHMENT_TYPES.FILE]: 'i-lucide-paperclip',
+};
 
 const contactSearchQuery = ref('');
 const recentContacts = ref([]);
@@ -210,8 +219,42 @@ const conversationStatuses = computed(() => ({
 const conversationStatus = status =>
   conversationStatuses.value[status] || conversationStatuses.value.resolved;
 
-const conversationSnippet = conversation =>
-  conversation?.messages?.[0]?.content || t('KANBAN.CARD.NO_MESSAGES');
+const lastConversationMessage = conversation =>
+  conversation?.messages?.[0] || conversation?.lastNonActivityMessage;
+
+const lastMessageAttachment = conversation =>
+  lastConversationMessage(conversation)?.attachments?.[0];
+
+const attachmentPreview = attachment =>
+  attachment?.transcribedText ||
+  attachment?.extension?.toUpperCase() ||
+  attachment?.contentType?.split('/').pop()?.toUpperCase() ||
+  attachment?.fileType ||
+  '';
+
+const conversationSnippet = conversation => {
+  const message = lastConversationMessage(conversation);
+  if (!message) return t('KANBAN.CARD.NO_MESSAGES');
+
+  if (message.content) return message.content;
+
+  const emailSubject = message.contentAttributes?.email?.subject;
+  if (emailSubject) return emailSubject;
+
+  return (
+    attachmentPreview(lastMessageAttachment(conversation)) ||
+    t('KANBAN.CARD.NO_MESSAGES')
+  );
+};
+
+const lastMessageIsOutgoing = conversation => {
+  const messageType = lastConversationMessage(conversation)?.messageType;
+
+  return messageType !== undefined && messageType !== MESSAGE_TYPE.INCOMING;
+};
+
+const lastMessageAttachmentIcon = conversation =>
+  ATTACHMENT_PREVIEW_ICONS[lastMessageAttachment(conversation)?.fileType] || '';
 
 const lastActivityAt = conversation =>
   Number(conversation?.lastActivityAt || conversation?.timestamp || 0);
@@ -224,7 +267,8 @@ const conversationTimestamp = conversation => {
 
 const selectedConversationTimestamp = conversation => {
   const timestamp = Number(
-    conversation?.messages?.[0]?.createdAt || lastActivityAt(conversation)
+    lastConversationMessage(conversation)?.createdAt ||
+      lastActivityAt(conversation)
   );
 
   return timestamp ? dateFormat(timestamp, 'dd/MM/yyyy HH:mm') : '';
@@ -864,59 +908,64 @@ defineExpose({ hasUnsavedChanges });
 
         <div
           data-testid="kanban-card-selection-summary"
-          class="mb-4 rounded-md border border-n-weak bg-n-surface-1 p-3"
+          class="mb-5 flex min-w-0 items-center gap-3 rounded-md border border-n-weak bg-n-surface-1 p-3"
         >
           <div
             data-testid="kanban-card-selection-contact"
-            class="flex min-w-0 items-center gap-3"
+            class="relative flex-shrink-0"
           >
             <Avatar
               :name="contactDisplayName(selectedContact)"
               :src="selectedContact.thumbnail"
-              :size="36"
+              :size="56"
               rounded-full
             />
-            <div class="min-w-0">
+            <span
+              data-testid="kanban-card-selection-inbox"
+              :title="inboxDisplayName(selectedInbox)"
+              class="absolute -bottom-1 -right-1 flex size-6 cursor-help items-center justify-center rounded-full border-2 border-n-surface-1 bg-n-solid-1 text-n-slate-11"
+            >
+              <ChannelIcon :inbox="selectedInbox" class="size-3.5" />
+            </span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex min-w-0 items-start justify-between gap-3">
               <p class="mb-0 truncate text-sm font-medium text-n-slate-12">
                 {{ contactDisplayName(selectedContact) }}
-              </p>
-              <p class="mb-0 truncate text-xs text-n-slate-11">
-                {{ contactDetailsSummary(selectedContact) }}
-              </p>
-            </div>
-          </div>
-          <div
-            data-testid="kanban-card-selection-inbox"
-            class="mt-3 flex min-w-0 items-center gap-3 border-t border-n-weak pt-3"
-          >
-            <Avatar
-              :name="inboxDisplayName(selectedInbox)"
-              :src="selectedInbox.avatarUrl"
-              :size="32"
-              rounded-full
-            />
-            <div class="min-w-0">
-              <p class="mb-0 truncate text-sm font-medium text-n-slate-12">
-                {{ inboxDisplayName(selectedInbox) }}
               </p>
               <p
                 v-if="selectedConversation"
                 data-testid="kanban-card-selection-last-message-at"
-                class="mb-0 truncate text-xs text-n-slate-11"
+                class="mb-0 flex-shrink-0 whitespace-nowrap text-xs text-n-slate-11"
               >
                 {{ selectedConversationTimestamp(selectedConversation) }}
               </p>
-              <p v-else class="mb-0 truncate text-xs text-n-slate-11">
-                {{ formatChannelType(selectedInbox.channelType) }}
+            </div>
+            <div
+              v-if="selectedConversation"
+              class="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-n-slate-11"
+            >
+              <Icon
+                v-if="lastMessageIsOutgoing(selectedConversation)"
+                icon="i-lucide-check-check"
+                class="size-3.5 flex-shrink-0"
+              />
+              <Icon
+                v-if="lastMessageAttachmentIcon(selectedConversation)"
+                :icon="lastMessageAttachmentIcon(selectedConversation)"
+                class="size-3.5 flex-shrink-0"
+              />
+              <p
+                data-testid="kanban-card-selection-last-message"
+                class="mb-0 truncate"
+              >
+                {{ conversationSnippet(selectedConversation) }}
               </p>
             </div>
+            <p v-else class="mb-0 mt-1 truncate text-sm text-n-slate-11">
+              {{ formatChannelType(selectedInbox.channelType) }}
+            </p>
           </div>
-          <p
-            v-if="selectedConversation"
-            class="mb-0 mt-3 truncate text-sm text-n-slate-12"
-          >
-            {{ conversationSnippet(selectedConversation) }}
-          </p>
         </div>
 
         <p
