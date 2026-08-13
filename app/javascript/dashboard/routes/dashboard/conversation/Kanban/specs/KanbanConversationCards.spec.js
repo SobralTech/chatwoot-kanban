@@ -185,7 +185,7 @@ const buildCard = overrides => ({
   kanban_stage: {
     id: 20,
     name: 'New',
-    color: 'blue',
+    color: '#2781F6',
   },
   due_at: '2026-06-07T18:00:00-03:00',
   labels: [
@@ -590,11 +590,13 @@ describe('KanbanConversationCards', () => {
     expect(wrapper.text()).toContain('vendas');
   });
 
-  it('opens linked cards in edit mode for unexpected stage colors', async () => {
+  it('opens linked cards in edit mode', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: {
         payload: [
-          buildCard({ kanban_stage: { id: 20, name: 'New', color: 'legacy' } }),
+          buildCard({
+            kanban_stage: { id: 20, name: 'New', color: '#2781F6' },
+          }),
         ],
       },
     });

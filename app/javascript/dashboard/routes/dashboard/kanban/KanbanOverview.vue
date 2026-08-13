@@ -6,7 +6,6 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { getInboxIconByType } from 'dashboard/helper/inbox';
-import { getKanbanStageColorClass } from 'dashboard/helper/kanbanStageColors';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -291,7 +290,7 @@ onMounted(async () => {
             >
               <span
                 class="size-2 flex-shrink-0 rounded-full"
-                :class="getKanbanStageColorClass(stage.color)"
+                :style="{ backgroundColor: stage.color }"
               />
               <span class="truncate">{{ stage.name }}</span>
               <span

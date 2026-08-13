@@ -110,8 +110,6 @@
       "NEW_STAGE_NAME": "Nova etapa",
       "CREATE_STAGE_CONFIRM": "Criar etapa",
       "STAGE_NAME_PLACEHOLDER": "Nome da etapa",
-      "STAGE_COLOR": "Cor da etapa",
-      "SELECT_STAGE_COLOR": "Selecionar {color}",
       "EDIT_STAGE": "Editar",
       "SAVE_STAGE": "Salvar",
       "REMOVE_STAGE": "Remover",
@@ -156,18 +154,6 @@
       "REMOVE_STAGE_NOT_EMPTY": "Mova ou remova todos os cartões antes de remover esta etapa.",
       "DRAG_LOST_REASON_REQUIRED": "Esta etapa exige um motivo de perda — abra o cartão e use o selo de status para escolher um motivo antes de movê-lo para cá.",
       "DRAG_DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED": "Reabra a oportunidade antes de marcá-la como ganha ou perdida."
-    },
-    "COLORS": {
-      "SLATE": "cinza",
-      "BLUE": "azul",
-      "TEAL": "verde-azulado",
-      "GREEN": "verde",
-      "AMBER": "âmbar",
-      "ORANGE": "laranja",
-      "RUBY": "rubi",
-      "ROSE": "rosa",
-      "IRIS": "íris",
-      "VIOLET": "violeta"
     },
     "CUSTOM_FIELDS": {
       "LOADING": "Carregando campos personalizados...",

@@ -314,8 +314,8 @@ describe('KanbanOverview', () => {
           name: 'Sales Board',
           cards_count: 6,
           stages_summary: [
-            { id: 11, name: 'Lead', color: 'blue', cards_count: 2 },
-            { id: 12, name: 'Won', color: 'green', cards_count: 4 },
+            { id: 11, name: 'Lead', color: '#2781F6', cards_count: 2 },
+            { id: 12, name: 'Won', color: '#22C55E', cards_count: 4 },
           ],
         },
       ],

@@ -7,10 +7,7 @@ import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { useAlert } from 'dashboard/composables';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
-import {
-  KANBAN_STAGE_COLOR_OPTIONS,
-  getKanbanStageColorClass,
-} from 'dashboard/helper/kanbanStageColors';
+import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import enKanbanMessages from 'dashboard/i18n/locale/en/kanban.json';
 import ptBRKanbanMessages from 'dashboard/i18n/locale/pt_BR/kanban.json';
 
@@ -1893,7 +1890,7 @@ describe('KanbanView header navigation', () => {
     expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
       stage: {
         name: 'Nova etapa',
-        color: 'slate',
+        color: '#8B8D98',
         position: 2,
       },
     });
@@ -1950,7 +1947,7 @@ describe('KanbanView header navigation', () => {
     expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
       stage: {
         name: 'Nova etapa (1)',
-        color: 'slate',
+        color: '#8B8D98',
         position: 2,
       },
     });
@@ -1994,7 +1991,7 @@ describe('KanbanView header navigation', () => {
     expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
       stage: {
         name: 'Nova etapa (2)',
-        color: 'slate',
+        color: '#8B8D98',
         position: 2,
       },
     });
@@ -2039,7 +2036,7 @@ describe('KanbanView header navigation', () => {
     expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
       stage: {
         name: 'New stage (1)',
-        color: 'slate',
+        color: '#8B8D98',
         position: 2,
       },
     });
@@ -2071,24 +2068,8 @@ describe('KanbanView header navigation', () => {
     expect(wrapper.find('.bg-n-ruby-2').exists()).toBe(false);
   });
 
-  it('exposes the expanded stage color palette', () => {
-    expect(KANBAN_STAGE_COLOR_OPTIONS.map(option => option.value)).toEqual([
-      'slate',
-      'blue',
-      'teal',
-      'green',
-      'amber',
-      'orange',
-      'ruby',
-      'rose',
-      'violet',
-      'iris',
-    ]);
-  });
-
-  it('keeps rendering existing stage colors and falls back to slate', () => {
-    expect(getKanbanStageColorClass('blue')).toBe('bg-n-blue-9');
-    expect(getKanbanStageColorClass('unexpected')).toBe('bg-n-slate-9');
+  it('uses a hexadecimal default stage color', () => {
+    expect(DEFAULT_KANBAN_STAGE_COLOR).toBe('#8B8D98');
   });
 
   it('shows board settings button for administrators', async () => {

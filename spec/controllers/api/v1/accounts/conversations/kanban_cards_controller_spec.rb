@@ -8,7 +8,7 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
   let(:inbox) { create(:inbox, account: account, name: 'Sales Inbox') }
   let(:conversation) { create(:conversation, account: account, contact: contact, inbox: inbox) }
   let(:kanban_board) { create(:kanban_board, account: account, name: 'Sales', position: 1) }
-  let(:stage) { create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New', color: 'blue', position: 1) }
+  let(:stage) { create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'New', color: '#2781F6', position: 1) }
 
   before do
     create(:inbox_member, user: agent, inbox: inbox)

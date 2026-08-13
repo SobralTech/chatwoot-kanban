@@ -12,15 +12,12 @@ import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
+import ColorPicker from 'dashboard/components-next/colorpicker/ColorPicker.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import AgentTagInput from 'dashboard/components-next/taginput/AgentTagInput.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
-import {
-  DEFAULT_KANBAN_STAGE_COLOR,
-  KANBAN_STAGE_COLOR_OPTIONS,
-  getKanbanStageColorOption,
-} from 'dashboard/helper/kanbanStageColors';
+import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import KanbanCustomFieldsTab from './KanbanCustomFieldsTab.vue';
 import KanbanReasonsTab from './KanbanReasonsTab.vue';
 
@@ -432,9 +429,6 @@ const importExistingConversations = async () => {
   }
 };
 
-const getStageColorClass = stage =>
-  getKanbanStageColorOption(stage.color).swatchClass;
-
 const getStageCardsCount = stage =>
   stage.cardsCount ?? stage.cards?.length ?? 0;
 
@@ -484,7 +478,7 @@ const openEditStage = stage => {
   editingStageId.value = stage.id;
   editStageName.value = stage.name;
   editStageDescription.value = stage.description || '';
-  editStageColor.value = stage.color || DEFAULT_KANBAN_STAGE_COLOR;
+  editStageColor.value = stage.color;
 };
 
 const closeEditStage = () => {
@@ -1007,26 +1001,10 @@ onMounted(async () => {
             data-testid="kanban-board-form-create-stage-panel"
             class="grid gap-3 rounded-md border border-n-weak bg-n-surface-1 p-3"
           >
-            <div class="flex flex-wrap items-center gap-2">
-              <button
-                v-for="colorOption in KANBAN_STAGE_COLOR_OPTIONS"
-                :key="colorOption.value"
-                type="button"
-                class="size-5 rounded-full border border-n-strong ring-offset-2"
-                :class="[
-                  colorOption.swatchClass,
-                  newStageColor === colorOption.value
-                    ? 'ring-2 ring-n-brand'
-                    : 'hover:ring-2 hover:ring-n-weak',
-                ]"
-                :aria-label="
-                  t('KANBAN.ACTIONS.SELECT_STAGE_COLOR', {
-                    color: colorOption.value,
-                  })
-                "
-                @click="newStageColor = colorOption.value"
-              />
-            </div>
+            <ColorPicker
+              v-model="newStageColor"
+              data-testid="kanban-board-form-new-stage-color"
+            />
             <input
               v-model="newStageName"
               data-testid="kanban-board-form-new-stage-name"
@@ -1109,7 +1087,7 @@ onMounted(async () => {
                     <div class="flex min-w-0 flex-1 items-center gap-2">
                       <span
                         class="size-4 flex-none rounded-full"
-                        :class="getStageColorClass(stage)"
+                        :style="{ backgroundColor: stage.color }"
                       />
                       <span class="min-w-0 truncate text-sm text-n-slate-12">
                         {{ stage.name }}
@@ -1167,26 +1145,10 @@ onMounted(async () => {
                   data-testid="kanban-board-form-edit-stage-panel"
                   class="grid gap-3 rounded-md border border-n-weak bg-n-surface-1 p-3"
                 >
-                  <div class="flex flex-wrap items-center gap-2">
-                    <button
-                      v-for="colorOption in KANBAN_STAGE_COLOR_OPTIONS"
-                      :key="colorOption.value"
-                      type="button"
-                      class="size-5 rounded-full border border-n-strong ring-offset-2"
-                      :class="[
-                        colorOption.swatchClass,
-                        editStageColor === colorOption.value
-                          ? 'ring-2 ring-n-brand'
-                          : 'hover:ring-2 hover:ring-n-weak',
-                      ]"
-                      :aria-label="
-                        t('KANBAN.ACTIONS.SELECT_STAGE_COLOR', {
-                          color: colorOption.value,
-                        })
-                      "
-                      @click="editStageColor = colorOption.value"
-                    />
-                  </div>
+                  <ColorPicker
+                    v-model="editStageColor"
+                    data-testid="kanban-board-form-edit-stage-color"
+                  />
                   <input
                     v-model="editStageName"
                     data-testid="kanban-board-form-edit-stage-name"

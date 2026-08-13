@@ -7,7 +7,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
   let(:kanban_board) { create(:kanban_board, account: account) }
 
   describe 'POST /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages' do
-    let(:payload) { { stage: { name: 'Proposal', position: 1, color: 'teal' } } }
+    let(:payload) { { stage: { name: 'Proposal', position: 1, color: '#12A594' } } }
 
     it 'creates a stage for administrators' do
       expect do
@@ -19,8 +19,19 @@ RSpec.describe 'Kanban Stages API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['name']).to eq('Proposal')
-      expect(response.parsed_body['color']).to eq('teal')
+      expect(response.parsed_body['color']).to eq('#12A594')
       expect(response.parsed_body['position']).to eq(1)
+    end
+
+    it 'rejects named stage colors' do
+      expect do
+        post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
+             headers: administrator.create_new_auth_token,
+             params: { stage: { name: 'Proposal', position: 1, color: 'teal' } },
+             as: :json
+      end.not_to change(KanbanStage, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
     end
 
     it 'emits kanban.stage.created with a compact payload' do
@@ -63,7 +74,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
 
       post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
            headers: administrator.create_new_auth_token,
-           params: { stage: { name: 'Proposal', position: 99, color: 'teal' } },
+           params: { stage: { name: 'Proposal', position: 99, color: '#12A594' } },
            as: :json
 
       expect(response).to have_http_status(:success)
@@ -93,7 +104,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
 
       post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
            headers: administrator.create_new_auth_token,
-           params: { stage: { name: 'Proposal', position: 99, color: 'teal' } },
+           params: { stage: { name: 'Proposal', position: 99, color: '#12A594' } },
            as: :json
 
       expect(response).to have_http_status(:success)
@@ -118,12 +129,12 @@ RSpec.describe 'Kanban Stages API', type: :request do
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}",
             headers: administrator.create_new_auth_token,
-            params: { stage: { name: 'Won', active: false, color: 'ruby' } },
+            params: { stage: { name: 'Won', active: false, color: '#E54666' } },
             as: :json
 
       expect(response).to have_http_status(:success)
       expect(stage.reload.name).to eq('Won')
-      expect(stage.color).to eq('ruby')
+      expect(stage.color).to eq('#E54666')
       expect(stage).not_to be_active
     end
 

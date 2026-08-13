@@ -1407,8 +1407,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
   end
 
   def create_overview_summary_data
-    first_stage = create_overview_stage(name: 'Lead', color: 'blue', position: 1)
-    second_stage = create_overview_stage(name: 'Won', color: 'green', position: 2)
+    first_stage = create_overview_stage(name: 'Lead', color: '#2781F6', position: 1)
+    second_stage = create_overview_stage(name: 'Won', color: '#22C55E', position: 2)
     inactive_stage = create_overview_stage(name: 'Archived', active: false, position: 3)
     inbox = create(:inbox, account: account, name: 'Sales Inbox')
     visible_user = create(:user, account: account, name: 'Paula Agent')

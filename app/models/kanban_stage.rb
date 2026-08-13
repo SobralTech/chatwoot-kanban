@@ -4,7 +4,7 @@
 #
 #  id              :bigint           not null, primary key
 #  active          :boolean          default(TRUE), not null
-#  color           :string           default("slate"), not null
+#  color           :string           default("#8B8D98"), not null
 #  description     :text
 #  name            :string           not null
 #  position        :integer          default(0), not null
@@ -33,6 +33,7 @@ class KanbanStage < ApplicationRecord
   validates :account_id, presence: true
   validates :name, presence: true, uniqueness: { scope: :kanban_board_id, conditions: -> { active } }, if: :active?
   validates :position, presence: true, numericality: { only_integer: true }
+  validates :color, format: { with: /\A#[0-9A-F]{6}\z/i }
   validate :validate_board_account
 
   scope :active, -> { where(active: true) }

@@ -110,8 +110,6 @@
       "NEW_STAGE_NAME": "New stage",
       "CREATE_STAGE_CONFIRM": "Create stage",
       "STAGE_NAME_PLACEHOLDER": "Stage name",
-      "STAGE_COLOR": "Stage color",
-      "SELECT_STAGE_COLOR": "Select {color}",
       "EDIT_STAGE": "Edit",
       "SAVE_STAGE": "Save",
       "REMOVE_STAGE": "Remove",
@@ -155,18 +153,6 @@
       "REMOVE_STAGE_NOT_EMPTY": "Move or remove all cards before removing this stage.",
       "DRAG_LOST_REASON_REQUIRED": "This stage requires a loss reason — open the card and use the status badge to pick one before moving it here.",
       "DRAG_DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED": "Reopen the opportunity before marking it as won or lost."
-    },
-    "COLORS": {
-      "SLATE": "slate",
-      "BLUE": "blue",
-      "TEAL": "teal",
-      "GREEN": "green",
-      "AMBER": "amber",
-      "ORANGE": "orange",
-      "RUBY": "ruby",
-      "ROSE": "rose",
-      "VIOLET": "violet",
-      "IRIS": "iris"
     },
     "CUSTOM_FIELDS": {
       "LOADING": "Loading custom fields...",

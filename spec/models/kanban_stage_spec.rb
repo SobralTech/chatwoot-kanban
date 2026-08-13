@@ -1,7 +1,7 @@
 require 'rails_helper'
 
 RSpec.describe KanbanStage do
-  it 'uses slate as the default color for new stages' do
+  it 'uses a hexadecimal default color for new stages' do
     board = create(:kanban_board)
 
     stage = described_class.create!(
@@ -11,7 +11,7 @@ RSpec.describe KanbanStage do
       position: 1
     )
 
-    expect(stage.color).to eq('slate')
+    expect(stage.color).to eq('#8B8D98')
   end
 
   describe 'validations' do
@@ -32,6 +32,18 @@ RSpec.describe KanbanStage do
       stage = build(:kanban_stage, account: board.account, kanban_board: board, name: 'New')
 
       expect(stage).to be_valid
+    end
+
+    it 'requires six-digit hexadecimal colors' do
+      board = create(:kanban_board)
+      stage = build(:kanban_stage, account: board.account, kanban_board: board, color: '#2781F6')
+
+      expect(stage).to be_valid
+
+      stage.color = 'blue'
+
+      expect(stage).not_to be_valid
+      expect(stage.errors[:color]).to be_present
     end
 
     it 'validates the board belongs to the same account' do

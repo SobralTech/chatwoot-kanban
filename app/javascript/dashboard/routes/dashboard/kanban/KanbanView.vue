@@ -16,6 +16,7 @@ import {
 } from 'dashboard/helper/kanbanCardStatus';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import ColorPicker from 'dashboard/components-next/colorpicker/ColorPicker.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
@@ -26,11 +27,7 @@ import {
   removeKanbanBoardSnapshot,
   saveKanbanBoardSnapshot,
 } from 'dashboard/helper/kanbanBoardSnapshot';
-import {
-  DEFAULT_KANBAN_STAGE_COLOR,
-  KANBAN_STAGE_COLOR_OPTIONS,
-  getKanbanStageColorOption,
-} from 'dashboard/helper/kanbanStageColors';
+import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import KanbanConversationCard from './KanbanConversationCard.vue';
@@ -137,8 +134,6 @@ const boardRefreshEvents = new Set([
   'kanban.stage.deleted',
   'kanban.stage.reordered',
 ]);
-
-const stageColorOptions = KANBAN_STAGE_COLOR_OPTIONS;
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
@@ -497,35 +492,6 @@ const loadMoreStageCards = async stage => {
   }
 };
 
-const getStageColorOption = getKanbanStageColorOption;
-
-const getStageColorLabel = colorOption => {
-  const labels = {
-    slate: t('KANBAN.COLORS.SLATE'),
-    blue: t('KANBAN.COLORS.BLUE'),
-    teal: t('KANBAN.COLORS.TEAL'),
-    green: t('KANBAN.COLORS.GREEN'),
-    amber: t('KANBAN.COLORS.AMBER'),
-    orange: t('KANBAN.COLORS.ORANGE'),
-    ruby: t('KANBAN.COLORS.RUBY'),
-    rose: t('KANBAN.COLORS.ROSE'),
-    violet: t('KANBAN.COLORS.VIOLET'),
-    iris: t('KANBAN.COLORS.IRIS'),
-  };
-
-  return labels[colorOption.value];
-};
-
-const getSelectStageColorLabel = colorOption =>
-  t('KANBAN.ACTIONS.SELECT_STAGE_COLOR', {
-    color: getStageColorLabel(colorOption),
-  });
-
-const getEffectiveStageColor = stage =>
-  editingStageId.value === stage.id
-    ? stageColors.value[stage.id] || stage.color
-    : stage.color;
-
 const showBoard = async (boardId, generation = requestGeneration) => {
   if (!boardId) {
     selectedBoard.value = null;
@@ -829,7 +795,7 @@ const startEditingStage = stage => {
   };
   stageColors.value = {
     ...stageColors.value,
-    [stage.id]: getStageColorOption(stage.color).value,
+    [stage.id]: stage.color,
   };
   nextTick(() => stageNameInputs.get(stage.id)?.focus());
 };
@@ -1743,7 +1709,12 @@ watch(searchInput, () => {
             <template #item="{ element: stage }">
               <section
                 :data-stage-id="stage.id"
-                class="flex w-80 flex-shrink-0 flex-col overflow-hidden rounded-lg border border-n-weak bg-n-solid-1"
+                class="flex w-80 flex-shrink-0 flex-col rounded-lg border border-n-weak bg-n-solid-1"
+                :class="
+                  editingStageId === stage.id
+                    ? 'overflow-visible'
+                    : 'overflow-hidden'
+                "
               >
                 <header
                   class="stage-drag-handle cursor-grab flex min-h-10 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
@@ -1786,34 +1757,16 @@ watch(searchInput, () => {
                         <i class="i-lucide-x size-4" />
                       </button>
                     </div>
-                    <div
-                      class="flex items-center gap-1.5"
-                      :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
-                    >
-                      <button
-                        v-for="colorOption in stageColorOptions"
-                        :key="colorOption.value"
-                        type="button"
-                        class="size-5 rounded-full border border-n-weak ring-offset-2"
-                        :class="[
-                          colorOption.swatchClass,
-                          stageColors[stage.id] === colorOption.value
-                            ? 'ring-2 ring-n-brand'
-                            : 'hover:ring-2 hover:ring-n-slate-6',
-                        ]"
-                        :aria-label="getSelectStageColorLabel(colorOption)"
-                        @click="stageColors[stage.id] = colorOption.value"
-                      />
-                    </div>
+                    <ColorPicker
+                      v-model="stageColors[stage.id]"
+                      data-testid="kanban-stage-color-picker"
+                    />
                   </form>
                   <template v-else>
                     <div class="flex min-w-0 flex-1 items-center gap-2">
                       <span
                         class="size-2.5 flex-shrink-0 rounded-full"
-                        :class="
-                          getStageColorOption(getEffectiveStageColor(stage))
-                            .headerClass
-                        "
+                        :style="{ backgroundColor: stage.color }"
                         aria-hidden="true"
                       />
                       <h3

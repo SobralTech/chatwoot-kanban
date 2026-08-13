@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
-import { getKanbanStageColorClass } from 'dashboard/helper/kanbanStageColors';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import MultiselectDropdown from 'shared/components/ui/MultiselectDropdown.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
@@ -180,8 +179,6 @@ const defaultSubject = computed(() => {
 
   return `${contactName} - ${inboxName}`;
 });
-
-const stageColorClass = getKanbanStageColorClass;
 
 const formatDueAt = value => {
   if (!value) return t('CONVERSATION_SIDEBAR.KANBAN.NOT_SET');
@@ -1457,7 +1454,7 @@ onBeforeUnmount(() => {
               <span
                 v-if="card.kanban_stage?.color"
                 class="size-2 flex-shrink-0 rounded-full"
-                :class="stageColorClass(card.kanban_stage.color)"
+                :style="{ backgroundColor: card.kanban_stage.color }"
                 aria-hidden="true"
               />
               <span class="min-w-0 truncate">

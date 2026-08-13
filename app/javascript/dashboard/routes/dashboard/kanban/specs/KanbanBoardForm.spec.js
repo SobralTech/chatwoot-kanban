@@ -158,6 +158,13 @@ const mountForm = async ({ settings, board } = {}) => {
           template:
             '<div><slot /><slot v-for="element in modelValue" name="item" :element="element" /></div>',
         },
+        ColorPicker: {
+          name: 'ColorPicker',
+          props: ['modelValue'],
+          emits: ['update:modelValue'],
+          template:
+            '<button v-bind="$attrs" @click="$emit(\'update:modelValue\', \'#FF6B6B\')" />',
+        },
         KanbanCustomFieldsTab: true,
         KanbanReasonsTab: true,
         WootModal: {
@@ -267,6 +274,31 @@ describe('KanbanBoardForm', () => {
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('persists a color selected with the color picker', async () => {
+    const wrapper = await mountForm();
+
+    await wrapper
+      .find('[data-testid="kanban-board-form-create-stage-toggle"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-board-form-new-stage-name"]')
+      .setValue('Negotiation');
+    await wrapper.findComponent({ name: 'ColorPicker' }).trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-board-form-create-stage"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
+      stage: {
+        name: 'Negotiation',
+        description: '',
+        color: '#FF6B6B',
+        position: 3,
+      },
+    });
   });
 
   it('keeps the current route when continuing to edit unsaved changes', async () => {
