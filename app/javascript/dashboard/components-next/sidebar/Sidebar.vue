@@ -18,6 +18,7 @@ import ChannelLeaf from './ChannelLeaf.vue';
 import ChannelIcon from 'next/icon/ChannelIcon.vue';
 import SidebarAccountSwitcher from './SidebarAccountSwitcher.vue';
 import Logo from 'next/icon/Logo.vue';
+import Button from 'dashboard/components-next/button/Button.vue';
 
 const props = defineProps({
   isMobileSidebarOpen: {
@@ -162,6 +163,15 @@ const onResizeHandleDoubleClick = () => {
   if (isCollapsed.value) snapToExpanded();
   else snapToCollapsed();
 };
+const toggleSidebar = () => {
+  if (isCollapsed.value) snapToExpanded();
+  else snapToCollapsed();
+};
+
+const sidebarToggleLabel = computed(() => {
+  if (isEffectivelyCollapsed.value) return t('SIDEBAR.EXPAND');
+  return t('SIDEBAR.COLLAPSE');
+});
 
 // Support both mouse and touch events
 useEventListener(document, 'mousemove', onResizeMove);
@@ -934,6 +944,26 @@ const menuItems = computed(() => {
           !isACustomBrandedInstance &&
           isEffectivelyCollapsed
         "
+      />
+      <Button
+        ghost
+        slate
+        sm
+        class="hidden md:inline-flex"
+        :class="
+          isEffectivelyCollapsed
+            ? 'self-center'
+            : 'self-start ltr:ml-1 rtl:mr-1'
+        "
+        :icon="
+          isEffectivelyCollapsed
+            ? 'i-lucide-panel-left-open'
+            : 'i-lucide-panel-left-close'
+        "
+        :title="sidebarToggleLabel"
+        :aria-label="sidebarToggleLabel"
+        data-sidebar-toggle
+        @click="toggleSidebar"
       />
       <div
         class="px-1 py-1.5 flex-shrink-0 flex w-full z-50 gap-2 items-center border-t border-n-weak shadow-[0px_-2px_4px_0px_rgba(27,28,29,0.02)]"

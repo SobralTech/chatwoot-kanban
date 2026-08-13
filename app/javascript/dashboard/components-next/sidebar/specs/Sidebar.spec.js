@@ -6,6 +6,10 @@ import Sidebar from '../Sidebar.vue';
 const mockAccountId = ref(1);
 const mockWindowWidth = ref(1024);
 
+const mockIsCollapsed = ref(false);
+const mockSnapToCollapsed = vi.fn();
+const mockSnapToExpanded = vi.fn();
+
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: key =>
@@ -39,11 +43,11 @@ vi.mock('../provider', () => ({
   provideSidebarContext: vi.fn(),
   useSidebarResize: () => ({
     sidebarWidth: ref(200),
-    isCollapsed: ref(false),
+    isCollapsed: mockIsCollapsed,
     setSidebarWidth: vi.fn(),
     saveWidth: vi.fn(),
-    snapToCollapsed: vi.fn(),
-    snapToExpanded: vi.fn(),
+    snapToCollapsed: mockSnapToCollapsed,
+    snapToExpanded: mockSnapToExpanded,
     COLLAPSED_THRESHOLD: 160,
   }),
 }));
@@ -179,6 +183,9 @@ describe('Sidebar', () => {
   beforeEach(() => {
     mockAccountId.value = 1;
     mockWindowWidth.value = 1024;
+    mockIsCollapsed.value = false;
+    mockSnapToCollapsed.mockClear();
+    mockSnapToExpanded.mockClear();
   });
 
   it('shows overview in the kanban submenu', () => {
@@ -280,5 +287,20 @@ describe('Sidebar', () => {
 
     expect(groupNames).toContain('Conversation');
     expect(groupNames).toContain('Settings');
+  });
+
+  it('toggles the desktop sidebar from the profile footer', async () => {
+    const { wrapper } = mountSidebar();
+
+    await wrapper.find('[data-sidebar-toggle]').trigger('click');
+
+    expect(mockSnapToCollapsed).toHaveBeenCalledOnce();
+
+    mockIsCollapsed.value = true;
+    const { wrapper: collapsedWrapper } = mountSidebar();
+
+    await collapsedWrapper.find('[data-sidebar-toggle]').trigger('click');
+
+    expect(mockSnapToExpanded).toHaveBeenCalledOnce();
   });
 });
