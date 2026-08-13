@@ -49,6 +49,42 @@ const labelOptions = computed(() => [
   ...labels.value.map(label => ({ value: label.title, label: label.title })),
 ]);
 
+const filterGroups = computed(() => [
+  {
+    key: 'inboxIds',
+    title: t('KANBAN.FILTERS.INBOXES'),
+    options: props.inboxOptions,
+    truncateOption: true,
+  },
+  {
+    key: 'assigneeIds',
+    title: t('KANBAN.FILTERS.AGENTS'),
+    options: props.agentOptions,
+    truncateOption: true,
+  },
+  {
+    key: 'cardStatuses',
+    title: t('KANBAN.FILTERS.CARD_STATUS'),
+    options: cardStatusOptions.value,
+  },
+  {
+    key: 'priorities',
+    title: t('KANBAN.FILTERS.PRIORITY.TITLE'),
+    options: priorityOptions.value,
+  },
+  {
+    key: 'dueDates',
+    title: t('KANBAN.FILTERS.DUE_DATE.TITLE'),
+    options: dueDateOptions.value,
+  },
+  {
+    key: 'labels',
+    title: t('KANBAN.FILTERS.LABELS'),
+    options: labelOptions.value,
+    truncateOption: true,
+  },
+]);
+
 const selectedValues = key => props.modelValue[key] || [];
 const isSelected = (key, value) => selectedValues(key).includes(value);
 
@@ -93,129 +129,33 @@ const updateMatchMode = event => {
         </div>
 
         <div class="max-h-[min(30rem,calc(100vh-12rem))] overflow-y-auto">
-          <section class="border-b border-n-weak px-4 py-3">
+          <section
+            v-for="(group, index) in filterGroups"
+            :key="group.key"
+            class="px-4 py-3"
+            :class="{
+              'border-b border-n-weak': index < filterGroups.length - 1,
+            }"
+          >
             <h3
               class="mb-2 text-xs font-semibold uppercase tracking-wide text-n-slate-10"
             >
-              {{ t('KANBAN.FILTERS.INBOXES') }}
+              {{ group.title }}
             </h3>
             <label
-              v-for="option in inboxOptions"
+              v-for="option in group.options"
               :key="option.value"
               class="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-n-alpha-2"
             >
               <Checkbox
-                :model-value="isSelected('inboxIds', option.value)"
+                :model-value="isSelected(group.key, option.value)"
                 @update:model-value="
-                  updateFilter('inboxIds', option.value, $event)
+                  updateFilter(group.key, option.value, $event)
                 "
               />
-              <span class="min-w-0 truncate">{{ option.label }}</span>
-            </label>
-          </section>
-
-          <section class="border-b border-n-weak px-4 py-3">
-            <h3
-              class="mb-2 text-xs font-semibold uppercase tracking-wide text-n-slate-10"
-            >
-              {{ t('KANBAN.FILTERS.AGENTS') }}
-            </h3>
-            <label
-              v-for="option in agentOptions"
-              :key="option.value"
-              class="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-n-alpha-2"
-            >
-              <Checkbox
-                :model-value="isSelected('assigneeIds', option.value)"
-                @update:model-value="
-                  updateFilter('assigneeIds', option.value, $event)
-                "
-              />
-              <span class="min-w-0 truncate">{{ option.label }}</span>
-            </label>
-          </section>
-
-          <section class="border-b border-n-weak px-4 py-3">
-            <h3
-              class="mb-2 text-xs font-semibold uppercase tracking-wide text-n-slate-10"
-            >
-              {{ t('KANBAN.FILTERS.CARD_STATUS') }}
-            </h3>
-            <label
-              v-for="option in cardStatusOptions"
-              :key="option.value"
-              class="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-n-alpha-2"
-            >
-              <Checkbox
-                :model-value="isSelected('cardStatuses', option.value)"
-                @update:model-value="
-                  updateFilter('cardStatuses', option.value, $event)
-                "
-              />
-              <span>{{ option.label }}</span>
-            </label>
-          </section>
-
-          <section class="border-b border-n-weak px-4 py-3">
-            <h3
-              class="mb-2 text-xs font-semibold uppercase tracking-wide text-n-slate-10"
-            >
-              {{ t('KANBAN.FILTERS.PRIORITY.TITLE') }}
-            </h3>
-            <label
-              v-for="option in priorityOptions"
-              :key="option.value"
-              class="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-n-alpha-2"
-            >
-              <Checkbox
-                :model-value="isSelected('priorities', option.value)"
-                @update:model-value="
-                  updateFilter('priorities', option.value, $event)
-                "
-              />
-              <span>{{ option.label }}</span>
-            </label>
-          </section>
-
-          <section class="border-b border-n-weak px-4 py-3">
-            <h3
-              class="mb-2 text-xs font-semibold uppercase tracking-wide text-n-slate-10"
-            >
-              {{ t('KANBAN.FILTERS.DUE_DATE.TITLE') }}
-            </h3>
-            <label
-              v-for="option in dueDateOptions"
-              :key="option.value"
-              class="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-n-alpha-2"
-            >
-              <Checkbox
-                :model-value="isSelected('dueDates', option.value)"
-                @update:model-value="
-                  updateFilter('dueDates', option.value, $event)
-                "
-              />
-              <span>{{ option.label }}</span>
-            </label>
-          </section>
-
-          <section class="px-4 py-3">
-            <h3
-              class="mb-2 text-xs font-semibold uppercase tracking-wide text-n-slate-10"
-            >
-              {{ t('KANBAN.FILTERS.LABELS') }}
-            </h3>
-            <label
-              v-for="option in labelOptions"
-              :key="option.value"
-              class="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-n-alpha-2"
-            >
-              <Checkbox
-                :model-value="isSelected('labels', option.value)"
-                @update:model-value="
-                  updateFilter('labels', option.value, $event)
-                "
-              />
-              <span class="min-w-0 truncate">{{ option.label }}</span>
+              <span :class="{ 'min-w-0 truncate': group.truncateOption }">{{
+                option.label
+              }}</span>
             </label>
           </section>
         </div>

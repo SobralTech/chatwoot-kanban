@@ -211,7 +211,6 @@ class KanbanCard < ApplicationRecord
       target_card_count = stage_active_cards(kanban_board, target_stage).count
       bulk_move_active_cards!(kanban_board, source_stage, target_stage, target_card_count)
       bulk_normalize_positions_for_stage!(kanban_board, source_stage)
-      bulk_normalize_positions_for_stage!(kanban_board, target_stage)
     end
   end
 

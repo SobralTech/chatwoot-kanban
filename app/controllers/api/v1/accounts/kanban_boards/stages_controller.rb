@@ -89,7 +89,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     target_position = requested_target_position(target_board)
 
     KanbanStage.transaction do
-      lock_stages_for_boards!(source_board, target_board)
+      KanbanStage.lock_reorder_stages_for_board!([source_board, target_board])
       KanbanStage.shift_active_positions_from!(target_board, target_position)
       @kanban_stage.update!(kanban_board: target_board, position: target_position)
       KanbanStage.normalize_positions_for_board!(source_board)
@@ -174,10 +174,6 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   def requested_target_position(target_board)
     maximum_position = KanbanStage.next_active_position(target_board)
     (params[:position].presence || maximum_position).to_i.clamp(1, maximum_position)
-  end
-
-  def lock_stages_for_boards!(*boards)
-    KanbanStage.where(kanban_board: boards).active.order(:id).lock.each(&:id)
   end
 
   def render_stage_move_error(error)
