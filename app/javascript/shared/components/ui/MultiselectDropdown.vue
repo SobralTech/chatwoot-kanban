@@ -37,6 +37,18 @@ const props = defineProps({
     type: String,
     default: 'Search',
   },
+  compact: {
+    type: Boolean,
+    default: false,
+  },
+  compactIcon: {
+    type: String,
+    default: '',
+  },
+  buttonVariant: {
+    type: String,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['select']);
@@ -62,33 +74,48 @@ const hasIcon = computed(() => {
 
 <template>
   <OnClickOutside @trigger="onCloseDropdown">
-    <div class="relative w-full mb-2" @keyup.esc="onCloseDropdown">
+    <div
+      class="relative"
+      :class="props.compact ? 'w-auto mb-0' : 'w-full mb-2'"
+      @keyup.esc="onCloseDropdown"
+    >
       <Button
         slate
-        outline
-        trailing-icon
-        :icon="
-          showSearchDropdown ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'
-        "
-        class="w-full !px-2"
+        :variant="compact ? 'ghost' : buttonVariant"
+        :size="compact ? 'sm' : null"
+        :trailing-icon="!compact"
+        :title="selectedItem?.name || multiselectorPlaceholder"
+        :aria-label="selectedItem?.name || multiselectorPlaceholder"
+        :class="compact ? '!size-8 !p-0' : 'w-full !px-2'"
         @click="
           () => toggleDropdown() // ensure that the event is not passed to the button
         "
       >
-        <div class="flex items-center justify-between w-full min-w-0">
-          <h4 v-if="!hasValue" class="text-sm text-ellipsis text-n-slate-12">
+        <div
+          :class="
+            compact
+              ? 'sr-only'
+              : 'flex items-center justify-between w-full min-w-0'
+          "
+        >
+          <h4
+            v-if="!hasValue"
+            class="text-sm text-ellipsis text-n-slate-12"
+            :class="{ 'sr-only': compact }"
+          >
             {{ multiselectorPlaceholder }}
           </h4>
           <h4
             v-else
             class="items-center overflow-hidden text-sm leading-tight whitespace-nowrap text-ellipsis text-n-slate-12"
+            :class="{ 'sr-only': compact }"
             :title="selectedItem.name"
           >
             {{ selectedItem.name }}
           </h4>
         </div>
         <Avatar
-          v-if="hasValue && hasThumbnail && !hasIcon"
+          v-if="hasValue && hasThumbnail && !hasIcon && !compact"
           :src="selectedItem.thumbnail"
           :status="selectedItem.availability_status"
           :name="selectedItem.name"
@@ -97,17 +124,25 @@ const hasIcon = computed(() => {
           rounded-full
         />
         <Icon
-          v-if="hasValue && hasIcon"
+          v-if="hasValue && hasIcon && !compact"
           :icon="selectedItem.icon"
           class="size-5 text-n-slate-11"
         />
+        <Icon
+          v-if="compact && compactIcon"
+          :icon="compactIcon"
+          class="flex-shrink-0"
+        />
       </Button>
       <div
-        :class="{
-          'block visible': showSearchDropdown,
-          'hidden invisible': !showSearchDropdown,
-        }"
-        class="box-border top-[2.625rem] w-full border rounded-lg bg-n-alpha-3 backdrop-blur-[100px] absolute shadow-lg border-n-strong dark:border-n-strong p-2 z-[9999]"
+        :class="[
+          {
+            'block visible': showSearchDropdown,
+            'hidden invisible': !showSearchDropdown,
+          },
+          compact ? 'right-0 top-8 !w-60' : 'top-[2.625rem] w-full',
+        ]"
+        class="box-border border rounded-lg bg-n-alpha-3 backdrop-blur-[100px] absolute shadow-lg border-n-strong dark:border-n-strong p-2 z-[9999]"
       >
         <div class="flex items-center justify-between mb-1">
           <h4

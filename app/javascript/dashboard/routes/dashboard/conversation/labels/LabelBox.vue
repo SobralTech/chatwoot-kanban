@@ -7,12 +7,20 @@ import { useKeyboardEvents } from 'dashboard/composables/useKeyboardEvents';
 import Spinner from 'shared/components/Spinner.vue';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import AddLabel from 'shared/components/ui/dropdown/AddLabel.vue';
+import NextButton from 'dashboard/components-next/button/Button.vue';
 
 export default {
   components: {
     Spinner,
     LabelDropdown,
     AddLabel,
+    NextButton,
+  },
+  props: {
+    compact: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup() {
     const { isAdmin } = useAdmin();
@@ -74,40 +82,66 @@ export default {
     ...mapGetters({
       conversationUiFlags: 'conversationLabels/getUIFlags',
     }),
+    compactLabelCount() {
+      return this.activeLabels.length || '';
+    },
+    labelButtonTooltip() {
+      return this.activeLabels.length
+        ? this.activeLabels.map(label => label.title).join(', ')
+        : this.$t('CONVERSATION_SIDEBAR.ACCORDION.CONVERSATION_LABELS');
+    },
   },
 };
 </script>
 
 <template>
-  <div class="sidebar-labels-wrap">
+  <div class="sidebar-labels-wrap" :class="{ relative: compact }">
     <div
       v-if="!conversationUiFlags.isFetching"
       class="contact-conversation--list"
+      :class="{ '!w-auto': compact }"
     >
       <div
         v-on-clickaway="closeDropdownLabel"
-        class="label-wrap flex flex-wrap"
+        class="label-wrap"
+        :class="compact ? 'relative' : 'flex flex-wrap'"
         @keyup.esc="closeDropdownLabel"
       >
-        <AddLabel @add="toggleLabels" />
-        <woot-label
-          v-for="label in activeLabels"
-          :key="label.id"
-          :title="label.title"
-          :description="label.description"
-          show-close
-          :color="label.color"
-          variant="smooth"
-          class="max-w-[calc(100%-0.5rem)]"
-          @remove="removeLabelFromConversation"
+        <NextButton
+          v-if="compact"
+          v-tooltip="labelButtonTooltip"
+          slate
+          size="sm"
+          ghost
+          icon="i-lucide-tag"
+          :label="compactLabelCount"
+          @click="toggleLabels"
         />
-
+        <template v-else>
+          <AddLabel @add="toggleLabels" />
+          <woot-label
+            v-for="label in activeLabels"
+            :key="label.id"
+            :title="label.title"
+            :description="label.description"
+            show-close
+            :color="label.color"
+            variant="smooth"
+            class="max-w-[calc(100%-0.5rem)]"
+            @remove="removeLabelFromConversation"
+          />
+        </template>
         <div
-          :class="{
-            'block visible': showSearchDropdownLabel,
-            'hidden invisible': !showSearchDropdownLabel,
-          }"
-          class="border rounded-lg bg-n-alpha-3 top-6 backdrop-blur-[100px] absolute w-full shadow-lg border-n-strong dark:border-n-strong p-2 box-border z-[9999]"
+          :class="[
+            {
+              'block visible': showSearchDropdownLabel,
+              'hidden invisible': !showSearchDropdownLabel,
+            },
+            compact
+              ? 'right-0 top-8 w-80 max-w-[calc(100vw-2rem)]'
+              : 'top-6 w-full',
+          ]"
+          class="border rounded-lg bg-n-alpha-3 backdrop-blur-[100px] absolute shadow-lg border-n-strong dark:border-n-strong p-2 box-border z-[9999]"
         >
           <LabelDropdown
             v-if="showSearchDropdownLabel"

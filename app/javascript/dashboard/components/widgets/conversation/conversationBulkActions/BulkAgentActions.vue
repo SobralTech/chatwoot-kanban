@@ -18,10 +18,6 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
-  openBelow: {
-    type: Boolean,
-    default: false,
-  },
 });
 
 const emit = defineEmits(['select']);
@@ -126,14 +122,10 @@ const handleToggleDropdown = () => {
       @click="handleToggleDropdown"
     />
     <Transition
-      :enter-active-class="`transition-all duration-150 ease-out ${
-        openBelow ? 'origin-top' : 'origin-bottom'
-      }`"
+      enter-active-class="transition-all duration-150 ease-out origin-bottom"
       enter-from-class="opacity-0 scale-95"
       enter-to-class="opacity-100 scale-100"
-      :leave-active-class="`transition-all duration-100 ease-in ${
-        openBelow ? 'origin-top' : 'origin-bottom'
-      }`"
+      leave-active-class="transition-all duration-100 ease-in origin-bottom"
       leave-from-class="opacity-100 scale-100"
       leave-to-class="opacity-0 scale-95"
     >
@@ -144,8 +136,7 @@ const handleToggleDropdown = () => {
         :is-loading="isLoading"
         show-search
         :search-placeholder="t('BULK_ACTION.SEARCH_INPUT_PLACEHOLDER')"
-        class="ltr:-right-10 rtl:-left-10 ltr:2xl:right-0 rtl:2xl:left-0 w-60 max-h-80"
-        :class="openBelow ? 'top-8' : 'bottom-8'"
+        class="ltr:-right-10 rtl:-left-10 ltr:2xl:right-0 rtl:2xl:left-0 bottom-8 w-60 max-h-80"
         @action="handleSelectAgent"
       >
         <template v-if="selectedAgent" #footer>

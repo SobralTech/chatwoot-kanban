@@ -11,9 +11,8 @@ import Avatar from 'next/avatar/Avatar.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
 import ConversationCallButton from './ConversationCallButton.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
-import BulkAgentActions from './conversationBulkActions/BulkAgentActions.vue';
-import BulkTeamActions from './conversationBulkActions/BulkTeamActions.vue';
-import BulkLabelActions from './conversationBulkActions/BulkLabelActions.vue';
+import MultiselectDropdown from 'shared/components/ui/MultiselectDropdown.vue';
+import ConversationLabels from 'dashboard/routes/dashboard/conversation/labels/LabelBox.vue';
 import wootConstants from 'dashboard/constants/globals';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { snoozedReopenTime } from 'dashboard/helper/snoozeHelpers';
@@ -23,7 +22,8 @@ import {
   useContactSidebar,
   useEmbeddedConversation,
 } from 'dashboard/composables/useEmbeddedConversation';
-import { useBulkActions } from 'dashboard/composables/chatlist/useBulkActions';
+import { useAgentsList } from 'dashboard/composables/useAgentsList';
+
 import { useAlert } from 'dashboard/composables';
 
 const props = defineProps({
@@ -52,18 +52,39 @@ const currentChat = computed(() => store.getters.getSelectedChat);
 const accountId = computed(() => store.getters.getCurrentAccountId);
 
 const chatMetadata = computed(() => props.chat.meta);
-const { onAssignAgent, onAssignLabels } = useBulkActions();
+const { agentsList } = useAgentsList();
+const assignedAgent = computed(() => currentChat.value?.meta?.assignee || null);
+const assignedTeam = computed(() => currentChat.value?.meta?.team || null);
+const teamsList = computed(() => {
+  const teams = store.getters['teams/getTeams'];
 
-const onAssignCurrentAgent = agent =>
-  onAssignAgent(agent, currentChat.value.id);
+  if (assignedTeam.value) {
+    return [{ id: 0, name: t('TEAMS_SETTINGS.LIST.NONE') }, ...teams];
+  }
 
-const onAssignCurrentLabels = labels =>
-  onAssignLabels(labels, currentChat.value.id);
+  return teams;
+});
+
+async function onAssignCurrentAgent(agent) {
+  const assignee = assignedAgent.value?.id === agent.id ? null : agent;
+  const conversationId = currentChat.value.id;
+
+  store.dispatch('setCurrentChatAssignee', { conversationId, assignee });
+  await store.dispatch('assignAgent', {
+    conversationId,
+    agentId: assignee ? assignee.id : null,
+  });
+  useAlert(t('CONVERSATION.CHANGE_AGENT'));
+}
 
 async function onAssignCurrentTeam(team) {
+  const assigned = assignedTeam.value?.id === team.id ? null : team;
+  const conversationId = currentChat.value.id;
+
+  store.dispatch('setCurrentChatTeam', { conversationId, team: assigned });
   await store.dispatch('assignTeam', {
-    conversationId: currentChat.value.id,
-    teamId: team.id,
+    conversationId,
+    teamId: assigned ? assigned.id : 0,
   });
   useAlert(t('CONVERSATION.CHANGE_TEAM'));
 }
@@ -214,18 +235,37 @@ const toggleContactDetails = () => {
         data-testid="conversation-header-search-button"
         @click.stop="emit('openConversationSearch')"
       />
-      <BulkAgentActions
-        :selected-inboxes="[currentChat.inbox_id]"
-        :conversation-count="1"
-        open-below
+      <MultiselectDropdown
+        compact
+        compact-icon="i-lucide-user-round-check"
+        :options="agentsList"
+        :selected-item="assignedAgent"
+        :multiselector-title="$t('AGENT_MGMT.MULTI_SELECTOR.TITLE.AGENT')"
+        :multiselector-placeholder="$t('AGENT_MGMT.MULTI_SELECTOR.PLACEHOLDER')"
+        :no-search-result="
+          $t('AGENT_MGMT.MULTI_SELECTOR.SEARCH.NO_RESULTS.AGENT')
+        "
+        :input-placeholder="
+          $t('AGENT_MGMT.MULTI_SELECTOR.SEARCH.PLACEHOLDER.AGENT')
+        "
         @select="onAssignCurrentAgent"
       />
-      <BulkTeamActions
-        open-below
-        :conversation-count="1"
+      <MultiselectDropdown
+        compact
+        compact-icon="i-lucide-users-round"
+        :options="teamsList"
+        :selected-item="assignedTeam"
+        :multiselector-title="$t('AGENT_MGMT.MULTI_SELECTOR.TITLE.TEAM')"
+        :multiselector-placeholder="$t('AGENT_MGMT.MULTI_SELECTOR.PLACEHOLDER')"
+        :no-search-result="
+          $t('AGENT_MGMT.MULTI_SELECTOR.SEARCH.NO_RESULTS.TEAM')
+        "
+        :input-placeholder="
+          $t('AGENT_MGMT.MULTI_SELECTOR.SEARCH.PLACEHOLDER.TEAM')
+        "
         @select="onAssignCurrentTeam"
       />
-      <BulkLabelActions open-below @assign="onAssignCurrentLabels" />
+      <ConversationLabels compact />
       <MoreActions :conversation-id="currentChat.id" />
     </div>
   </div>

@@ -13,10 +13,6 @@ const props = defineProps({
     type: Number,
     required: true,
   },
-  openBelow: {
-    type: Boolean,
-    default: false,
-  },
 });
 
 const emit = defineEmits(['select']);
@@ -93,14 +89,10 @@ const handleDismiss = () => {
       @click="toggleDropdown()"
     />
     <Transition
-      :enter-active-class="`transition-all duration-150 ease-out ${
-        openBelow ? 'origin-top' : 'origin-bottom'
-      }`"
+      enter-active-class="transition-all duration-150 ease-out origin-bottom"
       enter-from-class="opacity-0 scale-95"
       enter-to-class="opacity-100 scale-100"
-      :leave-active-class="`transition-all duration-100 ease-in ${
-        openBelow ? 'origin-top' : 'origin-bottom'
-      }`"
+      leave-active-class="transition-all duration-100 ease-in origin-bottom"
       leave-from-class="opacity-100 scale-100"
       leave-to-class="opacity-0 scale-95"
     >
@@ -110,8 +102,7 @@ const handleDismiss = () => {
         :menu-items="teamMenuItems"
         show-search
         :search-placeholder="t('BULK_ACTION.SEARCH_INPUT_PLACEHOLDER')"
-        class="ltr:-right-2 rtl:-left-2 w-60 max-h-80"
-        :class="openBelow ? 'top-8' : 'bottom-8'"
+        class="ltr:-right-2 rtl:-left-2 bottom-8 w-60 max-h-80"
         @action="handleSelectTeam"
       >
         <template v-if="selectedTeam" #footer>
