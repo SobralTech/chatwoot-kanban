@@ -371,6 +371,21 @@ const findCardDraggables = wrapper =>
     .findAllComponents({ name: 'Draggable' })
     .filter(draggable => draggable.props('handle') === '.card-drag-handle');
 
+const findEmptyStageDraggable = wrapper =>
+  findCardDraggables(wrapper).find(
+    draggable => draggable.props('list').length === 0
+  );
+
+const findEmptyStageAddCard = wrapper =>
+  findEmptyStageDraggable(wrapper).find(
+    '[data-testid="kanban-empty-stage-add-card"]'
+  );
+
+const expectEmptyStageState = (wrapper, { hasAddCard, label }) => {
+  expect(findEmptyStageAddCard(wrapper).exists()).toBe(hasAddCard);
+  expect(findEmptyStageDraggable(wrapper).text()).toContain(label);
+};
+
 const findAddItemButtons = wrapper =>
   wrapper.findAll('[data-testid="kanban-add-item-button"]');
 
@@ -1071,9 +1086,7 @@ describe('KanbanView drag and drop', () => {
 
   it('persists cross-stage card drag using target stage and position payload', async () => {
     const wrapper = await mountView();
-    const targetStageCardDraggable = findCardDraggables(wrapper).find(
-      draggable => draggable.props('list').length === 0
-    );
+    const targetStageCardDraggable = findEmptyStageDraggable(wrapper);
 
     expect(targetStageCardDraggable).toBeDefined();
 
@@ -1100,16 +1113,9 @@ describe('KanbanView drag and drop', () => {
 
   it('makes the empty stage card list a configured drop zone', async () => {
     const wrapper = await mountView();
-    const emptyStageDraggable = findCardDraggables(wrapper).find(
-      draggable => draggable.props('list').length === 0
-    );
+    const emptyStageDraggable = findEmptyStageDraggable(wrapper);
 
     expect(emptyStageDraggable.classes()).toContain('min-h-48');
-    const addCardButton = emptyStageDraggable.find(
-      '[data-testid="kanban-empty-stage-add-card"]'
-    );
-    expect(addCardButton.exists()).toBe(true);
-    expect(addCardButton.attributes('data-stage-id')).toBe('200');
     expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(5);
     expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
     expect(emptyStageDraggable.props('invertedSwapThreshold')).toBe(1);
@@ -1117,12 +1123,18 @@ describe('KanbanView drag and drop', () => {
     expect(emptyStageDraggable.props('forceFallback')).toBe(true);
   });
 
+  it('shows the add card action in an empty stage', async () => {
+    const wrapper = await mountView();
+
+    expect(findEmptyStageAddCard(wrapper).attributes('data-stage-id')).toBe(
+      '200'
+    );
+  });
+
   it('opens the opportunity picker for an empty stage', async () => {
     const wrapper = await mountView();
 
-    await wrapper
-      .find('[data-testid="kanban-empty-stage-add-card"]')
-      .trigger('click');
+    await findEmptyStageAddCard(wrapper).trigger('click');
 
     expect(findAddItemPicker(wrapper).props('kanbanStageId')).toBe(200);
   });
@@ -1133,15 +1145,10 @@ describe('KanbanView drag and drop', () => {
     await findInboxFilter(wrapper).vm.$emit('update:modelValue', [1]);
     await flushPromises();
 
-    const emptyStageDraggable = findCardDraggables(wrapper).find(
-      draggable => draggable.props('list').length === 0
-    );
-    expect(
-      emptyStageDraggable
-        .find('[data-testid="kanban-empty-stage-add-card"]')
-        .exists()
-    ).toBe(false);
-    expect(emptyStageDraggable.text()).toContain('KANBAN.EMPTY_CARDS_FILTERED');
+    expectEmptyStageState(wrapper, {
+      hasAddCard: false,
+      label: 'KANBAN.EMPTY_CARDS_FILTERED',
+    });
   });
 
   it('shows a filtered empty state while a search is active', async () => {
@@ -1150,31 +1157,21 @@ describe('KanbanView drag and drop', () => {
     wrapper.vm.$.setupState.activeSearchTerm = 'sale';
     await nextTick();
 
-    const emptyStageDraggable = findCardDraggables(wrapper).find(
-      draggable => draggable.props('list').length === 0
-    );
-    expect(
-      emptyStageDraggable
-        .find('[data-testid="kanban-empty-stage-add-card"]')
-        .exists()
-    ).toBe(false);
-    expect(emptyStageDraggable.text()).toContain('KANBAN.EMPTY_CARDS_FILTERED');
+    expectEmptyStageState(wrapper, {
+      hasAddCard: false,
+      label: 'KANBAN.EMPTY_CARDS_FILTERED',
+    });
   });
 
   it('does not show the add card action for an empty terminal stage', async () => {
     const wrapper = await mountView(
       buildBoardResponse([], { won_stage_id: 200 })
     );
-    const emptyStageDraggable = findCardDraggables(wrapper).find(
-      draggable => draggable.props('list').length === 0
-    );
 
-    expect(
-      emptyStageDraggable
-        .find('[data-testid="kanban-empty-stage-add-card"]')
-        .exists()
-    ).toBe(false);
-    expect(emptyStageDraggable.text()).toContain('KANBAN.EMPTY_CARDS');
+    expectEmptyStageState(wrapper, {
+      hasAddCard: false,
+      label: 'KANBAN.EMPTY_CARDS',
+    });
   });
 
   it('shows an add item action in each stage body', async () => {
