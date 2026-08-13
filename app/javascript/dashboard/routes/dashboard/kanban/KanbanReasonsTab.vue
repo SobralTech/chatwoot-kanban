@@ -173,6 +173,9 @@ onMounted(fetchReasons);
 
 <template>
   <div class="grid gap-4" data-testid="kanban-reasons-tab">
+    <p class="text-xs text-n-slate-10">
+      {{ t('KANBAN.BOARD_EDIT.AUTOSAVE_NOTE') }}
+    </p>
     <div class="flex items-center justify-end">
       <Button
         icon="i-lucide-plus"

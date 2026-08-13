@@ -192,6 +192,9 @@ onMounted(fetchFields);
 
 <template>
   <div class="grid gap-4">
+    <p class="text-xs text-n-slate-10">
+      {{ t('KANBAN.BOARD_EDIT.AUTOSAVE_NOTE') }}
+    </p>
     <div
       v-if="isLoading"
       data-testid="kanban-custom-fields-loading"

@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
 import Draggable from 'vuedraggable';
 
@@ -36,11 +36,9 @@ const { isAdmin } = useAdmin();
 const boardId = ref(route.params.boardId ? Number(route.params.boardId) : null);
 
 const isLoading = ref(true);
-const isActivating = ref(false);
 const isTogglingActive = ref(false);
 const isDiscarding = ref(false);
 const isSavingSettings = ref(false);
-let hasPendingSettingsSave = false;
 const isSavingAutomation = ref(false);
 const isDeleting = ref(false);
 const isCreatingStage = ref(false);
@@ -56,6 +54,9 @@ const showDeleteConfirmation = ref(false);
 const showCreateStageForm = ref(false);
 const showImportExistingConversationsModal = ref(false);
 const showRemoveStageConfirmation = ref(false);
+const showDiscardSettingsConfirmation = ref(false);
+const showUnsavedChangesModal = ref(false);
+const showDiscardDraftModal = ref(false);
 
 const stages = ref([]);
 const newStageName = ref('');
@@ -67,8 +68,14 @@ const editStageDescription = ref('');
 const editStageColor = ref(DEFAULT_KANBAN_STAGE_COLOR);
 const stagePendingRemoval = ref(null);
 const ignoreGroupsForImport = ref(false);
+const stageReconcileWarning = ref('');
 
 const activeTabIndex = ref(0);
+const isFreshDraft = ref(false);
+const isRedirectingNewDraft = ref(false);
+const savedSnapshot = ref(null);
+const lastSavedPayload = ref(null);
+const pendingNavigation = ref(null);
 
 const form = reactive({
   name: '',
@@ -119,9 +126,9 @@ const tabItems = computed(() => [
 const activeTabKey = computed(() => TAB_KEYS[activeTabIndex.value]);
 
 const pageTitle = computed(() =>
-  form.active
-    ? t('KANBAN.BOARD_EDIT.EDIT_TITLE', { name: form.name })
-    : t('KANBAN.BOARD_EDIT.CREATE_TITLE')
+  route.name === 'kanban_board_create_form' || isFreshDraft.value
+    ? t('KANBAN.BOARD_EDIT.CREATE_TITLE')
+    : t('KANBAN.BOARD_EDIT.EDIT_TITLE', { name: form.name })
 );
 
 const canActivate = computed(() => !!(form.wonStageId && form.lostStageId));
@@ -129,11 +136,24 @@ const saveDisabled = computed(
   () =>
     isLoading.value ||
     !!loadError.value ||
-    isActivating.value ||
-    (!form.active && !canActivate.value)
+    isSavingSettings.value ||
+    !form.name.trim()
 );
 
-const discardDisabled = computed(() => isLoading.value || !!loadError.value);
+const backDestination = computed(() =>
+  boardId.value && !isFreshDraft.value
+    ? {
+        name: 'kanban_board_show',
+        params: { accountId: route.params.accountId, boardId: boardId.value },
+      }
+    : { name: 'kanban_boards', params: { accountId: route.params.accountId } }
+);
+
+const backLabel = computed(() =>
+  backDestination.value.name === 'kanban_boards'
+    ? t('KANBAN.ACTIONS.BACK_TO_OVERVIEW')
+    : t('KANBAN.ACTIONS.BACK_TO_BOARD')
+);
 
 const inboxOptions = computed(() =>
   inboxes.value.map(inbox => ({
@@ -148,7 +168,32 @@ const getErrorMessage = (error, fallbackMessage) =>
   error?.message ||
   fallbackMessage;
 
-const applySettings = payload => {
+const normalizeForDiff = source => ({
+  name: (source.name || '').trim(),
+  description: (source.description || '').trim(),
+  visibilityMode: source.visibilityMode,
+  visibleUserIds: [...(source.visibleUserIds || [])].sort((a, b) => a - b),
+  inboxScopeMode: source.inboxScopeMode,
+  allowedInboxIds: [...(source.allowedInboxIds || [])].sort((a, b) => a - b),
+  wonStageId: source.wonStageId ?? null,
+  lostStageId: source.lostStageId ?? null,
+  lostReasonRequired: !!source.lostReasonRequired,
+  wonRecurrenceEnabled: !!source.wonRecurrenceEnabled,
+  wonRecurrenceWindowHours: source.wonRecurrenceWindowHours ?? null,
+  lostRecurrenceEnabled: !!source.lostRecurrenceEnabled,
+  lostRecurrenceWindowHours: source.lostRecurrenceWindowHours ?? null,
+});
+
+const isDirty = computed(
+  () =>
+    !!savedSnapshot.value &&
+    JSON.stringify(normalizeForDiff(form)) !==
+      JSON.stringify(savedSnapshot.value)
+);
+
+const cloneSettings = settings => JSON.parse(JSON.stringify(settings));
+
+const applySettings = (payload, shouldUpdateSnapshot = true) => {
   const settings = camelcaseKeys(payload || {}, { deep: true });
 
   form.name = settings.name || '';
@@ -160,13 +205,18 @@ const applySettings = payload => {
   form.visibleUserIds = settings.visibleUserIds || [];
   form.inboxScopeMode = settings.inboxScopeMode || 'all_inboxes';
   form.allowedInboxIds = settings.allowedInboxIds || [];
-  form.wonStageId = settings.wonStageId || null;
-  form.lostStageId = settings.lostStageId || null;
+  form.wonStageId = settings.wonStageId ?? null;
+  form.lostStageId = settings.lostStageId ?? null;
   form.lostReasonRequired = settings.lostReasonRequired || false;
   form.wonRecurrenceEnabled = settings.wonRecurrenceEnabled || false;
   form.wonRecurrenceWindowHours = settings.wonRecurrenceWindowHours ?? null;
   form.lostRecurrenceEnabled = settings.lostRecurrenceEnabled || false;
   form.lostRecurrenceWindowHours = settings.lostRecurrenceWindowHours ?? null;
+
+  if (shouldUpdateSnapshot) {
+    lastSavedPayload.value = cloneSettings(settings);
+    savedSnapshot.value = normalizeForDiff(form);
+  }
 };
 
 const applyBoard = payload => {
@@ -174,9 +224,22 @@ const applyBoard = payload => {
   stages.value = board.stages || [];
 };
 
+const reconcileDraftStages = () => {
+  const ids = new Set(stages.value.map(stage => stage.id));
+  if (form.wonStageId && !ids.has(form.wonStageId)) {
+    form.wonStageId = null;
+    stageReconcileWarning.value = t('KANBAN.BOARD_EDIT.WON_STAGE_REMOVED');
+  }
+  if (form.lostStageId && !ids.has(form.lostStageId)) {
+    form.lostStageId = null;
+    stageReconcileWarning.value = t('KANBAN.BOARD_EDIT.LOST_STAGE_REMOVED');
+  }
+};
+
 const refreshBoard = async () => {
   const response = await KanbanBoardsAPI.showBoard(boardId.value);
   applyBoard(response.data);
+  reconcileDraftStages();
 };
 
 const loadBoard = async () => {
@@ -192,6 +255,7 @@ const loadBoard = async () => {
     ]);
     applySettings(settingsResponse.data);
     applyBoard(boardResponse.data);
+    reconcileDraftStages();
   } catch (error) {
     loadError.value = getErrorMessage(error, t('KANBAN.BOARD_EDIT.LOAD_ERROR'));
   } finally {
@@ -214,14 +278,20 @@ const ensureDraftBoard = async () => {
     });
     const created = camelcaseKeys(response.data || {}, { deep: true });
     boardId.value = created.id;
+    isFreshDraft.value = true;
 
-    await router.replace({
-      name: 'kanban_board_edit_form',
-      params: {
-        accountId: route.params.accountId,
-        boardId: boardId.value,
-      },
-    });
+    isRedirectingNewDraft.value = true;
+    try {
+      await router.replace({
+        name: 'kanban_board_edit_form',
+        params: {
+          accountId: route.params.accountId,
+          boardId: boardId.value,
+        },
+      });
+    } finally {
+      isRedirectingNewDraft.value = false;
+    }
   } catch (error) {
     loadError.value = getErrorMessage(
       error,
@@ -234,7 +304,6 @@ const buildSettingsPayload = () => ({
   kanban_board: {
     name: form.name.trim(),
     description: form.description.trim(),
-    auto_create_cards_from_conversations: form.autoCreateCardsFromConversations,
     visibility_mode: form.visibilityMode,
     visible_user_ids:
       form.visibilityMode === 'selected_agents' ? form.visibleUserIds : [],
@@ -252,13 +321,8 @@ const buildSettingsPayload = () => ({
 });
 
 const persistSettings = async () => {
-  if (!form.name.trim() || !isAdmin.value) return;
-
-  // A change made while a save is in flight is coalesced into a follow-up save
-  // instead of being dropped, so the last edit always reaches the server.
-  if (isSavingSettings.value) {
-    hasPendingSettingsSave = true;
-    return;
+  if (!form.name.trim() || !isAdmin.value || isSavingSettings.value) {
+    return false;
   }
 
   isSavingSettings.value = true;
@@ -268,38 +332,29 @@ const persistSettings = async () => {
       boardId.value,
       buildSettingsPayload()
     );
-    // Skip syncing from a response a newer local change has already superseded.
-    if (!hasPendingSettingsSave) {
-      applySettings(response.data);
-      await refreshBoard();
-      await store.dispatch('kanbanBoards/refreshBoards');
-    }
+    applySettings(response.data);
+    await refreshBoard();
+    await store.dispatch('kanbanBoards/refreshBoards');
+    return true;
   } catch (error) {
     useAlert(getErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR')));
+    return false;
   } finally {
     isSavingSettings.value = false;
-  }
-
-  if (hasPendingSettingsSave) {
-    hasPendingSettingsSave = false;
-    await persistSettings();
   }
 };
 
 const setInboxScopeMode = mode => {
   form.inboxScopeMode = mode;
-  persistSettings();
 };
 
 const onAllowedInboxIdsChange = value => {
   form.allowedInboxIds = value;
-  persistSettings();
 };
 
 const onVisibleUserIdsChange = userIds => {
   form.visibleUserIds = userIds;
   form.visibilityMode = userIds.length ? 'selected_agents' : 'all_agents';
-  persistSettings();
 };
 
 const onWonStageChange = value => {
@@ -312,7 +367,6 @@ const onWonStageChange = value => {
   }
 
   form.wonStageId = nextStageId;
-  persistSettings();
 };
 
 const onLostStageChange = value => {
@@ -325,32 +379,26 @@ const onLostStageChange = value => {
   }
 
   form.lostStageId = nextStageId;
-  persistSettings();
 };
 
 const onLostReasonRequiredChange = checked => {
   form.lostReasonRequired = checked;
-  persistSettings();
 };
 
 const onWonRecurrenceEnabledChange = checked => {
   form.wonRecurrenceEnabled = checked;
-  persistSettings();
 };
 
 const onWonRecurrenceWindowHoursChange = value => {
   form.wonRecurrenceWindowHours = value === '' ? null : Number(value);
-  persistSettings();
 };
 
 const onLostRecurrenceEnabledChange = checked => {
   form.lostRecurrenceEnabled = checked;
-  persistSettings();
 };
 
 const onLostRecurrenceWindowHoursChange = value => {
   form.lostRecurrenceWindowHours = value === '' ? null : Number(value);
-  persistSettings();
 };
 
 const onAutoCreateChange = async checked => {
@@ -360,11 +408,18 @@ const onAutoCreateChange = async checked => {
   isSavingAutomation.value = true;
 
   try {
-    const response = await KanbanBoardsAPI.updateSettings(
-      boardId.value,
-      buildSettingsPayload()
-    );
-    applySettings(response.data);
+    const response = await KanbanBoardsAPI.updateSettings(boardId.value, {
+      kanban_board: {
+        auto_create_cards_from_conversations: checked,
+      },
+    });
+    const settings = camelcaseKeys(response.data || {}, { deep: true });
+    form.autoCreateCardsFromConversations =
+      settings.autoCreateCardsFromConversations ?? checked;
+    if (lastSavedPayload.value) {
+      lastSavedPayload.value.autoCreateCardsFromConversations =
+        form.autoCreateCardsFromConversations;
+    }
     await store.dispatch('kanbanBoards/refreshBoards');
 
     if (checked) {
@@ -528,8 +583,6 @@ const removeStage = async () => {
   try {
     await KanbanBoardsAPI.deleteStage(boardId.value, stage.id);
     closeRemoveStageConfirmation();
-    if (form.wonStageId === stage.id) form.wonStageId = null;
-    if (form.lostStageId === stage.id) form.lostStageId = null;
     await refreshBoard();
     await store.dispatch('kanbanBoards/refreshBoards');
     useAlert(t('KANBAN.ACTIONS.REMOVE_STAGE_SUCCESS'));
@@ -576,41 +629,6 @@ const onStageDragEnd = async event => {
   await reorderStageByPosition(stage, newIndex + 1);
 };
 
-const goToBoard = () => {
-  router.push({
-    name: 'kanban_board_show',
-    params: { accountId: route.params.accountId, boardId: boardId.value },
-  });
-};
-
-const onSave = async () => {
-  if (form.active) {
-    goToBoard();
-    return;
-  }
-
-  if (!canActivate.value || isActivating.value) return;
-
-  isActivating.value = true;
-
-  try {
-    const response = await KanbanBoardsAPI.update(boardId.value, {
-      kanban_board: { active: true },
-    });
-    form.active = camelcaseKeys(response.data || {}, { deep: true }).active;
-    await store.dispatch('kanbanBoards/refreshBoards');
-    goToBoard();
-  } catch (error) {
-    if (error?.response?.status === 422) {
-      useAlert(t('KANBAN.BOARD_EDIT.ACTIVATE_ERROR'));
-    } else {
-      useAlert(getErrorMessage(error, t('KANBAN.BOARD_EDIT.ACTIVATE_ERROR')));
-    }
-  } finally {
-    isActivating.value = false;
-  }
-};
-
 const onActiveToggle = async () => {
   if (isTogglingActive.value) return;
 
@@ -622,6 +640,10 @@ const onActiveToggle = async () => {
       kanban_board: { active: desired },
     });
     form.active = camelcaseKeys(response.data || {}, { deep: true }).active;
+    if (lastSavedPayload.value) {
+      lastSavedPayload.value.active = form.active;
+    }
+    if (form.active) isFreshDraft.value = false;
     await store.dispatch('kanbanBoards/refreshBoards');
   } catch (error) {
     form.active = !desired;
@@ -635,23 +657,67 @@ const onActiveToggle = async () => {
   }
 };
 
-const onDiscard = async () => {
-  if (isDiscarding.value || !boardId.value) return;
+const goBack = () => router.push(backDestination.value);
 
-  if (form.active) {
-    goToBoard();
+const closePendingNavigation = () => {
+  const next = pendingNavigation.value;
+  pendingNavigation.value = null;
+  next?.(false);
+};
+
+const proceedPendingNavigation = () => {
+  const next = pendingNavigation.value;
+  pendingNavigation.value = null;
+  next?.();
+};
+
+const keepEditing = () => {
+  showUnsavedChangesModal.value = false;
+  closePendingNavigation();
+};
+
+const restoreSavedSettings = () => {
+  if (lastSavedPayload.value) applySettings(lastSavedPayload.value, false);
+};
+
+const discardSettings = () => {
+  restoreSavedSettings();
+  showDiscardSettingsConfirmation.value = false;
+};
+
+const discardChangesAndExit = () => {
+  restoreSavedSettings();
+  showUnsavedChangesModal.value = false;
+  proceedPendingNavigation();
+};
+
+const saveAndExit = async () => {
+  const saved = await persistSettings();
+  if (saved) {
+    showUnsavedChangesModal.value = false;
+    proceedPendingNavigation();
     return;
   }
+
+  showUnsavedChangesModal.value = false;
+  closePendingNavigation();
+};
+
+const keepEditingDraft = () => {
+  showDiscardDraftModal.value = false;
+  closePendingNavigation();
+};
+
+const discardDraft = async () => {
+  if (isDiscarding.value || !boardId.value) return;
 
   isDiscarding.value = true;
 
   try {
     await KanbanBoardsAPI.delete(boardId.value);
     await store.dispatch('kanbanBoards/refreshBoards');
-    router.push({
-      name: 'kanban_boards',
-      params: { accountId: route.params.accountId },
-    });
+    showDiscardDraftModal.value = false;
+    proceedPendingNavigation();
   } catch (error) {
     useAlert(getErrorMessage(error, t('KANBAN.BOARD_EDIT.DISCARD_ERROR')));
   } finally {
@@ -693,7 +759,36 @@ const onTabChanged = tab => {
   if (index !== -1) activeTabIndex.value = index;
 };
 
+const handleBeforeUnload = event => {
+  if (!isDirty.value) return;
+
+  event.preventDefault();
+  event.returnValue = '';
+};
+
+onBeforeRouteLeave((to, from, next) => {
+  if (isRedirectingNewDraft.value) {
+    next();
+    return;
+  }
+
+  if (isFreshDraft.value && !form.active) {
+    pendingNavigation.value = next;
+    showDiscardDraftModal.value = true;
+    return;
+  }
+
+  if (!isDirty.value) {
+    next();
+    return;
+  }
+
+  pendingNavigation.value = next;
+  showUnsavedChangesModal.value = true;
+});
+
 onMounted(async () => {
+  window.addEventListener('beforeunload', handleBeforeUnload);
   await ensureDraftBoard();
 
   if (loadError.value || !boardId.value) {
@@ -702,6 +797,10 @@ onMounted(async () => {
   }
 
   await loadBoard();
+});
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload);
 });
 </script>
 
@@ -712,30 +811,49 @@ onMounted(async () => {
     <header
       class="flex flex-none items-center justify-between gap-4 border-b border-n-weak px-6 py-4"
     >
-      <h1 class="min-w-0 truncate text-lg font-medium text-n-slate-12">
-        {{ pageTitle }}
-      </h1>
+      <button
+        type="button"
+        data-testid="kanban-board-form-back"
+        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+        :aria-label="backLabel"
+        :title="backLabel"
+        @click="goBack"
+      >
+        <i class="i-lucide-chevron-left size-4" />
+      </button>
+      <div class="flex min-w-0 flex-1 items-center gap-2">
+        <h1 class="min-w-0 truncate text-lg font-medium text-n-slate-12">
+          {{ pageTitle }}
+        </h1>
+        <span
+          v-if="isDirty"
+          data-testid="kanban-board-form-unsaved-indicator"
+          class="flex-none rounded-full bg-n-amber-2 px-2 py-0.5 text-xs font-medium text-n-amber-11"
+        >
+          {{ t('KANBAN.BOARD_EDIT.UNSAVED_INDICATOR') }}
+        </span>
+      </div>
       <div class="flex flex-none items-center gap-2">
         <Button
+          v-if="isDirty"
           data-testid="kanban-board-form-discard"
           icon="i-lucide-x"
           variant="outline"
           color="slate"
           size="sm"
           :label="t('KANBAN.BOARD_EDIT.DISCARD')"
-          :disabled="discardDisabled"
-          :is-loading="isDiscarding"
-          @click="onDiscard"
+          @click="showDiscardSettingsConfirmation = true"
         />
         <Button
+          v-if="isDirty"
           data-testid="kanban-board-form-save"
           icon="i-lucide-check"
           color="blue"
           size="sm"
           :label="t('KANBAN.BOARD_EDIT.SAVE')"
           :disabled="saveDisabled"
-          :is-loading="isActivating"
-          @click="onSave"
+          :is-loading="isSavingSettings"
+          @click="persistSettings"
         />
       </div>
     </header>
@@ -745,15 +863,24 @@ onMounted(async () => {
       data-testid="kanban-board-form-locked-help"
       class="flex-none border-b border-n-weak bg-n-amber-2 px-6 py-2 text-sm text-n-amber-11"
     >
-      {{ t('KANBAN.BOARD_EDIT.SAVE_LOCKED_HELP') }}
+      {{ t('KANBAN.BOARD_EDIT.ACTIVATE_LOCKED_HELP') }}
     </p>
 
-    <div class="flex-none border-b border-n-weak px-6 py-3">
+    <div
+      class="flex flex-none items-center justify-between gap-3 border-b border-n-weak px-6 py-3"
+    >
       <TabBar
         :tabs="tabItems"
         :initial-active-tab="activeTabIndex"
         @tab-changed="onTabChanged"
       />
+      <span
+        v-if="isDirty"
+        data-testid="kanban-board-form-unsaved-tab-indicator"
+        class="flex-none rounded-full bg-n-amber-2 px-2 py-0.5 text-xs font-medium text-n-amber-11"
+      >
+        {{ t('KANBAN.BOARD_EDIT.UNSAVED_INDICATOR') }}
+      </span>
     </div>
 
     <div
@@ -778,6 +905,9 @@ onMounted(async () => {
         data-testid="kanban-board-form-stages-tab"
         class="grid gap-6 p-6 lg:grid-cols-2"
       >
+        <p class="text-xs text-n-slate-10 lg:col-span-2">
+          {{ t('KANBAN.BOARD_EDIT.AUTOSAVE_NOTE') }}
+        </p>
         <div class="grid gap-4">
           <label
             class="flex items-center justify-between gap-3 text-sm font-medium text-n-slate-12"
@@ -793,7 +923,6 @@ onMounted(async () => {
               data-testid="kanban-board-form-name"
               type="text"
               class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-              @blur="persistSettings"
             />
           </label>
 
@@ -804,7 +933,6 @@ onMounted(async () => {
               data-testid="kanban-board-form-description"
               rows="3"
               class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-              @blur="persistSettings"
             />
           </label>
 
@@ -925,6 +1053,14 @@ onMounted(async () => {
 
           <p v-if="hasStageSelectionConflict" class="text-sm text-n-ruby-11">
             {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_SELECTION_CONFLICT') }}
+          </p>
+
+          <p
+            v-if="stageReconcileWarning"
+            data-testid="kanban-board-form-stage-reconcile-warning"
+            class="text-sm text-n-amber-11"
+          >
+            {{ stageReconcileWarning }}
           </p>
 
           <div
@@ -1334,6 +1470,119 @@ onMounted(async () => {
       :confirm-text="t('KANBAN.REMOVE_STAGE.CONFIRM')"
       :reject-text="t('KANBAN.REMOVE_STAGE.CANCEL')"
     />
+
+    <woot-modal
+      :show="showDiscardSettingsConfirmation"
+      :show-close-button="false"
+      size="modal-narrow"
+      :on-close="() => (showDiscardSettingsConfirmation = false)"
+    >
+      <div class="p-6" data-testid="kanban-board-form-discard-settings-modal">
+        <h2 class="mb-2 text-base font-semibold text-n-slate-12">
+          {{ t('KANBAN.BOARD_EDIT.DISCARD_CONFIRM_TITLE') }}
+        </h2>
+        <p class="mb-6 text-sm text-n-slate-11">
+          {{ t('KANBAN.BOARD_EDIT.DISCARD_CONFIRM_MESSAGE') }}
+        </p>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            color="slate"
+            size="sm"
+            :label="t('KANBAN.ACTIONS.CANCEL')"
+            @click="showDiscardSettingsConfirmation = false"
+          />
+          <Button
+            type="button"
+            data-testid="kanban-board-form-confirm-discard"
+            color="ruby"
+            size="sm"
+            :label="t('KANBAN.BOARD_EDIT.DISCARD')"
+            @click="discardSettings"
+          />
+        </div>
+      </div>
+    </woot-modal>
+
+    <woot-modal
+      :show="showUnsavedChangesModal"
+      :show-close-button="false"
+      size="modal-narrow"
+      :on-close="keepEditing"
+    >
+      <div class="p-6" data-testid="kanban-board-form-unsaved-changes-modal">
+        <h2 class="mb-2 text-base font-semibold text-n-slate-12">
+          {{ t('KANBAN.BOARD_EDIT.UNSAVED_TITLE') }}
+        </h2>
+        <p class="mb-6 text-sm text-n-slate-11">
+          {{ t('KANBAN.BOARD_EDIT.UNSAVED_MESSAGE') }}
+        </p>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            color="slate"
+            size="sm"
+            :label="t('KANBAN.BOARD_EDIT.KEEP_EDITING')"
+            @click="keepEditing"
+          />
+          <Button
+            type="button"
+            color="ruby"
+            size="sm"
+            :label="t('KANBAN.BOARD_EDIT.DISCARD_AND_EXIT')"
+            @click="discardChangesAndExit"
+          />
+          <Button
+            type="button"
+            data-testid="kanban-board-form-save-and-exit"
+            color="blue"
+            size="sm"
+            :label="t('KANBAN.BOARD_EDIT.SAVE_AND_EXIT')"
+            :disabled="!form.name.trim()"
+            :is-loading="isSavingSettings"
+            @click="saveAndExit"
+          />
+        </div>
+      </div>
+    </woot-modal>
+
+    <woot-modal
+      :show="showDiscardDraftModal"
+      :show-close-button="false"
+      size="modal-narrow"
+      :on-close="keepEditingDraft"
+    >
+      <div class="p-6" data-testid="kanban-board-form-discard-draft-modal">
+        <h2 class="mb-2 text-base font-semibold text-n-slate-12">
+          {{ t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_TITLE') }}
+        </h2>
+        <p class="mb-6 text-sm text-n-slate-11">
+          {{ t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_MESSAGE') }}
+        </p>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            color="slate"
+            size="sm"
+            :label="t('KANBAN.BOARD_EDIT.KEEP_EDITING')"
+            :disabled="isDiscarding"
+            @click="keepEditingDraft"
+          />
+          <Button
+            type="button"
+            data-testid="kanban-board-form-confirm-discard-draft"
+            color="ruby"
+            size="sm"
+            :label="t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_CONFIRM')"
+            :is-loading="isDiscarding"
+            @click="discardDraft"
+          />
+        </div>
+      </div>
+    </woot-modal>
 
     <woot-modal
       v-model:show="showImportExistingConversationsModal"
