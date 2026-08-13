@@ -77,6 +77,12 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.post(`${this.url}/${boardId}/cards/manual`, payload);
   }
 
+  lookupCards(boardId, { contactId }) {
+    return axios.get(`${this.url}/${boardId}/cards/lookup`, {
+      params: { contact_id: contactId },
+    });
+  }
+
   updateCardById(boardId, cardId, payload) {
     return axios.patch(`${this.url}/${boardId}/cards/by_id/${cardId}`, payload);
   }

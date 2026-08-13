@@ -420,24 +420,56 @@
       "CLOSE": "Fechar detalhes da oportunidade"
     },
     "ADD_ITEM": {
-      "PLACEHOLDER": "Buscar por nome, e-mail ou telefone",
+      "TITLE_WITH_STAGE": "Novo cartão em «{stageName}»",
+      "STEPS": {
+        "CONTACT": "contato",
+        "CONVERSATION": "conversa",
+        "CARD": "cartão"
+      },
+      "PLACEHOLDER": "Nome, telefone ou e-mail",
       "SEARCH_LABEL": "Pesquisar contatos",
       "SEARCHING": "Pesquisando contatos...",
       "SEARCH_ERROR": "Não foi possível pesquisar contatos. Tente novamente.",
       "NO_CONTACTS": "Nenhum contato encontrado.",
+      "NO_CONTACTS_WITH_QUERY": "Nenhum contato encontrado para “{query}”.",
       "UNKNOWN_CONTACT": "Contato desconhecido",
       "NO_CONTACT_DETAILS": "Sem email ou telefone",
+      "CONTACT_DETAILS_SEPARATOR": " ·",
+      "CHANGE_CONTACT": "Trocar contato",
+      "CHANGE_CONVERSATION": "Trocar conversa",
+      "SELECT_CONVERSATION": "Selecione a conversa relacionada a este cartão.",
+      "CONVERSATION_STATUS": {
+        "OPEN": "Aberta",
+        "PENDING": "Pendente",
+        "RESOLVED": "Resolvida"
+      },
+      "RECENT_CONVERSATIONS_NOTE": "Mostrando as conversas mais recentes.",
+      "HAS_CARD_BADGE": "Já tem cartão",
+      "ACTIVE_CARD_WARNING": "Este contato já tem um cartão ativo em “{stageName}”.",
+      "NO_ELIGIBLE_CONVERSATIONS": "Não há conversas recentes nas caixas de entrada permitidas por este funil. O cartão será criado sem conversa vinculada.",
       "LOADING_INBOXES": "Carregando caixas de entrada do contato...",
       "INBOXES_ERROR": "Não foi possível carregar as caixas de entrada. Tente novamente.",
       "NO_INBOXES": "Nenhuma caixa de entrada disponível para este contato.",
       "SUBJECT": "Assunto",
-      "CREATE_OPPORTUNITY": "Criar oportunidade",
-      "SAVING": "Salvando...",
+      "SUBJECT_PLACEHOLDER": "Ex.: Negociação de troca — pedido #4521",
+      "SUBJECT_HINT": "Esse será o título exibido no quadro.",
+      "SUBJECT_MIN_LENGTH": "Informe pelo menos 3 caracteres no assunto.",
+      "CREATE_OPPORTUNITY": "Criar cartão",
+      "SAVING": "Criando...",
+      "BACK": "Voltar",
       "SUBJECT_REQUIRED": "Informe um assunto para criar a oportunidade.",
       "CREATION_ERROR": "Não foi possível criar a oportunidade. Tente novamente.",
+      "CREATE_SUCCESS": "Cartão criado.",
+      "DISCARD_CONFIRM": "Descartar o cartão que está sendo criado?",
+      "ERRORS": {
+        "DUPLICATE_SUBJECT": "Já existe um cartão com este assunto para este contato e caixa de entrada.",
+        "INBOX_NOT_ALLOWED": "Esta caixa de entrada não é permitida pelo funil.",
+        "TERMINAL_STAGE": "Não é possível criar cartões em uma etapa ganha ou perdida.",
+        "GENERIC": "Não foi possível criar o cartão. Tente novamente."
+      },
       "LEGACY_UNAVAILABLE": "Oportunidades manuais não estão disponíveis para quadros em modo legado.",
       "CLEAR_CONTACT": "Limpar contato selecionado",
-      "CLOSE": "Fechar seletor de item"
+      "CLOSE": "Fechar criador de cartão"
     },
     "CARD": {
       "UNKNOWN_CONTACT": "Contato desconhecido",

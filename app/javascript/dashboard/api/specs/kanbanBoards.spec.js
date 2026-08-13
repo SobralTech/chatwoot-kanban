@@ -22,6 +22,7 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('createConversationCard');
     expect(kanbanBoards).toHaveProperty('getStageCards');
     expect(kanbanBoards).toHaveProperty('createManualCard');
+    expect(kanbanBoards).toHaveProperty('lookupCards');
     expect(kanbanBoards).toHaveProperty('updateCardById');
     expect(kanbanBoards).toHaveProperty('showCardById');
     expect(kanbanBoards).toHaveProperty('updateCardDetailsById');
@@ -231,6 +232,15 @@ describe('#KanbanBoardsAPI', () => {
       expect(axiosMock.post).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/manual',
         payload
+      );
+    });
+
+    it('#lookupCards', () => {
+      kanbanBoards.lookupCards(2, { contactId: 123 });
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/lookup',
+        { params: { contact_id: 123 } }
       );
     });
 

@@ -204,6 +204,58 @@ RSpec.describe 'Kanban Cards API', type: :request do
       end.to change(KanbanCard.manual, :count).by(1)
       expect(response).to have_http_status(:created)
     end
+
+    it 'uses the selected conversation display id and derives its inbox' do
+      selected_inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: selected_inbox)
+      selected_conversation = create(:conversation, account: account, contact: manual_contact, inbox: selected_inbox)
+
+      post_manual_card(
+        params: manual_card_payload.merge(
+          inbox_id: manual_inbox.id,
+          conversation_display_id: selected_conversation.display_id
+        )
+      )
+
+      expect(response).to have_http_status(:created)
+      expect(KanbanCard.last).to have_attributes(
+        conversation_id: selected_conversation.id,
+        inbox_id: selected_inbox.id
+      )
+    end
+
+    it 'rejects a selected conversation from a different contact' do
+      selected_conversation = create(:conversation, account: account, inbox: manual_inbox)
+
+      post_manual_card(params: manual_card_payload.merge(conversation_display_id: selected_conversation.display_id))
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body['message']).to include('Conversation must belong to contact')
+    end
+  end
+
+  describe 'GET /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/lookup' do
+    it 'returns only active cards for the selected contact' do
+      card = create_manual_card(conversation: conversation, subject: 'Recent quote')
+      create_manual_card(conversation: conversation, subject: 'Inactive quote', active: false)
+
+      get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards/lookup",
+          headers: agent.create_new_auth_token,
+          params: { contact_id: conversation.contact.id },
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to contain_exactly(
+        {
+          'id' => card.id,
+          'subject' => 'Recent quote',
+          'kanban_stage_id' => stage.id,
+          'stage_name' => stage.name,
+          'conversation_id' => conversation.display_id,
+          'terminal' => false
+        }
+      )
+    end
   end
 
   describe 'stable card ID routes' do

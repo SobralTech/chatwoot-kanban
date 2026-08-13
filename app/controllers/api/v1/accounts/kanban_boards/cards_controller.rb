@@ -19,10 +19,27 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       kanban_stage: @kanban_stage,
       contact: @contact,
       inbox: @inbox,
-      subject: manual_card_params[:subject]
+      subject: manual_card_params[:subject],
+      conversation: @conversation
     ).perform!
 
     render :create_manual, status: :created
+  end
+
+  def lookup
+    contact = Current.account.contacts.find(params.require(:contact_id))
+    cards = @kanban_board.kanban_cards.active.includes(:conversation, :kanban_stage).where(contact: contact)
+
+    render json: cards.map { |card|
+      {
+        id: card.id,
+        subject: card.subject,
+        kanban_stage_id: card.kanban_stage_id,
+        stage_name: card.kanban_stage.name,
+        conversation_id: card.conversation&.display_id,
+        terminal: terminal_stage_id?(card.kanban_stage_id)
+      }
+    }
   end
 
   def update
@@ -79,7 +96,10 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   def fetch_manual_card_records
     @kanban_stage = @kanban_board.kanban_stages.find(manual_card_params[:kanban_stage_id])
     @contact = Current.account.contacts.find(manual_card_params[:contact_id])
-    @inbox = Current.account.inboxes.find(manual_card_params[:inbox_id])
+    if manual_card_params[:conversation_display_id].present?
+      @conversation = Current.account.conversations.find_by!(display_id: manual_card_params[:conversation_display_id])
+    end
+    @inbox = @conversation&.inbox || Current.account.inboxes.find(manual_card_params[:inbox_id])
   end
 
   def reject_terminal_stage_card_creation
@@ -95,7 +115,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def manual_card_params
-    params.require(:card).permit(:kanban_stage_id, :contact_id, :inbox_id, :subject)
+    params.require(:card).permit(:kanban_stage_id, :contact_id, :inbox_id, :subject, :conversation_display_id)
   end
 
   def action_name_policy

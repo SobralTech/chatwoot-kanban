@@ -65,6 +65,10 @@ const stageNames = ref({});
 const stageColors = ref({});
 const stageNameInputs = new Map();
 const activeAddItemStageId = ref(null);
+const addItemPickerRef = ref(null);
+const showDiscardAddItemConfirm = ref(false);
+const highlightedCreatedCardId = ref(null);
+let createdCardHighlightTimer = null;
 const stageCardsLoading = ref({});
 const stageCardsErrors = ref({});
 const stageRefreshRequests = new Map();
@@ -139,6 +143,9 @@ const stageColorOptions = KANBAN_STAGE_COLOR_OPTIONS;
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
 const hasBoards = computed(() => boards.value.length > 0);
+const activeAddItemStage = computed(() =>
+  stages.value.find(stage => stage.id === activeAddItemStageId.value)
+);
 const isInitialLoading = computed(
   () => isFetchingBoards.value && !selectedBoard.value
 );
@@ -927,14 +934,56 @@ const confirmRemoveStage = async () => {
 const toggleAddItemPicker = stage => {
   if (activeAddItemStageId.value === stage.id) {
     activeAddItemStageId.value = null;
+    showDiscardAddItemConfirm.value = false;
     return;
   }
 
   activeAddItemStageId.value = stage.id;
 };
 
-const closeAddItemPicker = () => {
+function closeAddItemPicker() {
   activeAddItemStageId.value = null;
+  showDiscardAddItemConfirm.value = false;
+}
+
+const attemptCloseAddItemPicker = () => {
+  if (addItemPickerRef.value?.hasUnsavedSubject?.()) {
+    showDiscardAddItemConfirm.value = true;
+    return;
+  }
+
+  closeAddItemPicker();
+};
+
+const keepEditingAddItem = () => {
+  showDiscardAddItemConfirm.value = false;
+};
+
+const discardAddItem = () => {
+  closeAddItemPicker();
+};
+
+const highlightCreatedCard = cardId => {
+  if (!cardId) return;
+
+  clearTimeout(createdCardHighlightTimer);
+  highlightedCreatedCardId.value = cardId;
+  createdCardHighlightTimer = setTimeout(() => {
+    highlightedCreatedCardId.value = null;
+  }, 2000);
+};
+
+const onManualCardCreated = async card => {
+  const stageId = card?.kanbanStageId || activeAddItemStageId.value;
+  closeAddItemPicker();
+  useAlert(t('KANBAN.ADD_ITEM.CREATE_SUCCESS'));
+
+  try {
+    await refreshStageFirstPage(stageId);
+    highlightCreatedCard(card?.id);
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.LOAD_CARDS_ERROR'));
+  }
 };
 
 const reorderStageByPosition = async (stage, position) => {
@@ -1446,6 +1495,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearTimeout(searchDebounceTimer);
+  clearTimeout(createdCardHighlightTimer);
   emitter.off(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
 });
 
@@ -1885,6 +1935,10 @@ watch(searchInput, () => {
                   >
                     <template #item="{ element: card }">
                       <KanbanConversationCard
+                        :class="{
+                          'ring-2 ring-n-brand':
+                            card.id === highlightedCreatedCardId,
+                        }"
                         :card="card"
                         :active-action-key="activeActionKey"
                         :won-stage-id="selectedBoard?.wonStageId"
@@ -2037,14 +2091,46 @@ watch(searchInput, () => {
       :show="!!activeAddItemStageId"
       :show-close-button="false"
       size="modal-narrow"
-      :on-close="closeAddItemPicker"
+      :on-close="attemptCloseAddItemPicker"
     >
       <KanbanOpportunityPicker
+        ref="addItemPickerRef"
         :kanban-board-id="selectedBoard.id"
         :kanban-stage-id="activeAddItemStageId"
-        @created="refreshStageFirstPage(activeAddItemStageId)"
-        @close="closeAddItemPicker"
+        :kanban-stage-name="activeAddItemStage?.name"
+        :inbox-scope-mode="selectedBoard.inboxScopeMode"
+        :allowed-inbox-ids="selectedBoard.allowedInboxIds"
+        @created="onManualCardCreated"
+        @close="attemptCloseAddItemPicker"
       />
+    </woot-modal>
+
+    <woot-modal
+      :show="showDiscardAddItemConfirm"
+      :show-close-button="false"
+      size="modal-narrow"
+      :on-close="keepEditingAddItem"
+    >
+      <div class="p-6">
+        <p class="mb-6 text-sm text-n-slate-11">
+          {{ t('KANBAN.ADD_ITEM.DISCARD_CONFIRM') }}
+        </p>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <NextButton
+            outline
+            slate
+            sm
+            :label="t('KANBAN.OPPORTUNITY_DETAILS.KEEP_EDITING')"
+            @click="keepEditingAddItem"
+          />
+          <NextButton
+            ruby
+            sm
+            :label="t('KANBAN.BOARD_EDIT.DISCARD')"
+            @click="discardAddItem"
+          />
+        </div>
+      </div>
     </woot-modal>
   </main>
 </template>

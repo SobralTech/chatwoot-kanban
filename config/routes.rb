@@ -141,6 +141,7 @@ Rails.application.routes.draw do
                 resources :cards, only: [:index], module: :stages
               end
               resources :custom_fields, only: [:index, :create, :update, :destroy]
+              get 'cards/lookup', to: 'cards#lookup'
               post 'cards/manual', to: 'cards#create_manual'
               get 'cards/by_id/:id', to: 'cards#show'
               patch 'cards/by_id/:id/reopen', to: 'cards#reopen'

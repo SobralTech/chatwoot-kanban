@@ -2,7 +2,7 @@ class KanbanCards::CreateManualCardService
   DUPLICATE_SUBJECT_ERROR = 'Manual opportunity with this subject already exists for this contact and inbox'.freeze
 
   # rubocop:disable Metrics/ParameterLists
-  def initialize(account:, user:, kanban_board:, kanban_stage:, contact:, inbox:, subject:)
+  def initialize(account:, user:, kanban_board:, kanban_stage:, contact:, inbox:, subject:, conversation: nil)
     @account = account
     @user = user
     @kanban_board = kanban_board
@@ -10,6 +10,7 @@ class KanbanCards::CreateManualCardService
     @contact = contact
     @inbox = inbox
     @subject = subject
+    @conversation = conversation
   end
   # rubocop:enable Metrics/ParameterLists
 
@@ -30,12 +31,13 @@ class KanbanCards::CreateManualCardService
 
   private
 
-  attr_reader :account, :user, :kanban_board, :kanban_stage, :contact, :inbox, :subject
+  attr_reader :account, :user, :kanban_board, :kanban_stage, :contact, :inbox, :subject, :conversation
 
   def validate_scope!
     validate_board!
     validate_stage!
     validate_records!
+    validate_conversation!
     validate_subject!
   end
 
@@ -57,6 +59,15 @@ class KanbanCards::CreateManualCardService
     raise_validation_error('Inbox is not allowed by board scope', :inbox) unless kanban_board.inbox_allowed?(inbox)
   end
 
+  def validate_conversation!
+    return unless conversation
+
+    raise_validation_error('Conversation must belong to account', :conversation) unless conversation.account_id == account.id
+    raise_validation_error('Conversation must belong to contact', :conversation) unless conversation.contact_id == contact.id
+    raise_validation_error('Conversation must use selected inbox', :conversation) unless conversation.inbox_id == inbox.id
+    raise_validation_error('User cannot access conversation', :conversation) unless ConversationPolicy.new(user_context, conversation).show?
+  end
+
   def validate_subject!
     raise_validation_error("Subject can't be blank", :subject) if normalized_subject.blank?
     raise_validation_error(DUPLICATE_SUBJECT_ERROR, :subject) if duplicate_subject?
@@ -69,7 +80,7 @@ class KanbanCards::CreateManualCardService
       kanban_stage: kanban_stage,
       contact: contact,
       inbox: inbox,
-      conversation: permitted_conversation,
+      conversation: card_conversation,
       subject: normalized_subject,
       origin: 'manual',
       position: 1,
@@ -112,8 +123,14 @@ class KanbanCards::CreateManualCardService
     @normalized_subject ||= subject.to_s.strip.gsub(/\s+/, ' ')
   end
 
+  def card_conversation
+    conversation || permitted_conversation
+  end
+
   def permitted_conversation
-    @permitted_conversation ||= matching_conversations.find { |conversation| ConversationPolicy.new(user_context, conversation).show? }
+    @permitted_conversation ||= matching_conversations.find do |matching_conversation|
+      ConversationPolicy.new(user_context, matching_conversation).show?
+    end
   end
 
   def matching_conversations

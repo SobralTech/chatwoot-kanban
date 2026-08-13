@@ -419,23 +419,56 @@
       "CLOSE": "Close opportunity details"
     },
     "ADD_ITEM": {
-      "PLACEHOLDER": "Search by name, email, or phone",
+      "TITLE_WITH_STAGE": "New card in «{stageName}»",
+      "STEPS": {
+        "CONTACT": "contact",
+        "CONVERSATION": "conversation",
+        "CARD": "card"
+      },
+      "PLACEHOLDER": "Name, phone, or email",
       "SEARCH_LABEL": "Search contacts",
       "SEARCHING": "Searching contacts...",
       "SEARCH_ERROR": "Could not search contacts. Try again.",
       "NO_CONTACTS": "No contacts found.",
+      "NO_CONTACTS_WITH_QUERY": "No contacts found for “{query}”.",
       "UNKNOWN_CONTACT": "Unknown contact",
       "NO_CONTACT_DETAILS": "No email or phone",
+      "CONTACT_DETAILS_SEPARATOR": " ·",
+      "CHANGE_CONTACT": "Change contact",
+      "CHANGE_CONVERSATION": "Change conversation",
+      "SELECT_CONVERSATION": "Select the conversation related to this card.",
+      "CONVERSATION_STATUS": {
+        "OPEN": "Open",
+        "PENDING": "Pending",
+        "RESOLVED": "Resolved"
+      },
+      "RECENT_CONVERSATIONS_NOTE": "Showing the most recent conversations.",
+      "HAS_CARD_BADGE": "Already has card",
+      "ACTIVE_CARD_WARNING": "This contact already has an active card in “{stageName}”.",
+      "NO_ELIGIBLE_CONVERSATIONS": "There are no recent conversations in this funnel's allowed inboxes. This card will be created without a linked conversation.",
       "LOADING_INBOXES": "Loading contact inboxes...",
       "INBOXES_ERROR": "Could not load inboxes. Try again.",
       "NO_INBOXES": "No available inboxes for this contact.",
       "SUBJECT": "Subject",
-      "CREATE_OPPORTUNITY": "Create opportunity",
-      "SAVING": "Saving...",
+      "SUBJECT_PLACEHOLDER": "E.g. Exchange negotiation — order #4521",
+      "SUBJECT_HINT": "This will be the title shown on the board.",
+      "SUBJECT_MIN_LENGTH": "Enter at least 3 characters for the subject.",
+      "CREATE_OPPORTUNITY": "Create card",
+      "SAVING": "Creating...",
+      "BACK": "Back",
       "SUBJECT_REQUIRED": "Enter a subject to create the opportunity.",
       "CREATION_ERROR": "Could not create the opportunity. Try again.",
+      "CREATE_SUCCESS": "Card created.",
+      "DISCARD_CONFIRM": "Discard the card being created?",
+      "ERRORS": {
+        "DUPLICATE_SUBJECT": "A card with this subject already exists for this contact and inbox.",
+        "INBOX_NOT_ALLOWED": "This inbox is not allowed by the funnel.",
+        "TERMINAL_STAGE": "Cards cannot be created in a won or lost stage.",
+        "GENERIC": "Could not create the card. Try again."
+      },
       "LEGACY_UNAVAILABLE": "Manual opportunities are unavailable for legacy-read boards.",
-      "CLEAR_CONTACT": "Clear selected contact"
+      "CLEAR_CONTACT": "Clear selected contact",
+      "CLOSE": "Close card creator"
     },
     "CARD": {
       "UNKNOWN_CONTACT": "Unknown contact",

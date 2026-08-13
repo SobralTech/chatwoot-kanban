@@ -31,6 +31,29 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect(KanbanCard.last).to be_valid
     end
 
+    it 'uses an explicit selected conversation instead of the latest matching conversation' do
+      selected_conversation = create(:conversation, account: account, contact: contact, inbox: inbox, last_activity_at: 1.day.ago)
+      create(:conversation, account: account, contact: contact, inbox: inbox, last_activity_at: Time.current)
+
+      card = build_service(conversation: selected_conversation).perform!
+
+      expect(card.conversation).to eq(selected_conversation)
+    end
+
+    it 'rejects an explicit conversation from a different contact' do
+      selected_conversation = create(:conversation, account: account, inbox: inbox)
+
+      expect { build_service(conversation: selected_conversation).perform! }
+        .to raise_validation_error('Conversation must belong to contact')
+    end
+
+    it 'rejects an explicit conversation from a different inbox' do
+      selected_conversation = create(:conversation, account: account, contact: contact)
+
+      expect { build_service(conversation: selected_conversation).perform! }
+        .to raise_validation_error('Conversation must use selected inbox')
+    end
+
     it 'emits kanban.card.created with a compact payload' do
       allow(Rails.configuration.dispatcher).to receive(:dispatch)
 
@@ -358,7 +381,8 @@ RSpec.describe KanbanCards::CreateManualCardService do
       kanban_stage: overrides.fetch(:kanban_stage, kanban_stage),
       contact: overrides.fetch(:contact, contact),
       inbox: overrides.fetch(:inbox, inbox),
-      subject: overrides.fetch(:subject, card_subject)
+      subject: overrides.fetch(:subject, card_subject),
+      conversation: overrides.fetch(:conversation, nil)
     )
   end
 
