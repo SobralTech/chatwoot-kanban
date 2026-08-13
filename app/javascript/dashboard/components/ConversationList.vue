@@ -17,6 +17,7 @@ const props = defineProps({
   teamId: { type: [String, Number], default: 0 },
   foldersId: { type: [String, Number], default: 0 },
   conversationType: { type: String, default: '' },
+  assigneeType: { type: String, default: 'all' },
   isOnExpandedLayout: { type: Boolean, default: false },
 });
 
@@ -66,6 +67,7 @@ defineExpose({ conversationListRef });
         :team-id="teamId"
         :folders-id="foldersId"
         :conversation-type="conversationType"
+        :assignee-type="assigneeType"
         :show-expanded="showExpandedCards"
       />
     </Virtualizer>

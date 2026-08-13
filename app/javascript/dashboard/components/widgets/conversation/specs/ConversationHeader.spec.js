@@ -135,6 +135,28 @@ describe('ConversationHeader', () => {
             name: 'NextButton',
             template: '<button v-bind="$attrs" />',
           },
+          BulkAgentActions: {
+            name: 'BulkAgentActions',
+            props: {
+              selectedInboxes: Array,
+              conversationCount: Number,
+              openBelow: Boolean,
+            },
+            template: '<button data-testid="assign-agent-button" />',
+          },
+          BulkTeamActions: {
+            name: 'BulkTeamActions',
+            props: {
+              conversationCount: Number,
+              openBelow: Boolean,
+            },
+            template: '<button data-testid="assign-team-button" />',
+          },
+          BulkLabelActions: {
+            name: 'BulkLabelActions',
+            props: { openBelow: Boolean },
+            template: '<button data-testid="assign-labels-button" />',
+          },
           SLACardLabel: {
             name: 'SLACardLabel',
             template: '<span data-testid="sla-card-label" />',
@@ -316,6 +338,41 @@ describe('ConversationHeader', () => {
     expect(searchButton.attributes('aria-label')).toBe(
       'Search in conversation'
     );
+  });
+
+  it('renders quick assignment actions after the search action', () => {
+    createWrapper();
+
+    expect(
+      wrapper.getComponent({ name: 'BulkAgentActions' }).props()
+    ).toMatchObject({
+      selectedInboxes: [chat.inbox_id],
+      conversationCount: 1,
+      openBelow: true,
+    });
+    expect(
+      wrapper.getComponent({ name: 'BulkTeamActions' }).props()
+    ).toMatchObject({
+      conversationCount: 1,
+      openBelow: true,
+    });
+    expect(
+      wrapper.getComponent({ name: 'BulkLabelActions' }).props('openBelow')
+    ).toBe(true);
+    expect(
+      wrapper
+        .find('.header-actions-wrap')
+        .findAll('button')
+        .map(button => button.attributes('data-testid'))
+    ).toEqual([
+      'conversation-call-button',
+      'conversation-header-search-button',
+      'assign-agent-button',
+      'assign-team-button',
+      'assign-labels-button',
+      'resolve-action-button',
+      'more-actions-button',
+    ]);
   });
 
   it('replaces the route back button with the embedded one', () => {

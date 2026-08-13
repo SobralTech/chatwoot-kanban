@@ -40,6 +40,12 @@ describe('#URL Helpers', () => {
         '/app/accounts/1/custom_view/1'
       );
     });
+
+    it('should return url to my conversations', () => {
+      expect(
+        conversationListPageURL({ accountId: 1, assigneeType: 'me' })
+      ).toBe('/app/accounts/1/mine/conversations');
+    });
   });
   describe('conversationUrl', () => {
     it('should return direct conversation URL if activeInbox is nil', () => {
@@ -60,6 +66,11 @@ describe('#URL Helpers', () => {
     it('should return correct conversation URL if team Id is available', () => {
       expect(conversationUrl({ accountId: 1, teamId: 1, id: 1 })).toBe(
         'accounts/1/team/1/conversations/1'
+      );
+    });
+    it('should return the my conversations URL when assigned to me', () => {
+      expect(conversationUrl({ accountId: 1, id: 1, assigneeType: 'me' })).toBe(
+        'accounts/1/mine/conversations/1'
       );
     });
   });

@@ -128,6 +128,50 @@ describe('#getters', () => {
       ]);
     });
   });
+  describe('#getMineChats', () => {
+    it('returns only open conversations assigned to the current user', () => {
+      const mine = {
+        id: 1,
+        inbox_id: 2,
+        status: 'open',
+        meta: { assignee: { id: 1 } },
+        labels: [],
+      };
+      const conversationList = [
+        mine,
+        {
+          id: 2,
+          inbox_id: 2,
+          status: 'open',
+          meta: { assignee: { id: 2 } },
+          labels: [],
+        },
+        {
+          id: 3,
+          inbox_id: 2,
+          status: 'open',
+          meta: {},
+          labels: [],
+        },
+        {
+          id: 4,
+          inbox_id: 2,
+          status: 'resolved',
+          meta: { assignee: { id: 1 } },
+          labels: [],
+        },
+      ];
+
+      expect(
+        getters.getMineChats(
+          { allConversations: conversationList },
+          null,
+          null,
+          { getCurrentUser: { id: 1 } }
+        )({ status: 'open' })
+      ).toEqual([mine]);
+    });
+  });
   describe('#getUnAssignedChats', () => {
     it('order returns only chats assigned to user', () => {
       const conversationList = [

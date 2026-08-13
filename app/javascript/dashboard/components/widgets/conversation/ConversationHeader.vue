@@ -11,6 +11,9 @@ import Avatar from 'next/avatar/Avatar.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
 import ConversationCallButton from './ConversationCallButton.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import BulkAgentActions from './conversationBulkActions/BulkAgentActions.vue';
+import BulkTeamActions from './conversationBulkActions/BulkTeamActions.vue';
+import BulkLabelActions from './conversationBulkActions/BulkLabelActions.vue';
 import wootConstants from 'dashboard/constants/globals';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { snoozedReopenTime } from 'dashboard/helper/snoozeHelpers';
@@ -20,6 +23,8 @@ import {
   useContactSidebar,
   useEmbeddedConversation,
 } from 'dashboard/composables/useEmbeddedConversation';
+import { useBulkActions } from 'dashboard/composables/chatlist/useBulkActions';
+import { useAlert } from 'dashboard/composables';
 
 const props = defineProps({
   chat: {
@@ -47,6 +52,21 @@ const currentChat = computed(() => store.getters.getSelectedChat);
 const accountId = computed(() => store.getters.getCurrentAccountId);
 
 const chatMetadata = computed(() => props.chat.meta);
+const { onAssignAgent, onAssignLabels } = useBulkActions();
+
+const onAssignCurrentAgent = agent =>
+  onAssignAgent(agent, currentChat.value.id);
+
+const onAssignCurrentLabels = labels =>
+  onAssignLabels(labels, currentChat.value.id);
+
+async function onAssignCurrentTeam(team) {
+  await store.dispatch('assignTeam', {
+    conversationId: currentChat.value.id,
+    teamId: team.id,
+  });
+  useAlert(t('CONVERSATION.CHANGE_TEAM'));
+}
 
 const backButtonUrl = computed(() => {
   const {
@@ -58,12 +78,16 @@ const backButtonUrl = computed(() => {
     conversation_through_mentions: 'mention',
     conversation_through_unattended: 'unattended',
   };
+  const assigneeTypeMap = {
+    conversation_through_mine: wootConstants.ASSIGNEE_TYPE.ME,
+  };
   return conversationListPageURL({
     accountId: accountId.value,
     inboxId,
     label,
     teamId,
     conversationType: conversationTypeMap[name],
+    assigneeType: assigneeTypeMap[name],
     customViewId,
   });
 });
@@ -190,6 +214,18 @@ const toggleContactDetails = () => {
         data-testid="conversation-header-search-button"
         @click.stop="emit('openConversationSearch')"
       />
+      <BulkAgentActions
+        :selected-inboxes="[currentChat.inbox_id]"
+        :conversation-count="1"
+        open-below
+        @select="onAssignCurrentAgent"
+      />
+      <BulkTeamActions
+        open-below
+        :conversation-count="1"
+        @select="onAssignCurrentTeam"
+      />
+      <BulkLabelActions open-below @assign="onAssignCurrentLabels" />
       <MoreActions :conversation-id="currentChat.id" />
     </div>
   </div>

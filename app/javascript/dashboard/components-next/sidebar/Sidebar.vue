@@ -336,6 +336,12 @@ const menuItems = computed(() => {
           to: accountScopedRoute('home'),
         },
         {
+          name: 'Mine',
+          label: t('SIDEBAR.MY_CONVERSATIONS'),
+          activeOn: ['conversation_through_mine'],
+          to: accountScopedRoute('conversation_mine'),
+        },
+        {
           name: 'Email',
           activeOn: ['conversation_through_email'],
           label: t('SIDEBAR.EMAIL_CONVERSATIONS'),

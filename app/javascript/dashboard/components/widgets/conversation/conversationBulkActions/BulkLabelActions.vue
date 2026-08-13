@@ -22,6 +22,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  openBelow: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['assign']);
@@ -39,6 +43,8 @@ const isTypeContact = computed(() => props.type === 'contact');
 const buttonLabel = computed(() =>
   props.type === 'contact' ? t('CONTACTS_BULK_ACTIONS.ASSIGN_LABELS') : ''
 );
+
+const isDropdownBelow = computed(() => props.openBelow || isTypeContact.value);
 
 const isLabelSelected = labelTitle => {
   return selectedLabels.value.includes(labelTitle);
@@ -97,18 +103,14 @@ const handleDismiss = () => {
       @click="toggleDropdown()"
     />
     <Transition
-      :enter-active-class="
-        !isTypeContact
-          ? 'transition-all duration-150 ease-out origin-bottom'
-          : 'transition-all duration-150 ease-out origin-top'
-      "
+      :enter-active-class="`transition-all duration-150 ease-out ${
+        isDropdownBelow ? 'origin-top' : 'origin-bottom'
+      }`"
       enter-from-class="opacity-0 scale-95"
       enter-to-class="opacity-100 scale-100"
-      :leave-active-class="
-        !isTypeContact
-          ? 'transition-all duration-100 ease-in origin-bottom'
-          : 'transition-all duration-100 ease-in origin-top'
-      "
+      :leave-active-class="`transition-all duration-100 ease-in ${
+        isDropdownBelow ? 'origin-top' : 'origin-bottom'
+      }`"
       leave-from-class="opacity-100 scale-100"
       leave-to-class="opacity-0 scale-95"
     >
@@ -121,7 +123,9 @@ const handleDismiss = () => {
         class="w-60 max-h-80"
         :class="{
           'ltr:-right-[6.5rem] rtl:-left-[6.5rem] ltr:2xl:right-0 rtl:2xl:left-0 bottom-8':
-            !isTypeContact,
+            !isTypeContact && !openBelow,
+          'ltr:-right-[6.5rem] rtl:-left-[6.5rem] ltr:2xl:right-0 rtl:2xl:left-0 top-8':
+            !isTypeContact && openBelow,
           'ltr:right-0 rtl:left-0 mb-1 top-10': isTypeContact,
         }"
         @action="item => toggleLabelSelection(item.value)"

@@ -11,6 +11,7 @@ export const conversationUrl = ({
   teamId,
   conversationType = '',
   foldersId,
+  assigneeType = 'all',
 }) => {
   let url = `accounts/${accountId}/conversations/${id}`;
   if (activeInbox) {
@@ -29,6 +30,8 @@ export const conversationUrl = ({
     url = `accounts/${accountId}/archived/conversations/${id}`;
   } else if (conversationType === 'email') {
     url = `accounts/${accountId}/email/conversations/${id}`;
+  } else if (assigneeType === 'me') {
+    url = `accounts/${accountId}/mine/conversations/${id}`;
   }
   return url;
 };
@@ -43,6 +46,7 @@ export const conversationListPageURL = ({
   label,
   teamId,
   customViewId,
+  assigneeType = 'all',
 }) => {
   let url = `accounts/${accountId}/dashboard`;
   if (label) {
@@ -53,6 +57,8 @@ export const conversationListPageURL = ({
     url = `accounts/${accountId}/inbox/${inboxId}`;
   } else if (customViewId) {
     url = `accounts/${accountId}/custom_view/${customViewId}`;
+  } else if (assigneeType === 'me') {
+    url = `accounts/${accountId}/mine/conversations`;
   } else if (conversationType) {
     const urlMap = {
       mention: 'mentions/conversations',

@@ -57,6 +57,7 @@ const mountView = ({
   conversationId = 1,
   replaceImpl = () => Promise.resolve(),
   backRoute = null,
+  assigneeType = 'all',
 } = {}) => {
   const store = createStoreMock(currentChat);
   const router = { replace: vi.fn(replaceImpl), push: vi.fn() };
@@ -66,6 +67,7 @@ const mountView = ({
       conversationId,
       inboxId: 2,
       backRoute,
+      assigneeType,
     },
     global: {
       plugins: [store],
@@ -75,6 +77,8 @@ const mountView = ({
       },
       stubs: {
         ChatList: {
+          name: 'ChatList',
+          props: ['assigneeType'],
           template: '<section data-testid="chat-list" />',
         },
         ConversationBox: {
@@ -154,6 +158,14 @@ describe('ConversationView', () => {
     expect(searchPanel.element.parentElement).toBe(
       conversationBox.element.parentElement
     );
+  });
+
+  it('forwards the assigned-to-me filter to the conversation list', () => {
+    const { wrapper } = mountView({ assigneeType: 'me' });
+
+    expect(
+      wrapper.getComponent({ name: 'ChatList' }).props('assigneeType')
+    ).toBe('me');
   });
 
   it('forwards search panel close and state events to ConversationBox', async () => {

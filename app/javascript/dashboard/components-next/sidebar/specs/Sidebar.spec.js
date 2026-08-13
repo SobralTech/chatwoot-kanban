@@ -179,6 +179,11 @@ const findKanbanGroup = wrapper =>
     .findAllComponents(SidebarGroupStub)
     .find(group => group.props('name') === 'Kanban');
 
+const findConversationGroup = wrapper =>
+  wrapper
+    .findAllComponents(SidebarGroupStub)
+    .find(group => group.props('name') === 'Conversation');
+
 describe('Sidebar', () => {
   beforeEach(() => {
     mockAccountId.value = 1;
@@ -287,6 +292,23 @@ describe('Sidebar', () => {
 
     expect(groupNames).toContain('Conversation');
     expect(groupNames).toContain('Settings');
+  });
+
+  it('shows the My Conversations filter in the conversation submenu', () => {
+    const { wrapper } = mountSidebar();
+
+    expect(
+      findConversationGroup(wrapper)
+        .props('children')
+        .find(child => child.name === 'Mine')
+    ).toMatchObject({
+      label: 'SIDEBAR.MY_CONVERSATIONS',
+      activeOn: ['conversation_through_mine'],
+      to: {
+        name: 'conversation_mine',
+        params: { accountId: 1 },
+      },
+    });
   });
 
   it('toggles the desktop sidebar from the profile footer', async () => {

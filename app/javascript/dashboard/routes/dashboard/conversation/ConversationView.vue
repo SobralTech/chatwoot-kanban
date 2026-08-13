@@ -68,6 +68,10 @@ export default {
       type: String,
       default: '',
     },
+    assigneeType: {
+      type: String,
+      default: wootConstants.ASSIGNEE_TYPE.ALL,
+    },
     foldersId: {
       type: [String, Number],
       default: 0,
@@ -370,6 +374,7 @@ export default {
       :label="label"
       :team-id="teamId"
       :conversation-type="conversationType"
+      :assignee-type="assigneeType"
       :folders-id="foldersId"
       :is-on-expanded-layout="isOnExpandedLayout"
       @conversation-load="onConversationLoad"
