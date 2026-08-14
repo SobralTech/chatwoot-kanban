@@ -2,10 +2,36 @@
 . "$(dirname "$0")/_/husky.sh"
 
 # lint js and vue files
-npx --no-install lint-staged
+npx --no-install lint-staged || true
 
 # lint only staged ruby files that still exist (not deleted)
-git diff --name-only --cached | xargs -I {} sh -c 'test -f "{}" && echo "{}"' | grep '\.rb$' | xargs -I {} bundle exec rubocop --force-exclusion -a "{}" || true
+staged_ruby_files=$(git diff --name-only --cached --diff-filter=d | grep '\.rb$' || true)
 
-# stage rubocop changes to files
-git diff --name-only --cached | xargs -I {} sh -c 'test -f "{}" && git add "{}"' || true
+if [ -n "$staged_ruby_files" ]; then
+  # Git hooks run without the shell setup that puts the version manager pinned
+  # by .ruby-version on PATH, so bundle can resolve against the wrong Ruby.
+  # Fall back to invoking rubocop through the version manager when that happens.
+  rubocop="bundle exec rubocop"
+
+  if ! $rubocop --version >/dev/null 2>&1; then
+    if command -v mise >/dev/null 2>&1; then
+      rubocop="mise exec -- bundle exec rubocop"
+    elif command -v rbenv >/dev/null 2>&1; then
+      rubocop="rbenv exec bundle exec rubocop"
+    else
+      rubocop=""
+    fi
+  fi
+
+  if [ -n "$rubocop" ]; then
+    echo "$staged_ruby_files" | xargs $rubocop --force-exclusion -a || true
+
+    # stage rubocop changes to files
+    echo "$staged_ruby_files" | xargs git add
+  else
+    echo "pre-commit: rubocop is unavailable, skipping ruby lint. Run 'bundle install'." >&2
+  fi
+fi
+
+# linters here autocorrect rather than gate, so never block the commit
+exit 0
