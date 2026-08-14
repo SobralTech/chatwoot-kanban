@@ -2074,7 +2074,7 @@ watch(searchInput, () => {
                         :ref="element => setStageNameInput(stage.id, element)"
                         v-model="stageNames[stage.id]"
                         type="text"
-                        class="h-8 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                        class="reset-base !mb-0 h-8 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
                         :placeholder="
                           t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')
                         "

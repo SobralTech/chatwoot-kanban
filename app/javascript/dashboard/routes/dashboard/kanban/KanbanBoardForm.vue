@@ -991,22 +991,25 @@ onMounted(async () => {
             data-testid="kanban-board-form-create-stage-panel"
             class="grid gap-3 rounded-md border border-n-weak bg-n-surface-1 p-3"
           >
-            <ColorPicker
-              v-model="newStageColor"
-              data-testid="kanban-board-form-new-stage-color"
-            />
-            <input
-              v-model="newStageName"
-              data-testid="kanban-board-form-new-stage-name"
-              type="text"
-              class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-              :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-            />
+            <div class="flex min-w-0 items-center gap-3">
+              <ColorPicker
+                v-model="newStageColor"
+                data-testid="kanban-board-form-new-stage-color"
+                class="flex-none"
+              />
+              <input
+                v-model="newStageName"
+                data-testid="kanban-board-form-new-stage-name"
+                type="text"
+                class="reset-base !mb-0 h-10 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+              />
+            </div>
             <textarea
               v-model="newStageDescription"
               data-testid="kanban-board-form-new-stage-description"
               rows="2"
-              class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+              class="!mb-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
               :placeholder="
                 t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_DESCRIPTION_PLACEHOLDER')
               "
@@ -1145,7 +1148,7 @@ onMounted(async () => {
                       v-model="editStageName"
                       data-testid="kanban-board-form-edit-stage-name"
                       type="text"
-                      class="h-10 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                      class="reset-base !mb-0 h-10 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
                       :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
                     />
                   </div>
@@ -1153,7 +1156,7 @@ onMounted(async () => {
                     v-model="editStageDescription"
                     data-testid="kanban-board-form-edit-stage-description"
                     rows="2"
-                    class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                    class="!mb-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
                     :placeholder="
                       t(
                         'KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_DESCRIPTION_PLACEHOLDER'
