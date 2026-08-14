@@ -207,19 +207,15 @@ const updateMatchMode = matchMode => {
           </section>
         </div>
 
-        <label
-          class="flex items-center justify-between gap-3 border-t border-n-weak px-4 py-3 text-xs"
-        >
-          <span class="font-medium text-n-slate-11">{{
-            t('KANBAN.FILTERS.MATCH_MODE')
-          }}</span>
+        <div class="border-t border-n-weak px-4 py-3">
           <Select
             :model-value="modelValue.matchMode"
             :options="matchModeOptions"
+            full-width
             class="font-normal"
             @update:model-value="updateMatchMode"
           />
-        </label>
+        </div>
       </div>
     </template>
   </Popover>
