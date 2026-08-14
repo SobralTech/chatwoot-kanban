@@ -132,6 +132,7 @@ let dragPointerX = -1;
 let dragPointerY = -1;
 let dragPointerReady = false;
 let autoScrollRaf = null;
+const isDraggingBoard = ref(false);
 
 const onDragPointerMove = e => {
   dragPointerX = e.clientX;
@@ -193,6 +194,7 @@ const runBoardAutoScroll = () => {
 
 const startBoardAutoScroll = () => {
   if (autoScrollRaf) return;
+  isDraggingBoard.value = true;
   dragPointerReady = false;
   dragPointerX = -1;
   dragPointerY = -1;
@@ -205,6 +207,7 @@ const stopBoardAutoScroll = () => {
   if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf);
   autoScrollRaf = null;
   dragPointerReady = false;
+  isDraggingBoard.value = false;
 };
 // vuedraggable forwards unknown attributes straight to SortableJS as options,
 // so these have to be real booleans: written as bare attributes they resolve to
@@ -2324,11 +2327,14 @@ watch(searchInput, () => {
         <div
           ref="boardScrollContainer"
           class="flex min-h-0 flex-1 overflow-x-auto p-4"
-          :class="
+          :class="[
+            isDraggingBoard
+              ? 'snap-none'
+              : 'snap-x snap-mandatory lg:snap-none',
             isReloadingBoard
               ? 'opacity-60 pointer-events-none transition-opacity'
-              : 'transition-opacity'
-          "
+              : 'transition-opacity',
+          ]"
         >
           <Draggable
             v-model="stageListModel"
@@ -2348,7 +2354,7 @@ watch(searchInput, () => {
             <template #item="{ element: stage }">
               <section
                 :data-stage-id="stage.id"
-                class="flex w-80 flex-shrink-0 flex-col rounded-lg border border-n-weak bg-n-solid-1"
+                class="flex w-64 lg:w-80 flex-shrink-0 flex-col snap-start rounded-lg border border-n-weak bg-n-solid-1"
                 :class="
                   editingStageId === stage.id
                     ? 'overflow-visible'
@@ -2581,7 +2587,7 @@ watch(searchInput, () => {
             v-if="!isCreatingStageDraft"
             type="button"
             data-testid="kanban-create-stage-draft"
-            class="flex w-80 flex-shrink-0 items-center justify-center gap-2 rounded-lg border border-dashed border-n-weak px-3 py-6 text-sm font-medium text-n-slate-11 hover:border-n-brand hover:bg-n-alpha-1 hover:text-n-brand"
+            class="flex w-64 lg:w-80 flex-shrink-0 snap-start items-center justify-center gap-2 rounded-lg border border-dashed border-n-weak px-3 py-6 text-sm font-medium text-n-slate-11 hover:border-n-brand hover:bg-n-alpha-1 hover:text-n-brand"
             :aria-label="t('KANBAN.ACTIONS.CREATE_STAGE_DRAFT')"
             @click="openStageDraft"
           >
@@ -2594,7 +2600,7 @@ watch(searchInput, () => {
             @trigger="cancelStageDraft"
           >
             <section
-              class="flex w-80 flex-shrink-0 flex-col gap-3 rounded-lg border border-dashed border-n-weak bg-n-alpha-1 p-3"
+              class="flex w-64 lg:w-80 flex-shrink-0 snap-start flex-col gap-3 rounded-lg border border-dashed border-n-weak bg-n-alpha-1 p-3"
               @keydown.escape.prevent="cancelStageDraft"
             >
               <form class="flex flex-col gap-3" @submit.prevent="createStage">
