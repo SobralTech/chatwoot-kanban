@@ -25,8 +25,10 @@ import KanbanStageMenu from './KanbanStageMenu.vue';
 import { frontendURL, kanbanConversationUrl } from 'dashboard/helper/URLHelper';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
 import {
+  getKanbanBoardPrefs,
   getKanbanBoardSnapshot,
   removeKanbanBoardSnapshot,
+  saveKanbanBoardPrefs,
   saveKanbanBoardSnapshot,
 } from 'dashboard/helper/kanbanBoardSnapshot';
 import { applyMatchModeConstraints } from 'dashboard/helper/kanbanBoardFilters';
@@ -42,6 +44,7 @@ const router = useRouter();
 const { t } = useI18n();
 const store = useStore();
 
+const currentUserId = useMapGetter('getCurrentUserID');
 const agents = useMapGetter('agents/getAgents');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
@@ -751,6 +754,23 @@ const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   }
 
   if (!snapshot || !restoreSnapshot) {
+    const prefs = getKanbanBoardPrefs({
+      accountId: route.params.accountId,
+      boardId,
+    });
+    if (prefs) {
+      const initialFilters = emptyBoardFilters();
+      if (prefs.mine && currentUserId.value) {
+        initialFilters.assigneeIds = [currentUserId.value];
+        initialFilters.matchMode = 'all';
+      }
+      if (prefs.today) {
+        initialFilters.dueDates = ['overdue', 'day'];
+        initialFilters.cardStatuses = ['open'];
+        initialFilters.matchMode = 'all';
+      }
+      boardFilters.value = normalizeBoardFilters(initialFilters);
+    }
     await showBoard(boardId, generation);
     return;
   }
@@ -857,13 +877,104 @@ const hasNoSearchResults = computed(
   () => activeSearchTerm.value.length >= 2 && searchResultCount.value === 0
 );
 
+const isMineActive = computed(() =>
+  Boolean(
+    currentUserId.value &&
+      boardFilters.value.assigneeIds.includes(currentUserId.value)
+  )
+);
+const isTodayActive = computed(() =>
+  ['overdue', 'day'].every(v => boardFilters.value.dueDates.includes(v))
+);
+const todayCardsCount = computed(() => searchResultCount.value);
+
+const persistBoardPrefs = prefs => {
+  if (!selectedBoard.value?.id) return;
+  saveKanbanBoardPrefs({
+    accountId: route.params.accountId,
+    boardId: selectedBoard.value.id,
+    prefs,
+  });
+};
+
 const updateBoardFilters = async filters => {
   boardFilters.value = normalizeBoardFilters(filters);
+  persistBoardPrefs({
+    mine: isMineActive.value,
+    today: isTodayActive.value,
+  });
   requestGeneration += 1;
   await refreshSelectedBoard();
 };
 
-const clearBoardFilters = () => updateBoardFilters(emptyBoardFilters());
+const clearBoardFilters = () => {
+  persistBoardPrefs({
+    mine: false,
+    today: false,
+  });
+  updateBoardFilters(emptyBoardFilters());
+};
+
+const toggleMine = () => {
+  if (!currentUserId.value) return;
+  const willBeActive = !isMineActive.value;
+  const nextAssigneeIds = willBeActive
+    ? [...new Set([...boardFilters.value.assigneeIds, currentUserId.value])]
+    : boardFilters.value.assigneeIds.filter(id => id !== currentUserId.value);
+
+  const nextFilters = {
+    ...boardFilters.value,
+    assigneeIds: nextAssigneeIds,
+  };
+
+  if (willBeActive) {
+    nextFilters.matchMode = 'all';
+  }
+
+  persistBoardPrefs({
+    mine: willBeActive,
+    today: isTodayActive.value,
+  });
+  updateBoardFilters(nextFilters);
+};
+
+const toggleToday = () => {
+  const willBeActive = !isTodayActive.value;
+  let nextDueDates;
+  let nextCardStatuses;
+
+  if (willBeActive) {
+    nextDueDates = [
+      ...new Set([...boardFilters.value.dueDates, 'overdue', 'day']),
+    ];
+    nextCardStatuses = [
+      ...new Set([...boardFilters.value.cardStatuses, 'open']),
+    ];
+  } else {
+    nextDueDates = boardFilters.value.dueDates.filter(
+      v => v !== 'overdue' && v !== 'day'
+    );
+    nextCardStatuses = boardFilters.value.cardStatuses.filter(
+      v => v !== 'open'
+    );
+  }
+
+  const nextFilters = {
+    ...boardFilters.value,
+    dueDates: nextDueDates,
+    cardStatuses: nextCardStatuses,
+  };
+
+  if (willBeActive) {
+    nextFilters.matchMode = 'all';
+  }
+
+  persistBoardPrefs({
+    mine: isMineActive.value,
+    today: willBeActive,
+  });
+  updateBoardFilters(nextFilters);
+};
 
 const openBoardSettings = () => {
   if (!selectedBoard.value?.id) return;
@@ -1768,124 +1879,130 @@ watch(searchInput, () => {
   <main class="flex h-full min-h-0 w-full bg-n-surface-1 text-n-slate-12">
     <section class="flex min-w-0 flex-1 flex-col">
       <header
-        class="flex min-h-16 flex-wrap items-center justify-between gap-2 border-b border-n-weak px-4 py-3 md:px-6"
+        class="flex min-h-16 flex-col justify-center gap-2 border-b border-n-weak px-4 py-3 md:px-6 lg:flex-row lg:items-center lg:justify-between"
       >
-        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-          <NextButton
-            data-testid="kanban-back-to-overview"
-            icon="i-lucide-chevron-left"
-            variant="ghost"
-            color="slate"
-            size="md"
-            class="flex-shrink-0 [&>span]:size-5"
-            :aria-label="t('KANBAN.ACTIONS.BACK_TO_OVERVIEW')"
-            :title="t('KANBAN.ACTIONS.BACK_TO_OVERVIEW')"
-            @click="goToOverview"
-          />
-          <OnClickOutside @trigger="closeBoardDropdown">
-            <div class="relative inline-flex min-w-0 max-w-full flex-col">
-              <button
-                type="button"
-                data-testid="kanban-board-switcher"
-                class="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md px-1 py-1 text-left text-base font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="!hasBoards"
-                @click="isBoardDropdownOpen = hasBoards && !isBoardDropdownOpen"
-              >
-                <span class="min-w-0 truncate">{{ currentBoardName }}</span>
-                <i
-                  class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11 transition-transform"
-                  :class="{ 'rotate-180': isBoardDropdownOpen }"
-                />
-              </button>
-              <div
-                v-if="isBoardDropdownOpen"
-                data-testid="kanban-board-switcher-dropdown"
-                class="absolute left-0 top-full z-50 mt-2 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border-0 bg-n-alpha-3 shadow-lg outline outline-1 outline-n-container backdrop-blur-[100px]"
-              >
-                <div class="max-h-80 overflow-y-auto">
-                  <div
-                    v-for="board in boards"
-                    :key="board.id"
-                    class="group flex w-full items-center gap-2 px-4 py-3 text-sm text-n-slate-12 hover:bg-n-alpha-1"
-                  >
-                    <template v-if="renamingBoardId === board.id">
-                      <InlineInput
-                        v-model="renameValue"
-                        focus-on-mount
-                        data-testid="kanban-board-rename-input"
-                        :placeholder="t('KANBAN.ACTIONS.RENAME_BOARD')"
-                        class="min-w-0 flex-1"
-                        @enter-press="confirmBoardRename"
-                        @escape-press="cancelBoardRename"
-                      />
-                      <NextButton
-                        icon="i-lucide-check"
-                        ghost
-                        xs
-                        slate
-                        data-testid="kanban-board-rename-confirm"
-                        :is-loading="isRenamingBoard"
-                        :disabled="isRenamingBoard"
-                        :aria-label="t('KANBAN.ACTIONS.RENAME_BOARD_CONFIRM')"
-                        :title="t('KANBAN.ACTIONS.RENAME_BOARD_CONFIRM')"
-                        @click="confirmBoardRename"
-                      />
-                      <NextButton
-                        icon="i-lucide-x"
-                        ghost
-                        xs
-                        slate
-                        :disabled="isRenamingBoard"
-                        :aria-label="t('KANBAN.ACTIONS.RENAME_BOARD_CANCEL')"
-                        :title="t('KANBAN.ACTIONS.RENAME_BOARD_CANCEL')"
-                        @click="cancelBoardRename"
-                      />
-                    </template>
-                    <template v-else>
-                      <button
-                        type="button"
-                        class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left"
-                        :title="board.name"
-                        @click="selectBoard(board.id)"
-                      >
-                        {{ board.name }}
-                      </button>
-                      <NextButton
-                        v-if="isAdmin"
-                        icon="i-lucide-pencil"
-                        ghost
-                        xs
-                        slate
-                        data-testid="kanban-board-rename-start"
-                        class="opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
-                        :aria-label="t('KANBAN.ACTIONS.RENAME_BOARD')"
-                        :title="t('KANBAN.ACTIONS.RENAME_BOARD')"
-                        @click.stop="startBoardRename(board)"
-                      />
-                      <i
-                        v-if="board.id === activeBoardId"
-                        class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
-                      />
-                    </template>
+        <div
+          class="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto lg:flex-1 lg:justify-start"
+        >
+          <div class="flex min-w-0 flex-shrink items-center gap-1">
+            <NextButton
+              data-testid="kanban-back-to-overview"
+              icon="i-lucide-chevron-left"
+              variant="ghost"
+              color="slate"
+              size="md"
+              class="flex-shrink-0 [&>span]:size-5"
+              :aria-label="t('KANBAN.ACTIONS.BACK_TO_OVERVIEW')"
+              :title="t('KANBAN.ACTIONS.BACK_TO_OVERVIEW')"
+              @click="goToOverview"
+            />
+            <OnClickOutside @trigger="closeBoardDropdown">
+              <div class="relative inline-flex min-w-0 max-w-full flex-col">
+                <button
+                  type="button"
+                  data-testid="kanban-board-switcher"
+                  class="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md px-1 py-1 text-left text-base font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!hasBoards"
+                  @click="
+                    isBoardDropdownOpen = hasBoards && !isBoardDropdownOpen
+                  "
+                >
+                  <span class="min-w-0 truncate">{{ currentBoardName }}</span>
+                  <i
+                    class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11 transition-transform"
+                    :class="{ 'rotate-180': isBoardDropdownOpen }"
+                  />
+                </button>
+                <div
+                  v-if="isBoardDropdownOpen"
+                  data-testid="kanban-board-switcher-dropdown"
+                  class="absolute left-0 top-full z-50 mt-2 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border-0 bg-n-alpha-3 shadow-lg outline outline-1 outline-n-container backdrop-blur-[100px]"
+                >
+                  <div class="max-h-80 overflow-y-auto">
+                    <div
+                      v-for="board in boards"
+                      :key="board.id"
+                      class="group flex w-full items-center gap-2 px-4 py-3 text-sm text-n-slate-12 hover:bg-n-alpha-1"
+                    >
+                      <template v-if="renamingBoardId === board.id">
+                        <InlineInput
+                          v-model="renameValue"
+                          focus-on-mount
+                          data-testid="kanban-board-rename-input"
+                          :placeholder="t('KANBAN.ACTIONS.RENAME_BOARD')"
+                          class="min-w-0 flex-1"
+                          @enter-press="confirmBoardRename"
+                          @escape-press="cancelBoardRename"
+                        />
+                        <NextButton
+                          icon="i-lucide-check"
+                          ghost
+                          xs
+                          slate
+                          data-testid="kanban-board-rename-confirm"
+                          :is-loading="isRenamingBoard"
+                          :disabled="isRenamingBoard"
+                          :aria-label="t('KANBAN.ACTIONS.RENAME_BOARD_CONFIRM')"
+                          :title="t('KANBAN.ACTIONS.RENAME_BOARD_CONFIRM')"
+                          @click="confirmBoardRename"
+                        />
+                        <NextButton
+                          icon="i-lucide-x"
+                          ghost
+                          xs
+                          slate
+                          :disabled="isRenamingBoard"
+                          :aria-label="t('KANBAN.ACTIONS.RENAME_BOARD_CANCEL')"
+                          :title="t('KANBAN.ACTIONS.RENAME_BOARD_CANCEL')"
+                          @click="cancelBoardRename"
+                        />
+                      </template>
+                      <template v-else>
+                        <button
+                          type="button"
+                          class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left"
+                          :title="board.name"
+                          @click="selectBoard(board.id)"
+                        >
+                          {{ board.name }}
+                        </button>
+                        <NextButton
+                          v-if="isAdmin"
+                          icon="i-lucide-pencil"
+                          ghost
+                          xs
+                          slate
+                          data-testid="kanban-board-rename-start"
+                          class="opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
+                          :aria-label="t('KANBAN.ACTIONS.RENAME_BOARD')"
+                          :title="t('KANBAN.ACTIONS.RENAME_BOARD')"
+                          @click.stop="startBoardRename(board)"
+                        />
+                        <i
+                          v-if="board.id === activeBoardId"
+                          class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
+                        />
+                      </template>
+                    </div>
+                  </div>
+                  <div class="border-t border-n-weak p-2">
+                    <button
+                      type="button"
+                      class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-n-brand hover:bg-n-alpha-1"
+                      data-testid="kanban-board-switcher-create-new"
+                      @click="goToCreateBoard"
+                    >
+                      <i class="i-lucide-plus size-4" />
+                      {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
+                    </button>
                   </div>
                 </div>
-                <div class="border-t border-n-weak p-2">
-                  <button
-                    type="button"
-                    class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-n-brand hover:bg-n-alpha-1"
-                    data-testid="kanban-board-switcher-create-new"
-                    @click="goToCreateBoard"
-                  >
-                    <i class="i-lucide-plus size-4" />
-                    {{ t('KANBAN.OVERVIEW.CREATE_BOARD') }}
-                  </button>
-                </div>
               </div>
-            </div>
-          </OnClickOutside>
+            </OnClickOutside>
+          </div>
           <div
             v-if="selectedBoard"
-            class="min-w-[9rem] max-w-64 grow basis-36 ltr:ml-2 rtl:mr-2"
+            class="hidden min-w-[9rem] max-w-64 grow basis-36 ltr:ml-2 rtl:mr-2 lg:block"
           >
             <Input
               v-model="searchInput"
@@ -1907,11 +2024,10 @@ watch(searchInput, () => {
               </template>
             </Input>
           </div>
-        </div>
-        <div
-          class="flex flex-shrink-0 flex-wrap items-center justify-end gap-2"
-        >
-          <template v-if="selectedBoard">
+          <div
+            v-if="selectedBoard"
+            class="flex flex-shrink-0 items-center justify-end gap-2 lg:hidden"
+          >
             <div
               data-testid="kanban-filter-menu-container"
               class="flex items-center overflow-hidden rounded-lg"
@@ -1958,7 +2074,182 @@ watch(searchInput, () => {
             >
               <i class="i-lucide-plus size-4" />
             </button>
-          </template>
+          </div>
+        </div>
+        <div
+          v-if="selectedBoard"
+          class="flex w-full min-w-0 items-center gap-2 lg:hidden"
+        >
+          <div class="min-w-0 flex-1">
+            <Input
+              v-model="searchInput"
+              type="search"
+              size="sm"
+              class="group min-w-0 [&>input]:!rounded-[0.625rem] [&>input]:ltr:!pl-8 [&>input]:rtl:!pr-8"
+              :placeholder="t('KANBAN.SEARCH.PLACEHOLDER')"
+              data-testid="kanban-search-input"
+              @keydown="onSearchKeydown"
+            >
+              <template #prefix>
+                <Icon
+                  :icon="
+                    isSearchLoading ? 'i-lucide-loader-2' : 'i-lucide-search'
+                  "
+                  class="absolute top-1/2 size-3.5 -translate-y-1/2 text-n-slate-11 group-focus-within:text-n-brand ltr:left-2.5 rtl:right-2.5"
+                  :class="{ 'animate-spin': isSearchLoading }"
+                />
+              </template>
+            </Input>
+          </div>
+          <div class="flex flex-shrink-0 items-center gap-2">
+            <button
+              type="button"
+              data-testid="kanban-filter-mine"
+              class="inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors"
+              :class="
+                isMineActive
+                  ? 'border-n-brand bg-n-brand/10 text-n-brand'
+                  : 'border-n-weak bg-n-alpha-1 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12'
+              "
+              :aria-label="t('KANBAN.FILTERS.MINE')"
+              :title="
+                t('KANBAN.FILTERS.MINE_TOOLTIP') +
+                ' ' +
+                t('KANBAN.FILTERS.SHORTCUT_MATCH_ALL_HINT')
+              "
+              @click="toggleMine"
+            >
+              <i class="i-lucide-user-round size-4 flex-shrink-0" />
+              <span>{{ t('KANBAN.FILTERS.MINE') }}</span>
+            </button>
+            <button
+              type="button"
+              data-testid="kanban-filter-today"
+              class="inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors"
+              :class="
+                isTodayActive
+                  ? 'border-n-brand bg-n-brand/10 text-n-brand'
+                  : 'border-n-weak bg-n-alpha-1 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12'
+              "
+              :aria-label="t('KANBAN.FILTERS.TODAY')"
+              :title="
+                t('KANBAN.FILTERS.TODAY_TOOLTIP') +
+                ' ' +
+                t('KANBAN.FILTERS.SHORTCUT_MATCH_ALL_HINT')
+              "
+              @click="toggleToday"
+            >
+              <i class="i-lucide-calendar-clock size-4 flex-shrink-0" />
+              <span>{{ t('KANBAN.FILTERS.TODAY') }}</span>
+              <span
+                v-if="isTodayActive"
+                data-testid="kanban-today-count"
+                class="flex h-5 min-w-5 items-center justify-center rounded-full bg-n-brand px-1.5 text-xs font-semibold text-white"
+              >
+                {{ todayCardsCount }}
+              </span>
+            </button>
+          </div>
+        </div>
+        <div
+          v-if="selectedBoard"
+          class="hidden flex-shrink-0 items-center justify-end gap-2 lg:flex"
+        >
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              data-testid="kanban-filter-mine"
+              class="inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors"
+              :class="
+                isMineActive
+                  ? 'border-n-brand bg-n-brand/10 text-n-brand'
+                  : 'border-n-weak bg-n-alpha-1 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12'
+              "
+              :aria-label="t('KANBAN.FILTERS.MINE')"
+              :title="
+                t('KANBAN.FILTERS.MINE_TOOLTIP') +
+                ' ' +
+                t('KANBAN.FILTERS.SHORTCUT_MATCH_ALL_HINT')
+              "
+              @click="toggleMine"
+            >
+              <i class="i-lucide-user-round size-4 flex-shrink-0" />
+              <span>{{ t('KANBAN.FILTERS.MINE') }}</span>
+            </button>
+            <button
+              type="button"
+              data-testid="kanban-filter-today"
+              class="inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors"
+              :class="
+                isTodayActive
+                  ? 'border-n-brand bg-n-brand/10 text-n-brand'
+                  : 'border-n-weak bg-n-alpha-1 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12'
+              "
+              :aria-label="t('KANBAN.FILTERS.TODAY')"
+              :title="
+                t('KANBAN.FILTERS.TODAY_TOOLTIP') +
+                ' ' +
+                t('KANBAN.FILTERS.SHORTCUT_MATCH_ALL_HINT')
+              "
+              @click="toggleToday"
+            >
+              <i class="i-lucide-calendar-clock size-4 flex-shrink-0" />
+              <span>{{ t('KANBAN.FILTERS.TODAY') }}</span>
+              <span
+                v-if="isTodayActive"
+                data-testid="kanban-today-count"
+                class="flex h-5 min-w-5 items-center justify-center rounded-full bg-n-brand px-1.5 text-xs font-semibold text-white"
+              >
+                {{ todayCardsCount }}
+              </span>
+            </button>
+          </div>
+          <div
+            data-testid="kanban-filter-menu-container"
+            class="flex items-center overflow-hidden rounded-lg"
+            :class="{
+              'border border-n-weak bg-n-alpha-1': hasActiveBoardFilters,
+            }"
+          >
+            <KanbanFilterMenu
+              :model-value="boardFilters"
+              :inbox-options="inboxFilterOptions"
+              :agent-options="agentFilterOptions"
+              :active-count="activeBoardFilterCount"
+              @update:model-value="updateBoardFilters"
+            />
+            <button
+              v-if="hasActiveBoardFilters"
+              type="button"
+              data-testid="kanban-clear-filters"
+              class="h-10 border-n-weak px-3 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-2 ltr:border-l rtl:border-r"
+              @click="clearBoardFilters"
+            >
+              {{ t('KANBAN.FILTERS.CLEAR_ALL') }}
+            </button>
+          </div>
+          <button
+            v-if="isAdmin"
+            type="button"
+            data-testid="kanban-board-settings-button"
+            class="flex size-10 items-center justify-center rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
+            :aria-label="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
+            :title="t('KANBAN.ACTIONS.BOARD_SETTINGS')"
+            @click="openBoardSettings"
+          >
+            <span class="i-lucide-settings size-4" />
+          </button>
+          <button
+            type="button"
+            data-testid="kanban-create-stage-toggle"
+            class="flex size-10 items-center justify-center rounded-lg bg-n-brand text-white disabled:cursor-not-allowed disabled:opacity-50"
+            :aria-label="t('KANBAN.ACTIONS.CREATE_STAGE')"
+            :title="t('KANBAN.ACTIONS.CREATE_STAGE')"
+            :disabled="isCreatingStage"
+            @click="openStageDraft"
+          >
+            <i class="i-lucide-plus size-4" />
+          </button>
         </div>
       </header>
 

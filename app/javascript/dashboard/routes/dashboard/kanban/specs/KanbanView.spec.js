@@ -85,17 +85,22 @@ const buildAgents = () => [
 const createTestStore = (
   role = 'agent',
   inboxRecords = buildInboxes(),
-  agentRecords = buildAgents()
+  agentRecords = buildAgents(),
+  currentUserId = 7
 ) =>
   createStore({
     getters: {
       getCurrentRole: () => role,
+      getCurrentUserID: () => currentUserId,
+      getCurrentUser: () => ({ id: currentUserId, role }),
     },
     modules: {
       auth: {
         namespaced: true,
         getters: {
           getCurrentRole: () => role,
+          getCurrentUserID: () => currentUserId,
+          getCurrentUser: () => ({ id: currentUserId, role }),
         },
       },
       kanbanBoards: { namespaced: true, ...kanbanBoardsModule },
@@ -2182,6 +2187,7 @@ describe('KanbanView filters', () => {
     mockT.mockImplementation(key => key);
     vi.useRealTimers();
     mockRoute.params.boardId = '10';
+    window.localStorage.clear();
   });
 
   it('passes board-scoped inbox and agent options to the filter menu', async () => {
@@ -2333,5 +2339,149 @@ describe('KanbanView filters', () => {
       matchMode: 'any',
     });
     expect(KanbanBoardsAPI.show).toHaveBeenLastCalledWith(11, undefined);
+  });
+
+  it('toggles Mine quick filter on and off', async () => {
+    const wrapper = await mountView();
+    const mineButton = wrapper.find('[data-testid="kanban-filter-mine"]');
+
+    KanbanBoardsAPI.show.mockClear();
+    await mineButton.trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
+      params: {
+        assignee_ids: [7],
+        match_mode: 'all',
+      },
+    });
+    expect(mineButton.classes()).toContain('text-n-brand');
+    expect(findFilterMenu(wrapper).props('modelValue')).toMatchObject({
+      assigneeIds: [7],
+      matchMode: 'all',
+    });
+
+    KanbanBoardsAPI.show.mockClear();
+    await mineButton.trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
+    expect(mineButton.classes()).not.toContain('text-n-brand');
+    expect(findFilterMenu(wrapper).props('modelValue')).toMatchObject({
+      assigneeIds: [],
+    });
+  });
+
+  it('toggles Today quick filter on and off with card count badge', async () => {
+    const wrapper = await mountView();
+    const todayButton = wrapper.find('[data-testid="kanban-filter-today"]');
+
+    expect(wrapper.find('[data-testid="kanban-today-count"]').exists()).toBe(
+      false
+    );
+
+    KanbanBoardsAPI.show.mockClear();
+    await todayButton.trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
+      params: {
+        card_statuses: ['open'],
+        due_dates: ['overdue', 'day'],
+        match_mode: 'all',
+      },
+    });
+    expect(todayButton.classes()).toContain('text-n-brand');
+    expect(wrapper.find('[data-testid="kanban-today-count"]').exists()).toBe(
+      true
+    );
+    expect(wrapper.find('[data-testid="kanban-today-count"]').text()).toBe('1');
+    expect(findFilterMenu(wrapper).props('modelValue')).toMatchObject({
+      dueDates: ['overdue', 'day'],
+      cardStatuses: ['open'],
+      matchMode: 'all',
+    });
+
+    KanbanBoardsAPI.show.mockClear();
+    await todayButton.trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
+    expect(todayButton.classes()).not.toContain('text-n-brand');
+    expect(wrapper.find('[data-testid="kanban-today-count"]').exists()).toBe(
+      false
+    );
+  });
+
+  it('applies Mine and Today together with match all', async () => {
+    const wrapper = await mountView();
+    const mineButton = wrapper.find('[data-testid="kanban-filter-mine"]');
+    const todayButton = wrapper.find('[data-testid="kanban-filter-today"]');
+
+    await mineButton.trigger('click');
+    await flushPromises();
+
+    KanbanBoardsAPI.show.mockClear();
+    await todayButton.trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
+      params: {
+        assignee_ids: [7],
+        card_statuses: ['open'],
+        due_dates: ['overdue', 'day'],
+        match_mode: 'all',
+      },
+    });
+    expect(mineButton.classes()).toContain('text-n-brand');
+    expect(todayButton.classes()).toContain('text-n-brand');
+  });
+
+  it('clears Mine and Today when clear all is clicked', async () => {
+    const wrapper = await mountView();
+    const mineButton = wrapper.find('[data-testid="kanban-filter-mine"]');
+    const todayButton = wrapper.find('[data-testid="kanban-filter-today"]');
+
+    await mineButton.trigger('click');
+    await todayButton.trigger('click');
+    await flushPromises();
+
+    expect(mineButton.classes()).toContain('text-n-brand');
+    expect(todayButton.classes()).toContain('text-n-brand');
+
+    KanbanBoardsAPI.show.mockClear();
+    await wrapper.find('[data-testid="kanban-clear-filters"]').trigger('click');
+    await flushPromises();
+
+    expect(mineButton.classes()).not.toContain('text-n-brand');
+    expect(todayButton.classes()).not.toContain('text-n-brand');
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
+  });
+
+  it('restores quick filter preferences from localStorage on mount', async () => {
+    window.localStorage.setItem(
+      'kanban_board_prefs_1_10',
+      JSON.stringify({ mine: true, today: true })
+    );
+
+    KanbanBoardsAPI.show.mockClear();
+    const wrapper = await mountView();
+
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledTimes(1);
+    expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, {
+      params: {
+        assignee_ids: [7],
+        card_statuses: ['open'],
+        due_dates: ['overdue', 'day'],
+        match_mode: 'all',
+      },
+    });
+
+    const mineButton = wrapper.find('[data-testid="kanban-filter-mine"]');
+    const todayButton = wrapper.find('[data-testid="kanban-filter-today"]');
+    expect(mineButton.classes()).toContain('text-n-brand');
+    expect(todayButton.classes()).toContain('text-n-brand');
+
+    window.localStorage.removeItem('kanban_board_prefs_1_10');
   });
 });
