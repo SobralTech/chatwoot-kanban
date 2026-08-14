@@ -2265,6 +2265,10 @@ describe('KanbanView filters', () => {
       { value: 8, label: 'Grace Hopper' },
     ]);
     expect(wrapper.dispatchSpy).toHaveBeenCalledWith('labels/get');
+
+    expect(findFilterMenu(wrapper).props('modelValue')).toMatchObject({
+      matchMode: 'any',
+    });
   });
 
   it('refetches with all selected filter categories and match mode', async () => {
@@ -2366,7 +2370,7 @@ describe('KanbanView filters', () => {
       priorities: [],
       dueDates: [],
       labels: [],
-      matchMode: 'all',
+      matchMode: 'any',
     });
     expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
   });
@@ -2390,7 +2394,7 @@ describe('KanbanView filters', () => {
       priorities: [],
       dueDates: [],
       labels: [],
-      matchMode: 'all',
+      matchMode: 'any',
     });
     expect(KanbanBoardsAPI.show).toHaveBeenLastCalledWith(11, undefined);
   });

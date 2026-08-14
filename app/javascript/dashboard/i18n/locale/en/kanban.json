@@ -95,6 +95,7 @@
     },
     "FILTERS": {
       "TITLE": "Filters",
+      "CLOSE": "Close",
       "CLEAR_ALL": "Clear all",
       "INBOXES": "Inboxes",
       "AGENTS": "Agents",

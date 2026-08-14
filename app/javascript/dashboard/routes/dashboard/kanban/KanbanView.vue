@@ -61,7 +61,7 @@ const emptyBoardFilters = () => ({
   priorities: [],
   dueDates: [],
   labels: [],
-  matchMode: 'all',
+  matchMode: 'any',
 });
 const normalizeBoardFilters = filters => ({
   inboxIds: [...new Set(filters?.inboxIds || [])],
@@ -70,7 +70,7 @@ const normalizeBoardFilters = filters => ({
   priorities: [...new Set(filters?.priorities || [])],
   dueDates: [...new Set(filters?.dueDates || [])],
   labels: [...new Set(filters?.labels || [])],
-  matchMode: filters?.matchMode === 'any' ? 'any' : 'all',
+  matchMode: filters?.matchMode === 'all' ? 'all' : 'any',
 });
 const boardFilters = ref(emptyBoardFilters());
 const isBoardDropdownOpen = ref(false);

@@ -119,14 +119,26 @@ const updateMatchMode = event => {
       <i class="i-lucide-list-filter size-4" />
     </button>
 
-    <template #content>
+    <template #content="{ hide }">
       <div
         data-testid="kanban-filter-menu"
         class="flex w-80 max-w-[calc(100vw-2rem)] flex-col text-sm text-n-slate-12"
       >
-        <div class="border-b border-n-weak px-4 py-3 font-semibold">
-          {{ t('KANBAN.FILTERS.TITLE') }}
-        </div>
+        <header
+          class="flex items-center justify-between border-b border-n-weak px-4 py-3"
+        >
+          <h2 class="font-semibold">{{ t('KANBAN.FILTERS.TITLE') }}</h2>
+          <button
+            type="button"
+            data-testid="kanban-filter-menu-close"
+            class="flex size-8 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+            :aria-label="t('KANBAN.FILTERS.CLOSE')"
+            :title="t('KANBAN.FILTERS.CLOSE')"
+            @click="hide"
+          >
+            <i class="i-lucide-x size-4" />
+          </button>
+        </header>
 
         <div class="max-h-[min(30rem,calc(100vh-12rem))] overflow-y-auto">
           <section

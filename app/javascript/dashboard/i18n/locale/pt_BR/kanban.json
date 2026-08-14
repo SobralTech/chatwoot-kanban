@@ -94,8 +94,101 @@
       "NO_STAGES_HELP": "Adicione uma etapa antes de habilitar a criação automática de cartões."
     },
     "FILTERS": {
+      "TITLE": "Filtros",
+      "CLOSE": "Fechar",
+      "CLEAR_ALL": "Limpar tudo",
       "INBOXES": "Caixas de entrada",
-      "AGENTS": "Agentes"
+      "AGENTS": "Agentes",
+      "CARD_STATUS": "Status do cartão",
+      "LABELS": "Etiquetas",
+      "LABELS_NONE": "Sem etiquetas",
+      "MATCH_MODE": "Correspondência dos cartões",
+      "MATCH_ALL": "Corresponder a todos",
+      "MATCH_ANY": "Corresponder a qualquer um",
+      "STATUS": {
+        "OPEN": "Aberto",
+        "WON": "Ganho",
+        "LOST": "Perdido"
+      },
+      "PRIORITY": {
+        "TITLE": "Prioridade",
+        "NONE": "Sem prioridade",
+        "URGENT": "Urgente",
+        "HIGH": "Alta",
+        "MEDIUM": "Média",
+        "LOW": "Baixa"
+      },
+      "DUE_DATE": {
+        "TITLE": "Data de vencimento",
+        "NONE": "Sem data de vencimento",
+        "OVERDUE": "Atrasada",
+        "DAY": "Vence no próximo dia",
+        "WEEK": "Vence na próxima semana",
+        "MONTH": "Vence no próximo mês"
+      }
+    },
+    "STAGE_MENU": {
+      "TITLE": "Ações da lista",
+      "BACK": "Voltar",
+      "CLOSE": "Fechar",
+      "ADD_CARD": "Adicionar cartão",
+      "EDIT": "Editar lista",
+      "DELETE_STAGE": "Excluir esta lista",
+      "DELETE_CARDS": "Excluir todos os cartões desta lista",
+      "CARD_COUNT": "{count} cartões",
+      "COPY": {
+        "LABEL": "Copiar lista",
+        "TITLE": "Copiar lista",
+        "NAME": "Nome da lista",
+        "SUBMIT": "Criar lista"
+      },
+      "MOVE": {
+        "LABEL": "Mover lista",
+        "TITLE": "Mover lista",
+        "BOARD": "Quadro",
+        "POSITION": "Posição",
+        "POSITION_VALUE": "Posição {position}",
+        "SUBMIT": "Mover lista",
+        "NONEMPTY_HINT": "Mova todos os cartões antes de mover esta lista para outro quadro."
+      },
+      "MOVE_CARDS": {
+        "LABEL": "Mover todos os cartões desta lista",
+        "TITLE": "Mover todos os cartões",
+        "TARGET": "Mover para cá",
+        "CURRENT": "Atual",
+        "EMPTY": "Não há listas regulares disponíveis."
+      },
+      "SORT": {
+        "LABEL": "Ordenar por",
+        "TITLE": "Ordenar cartões",
+        "NEWEST": "Mais recentes primeiro",
+        "OLDEST": "Mais antigos primeiro",
+        "NAME": "Nome do cartão"
+      },
+      "DELETE_STAGE_CONFIRM": {
+        "TITLE": "Excluir lista",
+        "MESSAGE": "Isso exclui permanentemente esta lista e todos os seus cartões: ",
+        "CONFIRM": "Excluir lista",
+        "CANCEL": "Cancelar"
+      },
+      "DELETE_CARDS_CONFIRM": {
+        "TITLE": "Excluir todos os cartões",
+        "MESSAGE": "Isso exclui permanentemente todos os cartões desta lista: ",
+        "CONFIRM": "Excluir cartões",
+        "CANCEL": "Cancelar"
+      },
+      "SUCCESS": {
+        "COPY": "Lista copiada.",
+        "MOVE": "Lista movida.",
+        "MOVE_CARDS": "Cartões movidos.",
+        "SORT": "Cartões ordenados.",
+        "DELETE_CARDS": "Cartões excluídos."
+      },
+      "ERRORS": {
+        "STAGE_NOT_EMPTY": "Mova todos os cartões antes de mover esta lista para outro quadro.",
+        "SPECIAL_STAGE_CANNOT_MOVE_BOARD": "As listas de ganho e perdido não podem ser movidas para outro quadro.",
+        "TERMINAL_STAGE_NOT_ALLOWED": "Os cartões só podem ser movidos para uma lista regular."
+      }
     },
     "ACTIONS": {
       "CREATE_BOARD": "Adicionar",

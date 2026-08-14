@@ -53,11 +53,11 @@ const copyNameInput = ref(null);
 const targetBoardId = ref(null);
 const targetPosition = ref(1);
 
-const currentBoardId = computed(
-  () => props.stage.kanbanBoardId || props.stage.kanban_board_id
+const currentBoardId = computed(() =>
+  Number(props.stage.kanbanBoardId || props.stage.kanban_board_id)
 );
 const targetBoard = computed(() =>
-  props.boards.find(board => board.id === Number(targetBoardId.value))
+  props.boards.find(board => Number(board.id) === Number(targetBoardId.value))
 );
 const viewTitle = computed(() => {
   switch (view.value) {
@@ -73,9 +73,15 @@ const viewTitle = computed(() => {
       return t('KANBAN.STAGE_MENU.TITLE');
   }
 });
-const regularStages = computed(() =>
+const isTerminalStage = computed(() =>
+  [props.wonStageId, props.lostStageId].includes(props.stage.id)
+);
+const cardMoveTargets = computed(() =>
   props.stages.filter(
-    stage => stage.id !== props.wonStageId && stage.id !== props.lostStageId
+    stage =>
+      stage.id !== props.stage.id &&
+      stage.id !== props.wonStageId &&
+      stage.id !== props.lostStageId
   )
 );
 const targetBoardStageCount = computed(() => {
@@ -98,7 +104,16 @@ const positionOptions = computed(() =>
 const cardCount = computed(
   () => props.stage.cardsCount ?? props.stage.cards_count ?? 0
 );
-const canMoveToAnotherBoard = computed(() => cardCount.value === 0);
+const canMoveToAnotherBoard = computed(
+  () => !isTerminalStage.value && cardCount.value === 0
+);
+const moveDestinationBoards = computed(() =>
+  props.boards.filter(
+    board =>
+      Number(board.id) === currentBoardId.value || canMoveToAnotherBoard.value
+  )
+);
+const canDeleteStage = computed(() => props.stages.length > 1);
 const isBusy = computed(() => !!props.activeActionKey);
 const sortOptions = computed(() => [
   {
@@ -195,7 +210,7 @@ watch(targetBoardId, () => {
 </script>
 
 <template>
-  <Popover align="end" disable-mobile-view @hide="resetView">
+  <Popover align="start" disable-mobile-view @hide="resetView">
     <button
       type="button"
       data-testid="kanban-stage-menu-trigger"
@@ -238,6 +253,7 @@ watch(targetBoardId, () => {
 
         <div v-if="view === 'root'" class="p-1">
           <button
+            v-if="!isTerminalStage"
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
@@ -267,7 +283,7 @@ watch(targetBoardId, () => {
             {{ t('KANBAN.STAGE_MENU.COPY.LABEL') }}
           </button>
           <button
-            v-if="isAdmin"
+            v-if="isAdmin && !isTerminalStage"
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
@@ -277,7 +293,7 @@ watch(targetBoardId, () => {
             {{ t('KANBAN.STAGE_MENU.MOVE.LABEL') }}
           </button>
           <button
-            type="button"
+            v-if="!isTerminalStage"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
             @click="openView('moveCards')"
@@ -296,7 +312,7 @@ watch(targetBoardId, () => {
           </button>
           <div v-if="isAdmin" class="my-1 border-t border-n-weak" />
           <button
-            v-if="isAdmin"
+            v-if="isAdmin && canDeleteStage"
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
@@ -348,12 +364,9 @@ watch(targetBoardId, () => {
               class="mt-1 w-full rounded-md border border-n-weak bg-n-surface-1 px-2 py-2 text-sm text-n-slate-12 focus:border-n-brand focus:outline-none"
             >
               <option
-                v-for="board in boards"
+                v-for="board in moveDestinationBoards"
                 :key="board.id"
                 :value="board.id"
-                :disabled="
-                  board.id !== currentBoardId && !canMoveToAnotherBoard
-                "
               >
                 {{ board.name }}
               </option>
@@ -388,28 +401,24 @@ watch(targetBoardId, () => {
 
         <div v-else-if="view === 'moveCards'" class="p-2">
           <p
-            v-if="regularStages.length === 0"
+            v-if="cardMoveTargets.length === 0"
             class="px-2 py-3 text-sm text-n-slate-10"
           >
             {{ t('KANBAN.STAGE_MENU.MOVE_CARDS.EMPTY') }}
           </p>
           <button
-            v-for="targetStage in regularStages"
+            v-for="targetStage in cardMoveTargets"
             :key="targetStage.id"
             type="button"
             class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="isBusy || targetStage.id === stage.id"
+            :disabled="isBusy"
             @click="
               emitAction('moveCards', { targetStageId: targetStage.id }, hide)
             "
           >
             <span class="truncate">{{ targetStage.name }}</span>
             <span class="text-xs text-n-slate-10">
-              {{
-                targetStage.id === stage.id
-                  ? t('KANBAN.STAGE_MENU.MOVE_CARDS.CURRENT')
-                  : t('KANBAN.STAGE_MENU.MOVE_CARDS.TARGET')
-              }}
+              {{ t('KANBAN.STAGE_MENU.MOVE_CARDS.TARGET') }}
             </span>
           </button>
         </div>
