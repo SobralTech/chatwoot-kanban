@@ -289,7 +289,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
           headers: agent.create_new_auth_token,
-          params: { inbox_ids: [second_inbox.id], assignee_ids: [second_agent.id] },
+          params: { inbox_ids: [second_inbox.id], assignee_ids: [second_agent.id], match_mode: 'all' },
           as: :json
 
       response_stage = response.parsed_body['stages'].first

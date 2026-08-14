@@ -1,7 +1,6 @@
 module KanbanCardFilterParams
   CARD_STATUSES = %w[open won lost].freeze
   DUE_DATES = %w[none overdue day week month].freeze
-  MATCH_MODES = %w[all any].freeze
 
   private
 
@@ -56,7 +55,12 @@ module KanbanCardFilterParams
   def sanitized_match_mode
     return @sanitized_match_mode if defined?(@sanitized_match_mode)
 
-    @sanitized_match_mode = params[:match_mode].in?(MATCH_MODES) ? params[:match_mode] : 'all'
+    @sanitized_match_mode =
+      if params[:match_mode].in?(KanbanCards::VisibleStageCardsQuery::MATCH_MODES)
+        params[:match_mode]
+      else
+        KanbanCards::VisibleStageCardsQuery::DEFAULT_MATCH_MODE
+      end
   end
 
   def sanitized_search_query

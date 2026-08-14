@@ -168,7 +168,7 @@ RSpec.describe 'Kanban stage cards API', type: :request do
 
       get stage_cards_path,
           headers: agent.create_new_auth_token,
-          params: { inbox_ids: [second_inbox.id], assignee_ids: [second_agent.id] },
+          params: { inbox_ids: [second_inbox.id], assignee_ids: [second_agent.id], match_mode: 'all' },
           as: :json
 
       expect(response).to have_http_status(:success)

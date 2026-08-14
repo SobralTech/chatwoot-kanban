@@ -5,12 +5,14 @@ class KanbanCards::VisibleStageCardsQuery
 
   DEFAULT_LIMIT = 20
   MAX_LIMIT = 50
+  MATCH_MODES = %w[all any].freeze
+  DEFAULT_MATCH_MODE = 'any'.freeze
 
   # rubocop:disable Metrics/ParameterLists
   def initialize(account:, user:, kanban_board:, kanban_stage:, limit: DEFAULT_LIMIT, cursor: nil, visible_inbox_ids: nil,
                  visible_team_ids: nil, account_user: nil, filtered_inbox_ids: nil, filtered_assignee_ids: nil,
                  filtered_card_statuses: nil, filtered_priorities: nil, filtered_due_dates: nil, filtered_labels: nil,
-                 match_mode: 'all', search_query: nil)
+                 match_mode: DEFAULT_MATCH_MODE, search_query: nil)
     @account = account
     @user = user
     @kanban_board = kanban_board
