@@ -18,9 +18,9 @@ const props = defineProps({
     type: Object,
     required: true,
   },
-  activeActionKey: {
-    type: String,
-    default: '',
+  isBusy: {
+    type: Boolean,
+    default: false,
   },
   wonStageId: {
     type: Number,
@@ -190,7 +190,7 @@ const openConversation = event => {
       class="no-drag pointer-events-auto absolute top-1.5 ltr:right-10 rtl:left-10 flex size-8 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 opacity-0 shadow-sm transition-opacity hover:bg-n-alpha-2 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-n-brand group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
       :aria-label="t('KANBAN.CARD.EDIT')"
       :title="t('KANBAN.CARD.EDIT')"
-      :disabled="!!activeActionKey"
+      :disabled="isBusy"
       @click.stop="openDetails"
     >
       <i class="i-lucide-pencil size-5" />
@@ -202,7 +202,7 @@ const openConversation = event => {
       class="no-drag pointer-events-auto absolute top-1.5 ltr:right-1.5 rtl:left-1.5 flex size-8 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-ruby-11 opacity-0 shadow-sm transition-opacity hover:bg-n-ruby-2 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-n-ruby-8 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
       :aria-label="t('KANBAN.ACTIONS.REMOVE_CARD')"
       :title="t('KANBAN.ACTIONS.REMOVE_CARD')"
-      :disabled="!!activeActionKey"
+      :disabled="isBusy"
       @click.stop="emit('removeCard', card)"
     >
       <i class="i-lucide-trash size-5" />
@@ -347,7 +347,7 @@ const openConversation = event => {
             :lost-stage-id="lostStageId"
             :reasons="reasons"
             :lost-reason-required="lostReasonRequired"
-            :disabled="!!activeActionKey"
+            :disabled="isBusy"
             @change="onChangeStatus"
           />
         </span>

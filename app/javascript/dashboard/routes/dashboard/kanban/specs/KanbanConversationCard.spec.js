@@ -69,7 +69,7 @@ const buildManualCard = overrides =>
 
 const mountCard = ({
   card = buildCard(),
-  activeActionKey = '',
+  isBusy = false,
   wonStageId = null,
   lostStageId = null,
   reasons = [],
@@ -78,7 +78,7 @@ const mountCard = ({
   shallowMount(KanbanConversationCard, {
     props: {
       card,
-      activeActionKey,
+      isBusy,
       wonStageId,
       lostStageId,
       reasons,

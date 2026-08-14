@@ -100,7 +100,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def card_params
     params.require(:card).permit(
-      :kanban_stage_id, :position, :subject, :description, :starts_at, :due_at, :priority, :kanban_reason_id, labels: []
+      :kanban_stage_id, :position, :after_card_id, :subject, :description, :starts_at, :due_at, :priority, :kanban_reason_id,
+      labels: []
     )
   end
 
@@ -149,11 +150,30 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     return render json: transition_error, status: :unprocessable_content if transition_error
 
     KanbanCard.transaction do
-      move_kanban_card!(source_stage_id, target_stage, params.dig(:card, :position) || next_card_position(target_stage))
+      move_kanban_card!(source_stage_id, target_stage, resolved_reorder_position(target_stage))
     end
 
     dispatch_kanban_card_reordered_event(source_stage_id)
     render_card
+  end
+
+  def resolved_reorder_position(target_stage)
+    return card_params[:position] if card_params[:position].present?
+    return next_card_position(target_stage) unless card_params.key?(:after_card_id)
+
+    position_after_anchor(target_stage, card_params[:after_card_id])
+  end
+
+  # after_card_id nulo/ausente => topo da etapa.
+  def position_after_anchor(target_stage, after_card_id)
+    return 1 if after_card_id.blank?
+
+    anchor = @kanban_board.kanban_cards.active.find_by(id: after_card_id, kanban_stage_id: target_stage.id)
+    return next_card_position(target_stage) if anchor.nil?
+
+    return anchor.position + 1 unless target_stage.id == @kanban_card.kanban_stage_id
+
+    anchor.position + (anchor.position > @kanban_card.position ? 0 : 1)
   end
 
   def destroy_kanban_card

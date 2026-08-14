@@ -753,6 +753,82 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(second_card.reload.position).to eq(3)
     end
 
+    it 'reorders a card below an anchor in another stage' do
+      destination_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      anchor_card = create_manual_card(
+        kanban_stage: destination_stage,
+        position: 1,
+        subject: 'Destination anchor'
+      )
+      trailing_card = create_manual_card(
+        kanban_stage: destination_stage,
+        position: 2,
+        subject: 'Destination trailing'
+      )
+      moving_card = create_manual_card(position: 1, subject: 'Moving opportunity')
+
+      patch stable_card_url(moving_card, suffix: 'reorder'),
+            headers: agent.create_new_auth_token,
+            params: {
+              card: {
+                kanban_stage_id: destination_stage.id,
+                after_card_id: anchor_card.id
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(moving_card.reload).to have_attributes(
+        kanban_stage_id: destination_stage.id,
+        position: 2
+      )
+      expect(anchor_card.reload.position).to eq(1)
+      expect(trailing_card.reload.position).to eq(3)
+    end
+
+    it 'reorders a card to the top of another stage with a null anchor' do
+      destination_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      existing_card = create_manual_card(
+        kanban_stage: destination_stage,
+        position: 1,
+        subject: 'Existing destination opportunity'
+      )
+      moving_card = create_manual_card(position: 1, subject: 'Top opportunity')
+
+      patch stable_card_url(moving_card, suffix: 'reorder'),
+            headers: agent.create_new_auth_token,
+            params: {
+              card: {
+                kanban_stage_id: destination_stage.id,
+                after_card_id: nil
+              }
+            },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(moving_card.reload).to have_attributes(
+        kanban_stage_id: destination_stage.id,
+        position: 1
+      )
+      expect(existing_card.reload.position).to eq(2)
+    end
+
+    it 'reorders a card down within a stage using an anchor' do
+      moving_card = create_manual_card(position: 1, subject: 'Moving down')
+      anchor_card = create_manual_card(position: 2, subject: 'Downward anchor')
+      trailing_card = create_manual_card(position: 3, subject: 'Trailing opportunity')
+
+      patch stable_card_url(moving_card, suffix: 'reorder'),
+            headers: agent.create_new_auth_token,
+            params: { card: { after_card_id: anchor_card.id } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(anchor_card.reload.position).to eq(1)
+      expect(moving_card.reload.position).to eq(2)
+      expect(trailing_card.reload.position).to eq(3)
+    end
+
     it 'emits kanban.card.reordered with equal source and target stage IDs for same-stage reorder' do
       create_manual_card(position: 1)
       card = create_manual_card(position: 2, subject: 'Second opportunity')
