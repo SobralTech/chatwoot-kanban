@@ -230,6 +230,9 @@ const activeAddItemStage = computed(() =>
 const isInitialLoading = computed(
   () => isFetchingBoards.value && !selectedBoard.value
 );
+const isReloadingBoard = computed(
+  () => isFetchingBoard.value && !!selectedBoard.value
+);
 const currentBoardName = computed(
   () => selectedBoard.value?.name || t('KANBAN.NO_BOARD_SELECTED')
 );
@@ -1718,6 +1721,7 @@ watch(activeBoardId, (boardId, previousBoardId) => {
 
   if (previousBoardId && previousBoardId !== boardId) {
     boardFilters.value = emptyBoardFilters();
+    selectedBoard.value = null;
     searchRequestToken += 1;
     requestGeneration += 1;
     clearTimeout(searchDebounceTimer);
@@ -1957,7 +1961,7 @@ watch(searchInput, () => {
       </div>
 
       <div
-        v-else-if="isInitialLoading || isFetchingBoard"
+        v-else-if="isInitialLoading || (isFetchingBoard && !selectedBoard)"
         class="flex flex-1 items-center justify-center p-6 text-sm text-n-slate-11"
       >
         {{ t('KANBAN.LOADING_BOARD') }}
@@ -2020,6 +2024,11 @@ watch(searchInput, () => {
         <div
           ref="boardScrollContainer"
           class="flex min-h-0 flex-1 overflow-x-auto p-4"
+          :class="
+            isReloadingBoard
+              ? 'opacity-60 pointer-events-none transition-opacity'
+              : 'transition-opacity'
+          "
         >
           <Draggable
             v-model="stageListModel"
