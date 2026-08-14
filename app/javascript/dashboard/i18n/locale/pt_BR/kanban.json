@@ -155,7 +155,6 @@
         "LABEL": "Mover todos os cartões desta lista",
         "TITLE": "Mover todos os cartões",
         "TARGET": "Mover para cá",
-        "CURRENT": "Atual",
         "EMPTY": "Não há listas regulares disponíveis."
       },
       "SORT": {

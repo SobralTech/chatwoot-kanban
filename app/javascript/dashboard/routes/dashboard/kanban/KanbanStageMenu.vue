@@ -1,6 +1,7 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 
@@ -73,15 +74,15 @@ const viewTitle = computed(() => {
       return t('KANBAN.STAGE_MENU.TITLE');
   }
 });
-const isTerminalStage = computed(() =>
-  [props.wonStageId, props.lostStageId].includes(props.stage.id)
-);
+const { isTerminalStage } = useKanbanStageOrder({
+  stages: toRef(props, 'stages'),
+  wonStageId: toRef(props, 'wonStageId'),
+  lostStageId: toRef(props, 'lostStageId'),
+});
+const isCurrentStageTerminal = computed(() => isTerminalStage(props.stage));
 const cardMoveTargets = computed(() =>
   props.stages.filter(
-    stage =>
-      stage.id !== props.stage.id &&
-      stage.id !== props.wonStageId &&
-      stage.id !== props.lostStageId
+    stage => stage.id !== props.stage.id && !isTerminalStage(stage)
   )
 );
 const targetBoardStageCount = computed(() => {
@@ -105,13 +106,12 @@ const cardCount = computed(
   () => props.stage.cardsCount ?? props.stage.cards_count ?? 0
 );
 const canMoveToAnotherBoard = computed(
-  () => !isTerminalStage.value && cardCount.value === 0
+  () => !isCurrentStageTerminal.value && cardCount.value === 0
 );
 const moveDestinationBoards = computed(() =>
-  props.boards.filter(
-    board =>
-      Number(board.id) === currentBoardId.value || canMoveToAnotherBoard.value
-  )
+  canMoveToAnotherBoard.value
+    ? props.boards
+    : props.boards.filter(board => Number(board.id) === currentBoardId.value)
 );
 const canDeleteStage = computed(() => props.stages.length > 1);
 const isBusy = computed(() => !!props.activeActionKey);
@@ -253,7 +253,7 @@ watch(targetBoardId, () => {
 
         <div v-if="view === 'root'" class="p-1">
           <button
-            v-if="!isTerminalStage"
+            v-if="!isCurrentStageTerminal"
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
@@ -283,7 +283,7 @@ watch(targetBoardId, () => {
             {{ t('KANBAN.STAGE_MENU.COPY.LABEL') }}
           </button>
           <button
-            v-if="isAdmin && !isTerminalStage"
+            v-if="isAdmin && !isCurrentStageTerminal"
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
@@ -293,7 +293,8 @@ watch(targetBoardId, () => {
             {{ t('KANBAN.STAGE_MENU.MOVE.LABEL') }}
           </button>
           <button
-            v-if="!isTerminalStage"
+            v-if="!isCurrentStageTerminal"
+            type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
             @click="openView('moveCards')"

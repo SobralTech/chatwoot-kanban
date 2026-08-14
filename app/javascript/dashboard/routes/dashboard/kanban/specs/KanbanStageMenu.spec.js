@@ -89,11 +89,9 @@ describe('KanbanStageMenu', () => {
     );
 
     expect(wrapper.text()).toContain('Qualified');
+    expect(wrapper.text()).not.toContain('Open');
     expect(wrapper.text()).not.toContain('Won');
     expect(wrapper.text()).not.toContain('Lost');
-    expect(wrapper.text()).not.toContain(
-      'KANBAN.STAGE_MENU.MOVE_CARDS.CURRENT'
-    );
   });
 
   it('hides unsupported actions for terminal lists', () => {

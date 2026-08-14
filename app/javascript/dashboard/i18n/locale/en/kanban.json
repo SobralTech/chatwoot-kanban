@@ -155,7 +155,6 @@
         "LABEL": "Move all cards in this list",
         "TITLE": "Move all cards",
         "TARGET": "Move here",
-        "CURRENT": "Current",
         "EMPTY": "There are no regular lists available."
       },
       "SORT": {
