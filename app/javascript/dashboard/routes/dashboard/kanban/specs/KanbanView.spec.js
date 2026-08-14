@@ -65,6 +65,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     deleteStage: vi.fn(),
     getStageCards: vi.fn(),
     deleteCardById: vi.fn(),
+    updateCardAssignees: vi.fn(),
     showCardById: vi.fn(),
   },
 }));
@@ -239,6 +240,9 @@ const mountView = async (
   KanbanBoardsAPI.reorderStage.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.reorderCardById.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.deleteCardById.mockResolvedValue({ data: {} });
+  KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
+    data: { payload: [] },
+  });
   KanbanBoardsAPI.getStageCards.mockResolvedValue({
     data: { cards: [], pagination: buildPagination() },
   });
@@ -279,6 +283,18 @@ const mountView = async (
             card: {
               type: Object,
               required: true,
+            },
+            isBusy: {
+              type: Boolean,
+              default: false,
+            },
+            stages: {
+              type: Array,
+              default: () => [],
+            },
+            assignableUsers: {
+              type: Array,
+              default: () => [],
             },
           },
           template: '<div class="kanban-card-stub" />',
@@ -1505,6 +1521,86 @@ describe('KanbanView drag and drop', () => {
       limit: 20,
     });
     expect(KanbanBoardsAPI.show).toHaveBeenCalledTimes(1);
+  });
+  it('moves a card to the top of another regular stage', async () => {
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('moveToStage', { id: 501, kanbanStageId: 100 }, 200);
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
+      card: {
+        kanban_stage_id: 200,
+        after_card_id: null,
+      },
+    });
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
+      limit: 20,
+    });
+    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
+      limit: 20,
+    });
+    expect(useAlert).toHaveBeenCalledWith('KANBAN.CARD.MOVE_SUCCESS');
+  });
+
+  it('updates visible assignees without reloading the board', async () => {
+    KanbanBoardsAPI.updateCardAssignees.mockResolvedValueOnce({
+      data: {
+        payload: [{ id: 8, name: 'Grace Hopper', avatar_url: 'grace.png' }],
+      },
+    });
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+    KanbanBoardsAPI.show.mockClear();
+
+    cardComponent.vm.$emit(
+      'assignAgent',
+      { id: 501, kanbanStageId: 100, assignees: [] },
+      8
+    );
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardAssignees).toHaveBeenCalledWith(10, 501, [
+      8,
+    ]);
+    expect(findCardDraggables(wrapper)[0].props('list')[0].assignees).toEqual([
+      { id: 8, name: 'Grace Hopper', avatarUrl: 'grace.png' },
+    ]);
+    expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
+    expect(useAlert).toHaveBeenCalledWith('KANBAN.CARD.ASSIGN_SUCCESS');
+  });
+
+  it('only marks the card with an active action as busy', async () => {
+    let resolveAssignment;
+    KanbanBoardsAPI.updateCardAssignees.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveAssignment = resolve;
+      })
+    );
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard({ id: 502, kanban_stage_id: 200 })])
+    );
+    const cards = wrapper.findAllComponents({
+      name: 'KanbanConversationCard',
+    });
+
+    cards[0].vm.$emit(
+      'assignAgent',
+      { id: 501, kanbanStageId: 100, assignees: [] },
+      8
+    );
+    await nextTick();
+
+    expect(cards[0].props('isBusy')).toBe(true);
+    expect(cards[1].props('isBusy')).toBe(false);
+
+    resolveAssignment({ data: { payload: [] } });
+    await flushPromises();
   });
 
   it('opens opportunity modal on card click', async () => {

@@ -58,7 +58,29 @@ const selectedOpportunityCardId = ref(null);
 const opportunityModalRef = ref(null);
 const showUnsavedOpportunityChangesConfirm = ref(false);
 const isSavingOpportunityBeforeExit = ref(false);
-const activeActionKey = ref('');
+const activeActionKeys = ref(new Set());
+const startAction = key => {
+  activeActionKeys.value = new Set(activeActionKeys.value).add(key);
+};
+const endAction = key => {
+  const next = new Set(activeActionKeys.value);
+  next.delete(key);
+  activeActionKeys.value = next;
+};
+const isActionActive = key => activeActionKeys.value.has(key);
+const isBoardBusy = computed(() => activeActionKeys.value.size > 0);
+const stageActionKey = stage => `stage-${stage.id}`;
+const cardActionKey = (action, card) => `${action}-${card.id}`;
+const isCardBusy = (card, stage) =>
+  [
+    cardActionKey('reorder-card', card),
+    cardActionKey('change-status', card),
+    cardActionKey('remove-card', card),
+    cardActionKey('update-priority', card),
+    cardActionKey('move-card', card),
+    cardActionKey('assign-card', card),
+    stageActionKey(stage),
+  ].some(isActionActive);
 const hasError = ref(false);
 const emptyBoardFilters = () => ({
   inboxIds: [],
@@ -267,6 +289,22 @@ const agentFilterOptions = computed(() =>
     label: agent.name || agent.email,
   }))
 );
+const assignableUsers = computed(() => {
+  if (Array.isArray(selectedBoard.value?.assignableUsers)) {
+    return selectedBoard.value.assignableUsers;
+  }
+
+  if (selectedBoard.value?.visibilityMode === 'selected_agents') {
+    const visibleUserIds = (selectedBoard.value.visibleUserIds || []).map(
+      Number
+    );
+    return agents.value.filter(agent =>
+      visibleUserIds.includes(Number(agent.id))
+    );
+  }
+
+  return agents.value;
+});
 const stageListModel = computed({
   get: () => selectedBoard.value?.stages || [],
   set: nextStages => {
@@ -299,9 +337,7 @@ const isSearchLoading = computed(
 );
 const isCardDragDisabled = computed(
   () =>
-    isPersistingCardDrag.value ||
-    !!activeActionKey.value ||
-    hasActiveFilters.value
+    isPersistingCardDrag.value || isBoardBusy.value || hasActiveFilters.value
 );
 const canAddCardInEmptyStage = stage =>
   !isTerminalStage(stage) && !hasActiveFilters.value && !isCardDragging.value;
@@ -1073,14 +1109,15 @@ const cancelEditingStage = () => {
 const updateStage = async stage => {
   const name = String(stageNames.value[stage.id] || '').trim();
   const color = stageColors.value[stage.id] || defaultStageColor;
-  if (!selectedBoard.value?.id || activeActionKey.value) return;
+  const actionKey = stageActionKey(stage);
+  if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
   if (!name) {
     useAlert(t('KANBAN.ACTIONS.STAGE_NAME_REQUIRED'));
     nextTick(() => stageNameInputs.get(stage.id)?.focus());
     return;
   }
 
-  activeActionKey.value = `update-stage-${stage.id}`;
+  startAction(actionKey);
 
   try {
     await KanbanBoardsAPI.updateStage(selectedBoard.value.id, stage.id, {
@@ -1095,7 +1132,7 @@ const updateStage = async stage => {
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.UPDATE_STAGE_ERROR'));
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
@@ -1113,9 +1150,12 @@ const closeRemoveStageConfirmation = () => {
 };
 
 const removeStage = async stage => {
-  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+  const actionKey = stageActionKey(stage);
+  if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
+    return;
+  }
 
-  activeActionKey.value = `remove-stage-${stage.id}`;
+  startAction(actionKey);
 
   try {
     await KanbanBoardsAPI.deleteStage(selectedBoard.value.id, stage.id);
@@ -1124,7 +1164,7 @@ const removeStage = async stage => {
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REMOVE_STAGE_ERROR'));
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
@@ -1138,9 +1178,12 @@ const confirmRemoveStage = async () => {
 };
 
 const copyStage = async (stage, { name }) => {
-  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+  const actionKey = stageActionKey(stage);
+  if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
+    return;
+  }
 
-  activeActionKey.value = `copy-stage-${stage.id}`;
+  startAction(actionKey);
 
   try {
     const response = await KanbanBoardsAPI.copyStage(
@@ -1156,14 +1199,17 @@ const copyStage = async (stage, { name }) => {
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.CREATE_STAGE_ERROR'));
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
 const moveStage = async (stage, { kanbanBoardId, position }) => {
-  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+  const actionKey = stageActionKey(stage);
+  if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
+    return;
+  }
 
-  activeActionKey.value = `move-stage-${stage.id}`;
+  startAction(actionKey);
 
   try {
     await KanbanBoardsAPI.moveStage(selectedBoard.value.id, stage.id, {
@@ -1178,14 +1224,17 @@ const moveStage = async (stage, { kanbanBoardId, position }) => {
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REORDER_STAGE_ERROR'));
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
 const sortStageCards = async (stage, { sortBy }) => {
-  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+  const actionKey = stageActionKey(stage);
+  if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
+    return;
+  }
 
-  activeActionKey.value = `sort-stage-cards-${stage.id}`;
+  startAction(actionKey);
 
   try {
     await KanbanBoardsAPI.sortStageCards(selectedBoard.value.id, stage.id, {
@@ -1196,14 +1245,17 @@ const sortStageCards = async (stage, { sortBy }) => {
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
 const moveAllStageCards = async (stage, { targetStageId }) => {
-  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+  const actionKey = stageActionKey(stage);
+  if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
+    return;
+  }
 
-  activeActionKey.value = `move-stage-cards-${stage.id}`;
+  startAction(actionKey);
 
   try {
     await KanbanBoardsAPI.moveAllStageCards(selectedBoard.value.id, stage.id, {
@@ -1214,7 +1266,7 @@ const moveAllStageCards = async (stage, { targetStageId }) => {
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
@@ -1229,9 +1281,12 @@ const closeRemoveStageCardsConfirmation = () => {
 };
 
 const removeAllStageCards = async stage => {
-  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+  const actionKey = stageActionKey(stage);
+  if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
+    return;
+  }
 
-  activeActionKey.value = `remove-stage-cards-${stage.id}`;
+  startAction(actionKey);
 
   try {
     await KanbanBoardsAPI.deleteAllStageCards(selectedBoard.value.id, stage.id);
@@ -1240,7 +1295,7 @@ const removeAllStageCards = async stage => {
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REMOVE_CARD_ERROR'));
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
@@ -1304,9 +1359,12 @@ const onManualCardCreated = async card => {
 };
 
 const reorderStageByPosition = async (stage, position) => {
-  if (!selectedBoard.value?.id || !stage?.id || activeActionKey.value) return;
+  const actionKey = stageActionKey(stage);
+  if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
+    return;
+  }
 
-  activeActionKey.value = `reorder-stage-${stage.id}`;
+  startAction(actionKey);
 
   try {
     await KanbanBoardsAPI.reorderStage(selectedBoard.value.id, stage.id, {
@@ -1317,7 +1375,7 @@ const reorderStageByPosition = async (stage, position) => {
     showActionError(error, t('KANBAN.ACTIONS.REORDER_STAGE_ERROR'));
     await refreshSelectedBoard();
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
@@ -1459,8 +1517,11 @@ const onCardDragChange = async (stage, event) => {
     appendsToStageEnd || card.position !== destinationPosition;
   if (!stageChanged && !positionChanged) return;
 
+  const actionKey = cardActionKey('reorder-card', card);
+  if (isActionActive(actionKey)) return;
+
   isPersistingCardDrag.value = true;
-  activeActionKey.value = `reorder-card-${card.id}`;
+  startAction(actionKey);
   const payload = {
     card: {
       kanban_stage_id: stage.id,
@@ -1491,7 +1552,7 @@ const onCardDragChange = async (stage, event) => {
     await refreshStageFirstPages([card.kanbanStageId, stage.id]);
   } finally {
     isPersistingCardDrag.value = false;
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
@@ -1520,9 +1581,10 @@ const closeRemoveCardConfirmation = () => {
 };
 
 const removeCard = async card => {
-  if (!selectedBoard.value?.id || activeActionKey.value) return;
+  const actionKey = cardActionKey('remove-card', card);
+  if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
 
-  activeActionKey.value = `remove-card-${card.id}`;
+  startAction(actionKey);
 
   try {
     await KanbanBoardsAPI.deleteCardById(selectedBoard.value.id, card.id);
@@ -1531,7 +1593,7 @@ const removeCard = async card => {
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.REMOVE_CARD_ERROR'));
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
@@ -1545,7 +1607,10 @@ const confirmRemoveCard = async () => {
 };
 
 const updateCardPriority = async (card, priorityValue) => {
-  if (!selectedBoard.value?.id) return;
+  const actionKey = cardActionKey('update-priority', card);
+  if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
+
+  startAction(actionKey);
 
   try {
     await KanbanBoardsAPI.updateCardDetailsById(
@@ -1556,6 +1621,79 @@ const updateCardPriority = async (card, priorityValue) => {
     patchVisibleCard({ id: card.id, card_priority: priorityValue });
   } catch (error) {
     showActionError(error, t('KANBAN.CARD.PRIORITY_UPDATE_ERROR'));
+  } finally {
+    endAction(actionKey);
+  }
+};
+
+const moveCardToStage = async (card, targetStageId) => {
+  const targetStage = stages.value.find(
+    stage => Number(stage.id) === Number(targetStageId)
+  );
+  const actionKey = cardActionKey('move-card', card);
+  if (
+    !selectedBoard.value?.id ||
+    !targetStage ||
+    isTerminalStage(targetStage) ||
+    isActionActive(actionKey)
+  ) {
+    return;
+  }
+
+  startAction(actionKey);
+
+  try {
+    await KanbanBoardsAPI.reorderCardById(selectedBoard.value.id, card.id, {
+      card: {
+        kanban_stage_id: targetStage.id,
+        after_card_id: null,
+      },
+    });
+    await refreshStageFirstPages([card.kanbanStageId, targetStage.id]);
+    useAlert(t('KANBAN.CARD.MOVE_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
+  } finally {
+    endAction(actionKey);
+  }
+};
+
+const assignAgent = async (card, userId) => {
+  const actionKey = cardActionKey('assign-card', card);
+  if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
+
+  const numericUserId = Number(userId);
+  const currentAssigneeIds = (card.assignees || []).map(assignee =>
+    Number(assignee.id)
+  );
+  const nextAssigneeIds = currentAssigneeIds.includes(numericUserId)
+    ? currentAssigneeIds.filter(id => id !== numericUserId)
+    : [...currentAssigneeIds, numericUserId];
+
+  startAction(actionKey);
+
+  try {
+    const response = await KanbanBoardsAPI.updateCardAssignees(
+      selectedBoard.value.id,
+      card.id,
+      nextAssigneeIds
+    );
+    const responseAssignees = response.data?.payload;
+    const nextAssignees = Array.isArray(responseAssignees)
+      ? normalizePayload(responseAssignees)
+      : assignableUsers.value.filter(user =>
+          nextAssigneeIds.includes(Number(user.id))
+        );
+    patchVisibleCard({
+      id: card.id,
+      kanbanStageId: card.kanbanStageId,
+      assignees: nextAssignees,
+    });
+    useAlert(t('KANBAN.CARD.ASSIGN_SUCCESS'));
+  } catch (error) {
+    useAlert(getErrorMessage(error, t('KANBAN.CARD.ASSIGN_ERROR')));
+  } finally {
+    endAction(actionKey);
   }
 };
 
@@ -1563,9 +1701,10 @@ const onChangeCardStatus = async (
   card,
   { targetStageId, reasonId, reopen }
 ) => {
-  if (!selectedBoard.value?.id || activeActionKey.value) return;
+  const actionKey = cardActionKey('change-status', card);
+  if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
 
-  activeActionKey.value = `change-status-${card.id}`;
+  startAction(actionKey);
 
   try {
     const response = reopen
@@ -1591,7 +1730,7 @@ const onChangeCardStatus = async (
       getCardStatusChangeErrorMessage(error, { reopen, t, getErrorMessage })
     );
   } finally {
-    activeActionKey.value = '';
+    endAction(actionKey);
   }
 };
 
@@ -2450,7 +2589,7 @@ watch(searchInput, () => {
                         :won-stage-id="selectedBoard?.wonStageId"
                         :lost-stage-id="selectedBoard?.lostStageId"
                         :is-admin="isAdmin"
-                        :active-action-key="activeActionKey"
+                        :is-busy="isActionActive(stageActionKey(stage))"
                         @add-card="toggleAddItemPicker(stage)"
                         @edit="startEditingStage(stage)"
                         @copy="copyStage(stage, $event)"
@@ -2500,13 +2639,18 @@ watch(searchInput, () => {
                             card.id === highlightedCreatedCardId,
                         }"
                         :card="card"
-                        :active-action-key="activeActionKey"
+                        :is-busy="isCardBusy(card, stage)"
+                        :stages="stages"
+                        :assignable-users="assignableUsers"
                         :won-stage-id="selectedBoard?.wonStageId"
                         :lost-stage-id="selectedBoard?.lostStageId"
                         :reasons="selectedBoard?.reasons || []"
                         :lost-reason-required="
                           selectedBoard?.lostReasonRequired
                         "
+                        @open-conversation-in-new-tab="openConversationInNewTab"
+                        @move-to-stage="moveCardToStage"
+                        @assign-agent="assignAgent"
                         @open-details="openDetails"
                         @open-conversation="openConversation"
                         @remove-card="openRemoveCardConfirmation"
@@ -2522,7 +2666,7 @@ watch(searchInput, () => {
                           data-testid="kanban-empty-stage-add-card"
                           :data-stage-id="stage.id"
                           class="flex min-h-24 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-n-weak px-3 py-6 text-sm font-medium text-n-slate-11 hover:border-n-brand hover:bg-n-alpha-1 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                          :disabled="!!activeActionKey"
+                          :disabled="isActionActive(stageActionKey(stage))"
                           @click="toggleAddItemPicker(stage)"
                         >
                           <i class="i-lucide-plus size-5" />
@@ -2573,7 +2717,7 @@ watch(searchInput, () => {
                     data-testid="kanban-stage-add-card"
                     :data-stage-id="stage.id"
                     class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-n-slate-11 hover:bg-n-alpha-1 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="!!activeActionKey"
+                    :disabled="isActionActive(stageActionKey(stage))"
                     @click="toggleAddItemPicker(stage)"
                   >
                     <i class="i-lucide-plus size-4" />

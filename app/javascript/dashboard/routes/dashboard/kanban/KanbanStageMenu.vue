@@ -31,9 +31,9 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  activeActionKey: {
-    type: String,
-    default: '',
+  isBusy: {
+    type: Boolean,
+    default: false,
   },
 });
 
@@ -131,7 +131,7 @@ const moveDestinationBoardOptions = computed(() =>
   }))
 );
 const canDeleteStage = computed(() => props.stages.length > 1);
-const isBusy = computed(() => !!props.activeActionKey);
+const isBusy = computed(() => props.isBusy);
 const sortOptions = computed(() => [
   {
     value: 'created_at_desc',
