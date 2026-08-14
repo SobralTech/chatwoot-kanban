@@ -68,7 +68,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
       )
     end
 
-    it 'inserts the new stage at the beginning and shifts existing active stages' do
+    it 'appends the new stage after the existing active stages' do
       first_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'First', position: 1)
       second_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Second', position: 2)
 
@@ -78,9 +78,25 @@ RSpec.describe 'Kanban Stages API', type: :request do
            as: :json
 
       expect(response).to have_http_status(:success)
+      expect(response.parsed_body['position']).to eq(3)
+      expect(first_stage.reload.position).to eq(1)
+      expect(second_stage.reload.position).to eq(2)
+    end
+
+    it 'inserts the new stage before the won and lost stages' do
+      won_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Won', position: 1)
+      lost_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Lost', position: 2)
+      kanban_board.update!(won_stage: won_stage, lost_stage: lost_stage)
+
+      post "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages",
+           headers: administrator.create_new_auth_token,
+           params: { stage: { name: 'Proposal', color: '#12A594' } },
+           as: :json
+
+      expect(response).to have_http_status(:success)
       expect(response.parsed_body['position']).to eq(1)
-      expect(first_stage.reload.position).to eq(2)
-      expect(second_stage.reload.position).to eq(3)
+      expect(won_stage.reload.position).to eq(2)
+      expect(lost_stage.reload.position).to eq(3)
     end
 
     it 'does not shift inactive stages or stages from other boards' do
@@ -108,7 +124,7 @@ RSpec.describe 'Kanban Stages API', type: :request do
            as: :json
 
       expect(response).to have_http_status(:success)
-      expect(first_stage.reload.position).to eq(2)
+      expect(first_stage.reload.position).to eq(1)
       expect(inactive_stage.reload.position).to eq(5)
       expect(other_board_stage.reload.position).to eq(5)
     end

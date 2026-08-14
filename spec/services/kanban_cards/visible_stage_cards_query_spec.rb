@@ -130,10 +130,10 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.next_cursor).to eq({ after_id: filtered_cards.first.id })
     end
 
-    it 'filters conversation cards by assignee ids when provided' do
+    it 'filters cards by assignee ids when provided' do
       second_agent = create(:user, account: account, role: :agent)
-      create_conversation_card(position: 1, assignee: agent)
-      filtered_card = create_conversation_card(position: 2, assignee: second_agent)
+      create_conversation_card(position: 1, assignees: [agent])
+      filtered_card = create_conversation_card(position: 2, assignees: [second_agent])
 
       result = query(filtered_assignee_ids: [second_agent.id]).call
 
@@ -141,12 +141,33 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.total_count).to eq(1)
     end
 
+    it 'matches cards that carry any of the filtered assignees' do
+      second_agent = create(:user, account: account, role: :agent)
+      create_conversation_card(position: 1, assignees: [agent])
+      shared_card = create_conversation_card(position: 2, assignees: [agent, second_agent])
+
+      result = query(filtered_assignee_ids: [second_agent.id]).call
+
+      expect(result.cards).to eq([shared_card])
+      expect(result.total_count).to eq(1)
+    end
+
+    it 'ignores the conversation assignee when filtering by assignee ids' do
+      second_agent = create(:user, account: account, role: :agent)
+      create_conversation_card(position: 1, assignee: second_agent)
+
+      result = query(filtered_assignee_ids: [second_agent.id]).call
+
+      expect(result.cards).to be_empty
+      expect(result.total_count).to eq(0)
+    end
+
     it 'keeps cursor and has_more coherent for assignee filtered cards' do
       second_agent = create(:user, account: account, role: :agent)
-      create_conversation_card(position: 1, assignee: agent)
+      create_conversation_card(position: 1, assignees: [agent])
       filtered_cards = [
-        create_conversation_card(position: 2, assignee: second_agent),
-        create_conversation_card(position: 3, assignee: second_agent)
+        create_conversation_card(position: 2, assignees: [second_agent]),
+        create_conversation_card(position: 3, assignees: [second_agent])
       ]
 
       result = query(limit: 1, filtered_assignee_ids: [second_agent.id]).call
@@ -161,9 +182,9 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       second_agent = create(:user, account: account, role: :agent)
       second_inbox = create(:inbox, account: account)
       create(:inbox_member, user: agent, inbox: second_inbox)
-      create_conversation_card(position: 1, inbox: inbox, assignee: second_agent)
-      filtered_card = create_conversation_card(position: 2, inbox: second_inbox, assignee: second_agent)
-      create_conversation_card(position: 3, inbox: second_inbox, assignee: agent)
+      create_conversation_card(position: 1, inbox: inbox, assignees: [second_agent])
+      filtered_card = create_conversation_card(position: 2, inbox: second_inbox, assignees: [second_agent])
+      create_conversation_card(position: 3, inbox: second_inbox, assignees: [agent])
 
       result = query(filtered_inbox_ids: [second_inbox.id], filtered_assignee_ids: [second_agent.id]).call
 
@@ -248,13 +269,13 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.cards).to eq([high_priority_card, labeled_card])
     end
 
-    it 'excludes manual cards when assignee filter is active' do
-      manual_card = create_visible_card(position: 1)
-      create_conversation_card(position: 2, assignee: agent)
+    it 'keeps manual cards when they carry the filtered assignee' do
+      manual_card = create_visible_card(position: 1, assignees: [agent])
+      create_visible_card(position: 2)
 
       result = query(filtered_assignee_ids: [agent.id]).call
 
-      expect(result.cards).not_to include(manual_card)
+      expect(result.cards).to eq([manual_card])
       expect(result.total_count).to eq(1)
     end
 
@@ -491,7 +512,8 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
   end
 
   def create_visible_card(attributes = {})
-    create(
+    card_assignees = attributes.delete(:assignees)
+    card = create(
       :kanban_card,
       {
         account: account,
@@ -503,6 +525,8 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
         position: 1
       }.merge(attributes)
     )
+    card.update_assignees!(card_assignees.map(&:id)) if card_assignees.present?
+    card
   end
 
   def create_conversation_card(attributes = {})

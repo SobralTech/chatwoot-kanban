@@ -28,6 +28,7 @@ import {
   removeKanbanBoardSnapshot,
   saveKanbanBoardSnapshot,
 } from 'dashboard/helper/kanbanBoardSnapshot';
+import { applyMatchModeConstraints } from 'dashboard/helper/kanbanBoardFilters';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -63,15 +64,16 @@ const emptyBoardFilters = () => ({
   labels: [],
   matchMode: 'any',
 });
-const normalizeBoardFilters = filters => ({
-  inboxIds: [...new Set(filters?.inboxIds || [])],
-  assigneeIds: [...new Set(filters?.assigneeIds || [])],
-  cardStatuses: [...new Set(filters?.cardStatuses || [])],
-  priorities: [...new Set(filters?.priorities || [])],
-  dueDates: [...new Set(filters?.dueDates || [])],
-  labels: [...new Set(filters?.labels || [])],
-  matchMode: filters?.matchMode === 'all' ? 'all' : 'any',
-});
+const normalizeBoardFilters = filters =>
+  applyMatchModeConstraints({
+    inboxIds: [...new Set(filters?.inboxIds || [])],
+    assigneeIds: [...new Set(filters?.assigneeIds || [])],
+    cardStatuses: [...new Set(filters?.cardStatuses || [])],
+    priorities: [...new Set(filters?.priorities || [])],
+    dueDates: [...new Set(filters?.dueDates || [])],
+    labels: [...new Set(filters?.labels || [])],
+    matchMode: filters?.matchMode === 'all' ? 'all' : 'any',
+  });
 const boardFilters = ref(emptyBoardFilters());
 const isBoardDropdownOpen = ref(false);
 const editingStageId = ref(null);
@@ -974,7 +976,7 @@ const moveStage = async (stage, { kanbanBoardId, position }) => {
 
   try {
     await KanbanBoardsAPI.moveStage(selectedBoard.value.id, stage.id, {
-      kanban_board_id: kanbanBoardId,
+      target_kanban_board_id: kanbanBoardId,
       position,
     });
     await Promise.all([

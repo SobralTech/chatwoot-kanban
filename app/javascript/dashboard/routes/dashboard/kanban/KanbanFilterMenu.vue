@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useMapGetter } from 'dashboard/composables/store';
+import { SINGLE_VALUE_FILTER_KEYS } from 'dashboard/helper/kanbanBoardFilters';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 
@@ -87,15 +88,24 @@ const filterGroups = computed(() => [
 
 const selectedValues = key => props.modelValue[key] || [];
 const isSelected = (key, value) => selectedValues(key).includes(value);
+const isSingleValueGroup = key =>
+  props.modelValue.matchMode === 'all' &&
+  SINGLE_VALUE_FILTER_KEYS.includes(key);
 
-const updateFilter = (key, value, selected) => {
+const nextValues = (key, value, selected) => {
+  if (isSingleValueGroup(key)) return selected ? [value] : [];
+
   const values = new Set(selectedValues(key));
   if (selected) values.add(value);
   else values.delete(value);
 
+  return [...values];
+};
+
+const updateFilter = (key, value, selected) => {
   emit('update:modelValue', {
     ...props.modelValue,
-    [key]: [...values],
+    [key]: nextValues(key, value, selected),
   });
 };
 
@@ -149,11 +159,19 @@ const updateMatchMode = event => {
               'border-b border-n-weak': index < filterGroups.length - 1,
             }"
           >
-            <h3
-              class="mb-2 text-xs font-semibold uppercase tracking-wide text-n-slate-10"
-            >
-              {{ group.title }}
-            </h3>
+            <div class="mb-2">
+              <h3
+                class="text-xs font-semibold uppercase tracking-wide text-n-slate-10"
+              >
+                {{ group.title }}
+              </h3>
+              <p
+                v-if="isSingleValueGroup(group.key)"
+                class="mt-1 text-xs normal-case text-n-slate-10"
+              >
+                {{ t('KANBAN.FILTERS.SINGLE_VALUE_HINT') }}
+              </p>
+            </div>
             <label
               v-for="option in group.options"
               :key="option.value"

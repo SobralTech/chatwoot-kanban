@@ -73,7 +73,7 @@ describe('KanbanStageMenu', () => {
   });
 
   it('excludes the source and terminal lists from bulk move destinations', async () => {
-    const stage = buildStage();
+    const stage = buildStage({ cardsCount: 2 });
     const qualified = buildStage({ id: 11, name: 'Qualified' });
     const won = buildStage({ id: 20, name: 'Won' });
     const lost = buildStage({ id: 30, name: 'Lost' });
@@ -111,12 +111,25 @@ describe('KanbanStageMenu', () => {
   });
 
   it('hides list deletion when it is the only list', () => {
-    const stage = buildStage();
-    const wrapper = mountMenu({ stages: [stage] });
+    const stage = buildStage({ cardsCount: 2 });
+    const wrapper = mountMenu({ stage, stages: [stage] });
 
     expect(
       findButton(wrapper, 'KANBAN.STAGE_MENU.DELETE_STAGE')
     ).toBeUndefined();
     expect(findButton(wrapper, 'KANBAN.STAGE_MENU.DELETE_CARDS')).toBeDefined();
+  });
+
+  it('hides card actions for an empty list', () => {
+    const wrapper = mountMenu({ stage: buildStage({ cardsCount: 0 }) });
+
+    expect(findButton(wrapper, 'KANBAN.STAGE_MENU.SORT.LABEL')).toBeUndefined();
+    expect(
+      findButton(wrapper, 'KANBAN.STAGE_MENU.DELETE_CARDS')
+    ).toBeUndefined();
+    expect(
+      findButton(wrapper, 'KANBAN.STAGE_MENU.MOVE_CARDS.LABEL')
+    ).toBeUndefined();
+    expect(findButton(wrapper, 'KANBAN.STAGE_MENU.ADD_CARD')).toBeDefined();
   });
 });

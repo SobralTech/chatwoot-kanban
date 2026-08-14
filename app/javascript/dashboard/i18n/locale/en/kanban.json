@@ -105,6 +105,7 @@
       "MATCH_MODE": "Match cards",
       "MATCH_ALL": "Match all",
       "MATCH_ANY": "Match any",
+      "SINGLE_VALUE_HINT": "Only one value in \"Match all\" mode.",
       "STATUS": {
         "OPEN": "Open",
         "WON": "Won",

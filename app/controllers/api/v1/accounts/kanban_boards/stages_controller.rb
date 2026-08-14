@@ -118,13 +118,17 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   private
 
   def fetch_kanban_board
+    @kanban_board = find_kanban_board(params[:kanban_board_id])
+  end
+
+  def find_kanban_board(board_id)
     # See KanbanBoardsController#fetch_kanban_board: admins editing a draft board (not yet
     # activated) need to manage its stages before it becomes active.
-    @kanban_board = if Current.account_user&.administrator?
-                      KanbanBoard.where(account_id: Current.account.id).find(params[:kanban_board_id])
-                    else
-                      policy_scope(KanbanBoard).find(params[:kanban_board_id])
-                    end
+    if Current.account_user&.administrator?
+      KanbanBoard.where(account_id: Current.account.id).find(board_id)
+    else
+      policy_scope(KanbanBoard).find(board_id)
+    end
   end
 
   def authorize_kanban_board_update
@@ -165,10 +169,12 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     @kanban_board.update!(attributes) if attributes.present?
   end
 
+  # The destination board arrives as target_kanban_board_id: :kanban_board_id is the route
+  # segment for the source board and would always shadow a body param of the same name.
   def target_kanban_board
-    return if params[:kanban_board_id].blank?
+    return if params[:target_kanban_board_id].blank?
 
-    Current.account.kanban_boards.find(params[:kanban_board_id])
+    find_kanban_board(params[:target_kanban_board_id]).tap { |board| authorize board, :update? }
   end
 
   def requested_target_position(target_board)

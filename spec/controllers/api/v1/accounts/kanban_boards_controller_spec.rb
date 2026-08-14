@@ -251,8 +251,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
       inbox = create(:inbox, account: account)
       second_agent = create(:user, account: account, role: :agent)
       create(:inbox_member, user: agent, inbox: inbox)
-      create_board_listing_conversation_card(stage, inbox, assignee: agent, position: 1)
-      filtered_card = create_board_listing_conversation_card(stage, inbox, assignee: second_agent, position: 2)
+      create_board_listing_conversation_card(stage, inbox, assignees: [agent], position: 1)
+      filtered_card = create_board_listing_conversation_card(stage, inbox, assignees: [second_agent], position: 2)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
           headers: agent.create_new_auth_token,
@@ -283,9 +283,9 @@ RSpec.describe 'Kanban Boards API', type: :request do
       second_inbox = create(:inbox, account: account)
       create(:inbox_member, user: agent, inbox: inbox)
       create(:inbox_member, user: agent, inbox: second_inbox)
-      create_board_listing_conversation_card(stage, inbox, assignee: second_agent, position: 1)
-      filtered_card = create_board_listing_conversation_card(stage, second_inbox, assignee: second_agent, position: 2)
-      create_board_listing_conversation_card(stage, second_inbox, assignee: agent, position: 3)
+      create_board_listing_conversation_card(stage, inbox, assignees: [second_agent], position: 1)
+      filtered_card = create_board_listing_conversation_card(stage, second_inbox, assignees: [second_agent], position: 2)
+      create_board_listing_conversation_card(stage, second_inbox, assignees: [agent], position: 3)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
           headers: agent.create_new_auth_token,
@@ -298,12 +298,13 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response_stage['pagination']['total_count']).to eq(1)
     end
 
-    it 'excludes manual cards when filtering embedded cards by assignee ids' do
+    it 'keeps manual cards when they carry the filtered assignee' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       inbox = create(:inbox, account: account)
       create(:inbox_member, user: agent, inbox: inbox)
       manual_card = create_board_listing_manual_cards(stage, inbox, 1).first
-      conversation_card = create_board_listing_conversation_card(stage, inbox, assignee: agent, position: 2)
+      manual_card.update_assignees!([agent.id])
+      unassigned_card = create_board_listing_conversation_card(stage, inbox, assignee: agent, position: 2)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
           headers: agent.create_new_auth_token,
@@ -312,8 +313,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       response_stage = response.parsed_body['stages'].first
       expect(response).to have_http_status(:success)
-      expect(response_stage['cards'].pluck('id')).to eq([conversation_card.id])
-      expect(response_stage['cards'].pluck('id')).not_to include(manual_card.id)
+      expect(response_stage['cards'].pluck('id')).to eq([manual_card.id])
+      expect(response_stage['cards'].pluck('id')).not_to include(unassigned_card.id)
     end
 
     it 'returns has_more false for stages with at most 20 cards' do
@@ -1458,10 +1459,10 @@ RSpec.describe 'Kanban Boards API', type: :request do
     end
   end
 
-  def create_board_listing_conversation_card(stage, inbox, assignee:, position:)
+  def create_board_listing_conversation_card(stage, inbox, position:, assignee: nil, assignees: [])
     contact = create(:contact, account: account)
     conversation = create(:conversation, account: account, inbox: inbox, contact: contact, assignee: assignee)
-    create(
+    card = create(
       :kanban_card,
       :conversation_origin,
       account: account,
@@ -1470,6 +1471,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
       conversation: conversation,
       position: position
     )
+    card.update_assignees!(assignees.map(&:id)) if assignees.present?
+    card
   end
 
   def query_budget_board_listing_context

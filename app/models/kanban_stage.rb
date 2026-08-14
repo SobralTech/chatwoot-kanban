@@ -40,9 +40,11 @@ class KanbanStage < ApplicationRecord
   scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
 
   def self.next_active_position(kanban_board)
-    return 1 if special_stage_ids(kanban_board).blank?
+    special_ids = special_stage_ids(kanban_board)
+    stages = kanban_board.kanban_stages.active
+    stages = stages.where.not(id: special_ids) if special_ids.present?
 
-    kanban_board.kanban_stages.active.where.not(id: special_stage_ids(kanban_board)).maximum(:position).to_i + 1
+    stages.maximum(:position).to_i + 1
   end
 
   def self.normalize_positions_for_board!(kanban_board)

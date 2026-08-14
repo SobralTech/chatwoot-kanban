@@ -105,6 +105,7 @@
       "MATCH_MODE": "Correspondência dos cartões",
       "MATCH_ALL": "Corresponder a todos",
       "MATCH_ANY": "Corresponder a qualquer um",
+      "SINGLE_VALUE_HINT": "Apenas um valor no modo \"Corresponder a todos\".",
       "STATUS": {
         "OPEN": "Aberto",
         "WON": "Ganho",

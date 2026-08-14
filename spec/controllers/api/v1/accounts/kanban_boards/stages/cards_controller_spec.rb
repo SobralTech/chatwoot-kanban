@@ -114,10 +114,10 @@ RSpec.describe 'Kanban stage cards API', type: :request do
 
     it 'filters cards and pagination by assignee ids' do
       second_agent = create(:user, account: account, role: :agent)
-      create_conversation_card(position: 1, assignee: agent)
+      create_conversation_card(position: 1, assignees: [agent])
       filtered_cards = [
-        create_conversation_card(position: 2, assignee: second_agent),
-        create_conversation_card(position: 3, assignee: second_agent)
+        create_conversation_card(position: 2, assignees: [second_agent]),
+        create_conversation_card(position: 3, assignees: [second_agent])
       ]
 
       get stage_cards_path,
@@ -135,7 +135,7 @@ RSpec.describe 'Kanban stage cards API', type: :request do
     end
 
     it 'ignores duplicate assignee ids in the filter' do
-      card = create_conversation_card(position: 1, assignee: agent)
+      card = create_conversation_card(position: 1, assignees: [agent])
 
       get stage_cards_path,
           headers: agent.create_new_auth_token,
@@ -162,9 +162,9 @@ RSpec.describe 'Kanban stage cards API', type: :request do
       second_agent = create(:user, account: account, role: :agent)
       second_inbox = create(:inbox, account: account)
       create(:inbox_member, user: agent, inbox: second_inbox)
-      create_conversation_card(position: 1, inbox: inbox, assignee: second_agent)
-      filtered_card = create_conversation_card(position: 2, inbox: second_inbox, assignee: second_agent)
-      create_conversation_card(position: 3, inbox: second_inbox, assignee: agent)
+      create_conversation_card(position: 1, inbox: inbox, assignees: [second_agent])
+      filtered_card = create_conversation_card(position: 2, inbox: second_inbox, assignees: [second_agent])
+      create_conversation_card(position: 3, inbox: second_inbox, assignees: [agent])
 
       get stage_cards_path,
           headers: agent.create_new_auth_token,
@@ -176,9 +176,9 @@ RSpec.describe 'Kanban stage cards API', type: :request do
       expect(response.parsed_body['pagination']['total_count']).to eq(1)
     end
 
-    it 'excludes manual cards when assignee filter is active' do
-      manual_card = create_visible_card(position: 1)
-      conversation_card = create_conversation_card(position: 2, assignee: agent)
+    it 'keeps manual cards when they carry the filtered assignee' do
+      manual_card = create_visible_card(position: 1, assignees: [agent])
+      unassigned_card = create_visible_card(position: 2)
 
       get stage_cards_path,
           headers: agent.create_new_auth_token,
@@ -186,8 +186,8 @@ RSpec.describe 'Kanban stage cards API', type: :request do
           as: :json
 
       expect(response).to have_http_status(:success)
-      expect(response.parsed_body['cards'].pluck('id')).to eq([conversation_card.id])
-      expect(response.parsed_body['cards'].pluck('id')).not_to include(manual_card.id)
+      expect(response.parsed_body['cards'].pluck('id')).to eq([manual_card.id])
+      expect(response.parsed_body['cards'].pluck('id')).not_to include(unassigned_card.id)
       expect(response.parsed_body['pagination']['total_count']).to eq(1)
     end
 
@@ -385,7 +385,8 @@ RSpec.describe 'Kanban stage cards API', type: :request do
   end
 
   def create_visible_card(attributes = {})
-    create(
+    card_assignees = attributes.delete(:assignees)
+    card = create(
       :kanban_card,
       {
         account: account,
@@ -397,6 +398,8 @@ RSpec.describe 'Kanban stage cards API', type: :request do
         position: 1
       }.merge(attributes)
     )
+    card.update_assignees!(card_assignees.map(&:id)) if card_assignees.present?
+    card
   end
 
   def create_conversation_card(attributes = {})

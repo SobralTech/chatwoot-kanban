@@ -96,15 +96,19 @@ const targetBoardStageCount = computed(() => {
     0
   );
 });
-const positionOptions = computed(() =>
-  Array.from(
-    { length: targetBoardStageCount.value + 1 },
-    (_, index) => index + 1
-  )
-);
+const positionOptions = computed(() => {
+  // Moving within the same board reuses the slot the stage already occupies.
+  const isSameBoard = Number(targetBoardId.value) === currentBoardId.value;
+  const slots = isSameBoard
+    ? targetBoardStageCount.value
+    : targetBoardStageCount.value + 1;
+
+  return Array.from({ length: slots }, (_, index) => index + 1);
+});
 const cardCount = computed(
   () => props.stage.cardsCount ?? props.stage.cards_count ?? 0
 );
+const hasCards = computed(() => cardCount.value > 0);
 const canMoveToAnotherBoard = computed(
   () => !isCurrentStageTerminal.value && cardCount.value === 0
 );
@@ -293,7 +297,7 @@ watch(targetBoardId, () => {
             {{ t('KANBAN.STAGE_MENU.MOVE.LABEL') }}
           </button>
           <button
-            v-if="!isCurrentStageTerminal"
+            v-if="!isCurrentStageTerminal && hasCards"
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
@@ -303,6 +307,7 @@ watch(targetBoardId, () => {
             {{ t('KANBAN.STAGE_MENU.MOVE_CARDS.LABEL') }}
           </button>
           <button
+            v-if="hasCards"
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
@@ -311,7 +316,10 @@ watch(targetBoardId, () => {
             <i class="i-lucide-arrow-down-up size-4" />
             {{ t('KANBAN.STAGE_MENU.SORT.LABEL') }}
           </button>
-          <div v-if="isAdmin" class="my-1 border-t border-n-weak" />
+          <div
+            v-if="isAdmin && (canDeleteStage || hasCards)"
+            class="my-1 border-t border-n-weak"
+          />
           <button
             v-if="isAdmin && canDeleteStage"
             type="button"
@@ -323,7 +331,7 @@ watch(targetBoardId, () => {
             {{ t('KANBAN.STAGE_MENU.DELETE_STAGE') }}
           </button>
           <button
-            v-if="isAdmin"
+            v-if="isAdmin && hasCards"
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"

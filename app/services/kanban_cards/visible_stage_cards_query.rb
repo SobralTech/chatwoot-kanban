@@ -109,8 +109,14 @@ class KanbanCards::VisibleStageCardsQuery
     card_table[:inbox_id].in(filtered_inbox_ids) if filtered_inbox_ids.present?
   end
 
+  # Cards carry their own assignees (and render them); the conversation assignee is a
+  # different, single-valued thing that manual cards do not have at all.
   def assignee_condition
-    conversation_table[:assignee_id].in(filtered_assignee_ids) if filtered_assignee_ids.present?
+    card_table[:id].in(card_ids_with_assignees) if filtered_assignee_ids.present?
+  end
+
+  def card_ids_with_assignees
+    KanbanCardAssignee.where(user_id: filtered_assignee_ids).select(:kanban_card_id).arel
   end
 
   def card_status_condition
