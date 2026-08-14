@@ -228,6 +228,8 @@ const isCardDragDisabled = computed(
 );
 const canAddCardInEmptyStage = stage =>
   !isTerminalStage(stage) && !hasActiveFilters.value && !isCardDragging.value;
+const canAddCardInStageFooter = stage =>
+  !isTerminalStage(stage) && stage.cards.length > 0;
 const emptyCardsLabel = computed(() =>
   hasActiveFilters.value
     ? t('KANBAN.EMPTY_CARDS_FILTERED')
@@ -1648,9 +1650,9 @@ watch(searchInput, () => {
   <main class="flex h-full min-h-0 w-full bg-n-surface-1 text-n-slate-12">
     <section class="flex min-w-0 flex-1 flex-col">
       <header
-        class="flex min-h-16 flex-wrap items-center justify-between gap-4 border-b border-n-weak px-6 py-3"
+        class="flex min-h-16 flex-wrap items-center justify-between gap-2 border-b border-n-weak px-4 py-3 md:px-6"
       >
-        <div class="flex min-w-0 flex-1 items-center gap-1">
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1">
           <NextButton
             data-testid="kanban-back-to-overview"
             icon="i-lucide-chevron-left"
@@ -1667,12 +1669,12 @@ watch(searchInput, () => {
               <button
                 type="button"
                 data-testid="kanban-board-switcher"
-                class="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xl font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+                class="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md px-1 py-1 text-left text-base font-medium text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="!hasBoards"
                 @click="isBoardDropdownOpen = hasBoards && !isBoardDropdownOpen"
               >
                 <span class="min-w-0 truncate">{{ currentBoardName }}</span>
-                <i class="i-lucide-chevron-down size-5 text-n-slate-11" />
+                <i class="i-lucide-chevron-down size-4 text-n-slate-11" />
               </button>
               <div
                 v-if="isBoardDropdownOpen"
@@ -1713,7 +1715,7 @@ watch(searchInput, () => {
           </OnClickOutside>
           <div
             v-if="selectedBoard"
-            class="w-64 max-w-full flex-none ltr:ml-2 rtl:mr-2"
+            class="min-w-[9rem] max-w-64 grow basis-36 ltr:ml-2 rtl:mr-2"
           >
             <Input
               v-model="searchInput"
@@ -1742,26 +1744,23 @@ watch(searchInput, () => {
           <template v-if="selectedBoard">
             <div
               data-testid="kanban-filter-menu-container"
-              class="flex items-center gap-1"
+              class="flex items-center overflow-hidden rounded-lg"
+              :class="{
+                'border border-n-weak bg-n-alpha-1': hasActiveBoardFilters,
+              }"
             >
               <KanbanFilterMenu
                 :model-value="boardFilters"
                 :inbox-options="inboxFilterOptions"
                 :agent-options="agentFilterOptions"
+                :active-count="activeBoardFilterCount"
                 @update:model-value="updateBoardFilters"
               />
-              <span
-                v-if="activeBoardFilterCount"
-                data-testid="kanban-filter-count"
-                class="flex size-5 items-center justify-center rounded-full bg-n-brand text-xs font-semibold text-white"
-              >
-                {{ activeBoardFilterCount }}
-              </span>
               <button
                 v-if="hasActiveBoardFilters"
                 type="button"
                 data-testid="kanban-clear-filters"
-                class="rounded-md px-2 py-1 text-sm font-medium text-n-brand hover:bg-n-alpha-2"
+                class="h-10 border-n-weak px-3 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-2 ltr:border-l rtl:border-r"
                 @click="clearBoardFilters"
               >
                 {{ t('KANBAN.FILTERS.CLEAR_ALL') }}
@@ -1781,12 +1780,13 @@ watch(searchInput, () => {
             <button
               type="button"
               data-testid="kanban-create-stage-toggle"
-              class="flex items-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              class="flex size-10 items-center justify-center rounded-lg bg-n-brand text-white disabled:cursor-not-allowed disabled:opacity-50"
+              :aria-label="t('KANBAN.ACTIONS.CREATE_STAGE')"
+              :title="t('KANBAN.ACTIONS.CREATE_STAGE')"
               :disabled="isCreatingStage"
               @click="createStage"
             >
               <i class="i-lucide-plus size-4" />
-              {{ t('KANBAN.ACTIONS.CREATE_STAGE') }}
             </button>
           </template>
         </div>
@@ -2076,6 +2076,23 @@ watch(searchInput, () => {
                     <span v-else>{{
                       t('KANBAN.ACTIONS.LOAD_MORE_CARDS')
                     }}</span>
+                  </button>
+                </div>
+
+                <div
+                  v-if="canAddCardInStageFooter(stage)"
+                  class="border-t border-n-weak p-2"
+                >
+                  <button
+                    type="button"
+                    data-testid="kanban-stage-add-card"
+                    :data-stage-id="stage.id"
+                    class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-n-slate-11 hover:bg-n-alpha-1 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="!!activeActionKey"
+                    @click="toggleAddItemPicker(stage)"
+                  >
+                    <i class="i-lucide-plus size-4" />
+                    {{ t('KANBAN.STAGE_MENU.ADD_CARD') }}
                   </button>
                 </div>
               </section>

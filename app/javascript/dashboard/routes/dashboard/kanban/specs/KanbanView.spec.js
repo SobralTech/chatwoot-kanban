@@ -258,8 +258,9 @@ const mountView = async (
         },
         KanbanFilterMenu: {
           name: 'KanbanFilterMenu',
-          props: ['modelValue', 'inboxOptions', 'agentOptions'],
-          template: '<div class="kanban-filter-menu-stub" />',
+          props: ['modelValue', 'inboxOptions', 'agentOptions', 'activeCount'],
+          template:
+            '<div class="kanban-filter-menu-stub"><span v-if="activeCount" data-testid="kanban-filter-count">{{ activeCount }}</span></div>',
         },
         KanbanStageMenu: {
           name: 'KanbanStageMenu',
@@ -1808,7 +1809,9 @@ describe('KanbanView header navigation', () => {
     );
 
     expect(createStageButton.exists()).toBe(true);
-    expect(createStageButton.text()).toContain('KANBAN.ACTIONS.CREATE_STAGE');
+    expect(createStageButton.attributes('aria-label')).toBe(
+      'KANBAN.ACTIONS.CREATE_STAGE'
+    );
   });
 
   it('does not render the old separate create stage form', async () => {

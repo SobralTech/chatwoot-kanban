@@ -19,6 +19,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  activeCount: {
+    type: Number,
+    default: 0,
+  },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -122,11 +126,18 @@ const updateMatchMode = event => {
     <button
       type="button"
       data-testid="kanban-filter-menu-trigger"
-      class="flex size-10 items-center justify-center rounded-lg text-n-slate-11 hover:bg-n-alpha-2"
+      class="flex h-10 items-center justify-center gap-2 px-3 text-n-slate-11 hover:bg-n-alpha-2"
       :aria-label="t('KANBAN.FILTERS.TITLE')"
       :title="t('KANBAN.FILTERS.TITLE')"
     >
       <i class="i-lucide-list-filter size-4" />
+      <span
+        v-if="activeCount"
+        data-testid="kanban-filter-count"
+        class="flex size-5 items-center justify-center rounded-full bg-n-brand text-xs font-semibold text-white"
+      >
+        {{ activeCount }}
+      </span>
     </button>
 
     <template #content="{ hide }">
