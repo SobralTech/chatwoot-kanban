@@ -123,15 +123,18 @@ watch(
   { immediate: true }
 );
 
+// Emit the new value directly: defineModel only writes back on the next parent
+// render, so reading modelValue here would still give the previous value.
 const selectDate = (date, hide) => {
-  modelValue.value = toDateValue(date);
-  emit('change', modelValue.value);
+  const value = toDateValue(date);
+  modelValue.value = value;
+  emit('change', value);
   hide();
 };
 
 const clearDate = () => {
   modelValue.value = '';
-  emit('change', modelValue.value);
+  emit('change', '');
 };
 
 const setCurrentMonth = value => {

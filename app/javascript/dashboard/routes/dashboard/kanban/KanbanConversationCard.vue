@@ -5,6 +5,8 @@ import { useStore } from 'dashboard/composables/store';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
+import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
+import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
@@ -13,6 +15,8 @@ import InboxName from 'dashboard/components/widgets/InboxName.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
+import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
+import KanbanMenuHeader from './KanbanMenuHeader.vue';
 
 const props = defineProps({
   card: {
@@ -58,12 +62,13 @@ const emit = defineEmits([
   'changeStatus',
   'moveToStage',
   'assignAgent',
+  'updateDueDate',
 ]);
 
 const { t } = useI18n();
 const store = useStore();
 const view = ref('root');
-const popoverRef = ref(null);
+const dueDateInput = ref('');
 const { isTerminalStage } = useKanbanStageOrder({
   stages: toRef(props, 'stages'),
   wonStageId: toRef(props, 'wonStageId'),
@@ -77,14 +82,12 @@ const viewTitle = computed(() => {
       return t('KANBAN.CARD.ASSIGN_TO');
     case 'priority':
       return t('KANBAN.CARD.CHANGE_PRIORITY');
+    case 'due':
+      return t('KANBAN.CARD.DUE_DATE');
     default:
       return t('KANBAN.CARD.ACTIONS_MENU');
   }
 });
-const toggleMenu = event => {
-  event.stopPropagation();
-  popoverRef.value?.toggle();
-};
 
 const conversation = computed(() => props.card.conversation || {});
 const contact = computed(
@@ -128,15 +131,12 @@ const inboxName = computed(
     conversation.value?.meta?.channel ||
     t('KANBAN.CARD.UNKNOWN_INBOX')
 );
+const namedInbox = computed(() => ({ ...inbox.value, name: inboxName.value }));
 const contactThumbnail = computed(
   () => contact.value?.thumbnail || contact.value?.avatarUrl || ''
 );
 const assignees = computed(() => props.card.assignees || []);
 const primaryAssignee = computed(() => assignees.value[0] || null);
-const primaryAssigneeThumbnail = computed(
-  () =>
-    primaryAssignee.value?.avatarUrl || primaryAssignee.value?.avatar_url || ''
-);
 const extraAssigneeCount = computed(() =>
   Math.max(assignees.value.length - 1, 0)
 );
@@ -196,12 +196,7 @@ const dueAtClasses = computed(() => {
 });
 
 const cardValue = computed(() => Number(props.card.value) || 0);
-const formattedCardValue = computed(() =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(cardValue.value)
-);
+const formattedCardValue = computed(() => formatCurrency(cardValue.value));
 
 const openDetails = () => {
   emit('openDetails', props.card);
@@ -217,7 +212,13 @@ const closeMenu = hide => {
 };
 
 const openView = nextView => {
+  if (nextView === 'due') dueDateInput.value = formatDateInput(dueAt.value);
   view.value = nextView;
+};
+
+const onSelectDueDate = (value, hide) => {
+  emit('updateDueDate', props.card, value);
+  closeMenu(hide);
 };
 
 const onSelectPriority = (option, hide) => {
@@ -271,224 +272,236 @@ const openCard = event => {
     :data-conversation-id="card.conversationId"
     @click="openCard"
   >
-    <Popover ref="popoverRef" align="end" disable-mobile-view @hide="resetView">
-      <button
-        type="button"
-        data-testid="kanban-card-actions"
-        class="no-drag pointer-events-auto absolute top-1.5 ltr:right-1.5 rtl:left-1.5 flex size-8 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 opacity-0 shadow-sm transition-opacity hover:bg-n-alpha-2 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-n-brand group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
-        :aria-label="t('KANBAN.CARD.ACTIONS_MENU')"
-        :title="t('KANBAN.CARD.ACTIONS_MENU')"
-        :disabled="isBusy"
-        @click="toggleMenu"
-      >
-        <i v-if="isBusy" class="i-lucide-loader-circle size-4 animate-spin" />
-        <i v-else class="i-lucide-more-vertical size-5" />
-      </button>
-
-      <template #content="{ hide }">
-        <div
-          data-testid="kanban-card-actions-menu"
-          class="no-drag w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl text-sm text-n-slate-12"
-          @click.stop
+    <span
+      class="no-drag absolute top-1.5 inline-flex ltr:right-1.5 rtl:left-1.5"
+      @click.stop
+    >
+      <Popover align="end" disable-mobile-view @hide="resetView">
+        <button
+          type="button"
+          data-testid="kanban-card-actions"
+          class="no-drag flex size-8 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 opacity-0 shadow-sm transition-opacity hover:bg-n-alpha-2 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-n-brand group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+          :aria-label="t('KANBAN.CARD.ACTIONS_MENU')"
+          :title="t('KANBAN.CARD.ACTIONS_MENU')"
+          :disabled="isBusy"
         >
-          <header class="flex items-center border-b border-n-weak px-2 py-2">
-            <button
-              v-if="view !== 'root'"
-              type="button"
-              class="flex size-8 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
-              :aria-label="t('KANBAN.STAGE_MENU.BACK')"
-              @click="view = 'root'"
-            >
-              <i class="i-lucide-chevron-left size-4" />
-            </button>
-            <span v-else class="size-8" />
-            <h2
-              class="min-w-0 flex-1 truncate text-center text-sm font-semibold"
-            >
-              {{ viewTitle }}
-            </h2>
-            <button
-              type="button"
-              class="flex size-8 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
-              :aria-label="t('KANBAN.STAGE_MENU.CLOSE')"
-              @click="closeMenu(hide)"
-            >
-              <i class="i-lucide-x size-4" />
-            </button>
-          </header>
+          <i v-if="isBusy" class="i-lucide-loader-circle size-4 animate-spin" />
+          <i v-else class="i-lucide-more-vertical size-5" />
+        </button>
 
-          <div v-if="view === 'root'" class="p-1">
-            <button
-              v-if="hasConversation"
-              type="button"
-              data-testid="kanban-card-open-conversation"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="openConversationFromMenu(hide)"
-            >
-              <i class="i-lucide-message-square size-4" />
-              {{ t('KANBAN.CARD.OPEN_CONVERSATION', { contactName }) }}
-            </button>
-            <button
-              v-if="hasConversation"
-              type="button"
-              data-testid="kanban-card-open-new-tab"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="openConversationInNewTab(hide)"
-            >
-              <i class="i-lucide-external-link size-4" />
-              {{ t('KANBAN.CARD.OPEN_IN_NEW_TAB') }}
-            </button>
-            <button
-              type="button"
-              data-testid="kanban-card-edit"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="
-                closeMenu(hide);
-                openDetails();
-              "
-            >
-              <i class="i-lucide-pencil size-4" />
-              {{ t('KANBAN.CARD.EDIT') }}
-            </button>
-            <button
-              type="button"
-              data-testid="kanban-card-move"
-              class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="openView('move')"
-            >
-              <span class="flex min-w-0 items-center gap-2">
-                <i class="i-lucide-corner-up-right size-4" />
-                <span class="truncate">{{ t('KANBAN.CARD.MOVE_TO') }}</span>
-              </span>
-              <i class="i-lucide-chevron-right size-4 flex-shrink-0" />
-            </button>
-            <button
-              type="button"
-              data-testid="kanban-card-assign"
-              class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="openView('assign')"
-            >
-              <span class="flex min-w-0 items-center gap-2">
-                <i class="i-lucide-user-round size-4" />
-                <span class="truncate">{{ t('KANBAN.CARD.ASSIGN_TO') }}</span>
-              </span>
-              <i class="i-lucide-chevron-right size-4 flex-shrink-0" />
-            </button>
-            <button
-              type="button"
-              data-testid="kanban-card-priority"
-              class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="openView('priority')"
-            >
-              <span class="flex min-w-0 items-center gap-2">
-                <i class="i-lucide-signal size-4" />
-                <span class="truncate">{{
-                  t('KANBAN.CARD.CHANGE_PRIORITY')
-                }}</span>
-              </span>
-              <i class="i-lucide-chevron-right size-4 flex-shrink-0" />
-            </button>
-            <div class="my-1 border-t border-n-weak" />
-            <button
-              type="button"
-              data-testid="kanban-card-remove"
-              :aria-label="t('KANBAN.ACTIONS.REMOVE_CARD')"
-              :title="t('KANBAN.ACTIONS.REMOVE_CARD')"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="removeCard(hide)"
-            >
-              <i class="i-lucide-trash size-4" />
-              {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
-            </button>
-          </div>
+        <template #content="{ hide }">
+          <div
+            data-testid="kanban-card-actions-menu"
+            class="w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl text-sm text-n-slate-12"
+          >
+            <KanbanMenuHeader
+              :title="viewTitle"
+              :show-back="view !== 'root'"
+              @back="view = 'root'"
+              @close="closeMenu(hide)"
+            />
 
-          <div v-else-if="view === 'move'" class="p-1">
-            <p
-              v-if="!moveTargets.length"
-              class="px-3 py-2 text-sm text-n-slate-10"
-            >
-              {{
-                isTerminalStage({ id: card.kanbanStageId })
-                  ? t('KANBAN.CARD.TERMINAL_STAGE_HINT')
-                  : t('KANBAN.CARD.NO_REGULAR_STAGES')
-              }}
-            </p>
-            <button
-              v-for="stage in moveTargets"
-              :key="stage.id"
-              type="button"
-              data-testid="kanban-card-move-stage"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="onMoveToStage(stage, hide)"
-            >
-              <span
-                class="size-2.5 flex-shrink-0 rounded-full"
-                :style="{ backgroundColor: stage.color }"
-              />
-              <span class="min-w-0 truncate">{{ stage.name }}</span>
-            </button>
-          </div>
+            <div v-if="view === 'root'" class="p-1">
+              <button
+                v-if="hasConversation"
+                type="button"
+                data-testid="kanban-card-open-conversation"
+                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="openConversationFromMenu(hide)"
+              >
+                <i class="i-lucide-message-square size-4" />
+                {{ t('KANBAN.CARD.OPEN_CONVERSATION', { contactName }) }}
+              </button>
+              <button
+                v-if="hasConversation"
+                type="button"
+                data-testid="kanban-card-open-new-tab"
+                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="openConversationInNewTab(hide)"
+              >
+                <i class="i-lucide-external-link size-4" />
+                {{ t('KANBAN.CARD.OPEN_IN_NEW_TAB') }}
+              </button>
+              <button
+                type="button"
+                data-testid="kanban-card-edit"
+                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="
+                  closeMenu(hide);
+                  openDetails();
+                "
+              >
+                <i class="i-lucide-pencil size-4" />
+                {{ t('KANBAN.CARD.EDIT') }}
+              </button>
+              <button
+                type="button"
+                data-testid="kanban-card-move"
+                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="openView('move')"
+              >
+                <span class="flex min-w-0 items-center gap-2">
+                  <i class="i-lucide-corner-up-right size-4" />
+                  <span class="truncate">{{ t('KANBAN.CARD.MOVE_TO') }}</span>
+                </span>
+                <i class="i-lucide-chevron-right size-4 flex-shrink-0" />
+              </button>
+              <button
+                type="button"
+                data-testid="kanban-card-assign"
+                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="openView('assign')"
+              >
+                <span class="flex min-w-0 items-center gap-2">
+                  <i class="i-lucide-user-round size-4" />
+                  <span class="truncate">{{ t('KANBAN.CARD.ASSIGN_TO') }}</span>
+                </span>
+                <i class="i-lucide-chevron-right size-4 flex-shrink-0" />
+              </button>
+              <button
+                type="button"
+                data-testid="kanban-card-priority"
+                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="openView('priority')"
+              >
+                <span class="flex min-w-0 items-center gap-2">
+                  <i class="i-lucide-signal size-4" />
+                  <span class="truncate">{{
+                    t('KANBAN.CARD.CHANGE_PRIORITY')
+                  }}</span>
+                </span>
+                <i class="i-lucide-chevron-right size-4 flex-shrink-0" />
+              </button>
+              <button
+                type="button"
+                data-testid="kanban-card-due-date"
+                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="openView('due')"
+              >
+                <span class="flex min-w-0 items-center gap-2">
+                  <i class="i-lucide-calendar size-4" />
+                  <span class="truncate">{{ t('KANBAN.CARD.DUE_DATE') }}</span>
+                </span>
+                <span class="flex flex-shrink-0 items-center gap-1">
+                  <span v-if="dueAtLabel" class="text-xs text-n-slate-11">
+                    {{ dueAtLabel }}
+                  </span>
+                  <i class="i-lucide-chevron-right size-4" />
+                </span>
+              </button>
+              <div class="my-1 border-t border-n-weak" />
+              <button
+                type="button"
+                data-testid="kanban-card-remove"
+                :aria-label="t('KANBAN.ACTIONS.REMOVE_CARD')"
+                :title="t('KANBAN.ACTIONS.REMOVE_CARD')"
+                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="removeCard(hide)"
+              >
+                <i class="i-lucide-trash size-4" />
+                {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
+              </button>
+            </div>
 
-          <div v-else-if="view === 'assign'" class="p-1">
-            <p
-              v-if="!assignableUsers.length"
-              class="px-3 py-2 text-sm text-n-slate-10"
-            >
-              {{ t('KANBAN.CARD.NO_ASSIGNABLE_USERS') }}
-            </p>
-            <button
-              v-for="user in assignableUsers"
-              :key="user.id"
-              type="button"
-              data-testid="kanban-card-assign-agent"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="onAssignAgent(user, hide)"
-            >
-              <span class="min-w-0 flex-1 truncate">
-                {{ user.name || user.email }}
-              </span>
-              <i
-                v-if="assignees.some(assignee => assignee.id === user.id)"
-                class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
-              />
-            </button>
-          </div>
+            <div v-else-if="view === 'move'" class="p-1">
+              <p
+                v-if="!moveTargets.length"
+                class="px-3 py-2 text-sm text-n-slate-10"
+              >
+                {{
+                  isTerminalStage({ id: card.kanbanStageId })
+                    ? t('KANBAN.CARD.TERMINAL_STAGE_HINT')
+                    : t('KANBAN.CARD.NO_REGULAR_STAGES')
+                }}
+              </p>
+              <button
+                v-for="stage in moveTargets"
+                :key="stage.id"
+                type="button"
+                data-testid="kanban-card-move-stage"
+                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="onMoveToStage(stage, hide)"
+              >
+                <span
+                  class="size-2.5 flex-shrink-0 rounded-full"
+                  :style="{ backgroundColor: stage.color }"
+                />
+                <span class="min-w-0 truncate">{{ stage.name }}</span>
+              </button>
+            </div>
 
-          <div v-else-if="view === 'priority'" class="p-1">
-            <button
-              v-for="option in priorityOptions"
-              :key="option.value"
-              type="button"
-              data-testid="kanban-card-priority-option"
-              :data-selected="option.value === priority"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="onSelectPriority(option, hide)"
-            >
-              <CardPriorityIcon
-                :priority="option.value"
-                show-empty
-                class="size-3.5 flex-shrink-0"
+            <div v-else-if="view === 'assign'" class="p-1">
+              <p
+                v-if="!assignableUsers.length"
+                class="px-3 py-2 text-sm text-n-slate-10"
+              >
+                {{ t('KANBAN.CARD.NO_ASSIGNABLE_USERS') }}
+              </p>
+              <button
+                v-for="user in assignableUsers"
+                :key="user.id"
+                type="button"
+                data-testid="kanban-card-assign-agent"
+                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="onAssignAgent(user, hide)"
+              >
+                <span class="min-w-0 flex-1 truncate">
+                  {{ user.name || user.email }}
+                </span>
+                <i
+                  v-if="assignees.some(assignee => assignee.id === user.id)"
+                  class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
+                />
+              </button>
+            </div>
+
+            <div v-else-if="view === 'priority'" class="p-1">
+              <button
+                v-for="option in priorityOptions"
+                :key="option.value"
+                type="button"
+                data-testid="kanban-card-priority-option"
+                :data-selected="option.value === priority"
+                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="onSelectPriority(option, hide)"
+              >
+                <CardPriorityIcon
+                  :priority="option.value"
+                  show-empty
+                  class="size-3.5 flex-shrink-0"
+                />
+                <span class="min-w-0 flex-1 truncate">{{ option.label }}</span>
+                <i
+                  v-if="option.value === priority"
+                  class="i-lucide-check size-3.5 flex-shrink-0 text-n-brand"
+                />
+              </button>
+            </div>
+
+            <div v-else-if="view === 'due'" class="p-3">
+              <KanbanDueDatePicker
+                v-model="dueDateInput"
+                data-testid="kanban-card-due-date-picker"
+                :placeholder="t('KANBAN.OPPORTUNITY_DETAILS.CHOOSE_DATE')"
+                :clear-label="t('KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE')"
+                @change="onSelectDueDate($event, hide)"
               />
-              <span class="min-w-0 flex-1 truncate">{{ option.label }}</span>
-              <i
-                v-if="option.value === priority"
-                class="i-lucide-check size-3.5 flex-shrink-0 text-n-brand"
-              />
-            </button>
+            </div>
           </div>
-        </div>
-      </template>
-    </Popover>
+        </template>
+      </Popover>
+    </span>
 
     <div class="min-w-0 text-left">
       <p
@@ -531,7 +544,7 @@ const openCard = event => {
         >
           <Avatar
             :name="primaryAssignee.name"
-            :src="primaryAssigneeThumbnail"
+            :src="primaryAssignee.avatarUrl"
             :size="18"
             rounded-full
           />
@@ -549,7 +562,7 @@ const openCard = event => {
           class="inline-flex max-w-full items-center rounded-md bg-n-alpha-2 px-1.5 py-0.5 text-xs leading-4"
         >
           <InboxName
-            :inbox="{ ...inbox, name: inboxName }"
+            :inbox="namedInbox"
             :show-icon="false"
             class="max-w-full"
           />

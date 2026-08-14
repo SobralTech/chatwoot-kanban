@@ -38,9 +38,9 @@ vi.mock('dashboard/composables', () => ({
 }));
 
 vi.mock('dashboard/helper/URLHelper', () => ({
-  frontendURL: path => path,
-  kanbanConversationUrl: ({ accountId, boardId, conversationId }) =>
-    `/app/accounts/${accountId}/kanban/${boardId}/conversations/${conversationId}`,
+  frontendURL: path => `/app/${path}`,
+  conversationUrl: ({ accountId, id }) =>
+    `accounts/${accountId}/conversations/${id}`,
 }));
 
 vi.mock('shared/helpers/mitt', () => ({
@@ -1642,7 +1642,7 @@ describe('KanbanView drag and drop', () => {
     });
   });
 
-  it('opens the kanban conversation URL in a new tab on ctrl-click', async () => {
+  it('opens the standalone conversation URL in a new tab on ctrl-click', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1656,7 +1656,7 @@ describe('KanbanView drag and drop', () => {
     await flushPromises();
 
     expect(window.open).toHaveBeenCalledWith(
-      'http://localhost:3000/app/accounts/1/kanban/10/conversations/123',
+      'http://localhost:3000/app/accounts/1/conversations/123',
       '_blank',
       'noopener,noreferrer'
     );

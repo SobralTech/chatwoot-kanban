@@ -1,3 +1,4 @@
+import { nextTick } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import KanbanConversationCard from '../KanbanConversationCard.vue';
 
@@ -21,6 +22,7 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.CARD.ASSIGN_SUCCESS': 'Assignees updated.',
         'KANBAN.CARD.ASSIGN_ERROR': 'Could not update the assignees.',
         'KANBAN.CARD.MOVE_SUCCESS': 'Card moved.',
+        'KANBAN.CARD.DUE_DATE': 'Due date',
         'KANBAN.CARD.TERMINAL_STAGE_HINT':
           'Use the status badge to mark as won or lost.',
         'KANBAN.CARD.EDIT': 'Edit card',
@@ -325,6 +327,20 @@ describe('KanbanConversationCard', () => {
     ]);
   });
 
+  it('emits the picked due date from the actions menu', async () => {
+    const card = buildCard();
+    const wrapper = mountCard({ card });
+
+    await wrapper.find('[data-testid="kanban-card-due-date"]').trigger('click');
+    const picker = wrapper.findComponent({ name: 'KanbanDueDatePicker' });
+    expect(picker.props('modelValue')).toBe('2026-06-07');
+
+    picker.vm.$emit('change', '2026-07-01');
+    await nextTick();
+
+    expect(wrapper.emitted('updateDueDate')).toEqual([[card, '2026-07-01']]);
+  });
+
   it('disables the menu and shows a spinner while the card is busy', () => {
     const wrapper = mountCard({ isBusy: true });
 
@@ -354,14 +370,11 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.emitted('removeCard')).toEqual([[card]]);
   });
 
-  it('marks card action controls as no-drag', () => {
+  it('marks the actions trigger as no-drag', () => {
     const wrapper = mountCard();
 
     expect(
       wrapper.find('[data-testid="kanban-card-actions"]').classes()
-    ).toContain('no-drag');
-    expect(
-      wrapper.find('[data-testid="kanban-card-actions-menu"]').classes()
     ).toContain('no-drag');
   });
 
@@ -401,9 +414,11 @@ describe('KanbanConversationCard', () => {
       }),
     });
 
+    const meta = wrapper.find('[data-testid="kanban-card-meta"]');
+
     expect(wrapper.find('p[title]').exists()).toBe(false);
-    expect(wrapper.find('i.i-lucide-calendar').exists()).toBe(false);
-    expect(wrapper.find('i.i-lucide-clock').exists()).toBe(false);
+    expect(meta.find('i.i-lucide-calendar').exists()).toBe(false);
+    expect(meta.find('i.i-lucide-clock').exists()).toBe(false);
     expect(wrapper.findAllComponents({ name: 'Avatar' })).toHaveLength(1);
   });
 

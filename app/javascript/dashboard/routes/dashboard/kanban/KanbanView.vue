@@ -22,7 +22,9 @@ import InlineInput from 'dashboard/components-next/inline-input/InlineInput.vue'
 import Input from 'dashboard/components-next/input/Input.vue';
 import KanbanFilterMenu from './KanbanFilterMenu.vue';
 import KanbanStageMenu from './KanbanStageMenu.vue';
-import { frontendURL, kanbanConversationUrl } from 'dashboard/helper/URLHelper';
+import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
+import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
+import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
 import {
   getKanbanBoardPrefs,
@@ -58,29 +60,17 @@ const selectedOpportunityCardId = ref(null);
 const opportunityModalRef = ref(null);
 const showUnsavedOpportunityChangesConfirm = ref(false);
 const isSavingOpportunityBeforeExit = ref(false);
+// Keyed by the thing being acted on, not by the verb, so a new action never has
+// to be registered anywhere for its spinner to work.
 const activeActionKeys = ref(new Set());
-const startAction = key => {
-  activeActionKeys.value = new Set(activeActionKeys.value).add(key);
-};
-const endAction = key => {
-  const next = new Set(activeActionKeys.value);
-  next.delete(key);
-  activeActionKeys.value = next;
-};
+const startAction = key => activeActionKeys.value.add(key);
+const endAction = key => activeActionKeys.value.delete(key);
 const isActionActive = key => activeActionKeys.value.has(key);
 const isBoardBusy = computed(() => activeActionKeys.value.size > 0);
 const stageActionKey = stage => `stage-${stage.id}`;
-const cardActionKey = (action, card) => `${action}-${card.id}`;
+const cardActionKey = card => `card-${card.id}`;
 const isCardBusy = (card, stage) =>
-  [
-    cardActionKey('reorder-card', card),
-    cardActionKey('change-status', card),
-    cardActionKey('remove-card', card),
-    cardActionKey('update-priority', card),
-    cardActionKey('move-card', card),
-    cardActionKey('assign-card', card),
-    stageActionKey(stage),
-  ].some(isActionActive);
+  isActionActive(cardActionKey(card)) || isActionActive(stageActionKey(stage));
 const hasError = ref(false);
 const emptyBoardFilters = () => ({
   inboxIds: [],
@@ -289,22 +279,10 @@ const agentFilterOptions = computed(() =>
     label: agent.name || agent.email,
   }))
 );
-const assignableUsers = computed(() => {
-  if (Array.isArray(selectedBoard.value?.assignableUsers)) {
-    return selectedBoard.value.assignableUsers;
-  }
-
-  if (selectedBoard.value?.visibilityMode === 'selected_agents') {
-    const visibleUserIds = (selectedBoard.value.visibleUserIds || []).map(
-      Number
-    );
-    return agents.value.filter(agent =>
-      visibleUserIds.includes(Number(agent.id))
-    );
-  }
-
-  return agents.value;
-});
+// The board payload already applies the board's visibility rules server-side.
+const assignableUsers = computed(
+  () => selectedBoard.value?.assignableUsers || []
+);
 const stageListModel = computed({
   get: () => selectedBoard.value?.stages || [],
   set: nextStages => {
@@ -457,12 +435,6 @@ const isRefreshRequiredError = error =>
 
 const isLostReasonRequiredError = error =>
   error?.response?.data?.error === 'lost_reason_required';
-
-const formatCurrency = value =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(Number(value) || 0);
 
 const getStageCardsError = stageId => stageCardsErrors.value[stageId] || '';
 
@@ -1517,7 +1489,7 @@ const onCardDragChange = async (stage, event) => {
     appendsToStageEnd || card.position !== destinationPosition;
   if (!stageChanged && !positionChanged) return;
 
-  const actionKey = cardActionKey('reorder-card', card);
+  const actionKey = cardActionKey(card);
   if (isActionActive(actionKey)) return;
 
   isPersistingCardDrag.value = true;
@@ -1581,7 +1553,7 @@ const closeRemoveCardConfirmation = () => {
 };
 
 const removeCard = async card => {
-  const actionKey = cardActionKey('remove-card', card);
+  const actionKey = cardActionKey(card);
   if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
 
   startAction(actionKey);
@@ -1607,7 +1579,7 @@ const confirmRemoveCard = async () => {
 };
 
 const updateCardPriority = async (card, priorityValue) => {
-  const actionKey = cardActionKey('update-priority', card);
+  const actionKey = cardActionKey(card);
   if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
 
   startAction(actionKey);
@@ -1630,7 +1602,7 @@ const moveCardToStage = async (card, targetStageId) => {
   const targetStage = stages.value.find(
     stage => Number(stage.id) === Number(targetStageId)
   );
-  const actionKey = cardActionKey('move-card', card);
+  const actionKey = cardActionKey(card);
   if (
     !selectedBoard.value?.id ||
     !targetStage ||
@@ -1659,7 +1631,7 @@ const moveCardToStage = async (card, targetStageId) => {
 };
 
 const assignAgent = async (card, userId) => {
-  const actionKey = cardActionKey('assign-card', card);
+  const actionKey = cardActionKey(card);
   if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
 
   const numericUserId = Number(userId);
@@ -1678,20 +1650,40 @@ const assignAgent = async (card, userId) => {
       card.id,
       nextAssigneeIds
     );
-    const responseAssignees = response.data?.payload;
-    const nextAssignees = Array.isArray(responseAssignees)
-      ? normalizePayload(responseAssignees)
-      : assignableUsers.value.filter(user =>
-          nextAssigneeIds.includes(Number(user.id))
-        );
     patchVisibleCard({
       id: card.id,
       kanbanStageId: card.kanbanStageId,
-      assignees: nextAssignees,
+      assignees: normalizePayload(response.data.payload),
     });
     useAlert(t('KANBAN.CARD.ASSIGN_SUCCESS'));
   } catch (error) {
-    useAlert(getErrorMessage(error, t('KANBAN.CARD.ASSIGN_ERROR')));
+    showActionError(error, t('KANBAN.CARD.ASSIGN_ERROR'));
+  } finally {
+    endAction(actionKey);
+  }
+};
+
+const updateCardDueDate = async (card, dueDate) => {
+  const actionKey = cardActionKey(card);
+  if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
+
+  const dueAt = toIso8601(dueDate);
+  startAction(actionKey);
+
+  try {
+    await KanbanBoardsAPI.updateCardDetailsById(
+      selectedBoard.value.id,
+      card.id,
+      { due_at: dueAt }
+    );
+    patchVisibleCard({
+      id: card.id,
+      kanbanStageId: card.kanbanStageId,
+      due_at: dueAt,
+    });
+    useAlert(t('KANBAN.CARD.DUE_DATE_UPDATE_SUCCESS'));
+  } catch (error) {
+    showActionError(error, t('KANBAN.CARD.DUE_DATE_UPDATE_ERROR'));
   } finally {
     endAction(actionKey);
   }
@@ -1701,7 +1693,7 @@ const onChangeCardStatus = async (
   card,
   { targetStageId, reasonId, reopen }
 ) => {
-  const actionKey = cardActionKey('change-status', card);
+  const actionKey = cardActionKey(card);
   if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
 
   startAction(actionKey);
@@ -1863,22 +1855,20 @@ const removeStageCardsMessageValue = computed(() => {
   )})`;
 });
 
-const getConversationPath = card =>
-  frontendURL(
-    kanbanConversationUrl({
-      accountId: route.params.accountId,
-      boardId: selectedBoard.value.id,
-      conversationId: card.conversationId,
-    })
-  );
-
 const openConversationInNewTab = card => {
   if (!card?.conversationId) return;
 
-  // The board stays mounted in this tab and the new tab gets its own
-  // sessionStorage, so there is no snapshot to save here.
+  // A standalone tab opens the conversation on its own inbox route rather than
+  // the board-embedded one. The board stays mounted in this tab and the new tab
+  // gets its own sessionStorage, so there is no snapshot to save here.
+  const path = frontendURL(
+    conversationUrl({
+      accountId: route.params.accountId,
+      id: card.conversationId,
+    })
+  );
   window.open(
-    `${window.chatwootConfig.hostURL}${getConversationPath(card)}`,
+    `${window.chatwootConfig.hostURL}${path}`,
     '_blank',
     'noopener,noreferrer'
   );
@@ -2651,6 +2641,7 @@ watch(searchInput, () => {
                         @open-conversation-in-new-tab="openConversationInNewTab"
                         @move-to-stage="moveCardToStage"
                         @assign-agent="assignAgent"
+                        @update-due-date="updateCardDueDate"
                         @open-details="openDetails"
                         @open-conversation="openConversation"
                         @remove-card="openRemoveCardConfirmation"

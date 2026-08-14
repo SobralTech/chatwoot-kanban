@@ -133,10 +133,12 @@
         "MONTH": "Due in the next month"
       }
     },
+    "MENU": {
+      "BACK": "Back",
+      "CLOSE": "Close"
+    },
     "STAGE_MENU": {
       "TITLE": "List actions",
-      "BACK": "Back",
-      "CLOSE": "Close",
       "ADD_CARD": "Add card",
       "EDIT": "Edit list",
       "DELETE_STAGE": "Delete this list",
@@ -575,6 +577,9 @@
       "ASSIGN_SUCCESS": "Assignees updated.",
       "ASSIGN_ERROR": "Could not update the assignees.",
       "MOVE_SUCCESS": "Card moved.",
+      "DUE_DATE": "Due date",
+      "DUE_DATE_UPDATE_SUCCESS": "Due date updated.",
+      "DUE_DATE_UPDATE_ERROR": "Could not update the due date.",
       "TERMINAL_STAGE_HINT": "Use the status badge to mark as won or lost.",
       "DELETE": "Delete card",
       "CONVERSATION_ID": "#{id}",

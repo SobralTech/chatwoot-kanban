@@ -5,6 +5,7 @@ import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import KanbanMenuHeader from './KanbanMenuHeader.vue';
 
 const props = defineProps({
   stage: {
@@ -131,7 +132,6 @@ const moveDestinationBoardOptions = computed(() =>
   }))
 );
 const canDeleteStage = computed(() => props.stages.length > 1);
-const isBusy = computed(() => props.isBusy);
 const sortOptions = computed(() => [
   {
     value: 'created_at_desc',
@@ -244,29 +244,12 @@ watch(targetBoardId, () => {
         data-testid="kanban-stage-menu"
         class="w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl text-sm text-n-slate-12"
       >
-        <header class="flex items-center border-b border-n-weak px-2 py-2">
-          <button
-            v-if="view !== 'root'"
-            type="button"
-            class="flex size-8 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
-            :aria-label="t('KANBAN.STAGE_MENU.BACK')"
-            @click="view = 'root'"
-          >
-            <i class="i-lucide-chevron-left size-4" />
-          </button>
-          <span v-else class="size-8" />
-          <h2 class="min-w-0 flex-1 truncate text-center text-sm font-semibold">
-            {{ viewTitle }}
-          </h2>
-          <button
-            type="button"
-            class="flex size-8 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
-            :aria-label="t('KANBAN.STAGE_MENU.CLOSE')"
-            @click="closeMenu(hide)"
-          >
-            <i class="i-lucide-x size-4" />
-          </button>
-        </header>
+        <KanbanMenuHeader
+          :title="viewTitle"
+          :show-back="view !== 'root'"
+          @back="view = 'root'"
+          @close="closeMenu(hide)"
+        />
 
         <div v-if="view === 'root'" class="p-1">
           <button

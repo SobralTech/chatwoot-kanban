@@ -16,6 +16,8 @@ import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { getCardStatusChangeErrorMessage } from 'dashboard/helper/kanbanCardStatus';
+import { formatDateInput, toIso8601 } from 'dashboard/helper/kanbanDueDate';
+import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { debounce } from '@chatwoot/utils';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
@@ -173,29 +175,6 @@ const normalizeCard = payload => ({
   conversationId: payload.conversationId ?? payload.conversation_id,
   dueAt: payload.dueAt ?? payload.due_at,
 });
-
-const formatDateInput = value => {
-  if (!value) return '';
-
-  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (dateOnlyMatch) return value;
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-};
-
-const toIso8601 = value => {
-  if (!value) return null;
-
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day, 12).toISOString();
-};
 
 const getErrorMessage = (error, fallback) => {
   const errors = error?.response?.data?.errors;
@@ -465,18 +444,7 @@ const totalValue = computed(() => {
   return Number(card.value?.value || 0);
 });
 
-const formattedTotalValue = computed(() =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(totalValue.value)
-);
-
-const formatCurrency = value =>
-  new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(Number(value) || 0);
+const formattedTotalValue = computed(() => formatCurrency(totalValue.value));
 
 const loadCardProducts = async () => {
   isLoadingProducts.value = true;
