@@ -1865,27 +1865,36 @@ describe('KanbanView header navigation', () => {
     });
   });
 
-  it('creates a stage with Nova etapa when that temporary name is available', async () => {
-    window.HTMLElement.prototype.scrollIntoView = vi.fn();
-    mockT.mockImplementation(key => {
-      const translations = {
-        'KANBAN.ACTIONS.NEW_STAGE_NAME': 'Nova etapa',
-      };
-      return translations[key] || key;
-    });
+  it('opens a blank stage draft without creating a stage', async () => {
     const wrapper = await mountView();
+
+    await wrapper
+      .find('[data-testid="kanban-create-stage-toggle"]')
+      .trigger('click');
+    await nextTick();
+
+    expect(KanbanBoardsAPI.createStage).not.toHaveBeenCalled();
+    expect(
+      wrapper.find('[data-testid="kanban-new-stage-name-input"]').exists()
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="kanban-new-stage-name-input"]').element.value
+    ).toBe('');
+    expect(
+      wrapper.find('[data-testid="kanban-create-stage-confirm"]').exists()
+    ).toBe(true);
+  });
+
+  it('creates a stage only after confirming its draft name', async () => {
     const newStage = {
+      ...buildBoardResponse().stages[1],
       id: 300,
-      name: 'Nova etapa',
-      active: true,
-      position: 1,
+      name: 'Negotiation',
       cards: [],
       cards_count: 0,
-      pagination: buildPagination(),
     };
-    KanbanBoardsAPI.createStage.mockResolvedValue({
-      data: newStage,
-    });
+    const wrapper = await mountView();
+    KanbanBoardsAPI.createStage.mockResolvedValue({ data: newStage });
     KanbanBoardsAPI.show.mockResolvedValueOnce({
       data: buildBoardResponse([], {
         stages: [newStage, ...buildBoardResponse().stages],
@@ -1896,171 +1905,54 @@ describe('KanbanView header navigation', () => {
     await wrapper
       .find('[data-testid="kanban-create-stage-toggle"]')
       .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-new-stage-name-input"]')
+      .setValue('Negotiation');
+    await wrapper.find('form').trigger('submit');
     await flushPromises();
-    await nextTick();
 
     expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
       stage: {
-        name: 'Nova etapa',
+        name: 'Negotiation',
         color: '#8B8D98',
         position: 2,
       },
     });
     expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
-    const stageNameInput = wrapper
-      .findAll('input')
-      .find(
-        input =>
-          input.attributes('placeholder') ===
-          'KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER'
-      );
-    expect(stageNameInput).toBeDefined();
-    expect(stageNameInput.exists()).toBe(true);
-    expect(stageNameInput.element.value).toBe('Nova etapa');
-    expect(wrapper.text()).not.toContain('KANBAN.ACTIONS.CREATE_STAGE_CONFIRM');
+    expect(
+      wrapper.find('[data-testid="kanban-new-stage-name-input"]').exists()
+    ).toBe(false);
   });
 
-  it('creates a stage with Nova etapa (1) when Nova etapa already exists', async () => {
-    mockT.mockImplementation(key => {
-      const translations = {
-        'KANBAN.ACTIONS.NEW_STAGE_NAME': 'Nova etapa',
-      };
-      return translations[key] || key;
-    });
-    const existingStage = {
-      ...buildBoardResponse().stages[0],
-      id: 100,
-      name: 'Nova etapa',
-    };
-    const newStage = {
-      ...buildBoardResponse().stages[1],
-      id: 300,
-      name: 'Nova etapa (1)',
-      cards: [],
-      cards_count: 0,
-    };
-    const wrapper = await mountView(
-      buildBoardResponse([], {
-        stages: [existingStage, buildBoardResponse().stages[1]],
-      })
-    );
-    KanbanBoardsAPI.createStage.mockResolvedValue({ data: newStage });
-    KanbanBoardsAPI.show.mockResolvedValueOnce({
-      data: buildBoardResponse([], {
-        stages: [newStage, existingStage, buildBoardResponse().stages[1]],
-      }),
-    });
+  it('cancels a stage draft without creating a stage', async () => {
+    const wrapper = await mountView();
 
     await wrapper
       .find('[data-testid="kanban-create-stage-toggle"]')
       .trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
-      stage: {
-        name: 'Nova etapa (1)',
-        color: '#8B8D98',
-        position: 2,
-      },
-    });
-  });
-
-  it('creates a stage with Nova etapa (2) when previous temporary names exist', async () => {
-    mockT.mockImplementation(key => {
-      const translations = {
-        'KANBAN.ACTIONS.NEW_STAGE_NAME': 'Nova etapa',
-      };
-      return translations[key] || key;
-    });
-    const existingStages = [
-      { ...buildBoardResponse().stages[0], id: 100, name: 'Nova etapa' },
-      { ...buildBoardResponse().stages[1], id: 200, name: 'Nova etapa (1)' },
-    ];
-    const newStage = {
-      ...buildBoardResponse().stages[1],
-      id: 300,
-      name: 'Nova etapa (2)',
-      cards: [],
-      cards_count: 0,
-    };
-    const wrapper = await mountView(
-      buildBoardResponse([], {
-        stages: existingStages,
-      })
-    );
-    KanbanBoardsAPI.createStage.mockResolvedValue({ data: newStage });
-    KanbanBoardsAPI.show.mockResolvedValueOnce({
-      data: buildBoardResponse([], {
-        stages: [newStage, ...existingStages],
-      }),
-    });
-
     await wrapper
-      .find('[data-testid="kanban-create-stage-toggle"]')
-      .trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
-      stage: {
-        name: 'Nova etapa (2)',
-        color: '#8B8D98',
-        position: 2,
-      },
-    });
-  });
-
-  it('uses the translated English base for temporary stage names', async () => {
-    mockT.mockImplementation(key => {
-      const translations = {
-        'KANBAN.ACTIONS.NEW_STAGE_NAME': 'New stage',
-      };
-      return translations[key] || key;
-    });
-    const existingStage = {
-      ...buildBoardResponse().stages[0],
-      id: 100,
-      name: 'New stage',
-    };
-    const newStage = {
-      ...buildBoardResponse().stages[1],
-      id: 300,
-      name: 'New stage (1)',
-      cards: [],
-      cards_count: 0,
-    };
-    const wrapper = await mountView(
-      buildBoardResponse([], {
-        stages: [existingStage, buildBoardResponse().stages[1]],
-      })
-    );
-    KanbanBoardsAPI.createStage.mockResolvedValue({ data: newStage });
-    KanbanBoardsAPI.show.mockResolvedValueOnce({
-      data: buildBoardResponse([], {
-        stages: [newStage, existingStage, buildBoardResponse().stages[1]],
-      }),
-    });
-
+      .find('[data-testid="kanban-new-stage-name-input"]')
+      .setValue('Negotiation');
     await wrapper
-      .find('[data-testid="kanban-create-stage-toggle"]')
+      .find('[data-testid="kanban-create-stage-cancel"]')
       .trigger('click');
-    await flushPromises();
 
-    expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
-      stage: {
-        name: 'New stage (1)',
-        color: '#8B8D98',
-        position: 2,
-      },
-    });
+    expect(KanbanBoardsAPI.createStage).not.toHaveBeenCalled();
+    expect(
+      wrapper.find('[data-testid="kanban-new-stage-name-input"]').exists()
+    ).toBe(false);
+    expect(
+      wrapper.find('[data-testid="kanban-create-stage-draft"]').exists()
+    ).toBe(true);
   });
 
-  it('shows duplicate stage creation errors only as translated toast', async () => {
+  it('keeps a duplicate stage draft open with its name', async () => {
     mockT.mockImplementation(key => {
       const translations = {
-        'KANBAN.ACTIONS.NEW_STAGE_NAME': 'Nova etapa',
-        'KANBAN.ACTIONS.STAGE_NAME_TAKEN': 'Já existe uma etapa com esse nome.',
+        'KANBAN.ACTIONS.STAGE_NAME_TAKEN':
+          'A stage with this name already exists.',
         'KANBAN.ACTIONS.CREATE_STAGE_ERROR':
-          'Não foi possível criar a etapa do kanban.',
+          'Could not create the kanban stage.',
       };
       return translations[key] || key;
     });
@@ -2072,12 +1964,51 @@ describe('KanbanView header navigation', () => {
     await wrapper
       .find('[data-testid="kanban-create-stage-toggle"]')
       .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-new-stage-name-input"]')
+      .setValue('Stage A');
+    await wrapper.find('form').trigger('submit');
     await flushPromises();
 
-    expect(useAlert).toHaveBeenCalledWith('Já existe uma etapa com esse nome.');
-    expect(wrapper.text()).not.toContain('Name has already been taken');
-    expect(wrapper.text()).not.toContain('Já existe uma etapa com esse nome.');
-    expect(wrapper.find('.bg-n-ruby-2').exists()).toBe(false);
+    expect(useAlert).toHaveBeenCalledWith(
+      'A stage with this name already exists.'
+    );
+    expect(
+      wrapper.find('[data-testid="kanban-new-stage-name-input"]').element.value
+    ).toBe('Stage A');
+  });
+
+  it('keeps stage editing open and warns when the name is empty', async () => {
+    mockT.mockImplementation(key => {
+      const translations = {
+        'KANBAN.ACTIONS.STAGE_NAME_REQUIRED': 'Enter a name for the stage.',
+      };
+      return translations[key] || key;
+    });
+    const wrapper = await mountView();
+    const stage = buildBoardResponse().stages[0];
+
+    wrapper.vm.$.setupState.startEditingStage(stage);
+    await nextTick();
+    wrapper.vm.$.setupState.stageNames[stage.id] = '';
+    await wrapper.vm.$.setupState.updateStage(stage);
+
+    expect(useAlert).toHaveBeenCalledWith('Enter a name for the stage.');
+    expect(wrapper.vm.$.setupState.editingStageId).toBe(stage.id);
+    expect(KanbanBoardsAPI.updateStage).not.toHaveBeenCalled();
+  });
+
+  it('clears the stage edit draft when editing is cancelled', async () => {
+    const wrapper = await mountView();
+    const stage = buildBoardResponse().stages[0];
+
+    wrapper.vm.$.setupState.startEditingStage(stage);
+    wrapper.vm.$.setupState.stageNames[stage.id] = 'Changed';
+    wrapper.vm.$.setupState.cancelEditingStage();
+
+    expect(wrapper.vm.$.setupState.editingStageId).toBe(null);
+    expect(wrapper.vm.$.setupState.stageNames[stage.id]).toBeUndefined();
+    expect(wrapper.vm.$.setupState.stageColors[stage.id]).toBeUndefined();
   });
 
   it('uses a hexadecimal default stage color', () => {

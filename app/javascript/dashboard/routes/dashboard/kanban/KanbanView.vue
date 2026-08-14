@@ -50,6 +50,7 @@ const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
+const isCreatingStageDraft = ref(false);
 const selectedOpportunityCardId = ref(null);
 const opportunityModalRef = ref(null);
 const showUnsavedOpportunityChangesConfirm = ref(false);
@@ -106,6 +107,8 @@ const renameValue = ref('');
 const isRenamingBoard = ref(false);
 const defaultStageColor = DEFAULT_KANBAN_STAGE_COLOR;
 const newStageColor = ref(defaultStageColor);
+const newStageName = ref('');
+const newStageNameInput = ref(null);
 const boardScrollContainer = ref(null);
 const pendingScrollToStageId = ref(null);
 const searchInput = ref('');
@@ -883,31 +886,6 @@ const setStageNameInput = (stageId, element) => {
   stageNameInputs.delete(stageId);
 };
 
-const findCreatedStage = (createdStage, temporaryName) => {
-  if (createdStage?.id) {
-    return stages.value.find(stage => stage.id === createdStage.id);
-  }
-
-  return stages.value.find(stage => stage.name === temporaryName);
-};
-
-const getUniqueTemporaryStageName = () => {
-  const baseName = t('KANBAN.ACTIONS.NEW_STAGE_NAME');
-  const existingNames = new Set(stages.value.map(stage => stage.name));
-
-  if (!existingNames.has(baseName)) return baseName;
-
-  let suffix = 1;
-  let nextName = `${baseName} (${suffix})`;
-
-  while (existingNames.has(nextName)) {
-    suffix += 1;
-    nextName = `${baseName} (${suffix})`;
-  }
-
-  return nextName;
-};
-
 const startEditingStage = stage => {
   editingStageId.value = stage.id;
   stageNames.value = {
@@ -921,10 +899,31 @@ const startEditingStage = stage => {
   nextTick(() => stageNameInputs.get(stage.id)?.focus());
 };
 
-const createStage = async () => {
-  if (!selectedBoard.value?.id || isCreatingStage.value) return;
+const openStageDraft = () => {
+  isCreatingStageDraft.value = true;
+  nextTick(() => {
+    newStageNameInput.value?.focus();
+    if (boardScrollContainer.value) {
+      boardScrollContainer.value.scrollLeft =
+        boardScrollContainer.value.scrollWidth;
+    }
+  });
+};
 
-  const name = getUniqueTemporaryStageName();
+const cancelStageDraft = () => {
+  isCreatingStageDraft.value = false;
+  newStageName.value = '';
+  newStageColor.value = defaultStageColor;
+};
+
+const createStage = async () => {
+  const name = newStageName.value.trim();
+  if (!selectedBoard.value?.id || isCreatingStage.value) return;
+  if (!name) {
+    useAlert(t('KANBAN.ACTIONS.STAGE_NAME_REQUIRED'));
+    nextTick(() => newStageNameInput.value?.focus());
+    return;
+  }
 
   isCreatingStage.value = true;
 
@@ -936,12 +935,9 @@ const createStage = async () => {
         position: stages.value.length,
       },
     });
-    newStageColor.value = defaultStageColor;
-    const createdStage = normalizePayload(response.data);
-    pendingScrollToStageId.value = createdStage.id;
+    cancelStageDraft();
+    pendingScrollToStageId.value = normalizePayload(response.data).id;
     await refreshSelectedBoard();
-    const stageToEdit = findCreatedStage(createdStage, name);
-    if (stageToEdit) startEditingStage(stageToEdit);
     useAlert(t('KANBAN.ACTIONS.CREATE_STAGE_SUCCESS'));
   } catch (error) {
     showActionError(error, t('KANBAN.ACTIONS.CREATE_STAGE_ERROR'));
@@ -951,13 +947,24 @@ const createStage = async () => {
 };
 
 const cancelEditingStage = () => {
+  const stageId = editingStageId.value;
   editingStageId.value = null;
+  if (!stageId) return;
+  const { [stageId]: _name, ...restNames } = stageNames.value;
+  const { [stageId]: _color, ...restColors } = stageColors.value;
+  stageNames.value = restNames;
+  stageColors.value = restColors;
 };
 
 const updateStage = async stage => {
   const name = String(stageNames.value[stage.id] || '').trim();
   const color = stageColors.value[stage.id] || defaultStageColor;
-  if (!selectedBoard.value?.id || !name || activeActionKey.value) return;
+  if (!selectedBoard.value?.id || activeActionKey.value) return;
+  if (!name) {
+    useAlert(t('KANBAN.ACTIONS.STAGE_NAME_REQUIRED'));
+    nextTick(() => stageNameInputs.get(stage.id)?.focus());
+    return;
+  }
 
   activeActionKey.value = `update-stage-${stage.id}`;
 
@@ -1746,6 +1753,8 @@ onUnmounted(() => {
   clearTimeout(searchDebounceTimer);
   clearTimeout(createdCardHighlightTimer);
   stopBoardAutoScroll();
+  cancelEditingStage();
+  cancelStageDraft();
   emitter.off(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
 });
 
@@ -1945,7 +1954,7 @@ watch(searchInput, () => {
               :aria-label="t('KANBAN.ACTIONS.CREATE_STAGE')"
               :title="t('KANBAN.ACTIONS.CREATE_STAGE')"
               :disabled="isCreatingStage"
-              @click="createStage"
+              @click="openStageDraft"
             >
               <i class="i-lucide-plus size-4" />
             </button>
@@ -1982,7 +1991,7 @@ watch(searchInput, () => {
       </div>
 
       <div
-        v-else-if="hasBoards && stages.length === 0"
+        v-else-if="hasBoards && stages.length === 0 && !isCreatingStageDraft"
         class="flex flex-1 items-center justify-center p-6 text-center"
       >
         <div class="max-w-md">
@@ -1996,7 +2005,7 @@ watch(searchInput, () => {
       </div>
 
       <div
-        v-else-if="hasBoards && stages.length > 0"
+        v-else-if="hasBoards && (stages.length > 0 || isCreatingStageDraft)"
         class="flex min-h-0 flex-1 flex-col"
       >
         <div
@@ -2066,7 +2075,7 @@ watch(searchInput, () => {
                   <OnClickOutside
                     v-if="editingStageId === stage.id"
                     class="min-w-0 flex-1"
-                    @trigger="updateStage(stage)"
+                    @trigger="cancelEditingStage"
                   >
                     <form
                       class="flex min-w-0 w-full items-center gap-2"
@@ -2088,6 +2097,26 @@ watch(searchInput, () => {
                           t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')
                         "
                         @keydown.escape.prevent="cancelEditingStage"
+                      />
+                      <NextButton
+                        type="submit"
+                        icon="i-lucide-check"
+                        ghost
+                        xs
+                        slate
+                        class="no-drag"
+                        :aria-label="t('KANBAN.ACTIONS.SAVE_STAGE')"
+                        :title="t('KANBAN.ACTIONS.SAVE_STAGE')"
+                      />
+                      <NextButton
+                        icon="i-lucide-x"
+                        ghost
+                        xs
+                        slate
+                        class="no-drag"
+                        :aria-label="t('KANBAN.ACTIONS.CANCEL')"
+                        :title="t('KANBAN.ACTIONS.CANCEL')"
+                        @click="cancelEditingStage"
                       />
                     </form>
                   </OnClickOutside>
@@ -2257,6 +2286,69 @@ watch(searchInput, () => {
               </section>
             </template>
           </Draggable>
+          <button
+            v-if="!isCreatingStageDraft"
+            type="button"
+            data-testid="kanban-create-stage-draft"
+            class="flex w-80 flex-shrink-0 items-center justify-center gap-2 rounded-lg border border-dashed border-n-weak px-3 py-6 text-sm font-medium text-n-slate-11 hover:border-n-brand hover:bg-n-alpha-1 hover:text-n-brand"
+            :aria-label="t('KANBAN.ACTIONS.CREATE_STAGE_DRAFT')"
+            @click="openStageDraft"
+          >
+            <i class="i-lucide-plus size-4" />
+            {{ t('KANBAN.ACTIONS.CREATE_STAGE_DRAFT') }}
+          </button>
+          <OnClickOutside
+            v-else
+            class="flex-shrink-0"
+            @trigger="cancelStageDraft"
+          >
+            <section
+              class="flex w-80 flex-shrink-0 flex-col gap-3 rounded-lg border border-dashed border-n-weak bg-n-alpha-1 p-3"
+              @keydown.escape.prevent="cancelStageDraft"
+            >
+              <form class="flex flex-col gap-3" @submit.prevent="createStage">
+                <div class="flex items-center gap-3">
+                  <ColorPicker
+                    v-model="newStageColor"
+                    :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
+                    data-testid="kanban-new-stage-color-picker"
+                    class="flex-shrink-0"
+                  />
+                  <input
+                    ref="newStageNameInput"
+                    v-model="newStageName"
+                    type="text"
+                    data-testid="kanban-new-stage-name-input"
+                    autofocus
+                    class="reset-base !mb-0 h-8 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                    :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+                  />
+                </div>
+                <div class="flex justify-end gap-2">
+                  <NextButton
+                    type="submit"
+                    icon="i-lucide-check"
+                    :label="t('KANBAN.ACTIONS.CREATE_STAGE_CONFIRM')"
+                    color="blue"
+                    size="sm"
+                    :is-loading="isCreatingStage"
+                    :disabled="isCreatingStage"
+                    data-testid="kanban-create-stage-confirm"
+                  />
+                  <NextButton
+                    icon="i-lucide-x"
+                    :label="t('KANBAN.ACTIONS.CANCEL')"
+                    color="slate"
+                    variant="ghost"
+                    size="sm"
+                    :disabled="isCreatingStage"
+                    data-testid="kanban-create-stage-cancel"
+                    @click="cancelStageDraft"
+                  />
+                </div>
+              </form>
+            </section>
+          </OnClickOutside>
         </div>
       </div>
     </section>
