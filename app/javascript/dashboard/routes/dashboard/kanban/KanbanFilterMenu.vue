@@ -5,6 +5,7 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { SINGLE_VALUE_FILTER_KEYS } from 'dashboard/helper/kanbanBoardFilters';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 
 const props = defineProps({
   modelValue: {
@@ -113,10 +114,15 @@ const updateFilter = (key, value, selected) => {
   });
 };
 
-const updateMatchMode = event => {
+const matchModeOptions = computed(() => [
+  { value: 'all', label: t('KANBAN.FILTERS.MATCH_ALL') },
+  { value: 'any', label: t('KANBAN.FILTERS.MATCH_ANY') },
+]);
+
+const updateMatchMode = matchMode => {
   emit('update:modelValue', {
     ...props.modelValue,
-    matchMode: event.target.value,
+    matchMode,
   });
 };
 </script>
@@ -207,14 +213,12 @@ const updateMatchMode = event => {
           <span class="font-medium text-n-slate-11">{{
             t('KANBAN.FILTERS.MATCH_MODE')
           }}</span>
-          <select
-            class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1 text-xs text-n-slate-12 focus:border-n-brand focus:outline-none"
-            :value="modelValue.matchMode"
-            @change="updateMatchMode"
-          >
-            <option value="all">{{ t('KANBAN.FILTERS.MATCH_ALL') }}</option>
-            <option value="any">{{ t('KANBAN.FILTERS.MATCH_ANY') }}</option>
-          </select>
+          <Select
+            :model-value="modelValue.matchMode"
+            :options="matchModeOptions"
+            class="font-normal"
+            @update:model-value="updateMatchMode"
+          />
         </label>
       </div>
     </template>

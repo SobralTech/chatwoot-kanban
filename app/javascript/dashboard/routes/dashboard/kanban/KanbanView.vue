@@ -18,6 +18,7 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import ColorPicker from 'dashboard/components-next/colorpicker/ColorPicker.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import InlineInput from 'dashboard/components-next/inline-input/InlineInput.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import KanbanFilterMenu from './KanbanFilterMenu.vue';
 import KanbanStageMenu from './KanbanStageMenu.vue';
@@ -100,6 +101,9 @@ const pendingRealtimeKanbanEvents = ref([]);
 const hasCardDragChanged = ref(false);
 const suppressNextCardClick = ref(false);
 const isPersistingCardDrag = ref(false);
+const renamingBoardId = ref(null);
+const renameValue = ref('');
+const isRenamingBoard = ref(false);
 const defaultStageColor = DEFAULT_KANBAN_STAGE_COLOR;
 const newStageColor = ref(defaultStageColor);
 const boardScrollContainer = ref(null);
@@ -112,38 +116,99 @@ const preSearchScrollLeft = ref(null);
 let requestGeneration = 0;
 const staleRequest = Symbol('stale-kanban-request');
 
-let dragMouseX = -1;
+// Auto-scroll while dragging. SortableJS runs in fallback mode (see the card
+// and stage Draggable options), so the pointer keeps emitting events during a
+// drag and we can drive both axes ourselves: the board scrolls horizontally
+// and the column under the pointer scrolls vertically.
+const AUTO_SCROLL_EDGE = 120;
+const AUTO_SCROLL_MAX_SPEED = 24;
+let dragPointerX = -1;
+let dragPointerY = -1;
 let dragPointerReady = false;
 let autoScrollRaf = null;
-const onDragMouseMove = e => {
-  dragMouseX = e.clientX;
+
+const onDragPointerMove = e => {
+  dragPointerX = e.clientX;
+  dragPointerY = e.clientY;
   dragPointerReady = true;
 };
+
+// Ramps from 0 at the edge threshold up to AUTO_SCROLL_MAX_SPEED at the very
+// border, so the board eases in instead of jumping at a fixed speed.
+const edgeScrollDelta = (position, start, end) => {
+  if (position < start + AUTO_SCROLL_EDGE) {
+    const intensity = (start + AUTO_SCROLL_EDGE - position) / AUTO_SCROLL_EDGE;
+    return -AUTO_SCROLL_MAX_SPEED * Math.min(intensity, 1);
+  }
+  if (position > end - AUTO_SCROLL_EDGE) {
+    const intensity = (position - (end - AUTO_SCROLL_EDGE)) / AUTO_SCROLL_EDGE;
+    return AUTO_SCROLL_MAX_SPEED * Math.min(intensity, 1);
+  }
+  return 0;
+};
+
 const runBoardAutoScroll = () => {
-  const el = boardScrollContainer.value;
-  if (el && dragPointerReady) {
-    const { left, right } = el.getBoundingClientRect();
-    const threshold = 100;
-    const speed = 18;
-    if (dragMouseX < left + threshold) {
-      el.scrollLeft -= speed;
-    } else if (dragMouseX > right - threshold) {
-      el.scrollLeft += speed;
+  const board = boardScrollContainer.value;
+  if (board && dragPointerReady) {
+    const boardRect = board.getBoundingClientRect();
+    const dx = edgeScrollDelta(dragPointerX, boardRect.left, boardRect.right);
+    if (dx) {
+      board.scrollLeft = Math.max(
+        0,
+        Math.min(board.scrollLeft + dx, board.scrollWidth - board.clientWidth)
+      );
+    }
+
+    // Sortable's fallback clone is pointer-events: none, so this resolves to
+    // the column actually under the cursor.
+    const column = document
+      .elementFromPoint(dragPointerX, dragPointerY)
+      ?.closest('[data-stage-scroll-id]');
+    if (column) {
+      const columnRect = column.getBoundingClientRect();
+      const dy = edgeScrollDelta(
+        dragPointerY,
+        columnRect.top,
+        columnRect.bottom
+      );
+      if (dy) {
+        column.scrollTop = Math.max(
+          0,
+          Math.min(
+            column.scrollTop + dy,
+            column.scrollHeight - column.clientHeight
+          )
+        );
+      }
     }
   }
   autoScrollRaf = requestAnimationFrame(runBoardAutoScroll);
 };
+
 const startBoardAutoScroll = () => {
+  if (autoScrollRaf) return;
   dragPointerReady = false;
-  dragMouseX = -1;
-  document.addEventListener('mousemove', onDragMouseMove);
+  dragPointerX = -1;
+  dragPointerY = -1;
+  document.addEventListener('pointermove', onDragPointerMove);
   autoScrollRaf = requestAnimationFrame(runBoardAutoScroll);
 };
+
 const stopBoardAutoScroll = () => {
-  document.removeEventListener('mousemove', onDragMouseMove);
+  document.removeEventListener('pointermove', onDragPointerMove);
   if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf);
   autoScrollRaf = null;
   dragPointerReady = false;
+};
+// vuedraggable forwards unknown attributes straight to SortableJS as options,
+// so these have to be real booleans: written as bare attributes they resolve to
+// "" and silently leave the native HTML5 drag backend in place, which emits no
+// pointer events and therefore no auto-scroll. Sortable's own scroll plugin is
+// off because runBoardAutoScroll drives both axes.
+const sortableFallbackOptions = {
+  forceFallback: true,
+  fallbackOnBody: true,
+  scroll: false,
 };
 const cardDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
@@ -1133,6 +1198,7 @@ const reorderStageByPosition = async (stage, position) => {
 };
 
 const onStageDragEnd = async event => {
+  stopBoardAutoScroll();
   const stageId = Number(event?.item?.dataset?.stageId);
   const newIndex = event?.newIndex;
   const oldIndex = event?.oldIndex;
@@ -1405,8 +1471,46 @@ const onChangeCardStatus = async (
   }
 };
 
+const cancelBoardRename = () => {
+  renamingBoardId.value = null;
+  renameValue.value = '';
+};
+
+const startBoardRename = board => {
+  renamingBoardId.value = board.id;
+  renameValue.value = board.name || '';
+};
+
+const confirmBoardRename = async () => {
+  const board = boards.value.find(item => item.id === renamingBoardId.value);
+  const name = renameValue.value.trim();
+  if (!board || !name || isRenamingBoard.value) return;
+
+  if (name === board.name) {
+    cancelBoardRename();
+    return;
+  }
+
+  isRenamingBoard.value = true;
+  try {
+    await KanbanBoardsAPI.update(board.id, { kanban_board: { name } });
+    await store.dispatch('kanbanBoards/refreshBoards');
+    // The header title reads from selectedBoard, which is loaded by showBoard
+    // rather than from the board list, so patch it instead of refetching.
+    if (selectedBoard.value?.id === board.id) selectedBoard.value.name = name;
+    cancelBoardRename();
+  } catch (error) {
+    // Keep the row in edit mode so the name can be corrected in place, most
+    // commonly after the per-account uniqueness check rejects a duplicate.
+    useAlert(getErrorMessage(error, t('KANBAN.ACTIONS.RENAME_BOARD_ERROR')));
+  } finally {
+    isRenamingBoard.value = false;
+  }
+};
+
 const closeBoardDropdown = () => {
   isBoardDropdownOpen.value = false;
+  cancelBoardRename();
 };
 
 const goToOverview = () => {
@@ -1637,6 +1741,7 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimeout(searchDebounceTimer);
   clearTimeout(createdCardHighlightTimer);
+  stopBoardAutoScroll();
   emitter.off(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
 });
 
@@ -1674,31 +1779,83 @@ watch(searchInput, () => {
                 @click="isBoardDropdownOpen = hasBoards && !isBoardDropdownOpen"
               >
                 <span class="min-w-0 truncate">{{ currentBoardName }}</span>
-                <i class="i-lucide-chevron-down size-4 text-n-slate-11" />
+                <i
+                  class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11 transition-transform"
+                  :class="{ 'rotate-180': isBoardDropdownOpen }"
+                />
               </button>
               <div
                 v-if="isBoardDropdownOpen"
                 data-testid="kanban-board-switcher-dropdown"
-                class="absolute left-0 top-full z-10 mt-2 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-n-weak bg-n-solid-1 shadow-sm"
+                class="absolute left-0 top-full z-50 mt-2 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border-0 bg-n-alpha-3 shadow-lg outline outline-1 outline-n-container backdrop-blur-[100px]"
               >
-                <button
-                  v-for="board in boards"
-                  :key="board.id"
-                  type="button"
-                  class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm text-n-slate-12 hover:bg-n-alpha-1"
-                  @click="selectBoard(board.id)"
-                >
-                  <span
-                    class="overflow-hidden text-ellipsis whitespace-nowrap"
-                    :title="board.name"
+                <div class="max-h-80 overflow-y-auto">
+                  <div
+                    v-for="board in boards"
+                    :key="board.id"
+                    class="group flex w-full items-center gap-2 px-4 py-3 text-sm text-n-slate-12 hover:bg-n-alpha-1"
                   >
-                    {{ board.name }}
-                  </span>
-                  <i
-                    v-if="board.id === activeBoardId"
-                    class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
-                  />
-                </button>
+                    <template v-if="renamingBoardId === board.id">
+                      <InlineInput
+                        v-model="renameValue"
+                        focus-on-mount
+                        data-testid="kanban-board-rename-input"
+                        :placeholder="t('KANBAN.ACTIONS.RENAME_BOARD')"
+                        class="min-w-0 flex-1"
+                        @enter-press="confirmBoardRename"
+                        @escape-press="cancelBoardRename"
+                      />
+                      <NextButton
+                        icon="i-lucide-check"
+                        ghost
+                        xs
+                        slate
+                        data-testid="kanban-board-rename-confirm"
+                        :is-loading="isRenamingBoard"
+                        :disabled="isRenamingBoard"
+                        :aria-label="t('KANBAN.ACTIONS.RENAME_BOARD_CONFIRM')"
+                        :title="t('KANBAN.ACTIONS.RENAME_BOARD_CONFIRM')"
+                        @click="confirmBoardRename"
+                      />
+                      <NextButton
+                        icon="i-lucide-x"
+                        ghost
+                        xs
+                        slate
+                        :disabled="isRenamingBoard"
+                        :aria-label="t('KANBAN.ACTIONS.RENAME_BOARD_CANCEL')"
+                        :title="t('KANBAN.ACTIONS.RENAME_BOARD_CANCEL')"
+                        @click="cancelBoardRename"
+                      />
+                    </template>
+                    <template v-else>
+                      <button
+                        type="button"
+                        class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left"
+                        :title="board.name"
+                        @click="selectBoard(board.id)"
+                      >
+                        {{ board.name }}
+                      </button>
+                      <NextButton
+                        v-if="isAdmin"
+                        icon="i-lucide-pencil"
+                        ghost
+                        xs
+                        slate
+                        data-testid="kanban-board-rename-start"
+                        class="opacity-0 transition-opacity focus:opacity-100 group-hover:opacity-100"
+                        :aria-label="t('KANBAN.ACTIONS.RENAME_BOARD')"
+                        :title="t('KANBAN.ACTIONS.RENAME_BOARD')"
+                        @click.stop="startBoardRename(board)"
+                      />
+                      <i
+                        v-if="board.id === activeBoardId"
+                        class="i-lucide-check size-4 flex-shrink-0 text-n-brand"
+                      />
+                    </template>
+                  </div>
+                </div>
                 <div class="border-t border-n-weak p-2">
                   <button
                     type="button"
@@ -1870,9 +2027,11 @@ watch(searchInput, () => {
             class="flex min-h-0 gap-4"
             handle=".stage-drag-handle"
             :move="canMoveStage"
+            v-bind="sortableFallbackOptions"
             ghost-class="opacity-60"
             chosen-class="opacity-90"
-            :animation="180"
+            :animation="150"
+            @start="startBoardAutoScroll"
             @end="onStageDragEnd"
           >
             <template #item="{ element: stage }">
@@ -1985,7 +2144,7 @@ watch(searchInput, () => {
                   <Draggable
                     :list="stage.cards"
                     item-key="id"
-                    class="flex min-h-48 flex-shrink-0 flex-col gap-2 rounded-md"
+                    class="flex flex-1 flex-col gap-2 rounded-md"
                     :title="
                       hasActiveFilters
                         ? t('KANBAN.ACTIONS.REORDER_DISABLED_FILTERED')
@@ -1995,15 +2154,14 @@ watch(searchInput, () => {
                     handle=".card-drag-handle"
                     :filter="cardDragFilter"
                     :prevent-on-filter="false"
-                    :empty-insert-threshold="5"
+                    :empty-insert-threshold="30"
                     :swap-threshold="0.65"
                     :inverted-swap-threshold="1"
-                    fallback-on-body
-                    force-fallback
+                    v-bind="sortableFallbackOptions"
                     :disabled="isCardDragDisabled"
                     ghost-class="opacity-60"
                     chosen-class="opacity-90"
-                    :animation="isCardDragging ? 0 : 180"
+                    :animation="150"
                     @start="onCardDragStart"
                     @change="onCardDragChange(stage, $event)"
                     @end="onCardDragEnd"

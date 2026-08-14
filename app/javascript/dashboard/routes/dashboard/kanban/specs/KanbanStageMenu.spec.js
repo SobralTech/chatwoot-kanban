@@ -65,10 +65,13 @@ describe('KanbanStageMenu', () => {
 
     await findButton(wrapper, 'KANBAN.STAGE_MENU.MOVE.LABEL').trigger('click');
 
-    const boardOptions = wrapper.findAll('select').at(0).findAll('option');
+    const boardOptions = wrapper
+      .findAllComponents({ name: 'Select' })
+      .at(0)
+      .props('options');
 
     expect(boardOptions).toHaveLength(1);
-    expect(boardOptions[0].text()).toBe('Sales');
+    expect(boardOptions[0].label).toBe('Sales');
     expect(wrapper.text()).toContain('KANBAN.STAGE_MENU.MOVE.NONEMPTY_HINT');
   });
 

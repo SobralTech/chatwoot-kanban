@@ -13,6 +13,7 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
 import ColorPicker from 'dashboard/components-next/colorpicker/ColorPicker.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import AgentTagInput from 'dashboard/components-next/taginput/AgentTagInput.vue';
@@ -97,11 +98,22 @@ const stageListModel = computed({
     stages.value = nextStages;
   },
 });
+const buildStageSelectOptions = availableStages => [
+  {
+    value: '',
+    label: t('KANBAN.BOARD_EDIT.STAGES_TAB.SELECT_STAGE_PLACEHOLDER'),
+  },
+  ...availableStages.map(stage => ({ value: stage.id, label: stage.name })),
+];
 const wonStageOptions = computed(() =>
-  stages.value.filter(stage => stage.id !== form.lostStageId)
+  buildStageSelectOptions(
+    stages.value.filter(stage => stage.id !== form.lostStageId)
+  )
 );
 const lostStageOptions = computed(() =>
-  stages.value.filter(stage => stage.id !== form.wonStageId)
+  buildStageSelectOptions(
+    stages.value.filter(stage => stage.id !== form.wonStageId)
+  )
 );
 const hasStageSelectionConflict = computed(
   () =>
@@ -940,47 +952,25 @@ onMounted(async () => {
           <div class="grid gap-2 sm:grid-cols-2">
             <label class="grid gap-1 text-sm font-medium text-n-slate-12">
               {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.WON_STAGE') }}
-              <select
-                :value="form.wonStageId ?? ''"
+              <Select
+                :model-value="form.wonStageId ?? ''"
                 data-testid="kanban-board-form-won-stage"
-                class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none focus:border-n-brand"
-                @change="onWonStageChange($event.target.value)"
-              >
-                <option value="">
-                  {{
-                    t('KANBAN.BOARD_EDIT.STAGES_TAB.SELECT_STAGE_PLACEHOLDER')
-                  }}
-                </option>
-                <option
-                  v-for="stage in wonStageOptions"
-                  :key="stage.id"
-                  :value="stage.id"
-                >
-                  {{ stage.name }}
-                </option>
-              </select>
+                :options="wonStageOptions"
+                full-width
+                class="font-normal"
+                @update:model-value="onWonStageChange"
+              />
             </label>
             <label class="grid gap-1 text-sm font-medium text-n-slate-12">
               {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.LOST_STAGE') }}
-              <select
-                :value="form.lostStageId ?? ''"
+              <Select
+                :model-value="form.lostStageId ?? ''"
                 data-testid="kanban-board-form-lost-stage"
-                class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none focus:border-n-brand"
-                @change="onLostStageChange($event.target.value)"
-              >
-                <option value="">
-                  {{
-                    t('KANBAN.BOARD_EDIT.STAGES_TAB.SELECT_STAGE_PLACEHOLDER')
-                  }}
-                </option>
-                <option
-                  v-for="stage in lostStageOptions"
-                  :key="stage.id"
-                  :value="stage.id"
-                >
-                  {{ stage.name }}
-                </option>
-              </select>
+                :options="lostStageOptions"
+                full-width
+                class="font-normal"
+                @update:model-value="onLostStageChange"
+              />
             </label>
           </div>
 

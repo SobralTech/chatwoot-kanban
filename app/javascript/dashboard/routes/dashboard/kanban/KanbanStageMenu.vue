@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 
 const props = defineProps({
   stage: {
@@ -105,6 +106,12 @@ const positionOptions = computed(() => {
 
   return Array.from({ length: slots }, (_, index) => index + 1);
 });
+const positionSelectOptions = computed(() =>
+  positionOptions.value.map(position => ({
+    value: position,
+    label: t('KANBAN.STAGE_MENU.MOVE.POSITION_VALUE', { position }),
+  }))
+);
 const cardCount = computed(
   () => props.stage.cardsCount ?? props.stage.cards_count ?? 0
 );
@@ -116,6 +123,12 @@ const moveDestinationBoards = computed(() =>
   canMoveToAnotherBoard.value
     ? props.boards
     : props.boards.filter(board => Number(board.id) === currentBoardId.value)
+);
+const moveDestinationBoardOptions = computed(() =>
+  moveDestinationBoards.value.map(board => ({
+    value: board.id,
+    label: board.name,
+  }))
 );
 const canDeleteStage = computed(() => props.stages.length > 1);
 const isBusy = computed(() => !!props.activeActionKey);
@@ -368,36 +381,24 @@ watch(targetBoardId, () => {
         >
           <label class="block text-xs font-medium text-n-slate-11">
             {{ t('KANBAN.STAGE_MENU.MOVE.BOARD') }}
-            <select
+            <Select
               v-model="targetBoardId"
-              class="mt-1 w-full rounded-md border border-n-weak bg-n-surface-1 px-2 py-2 text-sm text-n-slate-12 focus:border-n-brand focus:outline-none"
-            >
-              <option
-                v-for="board in moveDestinationBoards"
-                :key="board.id"
-                :value="board.id"
-              >
-                {{ board.name }}
-              </option>
-            </select>
+              :options="moveDestinationBoardOptions"
+              full-width
+              class="mt-1 font-normal"
+            />
           </label>
           <p v-if="!canMoveToAnotherBoard" class="text-xs text-n-slate-10">
             {{ t('KANBAN.STAGE_MENU.MOVE.NONEMPTY_HINT') }}
           </p>
           <label class="block text-xs font-medium text-n-slate-11">
             {{ t('KANBAN.STAGE_MENU.MOVE.POSITION') }}
-            <select
+            <Select
               v-model="targetPosition"
-              class="mt-1 w-full rounded-md border border-n-weak bg-n-surface-1 px-2 py-2 text-sm text-n-slate-12 focus:border-n-brand focus:outline-none"
-            >
-              <option
-                v-for="position in positionOptions"
-                :key="position"
-                :value="position"
-              >
-                {{ t('KANBAN.STAGE_MENU.MOVE.POSITION_VALUE', { position }) }}
-              </option>
-            </select>
+              :options="positionSelectOptions"
+              full-width
+              class="mt-1 font-normal"
+            />
           </label>
           <button
             type="submit"

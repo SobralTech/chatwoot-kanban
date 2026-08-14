@@ -1125,8 +1125,10 @@ describe('KanbanView drag and drop', () => {
     const wrapper = await mountView();
     const emptyStageDraggable = findEmptyStageDraggable(wrapper);
 
-    expect(emptyStageDraggable.classes()).toContain('min-h-48');
-    expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(5);
+    // flex-1 makes the drop zone span the whole column instead of the former
+    // min-h-48 island, so the dead space below the cards accepts drops too.
+    expect(emptyStageDraggable.classes()).toContain('flex-1');
+    expect(emptyStageDraggable.props('emptyInsertThreshold')).toBe(30);
     expect(emptyStageDraggable.props('swapThreshold')).toBe(0.65);
     expect(emptyStageDraggable.props('invertedSwapThreshold')).toBe(1);
     expect(emptyStageDraggable.props('fallbackOnBody')).toBe(true);
@@ -2202,7 +2204,7 @@ describe('KanbanView header navigation', () => {
       .find('[data-testid="kanban-board-switcher"]')
       .trigger('click');
     const nameSpan = wrapper.find(
-      '[data-testid="kanban-board-switcher-dropdown"] span'
+      '[data-testid="kanban-board-switcher-dropdown"] button'
     );
     expect(nameSpan.text()).toBe('Sales Board');
   });
@@ -2213,7 +2215,7 @@ describe('KanbanView header navigation', () => {
       .find('[data-testid="kanban-board-switcher"]')
       .trigger('click');
     const nameSpan = wrapper.find(
-      '[data-testid="kanban-board-switcher-dropdown"] span'
+      '[data-testid="kanban-board-switcher-dropdown"] button'
     );
     expect(nameSpan.attributes('title')).toBe('Sales Board');
   });
@@ -2229,7 +2231,7 @@ describe('KanbanView header navigation', () => {
       .find('[data-testid="kanban-board-switcher"]')
       .trigger('click');
     const nameSpan = wrapper.find(
-      '[data-testid="kanban-board-switcher-dropdown"] span'
+      '[data-testid="kanban-board-switcher-dropdown"] button'
     );
     expect(nameSpan.text()).toBe(
       'Very Long Board Name That Exceeds Available Width'
