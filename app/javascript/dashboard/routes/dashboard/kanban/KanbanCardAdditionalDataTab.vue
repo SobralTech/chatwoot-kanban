@@ -12,13 +12,13 @@ import Switch from 'dashboard/components-next/switch/Switch.vue';
 const props = defineProps({
   boardId: { type: [Number, String], required: true },
   cardId: { type: [Number, String], required: true },
+  customFields: { type: Array, default: () => [] },
 });
 
 const { t } = useI18n();
 
-const isLoading = ref(false);
+const isLoading = ref(true);
 const loadError = ref('');
-const customFields = ref([]);
 const valuesByFieldId = reactive({});
 const tagDrafts = reactive({});
 
@@ -27,8 +27,13 @@ const buildSnapshot = () => JSON.stringify(valuesByFieldId);
 const captureSnapshot = () => {
   savedSnapshot.value = buildSnapshot();
 };
+// savedSnapshot stays empty until the values load, so a card in flight (or one
+// whose values failed to load) never reports unsaved changes.
 const hasUnsavedChanges = computed(
-  () => customFields.value.length > 0 && buildSnapshot() !== savedSnapshot.value
+  () =>
+    !!savedSnapshot.value &&
+    props.customFields.length > 0 &&
+    buildSnapshot() !== savedSnapshot.value
 );
 
 const getErrorMessage = (error, fallback) =>
@@ -51,15 +56,10 @@ const fetchData = async () => {
   loadError.value = '';
 
   try {
-    const [boardResponse, valuesResponse] = await Promise.all([
-      KanbanBoardsAPI.showBoard(props.boardId),
-      KanbanBoardsAPI.getCardFieldValues(props.boardId, props.cardId),
-    ]);
-
-    const board = camelcaseKeys(boardResponse.data || {}, { deep: true });
-    customFields.value = (board.customFields || [])
-      .slice()
-      .sort((a, b) => a.position - b.position);
+    const valuesResponse = await KanbanBoardsAPI.getCardFieldValues(
+      props.boardId,
+      props.cardId
+    );
 
     const savedValues = camelcaseKeys(valuesResponse.data?.payload || [], {
       deep: true,
@@ -69,7 +69,7 @@ const fetchData = async () => {
       return acc;
     }, {});
 
-    customFields.value.forEach(field => {
+    props.customFields.forEach(field => {
       valuesByFieldId[field.id] = normalizeValues(
         field,
         valuesByFieldIdFromApi[field.id]
@@ -127,7 +127,7 @@ const removeDateValue = (field, index) => {
 const buildPayload = () => {
   const fieldValues = {};
 
-  customFields.value.forEach(field => {
+  props.customFields.forEach(field => {
     const values = valuesByFieldId[field.id] || [];
 
     if (field.fieldType === 'boolean') {

@@ -15,8 +15,6 @@ vi.mock('vue-i18n', () => ({
     t: (key, params = {}) => {
       const translations = {
         'KANBAN.OPPORTUNITY_DETAILS.TITLE': 'Edit Opportunity',
-        'KANBAN.OPPORTUNITY_DETAILS.TITLE_WITH_BOARD':
-          'Edit opportunity in {boardName}',
         'KANBAN.OPPORTUNITY_DETAILS.CARD_ID': '#{id}',
         'KANBAN.OPPORTUNITY_DETAILS.COPY_CARD_ID': 'Copy card ID',
         'KANBAN.OPPORTUNITY_DETAILS.CARD_ID_COPIED': 'Card ID copied.',
@@ -87,8 +85,6 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     createCardProduct: vi.fn(),
     updateCardProduct: vi.fn(),
     deleteCardProduct: vi.fn(),
-    showBoard: vi.fn(),
-    getReasons: vi.fn(),
   },
 }));
 
@@ -278,14 +274,13 @@ const mountModal = async ({
   assignedUsers = [assignableUsers[0]],
   availableAssignableUsers = assignableUsers,
   cardProducts = [],
-  board = null,
+  wonStageId = null,
+  lostStageId = null,
+  lostReasonRequired = false,
   reasons = [],
 } = {}) => {
   storeMocks.labels = accountLabels;
   storeMocks.dispatch.mockResolvedValue();
-
-  KanbanBoardsAPI.showBoard.mockResolvedValue({ data: board || {} });
-  KanbanBoardsAPI.getReasons.mockResolvedValue({ data: reasons });
 
   if (resolveLabels) {
     KanbanBoardsAPI.getCardLabels.mockResolvedValue({
@@ -314,6 +309,10 @@ const mountModal = async ({
     props: {
       boardId: 10,
       cardId: 501,
+      wonStageId,
+      lostStageId,
+      lostReasonRequired,
+      reasons,
     },
     global: {
       stubs: {
@@ -560,7 +559,7 @@ describe('KanbanOpportunityDetailsModal', () => {
     ).toContain('Save failed');
   });
 
-  it('saves due date and clears start date', async () => {
+  it('saves due date without touching start date', async () => {
     KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
       data: buildCard(),
     });
@@ -574,10 +573,12 @@ describe('KanbanOpportunityDetailsModal', () => {
       10,
       501,
       expect.objectContaining({
-        starts_at: null,
         due_at: new Date(2026, 5, 4, 12).toISOString(),
       })
     );
+    expect(
+      KanbanBoardsAPI.updateCardDetailsById.mock.calls[0][2]
+    ).not.toHaveProperty('starts_at');
   });
 
   it('clears due date with null', async () => {
@@ -593,7 +594,7 @@ describe('KanbanOpportunityDetailsModal', () => {
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
       10,
       501,
-      expect.objectContaining({ starts_at: null, due_at: null })
+      expect.objectContaining({ due_at: null })
     );
   });
 
@@ -926,11 +927,8 @@ describe('KanbanOpportunityDetailsModal', () => {
 
     const wrapper = await mountModal({
       card: buildCard({ kanban_stage_id: 15 }),
-      board: {
-        won_stage_id: 20,
-        lost_stage_id: 30,
-        lost_reason_required: false,
-      },
+      wonStageId: 20,
+      lostStageId: 30,
       reasons: [{ id: 1, title: 'Good fit', reason_type: 'won' }],
     });
 

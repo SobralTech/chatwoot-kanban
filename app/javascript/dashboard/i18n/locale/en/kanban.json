@@ -392,7 +392,6 @@
         "ADDITIONAL_DATA": "Additional data"
       },
       "TITLE": "Edit Opportunity",
-      "TITLE_WITH_BOARD": "Edit opportunity in {boardName}",
       "CARD_ID": "#{id}",
       "COPY_CARD_ID": "Copy card ID",
       "CARD_ID_COPIED": "Card ID copied.",

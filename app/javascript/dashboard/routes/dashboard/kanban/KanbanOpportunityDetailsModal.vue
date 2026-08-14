@@ -33,6 +33,26 @@ const props = defineProps({
     type: [Number, String],
     required: true,
   },
+  wonStageId: {
+    type: Number,
+    default: null,
+  },
+  lostStageId: {
+    type: Number,
+    default: null,
+  },
+  lostReasonRequired: {
+    type: Boolean,
+    default: false,
+  },
+  reasons: {
+    type: Array,
+    default: () => [],
+  },
+  customFields: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits([
@@ -78,10 +98,7 @@ const subjectError = ref('');
 const selectedLabelTitles = ref([]);
 const assignedUsers = ref([]);
 const assignableUsers = ref([]);
-const board = ref(null);
-const reasons = ref([]);
 
-const modalTitle = computed(() => t('KANBAN.OPPORTUNITY_DETAILS.TITLE'));
 const cardDisplayId = computed(() => card.value?.id || props.cardId);
 const hasConversation = computed(() => !!card.value?.conversationId);
 const inboxObject = computed(
@@ -272,30 +289,6 @@ const loadCard = async () => {
   }
 };
 
-const loadBoard = async () => {
-  try {
-    const response = await KanbanBoardsAPI.showBoard(props.boardId);
-    const payload = response?.data || {};
-    board.value = {
-      wonStageId: payload.wonStageId ?? payload.won_stage_id,
-      lostStageId: payload.lostStageId ?? payload.lost_stage_id,
-      lostReasonRequired:
-        payload.lostReasonRequired ?? payload.lost_reason_required,
-    };
-  } catch {
-    board.value = null;
-  }
-};
-
-const loadReasons = async () => {
-  try {
-    const response = await KanbanBoardsAPI.getReasons(props.boardId);
-    reasons.value = response?.data || [];
-  } catch {
-    reasons.value = [];
-  }
-};
-
 const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
   try {
     const response = reopen
@@ -342,7 +335,6 @@ const saveCard = async () => {
     const payload = {
       subject: trimmedSubject,
       description: description.value.trim() ? description.value : null,
-      starts_at: null,
       due_at: toIso8601(dueAt.value),
       priority: priority.value || null,
     };
@@ -674,9 +666,6 @@ const removeCardProduct = async product => {
 
 onMounted(async () => {
   loadCardProducts();
-  loadBoard();
-  loadReasons();
-
   await Promise.allSettled([loadCard(), loadLabels(), loadAssignees()]);
   captureSnapshot();
 });
@@ -693,7 +682,7 @@ defineExpose({ saveCard, hasUnsavedChanges });
     >
       <div class="flex min-w-0 items-center gap-2">
         <h2 class="mb-0 truncate text-base font-semibold text-n-slate-12">
-          {{ modalTitle }}
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.TITLE') }}
         </h2>
         <span
           v-if="hasUnsavedChanges"
@@ -765,16 +754,16 @@ defineExpose({ saveCard, hasUnsavedChanges });
           data-testid="kanban-opportunity-general-tab"
         >
           <div
-            v-if="board"
+            v-if="wonStageId && lostStageId"
             data-testid="kanban-opportunity-status"
             class="mb-4"
           >
             <KanbanCardStatusBadge
               :kanban-stage-id="card.kanbanStageId"
-              :won-stage-id="board.wonStageId"
-              :lost-stage-id="board.lostStageId"
+              :won-stage-id="wonStageId"
+              :lost-stage-id="lostStageId"
               :reasons="reasons"
-              :lost-reason-required="board.lostReasonRequired"
+              :lost-reason-required="lostReasonRequired"
               @change="onChangeCardStatus"
             />
           </div>
@@ -1506,6 +1495,7 @@ defineExpose({ saveCard, hasUnsavedChanges });
             ref="additionalDataTabRef"
             :board-id="boardId"
             :card-id="cardId"
+            :custom-fields="customFields"
           />
         </section>
       </template>
