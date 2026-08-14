@@ -1135,17 +1135,20 @@ onMounted(async () => {
                   data-testid="kanban-board-form-edit-stage-panel"
                   class="grid gap-3 rounded-md border border-n-weak bg-n-surface-1 p-3"
                 >
-                  <ColorPicker
-                    v-model="editStageColor"
-                    data-testid="kanban-board-form-edit-stage-color"
-                  />
-                  <input
-                    v-model="editStageName"
-                    data-testid="kanban-board-form-edit-stage-name"
-                    type="text"
-                    class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                    :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-                  />
+                  <div class="flex min-w-0 items-center gap-3">
+                    <ColorPicker
+                      v-model="editStageColor"
+                      data-testid="kanban-board-form-edit-stage-color"
+                      class="flex-none"
+                    />
+                    <input
+                      v-model="editStageName"
+                      data-testid="kanban-board-form-edit-stage-name"
+                      type="text"
+                      class="h-10 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                      :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+                    />
+                  </div>
                   <textarea
                     v-model="editStageDescription"
                     data-testid="kanban-board-form-edit-stage-description"

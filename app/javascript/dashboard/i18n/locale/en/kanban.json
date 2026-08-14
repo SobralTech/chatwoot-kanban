@@ -207,6 +207,7 @@
       "NEW_STAGE_NAME": "New stage",
       "CREATE_STAGE_CONFIRM": "Create stage",
       "STAGE_NAME_PLACEHOLDER": "Stage name",
+      "STAGE_COLOR": "Stage color",
       "EDIT_STAGE": "Edit",
       "SAVE_STAGE": "Save",
       "REMOVE_STAGE": "Remove",

@@ -210,7 +210,7 @@ const sortableFallbackOptions = {
   fallbackOnBody: true,
   scroll: false,
 };
-const cardDragFilter =
+const interactiveDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
 const stageCardsPageLimit = 20;
 const boardRefreshEvents = new Set([
@@ -2026,6 +2026,8 @@ watch(searchInput, () => {
             item-key="id"
             class="flex min-h-0 gap-4"
             handle=".stage-drag-handle"
+            :filter="interactiveDragFilter"
+            :prevent-on-filter="false"
             :move="canMoveStage"
             v-bind="sortableFallbackOptions"
             ghost-class="opacity-60"
@@ -2045,51 +2047,41 @@ watch(searchInput, () => {
                 "
               >
                 <header
-                  class="stage-drag-handle cursor-grab flex min-h-10 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
+                  class="flex min-h-10 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
+                  :class="
+                    editingStageId === stage.id
+                      ? ''
+                      : 'stage-drag-handle cursor-grab'
+                  "
                 >
-                  <form
+                  <OnClickOutside
                     v-if="editingStageId === stage.id"
-                    class="grid min-w-0 flex-1 gap-2"
-                    @submit.prevent="updateStage(stage)"
+                    class="min-w-0 flex-1"
+                    @trigger="updateStage(stage)"
                   >
-                    <div class="flex min-w-0 gap-2">
+                    <form
+                      class="flex min-w-0 w-full items-center gap-2"
+                      @submit.prevent="updateStage(stage)"
+                    >
+                      <ColorPicker
+                        v-model="stageColors[stage.id]"
+                        preview-only
+                        :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
+                        data-testid="kanban-stage-color-picker"
+                        class="flex-shrink-0"
+                      />
                       <input
                         :ref="element => setStageNameInput(stage.id, element)"
                         v-model="stageNames[stage.id]"
                         type="text"
-                        class="min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                        class="h-8 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
                         :placeholder="
                           t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')
                         "
                         @keydown.escape.prevent="cancelEditingStage"
                       />
-                      <button
-                        type="submit"
-                        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-n-weak text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        :disabled="
-                          !String(stageNames[stage.id] || '').trim() ||
-                          !!activeActionKey
-                        "
-                        :aria-label="t('KANBAN.ACTIONS.SAVE_STAGE')"
-                        :title="t('KANBAN.ACTIONS.SAVE_STAGE')"
-                      >
-                        <i class="i-lucide-check size-4" />
-                      </button>
-                      <button
-                        type="button"
-                        class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-n-weak text-n-slate-11 hover:bg-n-alpha-2"
-                        :aria-label="t('KANBAN.ACTIONS.CANCEL')"
-                        :title="t('KANBAN.ACTIONS.CANCEL')"
-                        @click="cancelEditingStage"
-                      >
-                        <i class="i-lucide-x size-4" />
-                      </button>
-                    </div>
-                    <ColorPicker
-                      v-model="stageColors[stage.id]"
-                      data-testid="kanban-stage-color-picker"
-                    />
-                  </form>
+                    </form>
+                  </OnClickOutside>
                   <template v-else>
                     <div class="flex min-w-0 flex-1 items-center gap-2">
                       <span
@@ -2152,7 +2144,7 @@ watch(searchInput, () => {
                     "
                     :group="{ name: 'kanban-cards' }"
                     handle=".card-drag-handle"
-                    :filter="cardDragFilter"
+                    :filter="interactiveDragFilter"
                     :prevent-on-filter="false"
                     :empty-insert-threshold="30"
                     :swap-threshold="0.65"

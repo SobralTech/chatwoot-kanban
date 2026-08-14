@@ -10,6 +10,14 @@ defineProps({
     type: String,
     default: '',
   },
+  previewOnly: {
+    type: Boolean,
+    default: false,
+  },
+  ariaLabel: {
+    type: String,
+    default: '',
+  },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -34,13 +42,16 @@ const pickerRef = ref(null);
 </script>
 
 <template>
-  <div ref="pickerRef" class="relative w-fit">
-    <OnClickOutside @trigger="closeTogglePicker">
+  <div ref="pickerRef" class="relative flex w-fit">
+    <OnClickOutside class="flex" @trigger="closeTogglePicker">
       <Button
         color="slate"
-        icon="i-lucide-pipette"
-        trailing-icon
-        class="!px-3 !py-3 [&>svg]:w-4 [&>svg]:h-4"
+        :icon="previewOnly ? '' : 'i-lucide-pipette'"
+        :trailing-icon="!previewOnly"
+        :aria-label="ariaLabel || undefined"
+        :title="ariaLabel || undefined"
+        class="[&>svg]:w-4 [&>svg]:h-4"
+        :class="previewOnly ? '!size-8 !p-2' : '!px-3 !py-3'"
         @click="toggleColorPicker"
       >
         <div class="flex items-center flex-grow gap-2">
@@ -48,7 +59,9 @@ const pickerRef = ref(null);
             class="rounded-md size-4"
             :style="{ backgroundColor: modelValue }"
           />
-          <span class="min-w-0 truncate">{{ modelValue }}</span>
+          <span v-if="!previewOnly" class="min-w-0 truncate">
+            {{ modelValue }}
+          </span>
         </div>
       </Button>
       <Chrome
