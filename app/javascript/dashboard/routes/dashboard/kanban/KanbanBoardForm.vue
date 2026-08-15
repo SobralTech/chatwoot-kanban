@@ -48,7 +48,6 @@ const isRemovingStage = ref(false);
 const isImportingConversations = ref(false);
 
 const loadError = ref('');
-const templateError = ref('');
 const stageError = ref('');
 const importError = ref('');
 
@@ -76,7 +75,9 @@ const activeTabIndex = ref(0);
 const isFreshDraft = ref(false);
 const templates = ref([]);
 const isCreatingTemplate = ref(false);
-const isTemplatePickerVisible = ref(route.name === 'kanban_board_create_form');
+const isTemplatePickerVisible = computed(
+  () => route.name === 'kanban_board_create_form'
+);
 const savedSnapshot = shallowRef(null);
 const pendingNavigation = ref(null);
 
@@ -289,26 +290,14 @@ const loadBoard = async () => {
   }
 };
 
-const blankTemplatePreview = () => ({
-  key: 'blank',
-  name: 'Blank',
-  description: '',
-  stages: [],
-  wonStageName: 'Won',
-  lostStageName: 'Lost',
-  lostReasonsCount: 0,
-  customFieldsCount: 0,
-});
-
 const loadTemplates = async () => {
-  templateError.value = '';
+  loadError.value = '';
 
   try {
     const response = await KanbanBoardsAPI.templates();
     templates.value = camelcaseKeys(response.data || [], { deep: true });
   } catch (error) {
-    templates.value = [blankTemplatePreview()];
-    templateError.value = getErrorMessage(
+    loadError.value = getErrorMessage(
       error,
       t('KANBAN.BOARD_TEMPLATES.LOAD_ERROR')
     );
@@ -319,10 +308,9 @@ const loadTemplates = async () => {
 
 const ensureDraftBoard = async templateKey => {
   if (route.name !== 'kanban_board_create_form') return;
-  if (isCreatingTemplate.value) return;
 
   isCreatingTemplate.value = true;
-  templateError.value = '';
+  loadError.value = '';
 
   try {
     await store.dispatch('kanbanBoards/fetchBoards');
@@ -346,10 +334,9 @@ const ensureDraftBoard = async templateKey => {
         boardId: boardId.value,
       },
     });
-    isTemplatePickerVisible.value = false;
     await loadBoard();
   } catch (error) {
-    templateError.value = getErrorMessage(
+    loadError.value = getErrorMessage(
       error,
       t('KANBAN.BOARD_EDIT.CREATE_ERROR')
     );
@@ -848,99 +835,87 @@ onMounted(async () => {
         :title="backLabel"
         @click="goBack"
       />
-      <div
-        v-if="!isTemplatePickerVisible"
-        class="flex min-w-0 flex-1 items-center gap-2"
-      >
-        <h1 class="min-w-0 truncate text-lg font-medium text-n-slate-12">
-          {{ pageTitle }}
-        </h1>
-        <span
-          v-if="isDirty"
-          data-testid="kanban-board-form-unsaved-indicator"
-          class="flex-none rounded-full bg-n-amber-2 px-2 py-0.5 text-xs font-medium text-n-amber-11"
-        >
-          {{ t('KANBAN.BOARD_EDIT.UNSAVED_INDICATOR') }}
-        </span>
-      </div>
-      <div
-        v-if="!isTemplatePickerVisible"
-        class="flex flex-none items-center gap-2"
-      >
-        <Button
-          v-if="isDirty"
-          data-testid="kanban-board-form-discard"
-          icon="i-lucide-x"
-          variant="outline"
-          color="slate"
-          size="sm"
-          :label="t('KANBAN.BOARD_EDIT.DISCARD')"
-          @click="showDiscardSettingsConfirmation = true"
-        />
-        <Button
-          v-if="isDirty"
-          data-testid="kanban-board-form-save"
-          icon="i-lucide-check"
-          color="blue"
-          size="sm"
-          :label="t('KANBAN.BOARD_EDIT.SAVE')"
-          :disabled="saveDisabled"
-          :is-loading="isSavingSettings"
-          @click="persistSettings"
-        />
-      </div>
+      <template v-if="!isTemplatePickerVisible">
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+          <h1 class="min-w-0 truncate text-lg font-medium text-n-slate-12">
+            {{ pageTitle }}
+          </h1>
+          <span
+            v-if="isDirty"
+            data-testid="kanban-board-form-unsaved-indicator"
+            class="flex-none rounded-full bg-n-amber-2 px-2 py-0.5 text-xs font-medium text-n-amber-11"
+          >
+            {{ t('KANBAN.BOARD_EDIT.UNSAVED_INDICATOR') }}
+          </span>
+        </div>
+        <div class="flex flex-none items-center gap-2">
+          <Button
+            v-if="isDirty"
+            data-testid="kanban-board-form-discard"
+            icon="i-lucide-x"
+            variant="outline"
+            color="slate"
+            size="sm"
+            :label="t('KANBAN.BOARD_EDIT.DISCARD')"
+            @click="showDiscardSettingsConfirmation = true"
+          />
+          <Button
+            v-if="isDirty"
+            data-testid="kanban-board-form-save"
+            icon="i-lucide-check"
+            color="blue"
+            size="sm"
+            :label="t('KANBAN.BOARD_EDIT.SAVE')"
+            :disabled="saveDisabled"
+            :is-loading="isSavingSettings"
+            @click="persistSettings"
+          />
+        </div>
+      </template>
     </header>
 
-    <p
-      v-if="
-        !isTemplatePickerVisible &&
-        !isLoading &&
-        !loadError &&
-        !form.active &&
-        !canActivate
-      "
-      data-testid="kanban-board-form-locked-help"
-      class="flex-none border-b border-n-weak bg-n-amber-2 px-6 py-2 text-sm text-n-amber-11"
-    >
-      {{ t('KANBAN.BOARD_EDIT.ACTIVATE_LOCKED_HELP') }}
-    </p>
-
-    <div
-      v-if="!isTemplatePickerVisible"
-      class="flex-none border-b border-n-weak px-6 py-3"
-    >
-      <TabBar
-        :tabs="tabItems"
-        :initial-active-tab="activeTabIndex"
-        @tab-changed="onTabChanged"
-      />
-    </div>
-
-    <div
-      v-if="isTemplatePickerVisible"
-      class="flex min-h-0 flex-1 flex-col overflow-y-auto"
-    >
+    <template v-if="!isTemplatePickerVisible">
       <p
-        v-if="templateError"
-        data-testid="kanban-board-template-picker-error"
+        v-if="!isLoading && !loadError && !form.active && !canActivate"
+        data-testid="kanban-board-form-locked-help"
         class="flex-none border-b border-n-weak bg-n-amber-2 px-6 py-2 text-sm text-n-amber-11"
       >
-        {{ templateError }}
+        {{ t('KANBAN.BOARD_EDIT.ACTIVATE_LOCKED_HELP') }}
       </p>
-      <KanbanBoardTemplatePicker
-        :templates="templates"
-        :is-creating="isCreatingTemplate"
-        @select="ensureDraftBoard"
-      />
-    </div>
+
+      <div class="flex-none border-b border-n-weak px-6 py-3">
+        <TabBar
+          :tabs="tabItems"
+          :initial-active-tab="activeTabIndex"
+          @tab-changed="onTabChanged"
+        />
+      </div>
+    </template>
 
     <div
-      v-else-if="isLoading"
+      v-if="isLoading"
       data-testid="kanban-board-form-loading"
       class="flex flex-1 items-center justify-center text-sm text-n-slate-11"
     >
       {{ t('KANBAN.BOARD_EDIT.LOADING') }}
     </div>
+
+    <template v-else-if="isTemplatePickerVisible">
+      <p
+        v-if="loadError"
+        data-testid="kanban-board-template-picker-error"
+        class="flex-none border-b border-n-weak bg-n-amber-2 px-6 py-2 text-sm text-n-amber-11"
+      >
+        {{ loadError }}
+      </p>
+      <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <KanbanBoardTemplatePicker
+          :templates="templates"
+          :is-creating="isCreatingTemplate"
+          @select="ensureDraftBoard"
+        />
+      </div>
+    </template>
 
     <div
       v-else-if="loadError || !isAdmin"

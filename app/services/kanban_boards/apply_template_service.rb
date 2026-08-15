@@ -35,10 +35,10 @@ class KanbanBoards::ApplyTemplateService
   end
 
   def create_reasons!
-    template.fetch(:lost_reasons, []).each_with_index do |reason_key, index|
+    KanbanBoards::TemplateCatalog.lost_reasons(template_key).each_with_index do |reason_key, index|
       kanban_board.kanban_reasons.create!(
         account: account,
-        title: I18n.t("kanban.board_templates.#{template_key}.lost_reasons.#{reason_key}"),
+        title: translate("lost_reasons.#{reason_key}"),
         reason_type: :lost,
         position: index + 1
       )
@@ -46,10 +46,10 @@ class KanbanBoards::ApplyTemplateService
   end
 
   def create_custom_fields!
-    template.fetch(:custom_fields, []).each_with_index do |field_template, index|
+    KanbanBoards::TemplateCatalog.custom_fields(template_key).each_with_index do |field_template, index|
       kanban_board.kanban_custom_fields.create!(
         account: account,
-        key: I18n.t("kanban.board_templates.#{template_key}.custom_fields.#{field_template[:key]}"),
+        key: translate("custom_fields.#{field_template[:key]}"),
         field_type: field_template[:field_type],
         position: index + 1
       )
@@ -59,9 +59,13 @@ class KanbanBoards::ApplyTemplateService
   def create_stage(name_key, color, position)
     kanban_board.kanban_stages.create!(
       account: account,
-      name: I18n.t("kanban.board_templates.#{template_key}.stages.#{name_key}"),
+      name: translate("stages.#{name_key}"),
       color: color,
       position: position
     )
+  end
+
+  def translate(path)
+    KanbanBoards::TemplateCatalog.translate(template_key, path)
   end
 end

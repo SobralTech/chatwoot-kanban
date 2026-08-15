@@ -3,6 +3,10 @@ class KanbanBoardPolicy < ApplicationPolicy
     administrator? || agent?
   end
 
+  def templates?
+    administrator? || agent?
+  end
+
   def show?
     administrator? || agent?
   end

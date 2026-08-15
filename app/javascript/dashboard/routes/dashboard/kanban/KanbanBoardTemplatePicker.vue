@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const props = defineProps({
@@ -12,17 +13,18 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['select']);
+defineEmits(['select']);
 const { t } = useI18n();
-const stageSeparator = '›';
 
-const previewStages = template => (template.stages || []).slice(0, 3);
-const extraStagesCount = template =>
-  Math.max((template.stages || []).length - 3, 0);
+const PREVIEW_STAGE_LIMIT = 3;
 
-const selectTemplate = key => {
-  if (!props.isCreating) emit('select', key);
-};
+const templateCards = computed(() =>
+  props.templates.map(template => ({
+    ...template,
+    stagesPreview: template.stages.slice(0, PREVIEW_STAGE_LIMIT).join(' › '),
+    extraStagesCount: Math.max(template.stages.length - PREVIEW_STAGE_LIMIT, 0),
+  }))
+);
 </script>
 
 <template>
@@ -30,29 +32,19 @@ const selectTemplate = key => {
     data-testid="kanban-board-template-picker"
     class="mx-auto grid w-full max-w-4xl gap-6 p-6"
   >
-    <div class="grid gap-1">
-      <h1 class="text-xl font-semibold text-n-slate-12">
-        {{ t('KANBAN.BOARD_TEMPLATES.TITLE') }}
-      </h1>
-    </div>
+    <h1 class="text-xl font-semibold text-n-slate-12">
+      {{ t('KANBAN.BOARD_TEMPLATES.TITLE') }}
+    </h1>
 
-    <div
-      v-if="!templates.length"
-      data-testid="kanban-board-template-picker-loading"
-      class="rounded-lg border border-dashed border-n-weak px-4 py-8 text-center text-sm text-n-slate-11"
-    >
-      {{ t('KANBAN.BOARD_EDIT.LOADING') }}
-    </div>
-
-    <div v-else class="grid gap-4 sm:grid-cols-2">
+    <div class="grid gap-4 sm:grid-cols-2">
       <button
-        v-for="template in templates"
+        v-for="template in templateCards"
         :key="template.key"
         :data-testid="`kanban-board-template-${template.key}`"
         type="button"
         class="group flex min-h-52 w-full flex-col gap-4 rounded-lg border border-n-weak bg-n-surface-2 p-5 text-left transition-colors hover:border-n-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-n-brand disabled:cursor-not-allowed disabled:opacity-60"
         :disabled="isCreating"
-        @click="selectTemplate(template.key)"
+        @click="$emit('select', template.key)"
       >
         <div class="grid gap-1">
           <h2 class="text-base font-semibold text-n-slate-12">
@@ -66,22 +58,14 @@ const selectTemplate = key => {
         <div
           class="flex min-h-12 flex-wrap content-start items-center gap-x-1 gap-y-2 text-sm text-n-slate-11"
         >
-          <template
-            v-for="(stage, index) in previewStages(template)"
-            :key="stage"
-          >
-            <span>{{ stage }}</span>
-            <template v-if="index < previewStages(template).length - 1">
-              <span aria-hidden="true">{{ stageSeparator }}</span>
-            </template>
-          </template>
+          <span>{{ template.stagesPreview }}</span>
           <span
-            v-if="extraStagesCount(template)"
+            v-if="template.extraStagesCount"
             class="font-medium text-n-slate-12"
           >
             {{
-              t('KANBAN.BOARD_TEMPLATES.STAGES_MORE', {
-                count: extraStagesCount(template),
+              t('KANBAN.OVERVIEW.EXTRA_COUNT', {
+                count: template.extraStagesCount,
               })
             }}
           </span>

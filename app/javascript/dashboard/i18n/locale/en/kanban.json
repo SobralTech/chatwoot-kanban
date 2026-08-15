@@ -35,7 +35,6 @@
     "BOARD_TEMPLATES": {
       "TITLE": "How do you want to start?",
       "SUBTITLE": "Pick a starting point. You can rename, reorder and delete everything later.",
-      "STAGES_MORE": "+{count}",
       "REASONS_COUNT": "{count} loss reasons",
       "FIELDS_COUNT": "{count} custom fields",
       "LOAD_ERROR": "Could not load the funnel templates. You can still start from scratch.",

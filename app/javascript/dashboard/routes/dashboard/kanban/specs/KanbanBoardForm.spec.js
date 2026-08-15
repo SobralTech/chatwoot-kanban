@@ -3,16 +3,21 @@ import { nextTick, reactive } from 'vue';
 import { createStore } from 'vuex';
 
 import KanbanBoardForm from '../KanbanBoardForm.vue';
+import KanbanBoardTemplatePicker from '../KanbanBoardTemplatePicker.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
 const mockPush = vi.fn();
-const mockReplace = vi.fn();
 const mockT = vi.hoisted(() => vi.fn(key => key));
 let routeLeaveGuard;
 
 const mockRoute = reactive({
   name: 'kanban_board_edit_form',
   params: { accountId: '1', boardId: '10' },
+});
+
+// The real router swaps the route once the draft exists, which is what hides the picker.
+const mockReplace = vi.fn(to => {
+  mockRoute.name = to.name;
 });
 
 vi.mock('vue-i18n', () => ({
@@ -105,8 +110,26 @@ const createTestStore = () =>
     },
   });
 
+const templatesResponse = () => [
+  {
+    key: 'blank',
+    name: 'Blank',
+    description: 'Just the essentials',
+    stages: ['Inbox'],
+    won_stage_name: 'Won',
+    lost_stage_name: 'Lost',
+    lost_reasons_count: 0,
+    custom_fields_count: 0,
+  },
+];
+
+const selectTemplate = async (wrapper, key) => {
+  wrapper.findComponent(KanbanBoardTemplatePicker).vm.$emit('select', key);
+  await flushPromises();
+};
+
 const mountForm = async ({ settings, board } = {}) => {
-  KanbanBoardsAPI.templates.mockResolvedValue({ data: [] });
+  KanbanBoardsAPI.templates.mockResolvedValue({ data: templatesResponse() });
   KanbanBoardsAPI.getSettings.mockResolvedValue({
     data: settings || settingsResponse(),
   });
@@ -355,7 +378,7 @@ describe('KanbanBoardForm', () => {
     const wrapper = await mountForm({
       settings: settingsResponse({ active: false }),
     });
-    await wrapper.vm.ensureDraftBoard('blank');
+    await selectTemplate(wrapper, 'blank');
     const next = vi.fn();
 
     invokeRouteLeave(next);
@@ -445,7 +468,7 @@ describe('KanbanBoardForm', () => {
     KanbanBoardsAPI.create.mockResolvedValueOnce({ data: { id: 22 } });
 
     const wrapper = await mountForm();
-    await wrapper.vm.ensureDraftBoard('blank');
+    await selectTemplate(wrapper, 'blank');
 
     expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
       template_key: 'blank',

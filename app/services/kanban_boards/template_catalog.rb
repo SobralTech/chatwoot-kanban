@@ -1,10 +1,6 @@
 module KanbanBoards::TemplateCatalog
+  # Insertion order drives the order templates are offered in the picker.
   TEMPLATES = {
-    'blank' => {
-      stages: [{ name_key: 'entry', color: '#8B8D98' }],
-      won: { name_key: 'won' },
-      lost: { name_key: 'lost' }
-    },
     'sales' => {
       stages: [
         { name_key: 'new_contact', color: '#8B8D98' },
@@ -48,6 +44,11 @@ module KanbanBoards::TemplateCatalog
         { key: 'company', field_type: :text },
         { key: 'valid_until', field_type: :date }
       ]
+    },
+    'blank' => {
+      stages: [{ name_key: 'entry', color: '#8B8D98' }],
+      won: { name_key: 'won' },
+      lost: { name_key: 'lost' }
     }
   }.freeze
 
@@ -64,26 +65,35 @@ module KanbanBoards::TemplateCatalog
     TEMPLATES.key?(normalized_key) ? normalized_key : DEFAULT_KEY
   end
 
+  # Previewed in the account locale so the picker shows the exact names ApplyTemplateService will persist.
   def self.previews(locale:)
-    preview_locale = locale.presence || I18n.default_locale
-
-    (TEMPLATES.keys.reject { |key| key == DEFAULT_KEY } + [DEFAULT_KEY]).map do |key|
-      template = fetch(key)
-
-      {
-        key: key,
-        name: translate(preview_locale, key, 'name'),
-        description: translate(preview_locale, key, 'description'),
-        stages: template[:stages].map { |stage| translate(preview_locale, key, "stages.#{stage[:name_key]}") },
-        won_stage_name: translate(preview_locale, key, "stages.#{template[:won][:name_key]}"),
-        lost_stage_name: translate(preview_locale, key, "stages.#{template[:lost][:name_key]}"),
-        lost_reasons_count: template.fetch(:lost_reasons, []).length,
-        custom_fields_count: template.fetch(:custom_fields, []).length
-      }
+    I18n.with_locale(locale.presence || I18n.default_locale) do
+      TEMPLATES.map { |key, template| preview(key, template) }
     end
   end
 
-  def self.translate(locale, template_key, path)
-    I18n.t("kanban.board_templates.#{template_key}.#{path}", locale: locale)
+  def self.preview(key, template)
+    {
+      key: key,
+      name: translate(key, 'name'),
+      description: translate(key, 'description'),
+      stages: template[:stages].map { |stage| translate(key, "stages.#{stage[:name_key]}") },
+      won_stage_name: translate(key, "stages.#{template[:won][:name_key]}"),
+      lost_stage_name: translate(key, "stages.#{template[:lost][:name_key]}"),
+      lost_reasons_count: lost_reasons(key).length,
+      custom_fields_count: custom_fields(key).length
+    }
+  end
+
+  def self.lost_reasons(key)
+    fetch(key).fetch(:lost_reasons, [])
+  end
+
+  def self.custom_fields(key)
+    fetch(key).fetch(:custom_fields, [])
+  end
+
+  def self.translate(template_key, path)
+    I18n.t("kanban.board_templates.#{template_key}.#{path}")
   end
 end
