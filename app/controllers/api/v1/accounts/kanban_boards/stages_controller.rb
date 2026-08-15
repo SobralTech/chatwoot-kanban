@@ -104,9 +104,10 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def destroy
+    return render_special_stage_error if special_stage?
+    return render_stage_not_empty_error if stage_has_active_cards?
+
     KanbanStage.transaction do
-      @kanban_stage.kanban_cards.active.destroy_all
-      clear_special_stage_reference!
       @kanban_stage.update!(active: false)
       KanbanStage.normalize_positions_for_board!(@kanban_board)
     end
@@ -162,11 +163,12 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     KanbanStage.special_stage_ids(@kanban_board).include?(@kanban_stage.id)
   end
 
-  def clear_special_stage_reference!
-    attributes = {}
-    attributes[:won_stage_id] = nil if @kanban_board.won_stage_id == @kanban_stage.id
-    attributes[:lost_stage_id] = nil if @kanban_board.lost_stage_id == @kanban_stage.id
-    @kanban_board.update!(attributes) if attributes.present?
+  def render_special_stage_error
+    render json: { error: 'special_stage_cannot_be_deleted' }, status: :unprocessable_content
+  end
+
+  def render_stage_move_error(error)
+    render json: { error: error }, status: :unprocessable_content
   end
 
   # The destination board arrives as target_kanban_board_id: :kanban_board_id is the route
@@ -180,10 +182,6 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   def requested_target_position(target_board)
     maximum_position = KanbanStage.next_active_position(target_board)
     (params[:position].presence || maximum_position).to_i.clamp(1, maximum_position)
-  end
-
-  def render_stage_move_error(error)
-    render json: { error: error }, status: :unprocessable_content
   end
 
   def render_stage_not_empty_error

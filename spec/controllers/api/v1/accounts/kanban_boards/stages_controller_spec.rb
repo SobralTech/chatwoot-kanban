@@ -418,6 +418,20 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(stage.reload).not_to be_active
     end
 
+    it 'does not deactivate a special stage' do
+      won_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Won', position: 1)
+      lost_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Lost', position: 2)
+      kanban_board.update!(won_stage: won_stage, lost_stage: lost_stage)
+
+      delete "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{won_stage.id}",
+             headers: administrator.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body['error']).to eq('special_stage_cannot_be_deleted')
+      expect(won_stage.reload).to be_active
+    end
+
     it 'emits kanban.stage.deleted with a compact payload' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       allow(Rails.configuration.dispatcher).to receive(:dispatch)
