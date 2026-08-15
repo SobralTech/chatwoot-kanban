@@ -42,10 +42,8 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def update
-    if deactivating_stage_with_active_cards?
-      render_stage_not_empty_error
-      return
-    end
+    return render_special_stage_error if deactivating_stage? && special_stage?
+    return render_stage_not_empty_error if deactivating_stage_with_active_cards?
 
     @kanban_stage.update!(stage_update_params)
     dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_UPDATED)
@@ -148,11 +146,14 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     params.require(:stage).permit(:name)
   end
 
-  def deactivating_stage_with_active_cards?
+  def deactivating_stage?
     return false unless kanban_stage_params.key?(:active)
-    return false if ActiveModel::Type::Boolean.new.cast(kanban_stage_params[:active])
 
-    stage_has_active_cards?
+    !ActiveModel::Type::Boolean.new.cast(kanban_stage_params[:active])
+  end
+
+  def deactivating_stage_with_active_cards?
+    deactivating_stage? && stage_has_active_cards?
   end
 
   def stage_has_active_cards?
@@ -176,7 +177,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def render_special_stage_error
-    render json: { error: 'special_stage_cannot_be_deleted' }, status: :unprocessable_content
+    render json: { error: KanbanStage::SPECIAL_STAGE_DELETION_ERROR }, status: :unprocessable_content
   end
 
   # The destination board arrives as target_kanban_board_id: :kanban_board_id is the route

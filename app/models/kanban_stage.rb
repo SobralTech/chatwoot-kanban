@@ -23,6 +23,7 @@
 #
 class KanbanStage < ApplicationRecord
   SPECIAL_STAGE_ORDER_ERROR = 'special_stages_must_be_last'.freeze
+  SPECIAL_STAGE_DELETION_ERROR = 'special_stage_cannot_be_deleted'.freeze
 
   belongs_to :account
   belongs_to :kanban_board
@@ -35,6 +36,7 @@ class KanbanStage < ApplicationRecord
   validates :position, presence: true, numericality: { only_integer: true }
   validates :color, format: { with: /\A#[0-9A-F]{6}\z/i }
   validate :validate_board_account
+  validate :validate_special_stage_not_deactivated
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
@@ -115,5 +117,15 @@ class KanbanStage < ApplicationRecord
     return if kanban_board.blank? || account_id == kanban_board.account_id
 
     errors.add(:account_id, :invalid)
+  end
+
+  # A board pointing at an inactive won/lost stage cannot be recovered through the API,
+  # so the reference has to be moved before the stage can be deactivated.
+  def validate_special_stage_not_deactivated
+    return if active? || !active_changed?
+    return if kanban_board.blank?
+    return if self.class.special_stage_ids(kanban_board).exclude?(id)
+
+    errors.add(:active, SPECIAL_STAGE_DELETION_ERROR)
   end
 end
