@@ -979,6 +979,43 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
     end
 
+    it 'creates the blank template with terminal stages' do
+      post "/api/v1/accounts/#{account.id}/kanban_boards",
+           headers: administrator.create_new_auth_token,
+           params: payload.merge(template_key: 'blank'),
+           as: :json
+
+      created_board = KanbanBoard.order(:id).last
+      stages = created_board.kanban_stages.active.ordered
+
+      expect(response).to have_http_status(:success)
+      expect(stages.pluck(:name, :position)).to eq(
+        [['Inbox', 1], ['Won', 2], ['Lost', 3]]
+      )
+      expect(created_board).to have_attributes(
+        won_stage_id: stages.second.id,
+        lost_stage_id: stages.third.id
+      )
+      expect(stages.second.color).to eq(KanbanBoards::TemplateCatalog::WON_COLOR)
+      expect(stages.third.color).to eq(KanbanBoards::TemplateCatalog::LOST_COLOR)
+    end
+
+    it 'uses the account locale for template stage names' do
+      account.update!(locale: 'pt_BR')
+
+      post "/api/v1/accounts/#{account.id}/kanban_boards",
+           headers: administrator.create_new_auth_token,
+           params: payload.merge(template_key: 'blank'),
+           as: :json
+
+      created_board = KanbanBoard.order(:id).last
+
+      expect(response).to have_http_status(:success)
+      expect(created_board.kanban_stages.active.ordered.pluck(:name)).to eq(
+        %w[Entrada Ganho Perdido]
+      )
+    end
+
     it 'creates a board for agents' do
       expect do
         post "/api/v1/accounts/#{account.id}/kanban_boards",

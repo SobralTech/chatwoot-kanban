@@ -31,6 +31,13 @@
 
 en:
   hello: 'Hello world'
+  kanban:
+    board_templates:
+      blank:
+        stages:
+          entry: 'Inbox'
+          won: 'Won'
+          lost: 'Lost'
   inbox:
     reauthorization:
       success: 'Channel reauthorized successfully'

@@ -22,6 +22,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def create
     @kanban_board = KanbanBoard.create!(kanban_board_params.merge(account: Current.account))
+    KanbanBoards::ApplyTemplateService.new(kanban_board: @kanban_board, template_key: params[:template_key]).perform!
   end
 
   def update
