@@ -21,10 +21,67 @@ pt_BR:
   kanban:
     board_templates:
       blank:
+        name: 'Em branco'
+        description: 'Só o essencial: uma etapa mais Ganho e Perdido.'
         stages:
           entry: 'Entrada'
           won: 'Ganho'
           lost: 'Perdido'
+      sales:
+        name: 'Vendas'
+        description: 'Do primeiro contato ao fechamento da venda.'
+        stages:
+          new_contact: 'Novo contato'
+          qualification: 'Qualificação'
+          quote_sent: 'Orçamento enviado'
+          negotiation: 'Negociação'
+          won: 'Ganho'
+          lost: 'Perdido'
+        lost_reasons:
+          price: 'Preço'
+          delivery_time: 'Prazo de entrega'
+          out_of_stock: 'Sem estoque'
+          bought_elsewhere: 'Comprou em outro lugar'
+          no_reply: 'Sem resposta'
+      tech_support:
+        name: 'Assistência técnica'
+        description: 'Da entrada do equipamento até a devolução.'
+        stages:
+          received: 'Recebido'
+          diagnosis: 'Diagnóstico'
+          awaiting_approval: 'Aguardando aprovação'
+          in_repair: 'Em reparo'
+          ready_for_pickup: 'Pronto para retirada'
+          delivered: 'Entregue'
+          cancelled: 'Cancelado'
+        lost_reasons:
+          quote_refused: 'Orçamento recusado'
+          unrepairable: 'Sem reparo possível'
+          gave_up: 'Cliente desistiu'
+          abandoned: 'Equipamento abandonado'
+        custom_fields:
+          service_order: 'Nº da OS'
+          equipment: 'Equipamento'
+          device_password: 'Senha do aparelho'
+          promised_date: 'Prazo prometido'
+      quotes:
+        name: 'Orçamentos e projetos'
+        description: 'Para vendas maiores, cliente PJ e montagem sob medida.'
+        stages:
+          request: 'Solicitação'
+          assessment: 'Levantamento'
+          proposal_sent: 'Proposta enviada'
+          follow_up: 'Follow-up'
+          closed: 'Fechado'
+          refused: 'Recusado'
+        lost_reasons:
+          price: 'Preço'
+          scope_changed: 'Escopo mudou'
+          postponed: 'Adiado'
+          competitor: 'Concorrente'
+        custom_fields:
+          company: 'Empresa'
+          valid_until: 'Prazo de validade'
   inbox:
     reauthorization:
       success: 'Canal reautenticado com sucesso'

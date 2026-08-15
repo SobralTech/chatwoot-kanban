@@ -20,6 +20,7 @@ import AgentTagInput from 'dashboard/components-next/taginput/AgentTagInput.vue'
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import KanbanStageEditPanel from './KanbanStageEditPanel.vue';
+import KanbanBoardTemplatePicker from './KanbanBoardTemplatePicker.vue';
 import KanbanCustomFieldsTab from './KanbanCustomFieldsTab.vue';
 import KanbanReasonsTab from './KanbanReasonsTab.vue';
 
@@ -47,6 +48,7 @@ const isRemovingStage = ref(false);
 const isImportingConversations = ref(false);
 
 const loadError = ref('');
+const templateError = ref('');
 const stageError = ref('');
 const importError = ref('');
 
@@ -72,6 +74,9 @@ const stageReconcileWarning = ref('');
 
 const activeTabIndex = ref(0);
 const isFreshDraft = ref(false);
+const templates = ref([]);
+const isCreatingTemplate = ref(false);
+const isTemplatePickerVisible = ref(route.name === 'kanban_board_create_form');
 const savedSnapshot = shallowRef(null);
 const pendingNavigation = ref(null);
 
@@ -284,14 +289,46 @@ const loadBoard = async () => {
   }
 };
 
-const ensureDraftBoard = async () => {
+const blankTemplatePreview = () => ({
+  key: 'blank',
+  name: 'Blank',
+  description: '',
+  stages: [],
+  wonStageName: 'Won',
+  lostStageName: 'Lost',
+  lostReasonsCount: 0,
+  customFieldsCount: 0,
+});
+
+const loadTemplates = async () => {
+  templateError.value = '';
+
+  try {
+    const response = await KanbanBoardsAPI.templates();
+    templates.value = camelcaseKeys(response.data || [], { deep: true });
+  } catch (error) {
+    templates.value = [blankTemplatePreview()];
+    templateError.value = getErrorMessage(
+      error,
+      t('KANBAN.BOARD_TEMPLATES.LOAD_ERROR')
+    );
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const ensureDraftBoard = async templateKey => {
   if (route.name !== 'kanban_board_create_form') return;
+  if (isCreatingTemplate.value) return;
+
+  isCreatingTemplate.value = true;
+  templateError.value = '';
 
   try {
     await store.dispatch('kanbanBoards/fetchBoards');
     const position = store.getters['kanbanBoards/kanbanBoards'].length;
     const response = await KanbanBoardsAPI.create({
-      template_key: 'blank',
+      template_key: templateKey,
       kanban_board: {
         name: t('KANBAN.BOARD_EDIT.NEW_BOARD_DEFAULT_NAME'),
         active: false,
@@ -309,11 +346,15 @@ const ensureDraftBoard = async () => {
         boardId: boardId.value,
       },
     });
+    isTemplatePickerVisible.value = false;
+    await loadBoard();
   } catch (error) {
-    loadError.value = getErrorMessage(
+    templateError.value = getErrorMessage(
       error,
       t('KANBAN.BOARD_EDIT.CREATE_ERROR')
     );
+  } finally {
+    isCreatingTemplate.value = false;
   }
 };
 
@@ -775,7 +816,10 @@ onBeforeRouteLeave((to, from, next) => {
 });
 
 onMounted(async () => {
-  await ensureDraftBoard();
+  if (route.name === 'kanban_board_create_form') {
+    await loadTemplates();
+    return;
+  }
 
   if (loadError.value || !boardId.value) {
     isLoading.value = false;
@@ -804,7 +848,10 @@ onMounted(async () => {
         :title="backLabel"
         @click="goBack"
       />
-      <div class="flex min-w-0 flex-1 items-center gap-2">
+      <div
+        v-if="!isTemplatePickerVisible"
+        class="flex min-w-0 flex-1 items-center gap-2"
+      >
         <h1 class="min-w-0 truncate text-lg font-medium text-n-slate-12">
           {{ pageTitle }}
         </h1>
@@ -816,7 +863,10 @@ onMounted(async () => {
           {{ t('KANBAN.BOARD_EDIT.UNSAVED_INDICATOR') }}
         </span>
       </div>
-      <div class="flex flex-none items-center gap-2">
+      <div
+        v-if="!isTemplatePickerVisible"
+        class="flex flex-none items-center gap-2"
+      >
         <Button
           v-if="isDirty"
           data-testid="kanban-board-form-discard"
@@ -842,14 +892,23 @@ onMounted(async () => {
     </header>
 
     <p
-      v-if="!isLoading && !loadError && !form.active && !canActivate"
+      v-if="
+        !isTemplatePickerVisible &&
+        !isLoading &&
+        !loadError &&
+        !form.active &&
+        !canActivate
+      "
       data-testid="kanban-board-form-locked-help"
       class="flex-none border-b border-n-weak bg-n-amber-2 px-6 py-2 text-sm text-n-amber-11"
     >
       {{ t('KANBAN.BOARD_EDIT.ACTIVATE_LOCKED_HELP') }}
     </p>
 
-    <div class="flex-none border-b border-n-weak px-6 py-3">
+    <div
+      v-if="!isTemplatePickerVisible"
+      class="flex-none border-b border-n-weak px-6 py-3"
+    >
       <TabBar
         :tabs="tabItems"
         :initial-active-tab="activeTabIndex"
@@ -858,7 +917,25 @@ onMounted(async () => {
     </div>
 
     <div
-      v-if="isLoading"
+      v-if="isTemplatePickerVisible"
+      class="flex min-h-0 flex-1 flex-col overflow-y-auto"
+    >
+      <p
+        v-if="templateError"
+        data-testid="kanban-board-template-picker-error"
+        class="flex-none border-b border-n-weak bg-n-amber-2 px-6 py-2 text-sm text-n-amber-11"
+      >
+        {{ templateError }}
+      </p>
+      <KanbanBoardTemplatePicker
+        :templates="templates"
+        :is-creating="isCreatingTemplate"
+        @select="ensureDraftBoard"
+      />
+    </div>
+
+    <div
+      v-else-if="isLoading"
       data-testid="kanban-board-form-loading"
       class="flex flex-1 items-center justify-center text-sm text-n-slate-11"
     >

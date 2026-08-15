@@ -38,6 +38,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     deleteStage: vi.fn(),
     getSettings: vi.fn(),
     showBoard: vi.fn(),
+    templates: vi.fn(),
     update: vi.fn(),
     updateSettings: vi.fn(),
     createStage: vi.fn(),
@@ -105,6 +106,7 @@ const createTestStore = () =>
   });
 
 const mountForm = async ({ settings, board } = {}) => {
+  KanbanBoardsAPI.templates.mockResolvedValue({ data: [] });
   KanbanBoardsAPI.getSettings.mockResolvedValue({
     data: settings || settingsResponse(),
   });
@@ -353,6 +355,7 @@ describe('KanbanBoardForm', () => {
     const wrapper = await mountForm({
       settings: settingsResponse({ active: false }),
     });
+    await wrapper.vm.ensureDraftBoard('blank');
     const next = vi.fn();
 
     invokeRouteLeave(next);
@@ -436,12 +439,13 @@ describe('KanbanBoardForm', () => {
     });
   });
 
-  it('sends the blank template when creating a funnel', async () => {
+  it('sends the selected template when creating a funnel', async () => {
     mockRoute.name = 'kanban_board_create_form';
     mockRoute.params.boardId = undefined;
     KanbanBoardsAPI.create.mockResolvedValueOnce({ data: { id: 22 } });
 
-    await mountForm();
+    const wrapper = await mountForm();
+    await wrapper.vm.ensureDraftBoard('blank');
 
     expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
       template_key: 'blank',

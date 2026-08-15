@@ -130,6 +130,7 @@ Rails.application.routes.draw do
           resources :dashboard_apps, only: [:index, :show, :create, :update, :destroy]
           get 'products/search', to: 'products#search'
           resources :kanban_boards, only: [:index, :create, :show, :destroy], constraints: { id: /\d+/ } do
+            get :templates, on: :collection
             patch '', on: :member, action: :update
 
             scope module: :kanban_boards do

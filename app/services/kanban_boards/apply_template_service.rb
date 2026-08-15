@@ -7,7 +7,11 @@ class KanbanBoards::ApplyTemplateService
 
   def perform!
     KanbanBoard.transaction do
-      I18n.with_locale(account.locale.presence || I18n.default_locale) { create_stages! }
+      I18n.with_locale(account.locale.presence || I18n.default_locale) do
+        create_stages!
+        create_reasons!
+        create_custom_fields!
+      end
     end
 
     kanban_board
@@ -28,6 +32,28 @@ class KanbanBoards::ApplyTemplateService
       won_stage: create_stage(template[:won][:name_key], KanbanBoards::TemplateCatalog::WON_COLOR, regular_stages.length + 1),
       lost_stage: create_stage(template[:lost][:name_key], KanbanBoards::TemplateCatalog::LOST_COLOR, regular_stages.length + 2)
     )
+  end
+
+  def create_reasons!
+    template.fetch(:lost_reasons, []).each_with_index do |reason_key, index|
+      kanban_board.kanban_reasons.create!(
+        account: account,
+        title: I18n.t("kanban.board_templates.#{template_key}.lost_reasons.#{reason_key}"),
+        reason_type: :lost,
+        position: index + 1
+      )
+    end
+  end
+
+  def create_custom_fields!
+    template.fetch(:custom_fields, []).each_with_index do |field_template, index|
+      kanban_board.kanban_custom_fields.create!(
+        account: account,
+        key: I18n.t("kanban.board_templates.#{template_key}.custom_fields.#{field_template[:key]}"),
+        field_type: field_template[:field_type],
+        position: index + 1
+      )
+    end
   end
 
   def create_stage(name_key, color, position)

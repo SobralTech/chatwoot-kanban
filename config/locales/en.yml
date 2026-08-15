@@ -34,10 +34,67 @@ en:
   kanban:
     board_templates:
       blank:
+        name: 'Blank'
+        description: 'Just the essentials: one stage plus Won and Lost.'
         stages:
           entry: 'Inbox'
           won: 'Won'
           lost: 'Lost'
+      sales:
+        name: 'Sales'
+        description: 'From first contact to closing the deal.'
+        stages:
+          new_contact: 'New contact'
+          qualification: 'Qualification'
+          quote_sent: 'Quote sent'
+          negotiation: 'Negotiation'
+          won: 'Won'
+          lost: 'Lost'
+        lost_reasons:
+          price: 'Price'
+          delivery_time: 'Delivery time'
+          out_of_stock: 'Out of stock'
+          bought_elsewhere: 'Bought elsewhere'
+          no_reply: 'No reply'
+      tech_support:
+        name: 'Tech support'
+        description: 'From equipment intake to handing it back.'
+        stages:
+          received: 'Received'
+          diagnosis: 'Diagnosis'
+          awaiting_approval: 'Awaiting approval'
+          in_repair: 'In repair'
+          ready_for_pickup: 'Ready for pickup'
+          delivered: 'Delivered'
+          cancelled: 'Cancelled'
+        lost_reasons:
+          quote_refused: 'Quote refused'
+          unrepairable: 'Beyond repair'
+          gave_up: 'Customer gave up'
+          abandoned: 'Abandoned equipment'
+        custom_fields:
+          service_order: 'Service order #'
+          equipment: 'Equipment'
+          device_password: 'Device password'
+          promised_date: 'Promised date'
+      quotes:
+        name: 'Quotes and projects'
+        description: 'For larger sales, business customers and custom builds.'
+        stages:
+          request: 'Request'
+          assessment: 'Assessment'
+          proposal_sent: 'Proposal sent'
+          follow_up: 'Follow-up'
+          closed: 'Closed'
+          refused: 'Refused'
+        lost_reasons:
+          price: 'Price'
+          scope_changed: 'Scope changed'
+          postponed: 'Postponed'
+          competitor: 'Competitor'
+        custom_fields:
+          company: 'Company'
+          valid_until: 'Valid until'
   inbox:
     reauthorization:
       success: 'Channel reauthorized successfully'

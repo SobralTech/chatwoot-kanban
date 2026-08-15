@@ -1,11 +1,16 @@
 class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseController
   include KanbanCardFilterParams
-  before_action :check_authorization
+  before_action :check_authorization, except: [:templates]
+  before_action :authorize_templates, only: [:templates]
   before_action :fetch_kanban_board, only: [:show, :update, :destroy]
 
   def index
     @kanban_boards = policy_scope(KanbanBoard).ordered.to_a
     fetch_overview_data
+  end
+
+  def templates
+    @templates = KanbanBoards::TemplateCatalog.previews(locale: Current.account.locale)
   end
 
   def show
@@ -47,6 +52,10 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
                     else
                       policy_scope(KanbanBoard).find(params[:id])
                     end
+  end
+
+  def authorize_templates
+    authorize KanbanBoard, :index?
   end
 
   def fetch_overview_data
