@@ -47,7 +47,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
       return
     end
 
-    @kanban_stage.update!(kanban_stage_params.except(:position))
+    @kanban_stage.update!(stage_update_params)
     dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_UPDATED)
   end
 
@@ -161,6 +161,18 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
 
   def special_stage?
     KanbanStage.special_stage_ids(@kanban_board).include?(@kanban_stage.id)
+  end
+
+  def stage_update_params
+    attributes = kanban_stage_params.except(:position)
+    attributes[:color] = terminal_stage_color if special_stage?
+    attributes
+  end
+
+  def terminal_stage_color
+    return KanbanBoards::TemplateCatalog::WON_COLOR if @kanban_board.won_stage_id == @kanban_stage.id
+
+    KanbanBoards::TemplateCatalog::LOST_COLOR
   end
 
   def render_special_stage_error

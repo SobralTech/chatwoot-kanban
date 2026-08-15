@@ -154,6 +154,20 @@ RSpec.describe 'Kanban Stages API', type: :request do
       expect(stage).not_to be_active
     end
 
+    it 'keeps terminal colors canonical when updating a terminal stage' do
+      won_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Won', color: '#8B8D98', position: 1)
+      lost_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Lost', color: '#8B8D98', position: 2)
+      kanban_board.update!(won_stage: won_stage, lost_stage: lost_stage)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{won_stage.id}",
+            headers: administrator.create_new_auth_token,
+            params: { stage: { name: 'Closed Won', color: '#123456' } },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(won_stage.reload.color).to eq(KanbanBoards::TemplateCatalog::WON_COLOR)
+    end
+
     it 'emits kanban.stage.updated with a compact payload' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
       allow(Rails.configuration.dispatcher).to receive(:dispatch)
