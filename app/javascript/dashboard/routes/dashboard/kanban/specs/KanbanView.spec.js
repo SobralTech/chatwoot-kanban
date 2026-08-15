@@ -446,6 +446,7 @@ const getKanbanRealtimeHandler = () =>
 
 const emitKanbanRealtimeEvent = async payload => {
   getKanbanRealtimeHandler()(payload);
+  await vi.advanceTimersByTimeAsync(500);
   await flushPromises();
   await nextTick();
 };
@@ -457,7 +458,7 @@ beforeEach(() => {
 describe('KanbanView realtime events', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useRealTimers();
+    vi.useFakeTimers();
   });
 
   it('registers the kanban realtime bus listener on mount', async () => {
@@ -2281,7 +2282,7 @@ describe('KanbanView filters', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockT.mockImplementation(key => key);
-    vi.useRealTimers();
+    vi.useFakeTimers();
     mockRoute.params.boardId = '10';
     window.localStorage.clear();
   });

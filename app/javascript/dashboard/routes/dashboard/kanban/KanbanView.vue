@@ -8,6 +8,7 @@ import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
+import { useKanbanRealtimeBuffer } from 'dashboard/composables/useKanbanRealtimeBuffer';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import {
@@ -562,9 +563,13 @@ const refreshStageFirstPage = (stageId, generation = requestGeneration) => {
     return stageRefreshRequests.get(requestKey);
   }
 
-  const request = reloadStageCards(stageId, generation).finally(() => {
-    stageRefreshRequests.delete(requestKey);
-  });
+  const request = reloadStageCards(stageId, generation)
+    .catch(() =>
+      setStageCardsError(stageId, t('KANBAN.ACTIONS.LOAD_CARDS_ERROR'))
+    )
+    .finally(() => {
+      stageRefreshRequests.delete(requestKey);
+    });
 
   stageRefreshRequests.set(requestKey, request);
   return request;
@@ -590,9 +595,14 @@ const patchVisibleCard = card => {
   if (!updatedCard?.id) return false;
 
   const stageId = findCardStageId(updatedCard);
+  const visibleStage = stages.value.find(item => item.id === stageId);
   if (
     !stageId ||
-    (updatedCard.kanbanStageId && updatedCard.kanbanStageId !== stageId)
+    !visibleStage ||
+    (updatedCard.kanbanStageId &&
+      !visibleStage.cards.some(
+        existingCard => existingCard.id === updatedCard.id
+      ))
   ) {
     return false;
   }
@@ -1384,21 +1394,14 @@ const onStageDragEnd = async event => {
   await reorderStageByPosition(stage, newIndex + 1);
 };
 
-const handleRealtimeCardUpdated = async data => {
-  if (Object.keys(currentFilterParams()).length > 0) {
-    const localStageId = stages.value.find(stage =>
-      stage.cards.some(card => card.id === data.card_id)
-    )?.id;
-    await refreshStageFirstPages([data.stage_id, localStageId]);
-    return;
-  }
-
+const patchCardById = async cardId => {
   const generation = requestGeneration;
   const boardId = selectedBoard.value?.id;
   if (!boardId) return;
+  const localStageId = findCardStageId({ id: cardId });
 
   try {
-    const response = await KanbanBoardsAPI.showCardById(boardId, data.card_id);
+    const response = await KanbanBoardsAPI.showCardById(boardId, cardId);
     if (
       generation !== requestGeneration ||
       selectedBoard.value?.id !== boardId
@@ -1406,9 +1409,10 @@ const handleRealtimeCardUpdated = async data => {
       return;
     }
     const card = normalizePayload(response.data);
+    const updatedStageId = findCardStageId(card);
 
     if (card.active === false || !patchVisibleCard(card)) {
-      await refreshStageFirstPage(data.stage_id);
+      await refreshStageFirstPages([localStageId, updatedStageId]);
     }
   } catch {
     if (
@@ -1417,34 +1421,60 @@ const handleRealtimeCardUpdated = async data => {
     ) {
       return;
     }
-    await refreshStageFirstPage(data.stage_id);
+    await refreshStageFirstPage(localStageId);
   }
 };
 
-const processRealtimeKanbanEvent = (event, data) => {
+const applyRealtimeFlush = async ({ board, stageIds, cardIds }) => {
+  if (!selectedBoard.value?.id) return;
+  if (board) {
+    await refreshSelectedBoard();
+    return;
+  }
+
+  if (stageIds.length) await refreshStageFirstPages(stageIds);
+  await Promise.all(cardIds.map(patchCardById));
+};
+
+const realtimeBuffer = useKanbanRealtimeBuffer({
+  onFlush: applyRealtimeFlush,
+});
+
+const bufferRealtimeEvent = (event, data) => {
   if (boardRefreshEvents.has(event)) {
-    refreshSelectedBoard();
+    realtimeBuffer.push({ board: true });
     return;
   }
 
   if (event === 'kanban.card.created' || event === 'kanban.card.deleted') {
-    refreshStageFirstPage(data.stage_id);
+    realtimeBuffer.push({ stageIds: [data.stage_id] });
     return;
   }
 
   if (event === 'kanban.card.reordered') {
-    if (data.source_stage_id === data.target_stage_id) {
-      refreshStageFirstPage(data.source_stage_id);
-      return;
-    }
-
-    refreshStageFirstPages([data.source_stage_id, data.target_stage_id]);
+    realtimeBuffer.push({
+      stageIds: [data.source_stage_id, data.target_stage_id],
+    });
     return;
   }
 
   if (event === 'kanban.card.updated') {
-    handleRealtimeCardUpdated(data);
+    if (hasActiveFilters.value) {
+      realtimeBuffer.push({
+        stageIds: [data.stage_id, findCardStageId({ id: data.card_id })],
+      });
+      return;
+    }
+
+    realtimeBuffer.push({
+      cardIds: [data.card_id],
+      cardStageIds: [data.stage_id, findCardStageId({ id: data.card_id })],
+    });
   }
+};
+
+const processRealtimeKanbanEvent = (event, data) => {
+  bufferRealtimeEvent(event, data);
 };
 
 const flushPendingRealtimeKanbanEvents = () => {
