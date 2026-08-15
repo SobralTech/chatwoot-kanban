@@ -411,6 +411,8 @@ const stageActionErrorMessage = error => {
       return t('KANBAN.STAGE_MENU.ERRORS.STAGE_NOT_EMPTY');
     case 'special_stage_cannot_move_board':
       return t('KANBAN.STAGE_MENU.ERRORS.SPECIAL_STAGE_CANNOT_MOVE_BOARD');
+    case 'special_stage_cannot_be_deleted':
+      return t('KANBAN.ACTIONS.REMOVE_STAGE_TERMINAL');
     case 'terminal_stage_not_allowed':
       return t('KANBAN.STAGE_MENU.ERRORS.TERMINAL_STAGE_NOT_ALLOWED');
     default:
@@ -1080,7 +1082,6 @@ const cancelEditingStage = () => {
 
 const updateStage = async stage => {
   const name = String(stageNames.value[stage.id] || '').trim();
-  const color = stageColors.value[stage.id] || defaultStageColor;
   const actionKey = stageActionKey(stage);
   if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
   if (!name) {
@@ -1092,11 +1093,13 @@ const updateStage = async stage => {
   startAction(actionKey);
 
   try {
+    const stagePayload = { name };
+    if (!isTerminalStage(stage)) {
+      stagePayload.color = stageColors.value[stage.id] || defaultStageColor;
+    }
+
     await KanbanBoardsAPI.updateStage(selectedBoard.value.id, stage.id, {
-      stage: {
-        name,
-        color,
-      },
+      stage: stagePayload,
     });
     cancelEditingStage();
     await refreshSelectedBoard();
@@ -2483,20 +2486,31 @@ watch(searchInput, () => {
             <template #item="{ element: stage }">
               <section
                 :data-stage-id="stage.id"
-                class="flex w-64 lg:w-80 flex-shrink-0 flex-col snap-start rounded-lg border border-n-weak bg-n-solid-1"
-                :class="
-                  editingStageId === stage.id
-                    ? 'overflow-visible'
-                    : 'overflow-hidden'
-                "
+                class="flex w-64 lg:w-80 flex-shrink-0 flex-col snap-start rounded-lg border bg-n-solid-1"
+                :class="{
+                  'overflow-visible': editingStageId === stage.id,
+                  'overflow-hidden': editingStageId !== stage.id,
+                  'border-n-teal-8':
+                    isTerminalStage(stage) &&
+                    stage.id === selectedBoard?.wonStageId,
+                  'border-n-ruby-8':
+                    isTerminalStage(stage) &&
+                    stage.id === selectedBoard?.lostStageId,
+                  'border-n-weak': !isTerminalStage(stage),
+                }"
               >
                 <header
                   class="flex min-h-10 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
-                  :class="
-                    editingStageId === stage.id
-                      ? ''
-                      : 'stage-drag-handle cursor-grab'
-                  "
+                  :class="{
+                    'stage-drag-handle cursor-grab':
+                      editingStageId !== stage.id,
+                    'bg-n-teal-2':
+                      isTerminalStage(stage) &&
+                      stage.id === selectedBoard?.wonStageId,
+                    'bg-n-ruby-2':
+                      isTerminalStage(stage) &&
+                      stage.id === selectedBoard?.lostStageId,
+                  }"
                 >
                   <OnClickOutside
                     v-if="editingStageId === stage.id"
@@ -2508,6 +2522,7 @@ watch(searchInput, () => {
                       @submit.prevent="updateStage(stage)"
                     >
                       <ColorPicker
+                        v-if="!isTerminalStage(stage)"
                         v-model="stageColors[stage.id]"
                         preview-only
                         :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
@@ -2549,12 +2564,32 @@ watch(searchInput, () => {
                   <template v-else>
                     <div class="flex min-w-0 flex-1 items-center gap-2">
                       <span
+                        v-if="isTerminalStage(stage)"
+                        class="size-2.5 flex-shrink-0 rounded-full"
+                        :class="
+                          stage.id === selectedBoard?.wonStageId
+                            ? 'bg-n-teal-9'
+                            : 'bg-n-ruby-9'
+                        "
+                        aria-hidden="true"
+                      />
+                      <span
+                        v-else
                         class="size-2.5 flex-shrink-0 rounded-full"
                         :style="{ backgroundColor: stage.color }"
                         aria-hidden="true"
                       />
                       <h3
-                        class="truncate text-sm font-semibold text-n-slate-12"
+                        class="truncate text-sm font-semibold"
+                        :class="{
+                          'text-n-teal-11':
+                            isTerminalStage(stage) &&
+                            stage.id === selectedBoard?.wonStageId,
+                          'text-n-ruby-11':
+                            isTerminalStage(stage) &&
+                            stage.id === selectedBoard?.lostStageId,
+                          'text-n-slate-12': !isTerminalStage(stage),
+                        }"
                       >
                         {{ stage.name }}
                       </h3>

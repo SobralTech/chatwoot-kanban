@@ -111,6 +111,9 @@ describe('KanbanStageMenu', () => {
       findButton(wrapper, 'KANBAN.STAGE_MENU.MOVE_CARDS.LABEL')
     ).toBeUndefined();
     expect(findButton(wrapper, 'KANBAN.STAGE_MENU.EDIT')).toBeDefined();
+    expect(
+      findButton(wrapper, 'KANBAN.STAGE_MENU.DELETE_STAGE')
+    ).toBeUndefined();
   });
 
   it('hides list deletion when it is the only list', () => {

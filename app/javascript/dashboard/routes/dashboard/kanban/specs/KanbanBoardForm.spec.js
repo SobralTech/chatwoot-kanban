@@ -296,7 +296,7 @@ describe('KanbanBoardForm', () => {
         name: 'Negotiation',
         description: '',
         color: '#FF6B6B',
-        position: 3,
+        position: 1,
       },
     });
   });
@@ -387,28 +387,70 @@ describe('KanbanBoardForm', () => {
     inactiveWrapper.unmount();
   });
 
-  it('reconciles a deleted won stage in the draft without clearing dirty state', async () => {
+  it('keeps terminal stages out of the removal controls', async () => {
     const wrapper = await mountForm();
-    KanbanBoardsAPI.showBoard.mockResolvedValueOnce({
-      data: boardResponse({ stages: [{ id: 200, name: 'Won', cards: [] }] }),
-    });
+
+    expect(
+      wrapper.findAll('[data-testid="kanban-board-form-remove-stage"]')
+    ).toHaveLength(0);
+    expect(
+      wrapper.find('[data-testid="kanban-board-form-won-stage"]').exists()
+    ).toBe(false);
+    expect(
+      wrapper.find('[data-testid="kanban-board-form-lost-stage"]').exists()
+    ).toBe(false);
+    expect(wrapper.text()).toContain(
+      'KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_TITLE'
+    );
+    expect(wrapper.findAll('.stage-drag-handle')).toHaveLength(0);
 
     await wrapper
-      .find('[data-testid="kanban-board-form-remove-stage"]')
+      .findAll('[data-testid="kanban-board-form-edit-stage"]')[0]
       .trigger('click');
-    await wrapper
-      .find('[data-testid="kanban-board-form-delete-modal-confirm"]')
-      .trigger('click');
-    await flushPromises();
-
     expect(
       wrapper
-        .find('[data-testid="kanban-board-form-stage-reconcile-warning"]')
+        .find('[data-testid="kanban-board-form-edit-stage-color"]')
         .exists()
-    ).toBe(true);
-    expect(
-      wrapper.find('[data-testid="kanban-board-form-save"]').exists()
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('reorders regular stages with positions before terminals', async () => {
+    const wrapper = await mountForm({
+      board: boardResponse({
+        stages: [
+          { id: 50, name: 'Inbox', position: 1, cards: [] },
+          { id: 100, name: 'Won', position: 2, cards: [] },
+          { id: 200, name: 'Lost', position: 3, cards: [] },
+        ],
+      }),
+    });
+
+    await wrapper.vm.onStageDragEnd({
+      item: { dataset: { stageId: '50' } },
+      oldIndex: 0,
+      newIndex: 1,
+    });
+
+    expect(KanbanBoardsAPI.reorderStage).toHaveBeenCalledWith(10, 50, {
+      position: 2,
+    });
+  });
+
+  it('sends the blank template when creating a funnel', async () => {
+    mockRoute.name = 'kanban_board_create_form';
+    mockRoute.params.boardId = undefined;
+    KanbanBoardsAPI.create.mockResolvedValueOnce({ data: { id: 22 } });
+
+    await mountForm();
+
+    expect(KanbanBoardsAPI.create).toHaveBeenCalledWith({
+      template_key: 'blank',
+      kanban_board: {
+        name: 'KANBAN.BOARD_EDIT.NEW_BOARD_DEFAULT_NAME',
+        active: false,
+        position: 0,
+      },
+    });
   });
 
   it('enables Save without terminal stages', async () => {

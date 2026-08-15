@@ -131,7 +131,9 @@ const moveDestinationBoardOptions = computed(() =>
     label: board.name,
   }))
 );
-const canDeleteStage = computed(() => props.stages.length > 1);
+const canDeleteStage = computed(
+  () => props.stages.length > 1 && !isCurrentStageTerminal.value
+);
 const sortOptions = computed(() => [
   {
     value: 'created_at_desc',

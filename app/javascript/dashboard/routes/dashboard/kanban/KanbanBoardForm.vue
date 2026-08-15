@@ -92,10 +92,23 @@ const form = reactive({
   lostRecurrenceWindowHours: null,
 });
 
+const { isTerminalStage, canMoveStage } = useKanbanStageOrder({
+  stages,
+  wonStageId: computed(() => form.wonStageId),
+  lostStageId: computed(() => form.lostStageId),
+});
+const regularStages = computed(() =>
+  stages.value.filter(stage => !isTerminalStage(stage))
+);
+const terminalStages = computed(() =>
+  [form.wonStageId, form.lostStageId]
+    .map(id => stages.value.find(stage => stage.id === id))
+    .filter(Boolean)
+);
 const stageListModel = computed({
-  get: () => stages.value,
+  get: () => regularStages.value,
   set: nextStages => {
-    stages.value = nextStages;
+    stages.value = [...nextStages, ...terminalStages.value];
   },
 });
 const buildStageSelectOptions = availableStages => [
@@ -119,11 +132,6 @@ const hasStageSelectionConflict = computed(
   () =>
     form.wonStageId && form.lostStageId && form.wonStageId === form.lostStageId
 );
-const { canMoveStage } = useKanbanStageOrder({
-  stages,
-  wonStageId: computed(() => form.wonStageId),
-  lostStageId: computed(() => form.lostStageId),
-});
 
 const tabItems = computed(() => [
   { label: t('KANBAN.BOARD_EDIT.TABS.STAGES') },
@@ -273,6 +281,7 @@ const ensureDraftBoard = async () => {
     await store.dispatch('kanbanBoards/fetchBoards');
     const position = store.getters['kanbanBoards/kanbanBoards'].length;
     const response = await KanbanBoardsAPI.create({
+      template_key: 'blank',
       kanban_board: {
         name: t('KANBAN.BOARD_EDIT.NEW_BOARD_DEFAULT_NAME'),
         active: false,
@@ -468,7 +477,7 @@ const createStage = async () => {
         name,
         description: newStageDescription.value.trim(),
         color: newStageColor.value,
-        position: stages.value.length + 1,
+        position: regularStages.value.length + 1,
       },
     });
     closeCreateStageForm();
@@ -508,12 +517,14 @@ const updateStage = async stage => {
   stageError.value = '';
 
   try {
+    const stagePayload = {
+      name,
+      description: editStageDescription.value.trim(),
+    };
+    if (!isTerminalStage(stage)) stagePayload.color = editStageColor.value;
+
     await KanbanBoardsAPI.updateStage(boardId.value, stage.id, {
-      stage: {
-        name,
-        description: editStageDescription.value.trim(),
-        color: editStageColor.value,
-      },
+      stage: stagePayload,
     });
     closeEditStage();
     await refreshBoard();
@@ -560,10 +571,17 @@ const removeStage = async () => {
     await store.dispatch('kanbanBoards/refreshBoards');
     useAlert(t('KANBAN.ACTIONS.REMOVE_STAGE_SUCCESS'));
   } catch (error) {
-    stageError.value =
-      error?.response?.status === 422
-        ? t('KANBAN.ACTIONS.REMOVE_STAGE_NOT_EMPTY')
-        : getErrorMessage(error, t('KANBAN.ACTIONS.REMOVE_STAGE_ERROR'));
+    const errorCode = error?.response?.data?.error;
+    if (errorCode === 'special_stage_cannot_be_deleted') {
+      stageError.value = t('KANBAN.ACTIONS.REMOVE_STAGE_TERMINAL');
+    } else if (error?.response?.status === 422) {
+      stageError.value = t('KANBAN.ACTIONS.REMOVE_STAGE_NOT_EMPTY');
+    } else {
+      stageError.value = getErrorMessage(
+        error,
+        t('KANBAN.ACTIONS.REMOVE_STAGE_ERROR')
+      );
+    }
     useAlert(stageError.value);
     await refreshBoard();
   } finally {
@@ -938,18 +956,12 @@ onMounted(async () => {
             <h2 class="text-base font-medium text-n-slate-12">
               {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGES_PANEL_TITLE') }}
             </h2>
-            <Button
-              v-if="!showCreateStageForm"
-              data-testid="kanban-board-form-create-stage-toggle"
-              icon="i-lucide-plus"
-              :label="t('KANBAN.ACTIONS.CREATE_STAGE')"
-              color="slate"
-              size="sm"
-              @click="openCreateStageForm"
-            />
           </div>
 
-          <div class="grid gap-2 sm:grid-cols-2">
+          <div
+            v-if="!form.wonStageId || !form.lostStageId"
+            class="grid gap-2 sm:grid-cols-2"
+          >
             <label class="grid gap-1 text-sm font-medium text-n-slate-12">
               {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.WON_STAGE') }}
               <Select
@@ -973,6 +985,12 @@ onMounted(async () => {
               />
             </label>
           </div>
+          <p
+            v-else
+            class="rounded-md bg-n-alpha-2 px-3 py-2 text-sm text-n-slate-11"
+          >
+            {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_HINT') }}
+          </p>
 
           <p v-if="hasStageSelectionConflict" class="text-sm text-n-ruby-11">
             {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_SELECTION_CONFLICT') }}
@@ -1045,8 +1063,16 @@ onMounted(async () => {
             {{ stageError }}
           </p>
 
+          <div class="grid gap-1">
+            <h3 class="text-sm font-medium text-n-slate-12">
+              {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.ACTIVE_STAGES_TITLE') }}
+            </h3>
+            <p class="text-xs text-n-slate-10">
+              {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.ACTIVE_STAGES_SUBTITLE') }}
+            </p>
+          </div>
           <p
-            v-if="stages.length === 0"
+            v-if="regularStages.length === 0"
             data-testid="kanban-board-form-empty-stages"
             class="rounded-md border border-dashed border-n-weak px-3 py-4 text-sm text-n-slate-11"
           >
@@ -1054,7 +1080,7 @@ onMounted(async () => {
           </p>
 
           <Draggable
-            v-else
+            v-else-if="regularStages.length > 0"
             v-model="stageListModel"
             item-key="id"
             data-testid="kanban-board-form-stage-list"
@@ -1084,18 +1110,6 @@ onMounted(async () => {
                       />
                       <span class="min-w-0 truncate text-sm text-n-slate-12">
                         {{ stage.name }}
-                      </span>
-                      <span
-                        v-if="stage.id === form.wonStageId"
-                        class="flex-none rounded-full bg-n-teal-3 px-2 py-0.5 text-xs font-medium text-n-teal-11"
-                      >
-                        {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.WON_TAG') }}
-                      </span>
-                      <span
-                        v-if="stage.id === form.lostStageId"
-                        class="flex-none rounded-full bg-n-ruby-3 px-2 py-0.5 text-xs font-medium text-n-ruby-11"
-                      >
-                        {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.LOST_TAG') }}
                       </span>
                       <span
                         data-testid="kanban-board-form-stage-card-count"
@@ -1188,6 +1202,143 @@ onMounted(async () => {
               </div>
             </template>
           </Draggable>
+          <Button
+            v-if="!showCreateStageForm"
+            data-testid="kanban-board-form-create-stage-toggle"
+            icon="i-lucide-plus"
+            :label="t('KANBAN.ACTIONS.CREATE_STAGE')"
+            color="slate"
+            size="sm"
+            class="w-full border border-dashed border-n-weak"
+            @click="openCreateStageForm"
+          />
+
+          <div
+            v-if="terminalStages.length"
+            class="grid gap-3 border-t border-n-weak pt-4"
+          >
+            <div class="grid gap-1">
+              <h3 class="text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_TITLE') }}
+              </h3>
+              <p class="text-xs text-n-slate-10">
+                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_SUBTITLE') }}
+              </p>
+            </div>
+
+            <div
+              v-for="stage in terminalStages"
+              :key="stage.id"
+              :data-stage-id="stage.id"
+              class="grid gap-2"
+            >
+              <div
+                v-if="editingStageId !== stage.id"
+                data-testid="kanban-board-form-stage-row"
+                class="grid gap-2 rounded-md border px-3 py-2"
+                :class="
+                  stage.id === form.wonStageId
+                    ? 'border-n-teal-8 bg-n-teal-2'
+                    : 'border-n-ruby-8 bg-n-ruby-2'
+                "
+              >
+                <div class="flex items-center gap-3">
+                  <span
+                    class="size-4 flex-none rounded-full"
+                    :class="
+                      stage.id === form.wonStageId
+                        ? 'bg-n-teal-9'
+                        : 'bg-n-ruby-9'
+                    "
+                  />
+                  <div class="flex min-w-0 flex-1 items-center gap-2">
+                    <span
+                      class="min-w-0 truncate text-sm font-medium"
+                      :class="
+                        stage.id === form.wonStageId
+                          ? 'text-n-teal-11'
+                          : 'text-n-ruby-11'
+                      "
+                    >
+                      {{ stage.name }}
+                    </span>
+                    <span
+                      data-testid="kanban-board-form-stage-card-count"
+                      class="flex-none rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
+                    >
+                      {{ getStageCardsCount(stage) }}
+                    </span>
+                  </div>
+                  <Button
+                    data-testid="kanban-board-form-edit-stage"
+                    icon="i-lucide-pencil"
+                    variant="ghost"
+                    color="slate"
+                    size="sm"
+                    :title="t('KANBAN.ACTIONS.EDIT_STAGE')"
+                    @click="openEditStage(stage)"
+                  />
+                </div>
+                <p
+                  v-if="stage.description"
+                  class="truncate text-xs text-n-slate-11"
+                >
+                  {{ stage.description }}
+                </p>
+              </div>
+
+              <div
+                v-else
+                data-testid="kanban-board-form-edit-stage-panel"
+                class="grid gap-3 rounded-md border p-3"
+                :class="
+                  stage.id === form.wonStageId
+                    ? 'border-n-teal-8 bg-n-teal-2'
+                    : 'border-n-ruby-8 bg-n-ruby-2'
+                "
+              >
+                <input
+                  v-model="editStageName"
+                  data-testid="kanban-board-form-edit-stage-name"
+                  type="text"
+                  class="reset-base !mb-0 h-10 min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                  :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
+                />
+                <textarea
+                  v-model="editStageDescription"
+                  data-testid="kanban-board-form-edit-stage-description"
+                  rows="2"
+                  class="!mb-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                  :placeholder="
+                    t(
+                      'KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_DESCRIPTION_PLACEHOLDER'
+                    )
+                  "
+                />
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    data-testid="kanban-board-form-save-stage"
+                    icon="i-lucide-check"
+                    :label="t('KANBAN.ACTIONS.SAVE_STAGE')"
+                    color="blue"
+                    size="sm"
+                    :disabled="!editStageName.trim()"
+                    :is-loading="isUpdatingStage"
+                    @click="updateStage(stage)"
+                  />
+                  <Button
+                    type="button"
+                    icon="i-lucide-x"
+                    :label="t('KANBAN.ACTIONS.CANCEL')"
+                    color="slate"
+                    size="sm"
+                    @click="closeEditStage"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
