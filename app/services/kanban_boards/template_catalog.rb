@@ -3,8 +3,7 @@ module KanbanBoards::TemplateCatalog
     'blank' => {
       stages: [{ name_key: 'entry', color: '#8B8D98' }],
       won: { name_key: 'won' },
-      lost: { name_key: 'lost' },
-      lost_reasons: []
+      lost: { name_key: 'lost' }
     }
   }.freeze
 
@@ -13,7 +12,7 @@ module KanbanBoards::TemplateCatalog
   LOST_COLOR = '#CE2C31'.freeze
 
   def self.fetch(key)
-    TEMPLATES.fetch(key_for(key))
+    TEMPLATES.fetch(key)
   end
 
   def self.key_for(key)

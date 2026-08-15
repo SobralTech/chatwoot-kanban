@@ -291,11 +291,28 @@ const stageListModel = computed({
     selectedBoard.value = { ...selectedBoard.value, stages: nextStages };
   },
 });
-const { isTerminalStage, canMoveStage } = useKanbanStageOrder({
+const { isTerminalStage, stageTone, canMoveStage } = useKanbanStageOrder({
   stages,
   wonStageId: computed(() => selectedBoard.value?.wonStageId),
   lostStageId: computed(() => selectedBoard.value?.lostStageId),
 });
+// Tailwind needs literal class names, so the won/lost accents live in one map
+// instead of being re-derived at every binding.
+const TERMINAL_STAGE_CLASSES = {
+  won: {
+    border: 'border-n-teal-8',
+    header: 'bg-n-teal-2',
+    dot: 'bg-n-teal-9',
+    title: 'text-n-teal-11',
+  },
+  lost: {
+    border: 'border-n-ruby-8',
+    header: 'bg-n-ruby-2',
+    dot: 'bg-n-ruby-9',
+    title: 'text-n-ruby-11',
+  },
+};
+const stageAccent = stage => TERMINAL_STAGE_CLASSES[stageTone(stage)] ?? null;
 const activeBoardFilterCount = computed(() =>
   [
     boardFilters.value.inboxIds,
@@ -2487,30 +2504,21 @@ watch(searchInput, () => {
               <section
                 :data-stage-id="stage.id"
                 class="flex w-64 lg:w-80 flex-shrink-0 flex-col snap-start rounded-lg border bg-n-solid-1"
-                :class="{
-                  'overflow-visible': editingStageId === stage.id,
-                  'overflow-hidden': editingStageId !== stage.id,
-                  'border-n-teal-8':
-                    isTerminalStage(stage) &&
-                    stage.id === selectedBoard?.wonStageId,
-                  'border-n-ruby-8':
-                    isTerminalStage(stage) &&
-                    stage.id === selectedBoard?.lostStageId,
-                  'border-n-weak': !isTerminalStage(stage),
-                }"
+                :class="[
+                  editingStageId === stage.id
+                    ? 'overflow-visible'
+                    : 'overflow-hidden',
+                  stageAccent(stage)?.border ?? 'border-n-weak',
+                ]"
               >
                 <header
                   class="flex min-h-10 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
-                  :class="{
-                    'stage-drag-handle cursor-grab':
-                      editingStageId !== stage.id,
-                    'bg-n-teal-2':
-                      isTerminalStage(stage) &&
-                      stage.id === selectedBoard?.wonStageId,
-                    'bg-n-ruby-2':
-                      isTerminalStage(stage) &&
-                      stage.id === selectedBoard?.lostStageId,
-                  }"
+                  :class="[
+                    editingStageId === stage.id
+                      ? ''
+                      : 'stage-drag-handle cursor-grab',
+                    stageAccent(stage)?.header,
+                  ]"
                 >
                   <OnClickOutside
                     v-if="editingStageId === stage.id"
@@ -2564,32 +2572,18 @@ watch(searchInput, () => {
                   <template v-else>
                     <div class="flex min-w-0 flex-1 items-center gap-2">
                       <span
-                        v-if="isTerminalStage(stage)"
                         class="size-2.5 flex-shrink-0 rounded-full"
-                        :class="
-                          stage.id === selectedBoard?.wonStageId
-                            ? 'bg-n-teal-9'
-                            : 'bg-n-ruby-9'
+                        :class="stageAccent(stage)?.dot"
+                        :style="
+                          isTerminalStage(stage)
+                            ? null
+                            : { backgroundColor: stage.color }
                         "
-                        aria-hidden="true"
-                      />
-                      <span
-                        v-else
-                        class="size-2.5 flex-shrink-0 rounded-full"
-                        :style="{ backgroundColor: stage.color }"
                         aria-hidden="true"
                       />
                       <h3
                         class="truncate text-sm font-semibold"
-                        :class="{
-                          'text-n-teal-11':
-                            isTerminalStage(stage) &&
-                            stage.id === selectedBoard?.wonStageId,
-                          'text-n-ruby-11':
-                            isTerminalStage(stage) &&
-                            stage.id === selectedBoard?.lostStageId,
-                          'text-n-slate-12': !isTerminalStage(stage),
-                        }"
+                        :class="stageAccent(stage)?.title ?? 'text-n-slate-12'"
                       >
                         {{ stage.name }}
                       </h3>

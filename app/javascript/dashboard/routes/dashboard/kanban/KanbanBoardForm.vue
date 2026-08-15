@@ -19,6 +19,7 @@ import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import AgentTagInput from 'dashboard/components-next/taginput/AgentTagInput.vue';
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
+import KanbanStageEditPanel from './KanbanStageEditPanel.vue';
 import KanbanCustomFieldsTab from './KanbanCustomFieldsTab.vue';
 import KanbanReasonsTab from './KanbanReasonsTab.vue';
 
@@ -92,19 +93,28 @@ const form = reactive({
   lostRecurrenceWindowHours: null,
 });
 
-const { isTerminalStage, canMoveStage } = useKanbanStageOrder({
-  stages,
-  wonStageId: computed(() => form.wonStageId),
-  lostStageId: computed(() => form.lostStageId),
-});
-const regularStages = computed(() =>
-  stages.value.filter(stage => !isTerminalStage(stage))
-);
-const terminalStages = computed(() =>
-  [form.wonStageId, form.lostStageId]
-    .map(id => stages.value.find(stage => stage.id === id))
-    .filter(Boolean)
-);
+const { isTerminalStage, isWonStage, regularStages, terminalStages } =
+  useKanbanStageOrder({
+    stages,
+    wonStageId: computed(() => form.wonStageId),
+    lostStageId: computed(() => form.lostStageId),
+  });
+// Tailwind needs literal class names, so the won/lost accents live in one map
+// instead of being re-derived at every binding.
+const TERMINAL_STAGE_CLASSES = {
+  won: {
+    panel: 'border-n-teal-8 bg-n-teal-2',
+    dot: 'bg-n-teal-9',
+    label: 'text-n-teal-11',
+  },
+  lost: {
+    panel: 'border-n-ruby-8 bg-n-ruby-2',
+    dot: 'bg-n-ruby-9',
+    label: 'text-n-ruby-11',
+  },
+};
+const terminalStageClasses = stage =>
+  isWonStage(stage) ? TERMINAL_STAGE_CLASSES.won : TERMINAL_STAGE_CLASSES.lost;
 const stageListModel = computed({
   get: () => regularStages.value,
   set: nextStages => {
@@ -1080,13 +1090,12 @@ onMounted(async () => {
           </p>
 
           <Draggable
-            v-else-if="regularStages.length > 0"
+            v-else
             v-model="stageListModel"
             item-key="id"
             data-testid="kanban-board-form-stage-list"
             class="grid gap-2"
             handle=".stage-drag-handle"
-            :move="canMoveStage"
             ghost-class="opacity-60"
             chosen-class="opacity-90"
             :animation="180"
@@ -1147,58 +1156,16 @@ onMounted(async () => {
                   </p>
                 </div>
 
-                <div
+                <KanbanStageEditPanel
                   v-else
-                  data-testid="kanban-board-form-edit-stage-panel"
-                  class="grid gap-3 rounded-md border border-n-weak bg-n-surface-1 p-3"
-                >
-                  <div class="flex min-w-0 items-center gap-3">
-                    <ColorPicker
-                      v-model="editStageColor"
-                      data-testid="kanban-board-form-edit-stage-color"
-                      class="flex-none"
-                    />
-                    <input
-                      v-model="editStageName"
-                      data-testid="kanban-board-form-edit-stage-name"
-                      type="text"
-                      class="reset-base !mb-0 h-10 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                      :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-                    />
-                  </div>
-                  <textarea
-                    v-model="editStageDescription"
-                    data-testid="kanban-board-form-edit-stage-description"
-                    rows="2"
-                    class="!mb-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                    :placeholder="
-                      t(
-                        'KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_DESCRIPTION_PLACEHOLDER'
-                      )
-                    "
-                  />
-                  <div class="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      data-testid="kanban-board-form-save-stage"
-                      icon="i-lucide-check"
-                      :label="t('KANBAN.ACTIONS.SAVE_STAGE')"
-                      color="blue"
-                      size="sm"
-                      :disabled="!editStageName.trim()"
-                      :is-loading="isUpdatingStage"
-                      @click="updateStage(stage)"
-                    />
-                    <Button
-                      type="button"
-                      icon="i-lucide-x"
-                      :label="t('KANBAN.ACTIONS.CANCEL')"
-                      color="slate"
-                      size="sm"
-                      @click="closeEditStage"
-                    />
-                  </div>
-                </div>
+                  v-model:name="editStageName"
+                  v-model:description="editStageDescription"
+                  v-model:color="editStageColor"
+                  show-color-picker
+                  :is-updating="isUpdatingStage"
+                  @save="updateStage(stage)"
+                  @cancel="closeEditStage"
+                />
               </div>
             </template>
           </Draggable>
@@ -1236,29 +1203,17 @@ onMounted(async () => {
                 v-if="editingStageId !== stage.id"
                 data-testid="kanban-board-form-stage-row"
                 class="grid gap-2 rounded-md border px-3 py-2"
-                :class="
-                  stage.id === form.wonStageId
-                    ? 'border-n-teal-8 bg-n-teal-2'
-                    : 'border-n-ruby-8 bg-n-ruby-2'
-                "
+                :class="terminalStageClasses(stage).panel"
               >
                 <div class="flex items-center gap-3">
                   <span
                     class="size-4 flex-none rounded-full"
-                    :class="
-                      stage.id === form.wonStageId
-                        ? 'bg-n-teal-9'
-                        : 'bg-n-ruby-9'
-                    "
+                    :class="terminalStageClasses(stage).dot"
                   />
                   <div class="flex min-w-0 flex-1 items-center gap-2">
                     <span
                       class="min-w-0 truncate text-sm font-medium"
-                      :class="
-                        stage.id === form.wonStageId
-                          ? 'text-n-teal-11'
-                          : 'text-n-ruby-11'
-                      "
+                      :class="terminalStageClasses(stage).label"
                     >
                       {{ stage.name }}
                     </span>
@@ -1287,56 +1242,15 @@ onMounted(async () => {
                 </p>
               </div>
 
-              <div
+              <KanbanStageEditPanel
                 v-else
-                data-testid="kanban-board-form-edit-stage-panel"
-                class="grid gap-3 rounded-md border p-3"
-                :class="
-                  stage.id === form.wonStageId
-                    ? 'border-n-teal-8 bg-n-teal-2'
-                    : 'border-n-ruby-8 bg-n-ruby-2'
-                "
-              >
-                <input
-                  v-model="editStageName"
-                  data-testid="kanban-board-form-edit-stage-name"
-                  type="text"
-                  class="reset-base !mb-0 h-10 min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                  :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-                />
-                <textarea
-                  v-model="editStageDescription"
-                  data-testid="kanban-board-form-edit-stage-description"
-                  rows="2"
-                  class="!mb-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                  :placeholder="
-                    t(
-                      'KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_DESCRIPTION_PLACEHOLDER'
-                    )
-                  "
-                />
-                <div class="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    data-testid="kanban-board-form-save-stage"
-                    icon="i-lucide-check"
-                    :label="t('KANBAN.ACTIONS.SAVE_STAGE')"
-                    color="blue"
-                    size="sm"
-                    :disabled="!editStageName.trim()"
-                    :is-loading="isUpdatingStage"
-                    @click="updateStage(stage)"
-                  />
-                  <Button
-                    type="button"
-                    icon="i-lucide-x"
-                    :label="t('KANBAN.ACTIONS.CANCEL')"
-                    color="slate"
-                    size="sm"
-                    @click="closeEditStage"
-                  />
-                </div>
-              </div>
+                v-model:name="editStageName"
+                v-model:description="editStageDescription"
+                :panel-class="terminalStageClasses(stage).panel"
+                :is-updating="isUpdatingStage"
+                @save="updateStage(stage)"
+                @cancel="closeEditStage"
+              />
             </div>
           </div>
         </div>

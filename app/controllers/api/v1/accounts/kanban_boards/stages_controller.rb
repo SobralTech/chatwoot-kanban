@@ -165,22 +165,18 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
 
   def stage_update_params
     attributes = kanban_stage_params.except(:position)
-    attributes[:color] = terminal_stage_color if special_stage?
+    return attributes unless special_stage?
+
+    attributes[:color] = if @kanban_board.won_stage_id == @kanban_stage.id
+                           KanbanBoards::TemplateCatalog::WON_COLOR
+                         else
+                           KanbanBoards::TemplateCatalog::LOST_COLOR
+                         end
     attributes
-  end
-
-  def terminal_stage_color
-    return KanbanBoards::TemplateCatalog::WON_COLOR if @kanban_board.won_stage_id == @kanban_stage.id
-
-    KanbanBoards::TemplateCatalog::LOST_COLOR
   end
 
   def render_special_stage_error
     render json: { error: 'special_stage_cannot_be_deleted' }, status: :unprocessable_content
-  end
-
-  def render_stage_move_error(error)
-    render json: { error: error }, status: :unprocessable_content
   end
 
   # The destination board arrives as target_kanban_board_id: :kanban_board_id is the route
@@ -199,6 +195,10 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   def render_stage_not_empty_error
     render json: { error: 'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.' },
            status: :unprocessable_content
+  end
+
+  def render_stage_move_error(error)
+    render json: { error: error }, status: :unprocessable_content
   end
 
   def dispatch_kanban_stage_event(event_name, board_id: @kanban_stage.kanban_board_id)
