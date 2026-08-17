@@ -3,7 +3,6 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { OnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import camelcaseKeys from 'camelcase-keys';
 import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
@@ -11,6 +10,7 @@ import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useKanbanRealtimeBuffer } from 'dashboard/composables/useKanbanRealtimeBuffer';
 import { useKanbanDragAutoScroll } from 'dashboard/composables/useKanbanDragAutoScroll';
 import { useKanbanBoardFiltersState } from 'dashboard/composables/useKanbanBoardFiltersState';
+import { useKanbanBoardData } from 'dashboard/composables/useKanbanBoardData';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import {
@@ -84,10 +84,6 @@ const addItemPickerRef = ref(null);
 const showDiscardAddItemConfirm = ref(false);
 const highlightedCreatedCardId = ref(null);
 let createdCardHighlightTimer = null;
-const stageCardsLoading = ref({});
-const stageCardsErrors = ref({});
-const stageRefreshRequests = new Map();
-const stageDataVersions = new Map();
 const cardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
 const stageCardsPendingRemoval = ref(null);
@@ -116,12 +112,9 @@ const {
 const pendingScrollToStageId = ref(null);
 let searchRequestToken = 0;
 const preSearchScrollLeft = ref(null);
-let requestGeneration = 0;
-const staleRequest = Symbol('stale-kanban-request');
 
 const interactiveDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
-const stageCardsPageLimit = 20;
 const boardRefreshEvents = new Set([
   'kanban.board.updated',
   'kanban.stage.created',
@@ -154,6 +147,31 @@ const {
   currentUserId,
   isFetchingBoard,
   stages,
+});
+const {
+  applyStageFirstPage,
+  fetchStageCardsPage,
+  findCardStageId,
+  getStageCardsError,
+  isStageCardsLoading,
+  loadMoreStageCards,
+  normalizePayload,
+  patchVisibleCard,
+  refreshStageFirstPage,
+  refreshStageFirstPages,
+  requestGeneration,
+  showBoard,
+  staleRequest,
+} = useKanbanBoardData({
+  currentBoardRequestConfig,
+  currentFilterParams,
+  hasError,
+  isFetchingBoard,
+  route,
+  router,
+  selectedBoard,
+  stages,
+  t,
 });
 const hasBoards = computed(() => boards.value.length > 0);
 const activeAddItemStage = computed(() =>
@@ -237,36 +255,6 @@ const emptyCardsLabel = computed(() =>
     ? t('KANBAN.EMPTY_CARDS_FILTERED')
     : t('KANBAN.EMPTY_CARDS')
 );
-const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
-
-const normalizeKanbanPayload = data => {
-  const payload = normalizePayload(data);
-
-  if (data?.pagination) {
-    payload.pagination = {
-      ...payload.pagination,
-      nextCursor: data.pagination.next_cursor,
-    };
-  }
-
-  if (data?.stages) {
-    payload.stages = payload.stages.map((stage, index) => ({
-      ...stage,
-      pagination: data.stages[index]?.pagination
-        ? {
-            ...stage.pagination,
-            nextCursor: data.stages[index].pagination.next_cursor,
-          }
-        : stage.pagination,
-      cardsCount: data.stages[index]?.pagination?.total_count ?? 0,
-      totalValue:
-        data.stages[index]?.pagination?.total_value ??
-        payload.stages[index]?.totalValue,
-    }));
-  }
-
-  return payload;
-};
 
 const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.error ||
@@ -308,245 +296,8 @@ const showActionError = (error, fallbackMessage) => {
   useAlert(message);
 };
 
-const isRefreshRequiredError = error =>
-  error?.response?.status === 409 &&
-  error?.response?.data?.error === 'refresh_required';
-
 const isLostReasonRequiredError = error =>
   error?.response?.data?.error === 'lost_reason_required';
-
-const getStageCardsError = stageId => stageCardsErrors.value[stageId] || '';
-
-const isStageCardsLoading = stageId => !!stageCardsLoading.value[stageId];
-
-const setStageCardsLoading = (stageId, isLoading) => {
-  stageCardsLoading.value = {
-    ...stageCardsLoading.value,
-    [stageId]: isLoading,
-  };
-};
-
-const setStageCardsError = (stageId, message = '') => {
-  stageCardsErrors.value = {
-    ...stageCardsErrors.value,
-    [stageId]: message,
-  };
-};
-
-const mergeCardsById = (existingCards = [], nextCards = []) => {
-  const cardIds = new Set(existingCards.map(card => card.id));
-  const uniqueNextCards = nextCards.filter(card => {
-    if (cardIds.has(card.id)) return false;
-
-    cardIds.add(card.id);
-    return true;
-  });
-
-  return [...existingCards, ...uniqueNextCards];
-};
-
-const updateStageCards = (stageId, updater) => {
-  if (!selectedBoard.value) return;
-
-  selectedBoard.value = {
-    ...selectedBoard.value,
-    stages: selectedBoard.value.stages.map(stage =>
-      stage.id === stageId ? updater(stage) : stage
-    ),
-  };
-};
-
-const applyStageCardsPage = (stageId, page, shouldAppend = true) => {
-  updateStageCards(stageId, stage => ({
-    ...stage,
-    cards: shouldAppend
-      ? mergeCardsById(stage.cards, page.cards)
-      : page.cards || [],
-    pagination: page.pagination || stage.pagination,
-    cardsCount: page.pagination?.totalCount ?? stage.cardsCount,
-    totalValue: page.pagination?.totalValue ?? stage.totalValue,
-  }));
-};
-
-const getStageDataVersion = stageId => stageDataVersions.get(stageId) || 0;
-
-const applyStageFirstPage = (stageId, page) => {
-  // Bumping the version lets an in-flight loadMoreStageCards request for
-  // this stage detect that its cursor/pagination are now stale and bail
-  // out instead of clobbering this fresher replace with a stale append.
-  stageDataVersions.set(stageId, getStageDataVersion(stageId) + 1);
-
-  updateStageCards(stageId, stage => ({
-    ...stage,
-    cards: page.cards || [],
-    pagination: page.pagination || stage.pagination,
-    cardsCount: page.pagination?.totalCount ?? stage.cardsCount,
-    totalValue: page.pagination?.totalValue ?? stage.totalValue,
-  }));
-  setStageCardsError(stageId);
-};
-
-const fetchStageCardsPage = async (
-  stageId,
-  params,
-  generation = requestGeneration
-) => {
-  const response = await KanbanBoardsAPI.getStageCards(
-    selectedBoard.value.id,
-    stageId,
-    {
-      ...params,
-      ...currentFilterParams(),
-    }
-  );
-
-  if (generation !== requestGeneration) return staleRequest;
-  return normalizeKanbanPayload(response.data);
-};
-
-const reloadStageCards = async (stageId, generation = requestGeneration) => {
-  const stage = stages.value.find(item => item.id === stageId);
-  const limit = Math.max(stageCardsPageLimit, stage?.cards?.length || 0);
-
-  const page = await fetchStageCardsPage(stageId, { limit }, generation);
-  if (page === staleRequest) return false;
-  applyStageFirstPage(stageId, page);
-  return true;
-};
-
-const refreshStageFirstPage = (stageId, generation = requestGeneration) => {
-  if (!selectedBoard.value?.id || !stageId) return Promise.resolve();
-
-  const requestKey = `${generation}:${stageId}`;
-  if (stageRefreshRequests.has(requestKey)) {
-    return stageRefreshRequests.get(requestKey);
-  }
-
-  const request = reloadStageCards(stageId, generation)
-    .catch(() =>
-      setStageCardsError(stageId, t('KANBAN.ACTIONS.LOAD_CARDS_ERROR'))
-    )
-    .finally(() => {
-      stageRefreshRequests.delete(requestKey);
-    });
-
-  stageRefreshRequests.set(requestKey, request);
-  return request;
-};
-
-const refreshStageFirstPages = stageIds => {
-  const uniqueStageIds = [...new Set(stageIds.filter(Boolean))];
-  return Promise.all(
-    uniqueStageIds.map(stageId => refreshStageFirstPage(stageId))
-  );
-};
-
-const findCardStageId = card => {
-  if (card?.kanbanStageId) return card.kanbanStageId;
-
-  return stages.value.find(stage =>
-    stage.cards.some(item => item.id === card?.id)
-  )?.id;
-};
-
-const patchVisibleCard = card => {
-  const updatedCard = normalizePayload(card);
-  if (!updatedCard?.id) return false;
-
-  const visibleStage = stages.value.find(stage =>
-    stage.cards.some(existingCard => existingCard.id === updatedCard.id)
-  );
-  if (
-    !visibleStage ||
-    (updatedCard.kanbanStageId && updatedCard.kanbanStageId !== visibleStage.id)
-  ) {
-    return false;
-  }
-
-  updateStageCards(visibleStage.id, stage => ({
-    ...stage,
-    cards: stage.cards.map(existingCard =>
-      existingCard.id === updatedCard.id
-        ? { ...existingCard, ...updatedCard }
-        : existingCard
-    ),
-  }));
-
-  return true;
-};
-
-const loadMoreStageCards = async stage => {
-  if (!selectedBoard.value?.id || !stage?.id || isStageCardsLoading(stage.id)) {
-    return;
-  }
-
-  const stageId = stage.id;
-  const generation = requestGeneration;
-  const dataVersion = getStageDataVersion(stageId);
-  setStageCardsLoading(stageId, true);
-  setStageCardsError(stageId);
-
-  try {
-    const page = await fetchStageCardsPage(stageId, {
-      limit: stageCardsPageLimit,
-      cursor: stage.pagination?.nextCursor,
-    });
-
-    // A first-page replace (reload or realtime refresh) landed while this
-    // request was in flight; this page's cursor/pagination are stale.
-    if (
-      generation !== requestGeneration ||
-      getStageDataVersion(stageId) !== dataVersion
-    ) {
-      return;
-    }
-
-    applyStageCardsPage(stageId, page);
-  } catch (error) {
-    if (isRefreshRequiredError(error)) {
-      await reloadStageCards(stageId, generation);
-      return;
-    }
-
-    if (generation === requestGeneration) {
-      setStageCardsError(stageId, t('KANBAN.ACTIONS.LOAD_CARDS_ERROR'));
-    }
-  } finally {
-    if (generation === requestGeneration) setStageCardsLoading(stageId, false);
-  }
-};
-
-const showBoard = async (boardId, generation = requestGeneration) => {
-  if (!boardId) {
-    selectedBoard.value = null;
-    return;
-  }
-
-  isFetchingBoard.value = true;
-  hasError.value = false;
-
-  try {
-    const response = await KanbanBoardsAPI.showBoard(
-      boardId,
-      currentBoardRequestConfig()
-    );
-    if (generation !== requestGeneration) return;
-    stageCardsLoading.value = {};
-    stageCardsErrors.value = {};
-    selectedBoard.value = normalizeKanbanPayload(response.data);
-  } catch (error) {
-    if (generation !== requestGeneration) return;
-    hasError.value = true;
-    if ([403, 404].includes(error?.response?.status)) {
-      router.replace({
-        name: 'kanban_boards',
-        params: { accountId: route.params.accountId },
-      });
-    }
-  } finally {
-    if (generation === requestGeneration) isFetchingBoard.value = false;
-  }
-};
 
 const getStageScrollElement = stageId =>
   boardScrollContainer.value?.querySelector(
@@ -579,7 +330,10 @@ const saveBoardSnapshot = () => {
 };
 
 const applyBoardSnapshot = async (snapshot, boardId, generation) => {
-  if (generation !== requestGeneration || selectedBoard.value?.id !== boardId) {
+  if (
+    generation !== requestGeneration.value ||
+    selectedBoard.value?.id !== boardId
+  ) {
     return;
   }
 
@@ -588,7 +342,7 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
   await Promise.all(
     stages.value.map(async stage => {
       if (
-        generation !== requestGeneration ||
+        generation !== requestGeneration.value ||
         selectedBoard.value?.id !== boardId
       ) {
         return;
@@ -604,7 +358,7 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
       );
       if (
         page === staleRequest ||
-        generation !== requestGeneration ||
+        generation !== requestGeneration.value ||
         selectedBoard.value?.id !== boardId
       ) {
         return;
@@ -613,12 +367,18 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
     })
   );
 
-  if (generation !== requestGeneration || selectedBoard.value?.id !== boardId) {
+  if (
+    generation !== requestGeneration.value ||
+    selectedBoard.value?.id !== boardId
+  ) {
     return;
   }
   await nextTick();
 
-  if (generation !== requestGeneration || selectedBoard.value?.id !== boardId) {
+  if (
+    generation !== requestGeneration.value ||
+    selectedBoard.value?.id !== boardId
+  ) {
     return;
   }
   if (boardScrollContainer.value) {
@@ -634,7 +394,7 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
 };
 
 const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
-  const generation = requestGeneration;
+  const generation = requestGeneration.value;
   const snapshot = restoreSnapshot
     ? getKanbanBoardSnapshot({
         accountId: route.params.accountId,
@@ -680,14 +440,20 @@ const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   searchInput.value = snapshot.filters?.searchTerm || '';
   activeSearchTerm.value = snapshot.filters?.searchTerm || '';
 
-  if (generation !== requestGeneration) return;
+  if (generation !== requestGeneration.value) return;
   await showBoard(boardId, generation);
-  if (generation !== requestGeneration || selectedBoard.value?.id !== boardId) {
+  if (
+    generation !== requestGeneration.value ||
+    selectedBoard.value?.id !== boardId
+  ) {
     return;
   }
 
   await applyBoardSnapshot(snapshot, boardId, generation);
-  if (generation !== requestGeneration || selectedBoard.value?.id !== boardId) {
+  if (
+    generation !== requestGeneration.value ||
+    selectedBoard.value?.id !== boardId
+  ) {
     return;
   }
   removeKanbanBoardSnapshot({
@@ -703,9 +469,9 @@ const refreshSelectedBoard = async () => {
   const savedScrollLeft = scrollEl?.scrollLeft ?? 0;
   const targetStageId = pendingScrollToStageId.value;
 
-  const generation = requestGeneration;
+  const generation = requestGeneration.value;
   await showBoard(selectedBoard.value.id, generation);
-  if (generation !== requestGeneration) return;
+  if (generation !== requestGeneration.value) return;
   await nextTick();
 
   const scrollElAfter = boardScrollContainer.value;
@@ -745,17 +511,18 @@ const runSearch = async () => {
   if (nextTerm === activeSearchTerm.value) return;
 
   searchRequestToken += 1;
-  requestGeneration += 1;
+  requestGeneration.value += 1;
   const token = searchRequestToken;
   if (!activeSearchTerm.value && nextTerm) {
     preSearchScrollLeft.value = boardScrollContainer.value?.scrollLeft ?? 0;
   }
   activeSearchTerm.value = nextTerm;
-  const generation = requestGeneration;
+  const generation = requestGeneration.value;
   await refreshSelectedBoard();
-  if (token !== searchRequestToken || generation !== requestGeneration) return;
+  if (token !== searchRequestToken || generation !== requestGeneration.value)
+    return;
   if (nextTerm) await scrollToFirstMatchingStage();
-  else if (generation === requestGeneration) restorePreSearchScroll();
+  else if (generation === requestGeneration.value) restorePreSearchScroll();
 };
 
 const clearSearch = () => {
@@ -782,7 +549,7 @@ const updateBoardFilters = async filters => {
     mine: isMineActive.value,
     today: isTodayActive.value,
   });
-  requestGeneration += 1;
+  requestGeneration.value += 1;
   await refreshSelectedBoard();
 };
 
@@ -1234,7 +1001,7 @@ const onStageDragEnd = async event => {
 };
 
 const patchCardById = async cardId => {
-  const generation = requestGeneration;
+  const generation = requestGeneration.value;
   const boardId = selectedBoard.value?.id;
   if (!boardId) return;
   const localStageId = findCardStageId({ id: cardId });
@@ -1242,7 +1009,7 @@ const patchCardById = async cardId => {
   try {
     const response = await KanbanBoardsAPI.showCardById(boardId, cardId);
     if (
-      generation !== requestGeneration ||
+      generation !== requestGeneration.value ||
       selectedBoard.value?.id !== boardId
     ) {
       return;
@@ -1255,7 +1022,7 @@ const patchCardById = async cardId => {
     }
   } catch {
     if (
-      generation !== requestGeneration ||
+      generation !== requestGeneration.value ||
       selectedBoard.value?.id !== boardId
     ) {
       return;
@@ -1876,7 +1643,7 @@ watch(activeBoardId, (boardId, previousBoardId) => {
     boardFilters.value = emptyBoardFilters();
     selectedBoard.value = null;
     searchRequestToken += 1;
-    requestGeneration += 1;
+    requestGeneration.value += 1;
     clearSearchDebounce();
     searchInput.value = '';
     activeSearchTerm.value = '';
