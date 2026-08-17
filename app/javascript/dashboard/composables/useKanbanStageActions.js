@@ -24,6 +24,7 @@ export function useKanbanStageActions({
   stageCardsPendingRemoval,
   stagePendingRemoval,
   showActionError,
+  stageActionKey,
   stageColors,
   stageNames,
   stageNameInputs,
@@ -132,7 +133,7 @@ export function useKanbanStageActions({
 
   const updateStage = async stage => {
     const name = String(stageNames.value[stage.id] || '').trim();
-    const actionKey = `stage-${stage.id}`;
+    const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
     if (!name) {
       useAlert(t('KANBAN.ACTIONS.STAGE_NAME_REQUIRED'));
@@ -175,7 +176,7 @@ export function useKanbanStageActions({
   };
 
   const removeStage = async stage => {
-    const actionKey = `stage-${stage.id}`;
+    const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
     }
@@ -203,7 +204,7 @@ export function useKanbanStageActions({
   };
 
   const copyStage = async (stage, { name }) => {
-    const actionKey = `stage-${stage.id}`;
+    const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
     }
@@ -229,7 +230,7 @@ export function useKanbanStageActions({
   };
 
   const moveStage = async (stage, { kanbanBoardId, position }) => {
-    const actionKey = `stage-${stage.id}`;
+    const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
     }
@@ -254,7 +255,7 @@ export function useKanbanStageActions({
   };
 
   const sortStageCards = async (stage, { sortBy }) => {
-    const actionKey = `stage-${stage.id}`;
+    const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
     }
@@ -275,7 +276,7 @@ export function useKanbanStageActions({
   };
 
   const moveAllStageCards = async (stage, { targetStageId }) => {
-    const actionKey = `stage-${stage.id}`;
+    const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
     }
@@ -310,7 +311,7 @@ export function useKanbanStageActions({
   };
 
   const removeAllStageCards = async stage => {
-    const actionKey = `stage-${stage.id}`;
+    const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
     }
@@ -341,7 +342,7 @@ export function useKanbanStageActions({
   };
 
   const reorderStageByPosition = async (stage, position) => {
-    const actionKey = `stage-${stage.id}`;
+    const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
     }

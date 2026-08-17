@@ -668,6 +668,7 @@ const {
   showActionError,
   showRemoveStageCardsConfirmation,
   showRemoveStageConfirmation,
+  stageActionKey,
   stageCardsPendingRemoval,
   stageColors,
   stageNames,

@@ -125,11 +125,9 @@ export function useKanbanBoardFiltersState({
     activeBoardFilterCount,
     activeSearchTerm,
     boardFilters,
-    currentBoardFilterParams,
     currentBoardRequestConfig,
     clearSearchDebounce,
     currentFilterParams,
-    currentSearchParams,
     emptyBoardFilters,
     hasActiveBoardFilters,
     hasActiveFilters,
@@ -140,7 +138,6 @@ export function useKanbanBoardFiltersState({
     normalizeBoardFilters,
     scheduleSearch,
     searchInput,
-    searchResultCount,
     todayCardsCount,
   };
 }

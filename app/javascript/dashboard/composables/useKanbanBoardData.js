@@ -310,7 +310,6 @@ export function useKanbanBoardData({
     fetchStageCardsPage,
     findCardStageId,
     getStageCardsError,
-    isFetchingBoard,
     isStageCardsLoading,
     loadMoreStageCards,
     normalizePayload,
@@ -318,9 +317,7 @@ export function useKanbanBoardData({
     refreshStageFirstPage,
     refreshStageFirstPages,
     requestGeneration,
-    selectedBoard,
     showBoard,
     staleRequest,
-    updateStageCards,
   };
 }

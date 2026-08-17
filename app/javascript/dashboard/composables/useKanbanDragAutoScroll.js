@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
 
 export function useKanbanDragAutoScroll(boardScrollContainer) {
   // Auto-scroll while dragging. SortableJS runs in fallback mode (see the card
@@ -91,6 +91,8 @@ export function useKanbanDragAutoScroll(boardScrollContainer) {
     dragPointerReady = false;
     isDraggingBoard.value = false;
   };
+
+  onUnmounted(stopBoardAutoScroll);
 
   // vuedraggable forwards unknown attributes straight to SortableJS as options,
   // so these have to be real booleans: written as bare attributes they resolve to
