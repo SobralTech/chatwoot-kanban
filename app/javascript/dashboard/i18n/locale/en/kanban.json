@@ -412,6 +412,9 @@
         "ADDITIONAL_DATA": "Additional data"
       },
       "TITLE": "Edit Opportunity",
+      "CLOSE_PANEL": "Close opportunity details",
+      "MORE_ACTIONS": "More actions",
+      "MOVE_TO_STAGE": "Move to stage",
       "CARD_ID": "#{id}",
       "COPY_CARD_ID": "Copy card ID",
       "CARD_ID_COPIED": "Card ID copied.",

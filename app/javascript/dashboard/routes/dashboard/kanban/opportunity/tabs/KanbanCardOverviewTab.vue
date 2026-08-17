@@ -43,7 +43,6 @@ const { t } = useI18n();
       :label="t('KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE')"
       :message="props.subjectError"
       :message-type="props.subjectError ? 'error' : 'info'"
-      autofocus
       @update:model-value="emit('update:subject', $event)"
       @input="emit('clearSubjectError')"
     />

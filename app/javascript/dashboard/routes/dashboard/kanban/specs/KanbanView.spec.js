@@ -304,9 +304,9 @@ const mountView = async (
           },
           template: '<div class="kanban-card-stub" />',
         },
-        KanbanOpportunityDetailsModal: {
-          name: 'KanbanOpportunityDetailsModal',
-          props: ['boardId', 'cardId'],
+        KanbanOpportunityPanel: {
+          name: 'KanbanOpportunityPanel',
+          props: ['boardId', 'cardId', 'stages', 'moveToStage'],
           template:
             '<div class="kanban-opportunity-modal-stub" data-board-id="{{ boardId }}" data-card-id="{{ cardId }}" />',
         },
@@ -1619,7 +1619,7 @@ describe('KanbanView drag and drop', () => {
     await nextTick();
 
     const modal = wrapper.findComponent({
-      name: 'KanbanOpportunityDetailsModal',
+      name: 'KanbanOpportunityPanel',
     });
     expect(modal.exists()).toBe(true);
   });
@@ -1681,7 +1681,7 @@ describe('KanbanView drag and drop', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it('passes boardId and cardId to opportunity modal', async () => {
+  it('passes boardId and cardId to opportunity panel', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1691,13 +1691,13 @@ describe('KanbanView drag and drop', () => {
     await nextTick();
 
     const modal = wrapper.findComponent({
-      name: 'KanbanOpportunityDetailsModal',
+      name: 'KanbanOpportunityPanel',
     });
     expect(modal.props('boardId')).toBe(10);
     expect(modal.props('cardId')).toBe(501);
   });
 
-  it('hides the outer opportunity modal close button', async () => {
+  it('mounts the opportunity panel without an outer modal', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1706,12 +1706,15 @@ describe('KanbanView drag and drop', () => {
     cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
     await nextTick();
 
-    const modal = wrapper.findComponent({ name: 'WootModal' });
-    expect(modal.props('showCloseButton')).toBe(false);
-    expect(modal.props('size')).toBe('modal-fit-content');
+    expect(
+      wrapper.findComponent({ name: 'KanbanOpportunityPanel' }).exists()
+    ).toBe(true);
+    expect(wrapper.findComponent({ name: 'WootModal' }).props('show')).toBe(
+      false
+    );
   });
 
-  it('closes opportunity modal and clears selected card', async () => {
+  it('closes opportunity panel and clears selected card', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1721,13 +1724,13 @@ describe('KanbanView drag and drop', () => {
     await nextTick();
 
     const modal = wrapper.findComponent({
-      name: 'KanbanOpportunityDetailsModal',
+      name: 'KanbanOpportunityPanel',
     });
     modal.vm.$emit('close');
     await nextTick();
 
     expect(
-      wrapper.findComponent({ name: 'KanbanOpportunityDetailsModal' }).exists()
+      wrapper.findComponent({ name: 'KanbanOpportunityPanel' }).exists()
     ).toBe(false);
   });
 
@@ -1742,7 +1745,7 @@ describe('KanbanView drag and drop', () => {
     await nextTick();
 
     const modal = wrapper.findComponent({
-      name: 'KanbanOpportunityDetailsModal',
+      name: 'KanbanOpportunityPanel',
     });
     KanbanBoardsAPI.show.mockClear();
     modal.vm.$emit('updated', {
@@ -1775,7 +1778,7 @@ describe('KanbanView drag and drop', () => {
     await nextTick();
 
     const modal = wrapper.findComponent({
-      name: 'KanbanOpportunityDetailsModal',
+      name: 'KanbanOpportunityPanel',
     });
     KanbanBoardsAPI.show.mockClear();
     modal.vm.$emit('updated');
@@ -1797,7 +1800,7 @@ describe('KanbanView drag and drop', () => {
     await nextTick();
 
     const modal = wrapper.findComponent({
-      name: 'KanbanOpportunityDetailsModal',
+      name: 'KanbanOpportunityPanel',
     });
     modal.vm.$emit('openConversation', { conversationId: 123 });
     await flushPromises();

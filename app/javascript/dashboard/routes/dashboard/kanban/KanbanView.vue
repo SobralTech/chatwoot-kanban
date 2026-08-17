@@ -32,7 +32,7 @@ import {
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
-import KanbanOpportunityDetailsModal from './KanbanOpportunityDetailsModal.vue';
+import KanbanOpportunityPanel from './opportunity/KanbanOpportunityPanel.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
 
 const route = useRoute();
@@ -52,6 +52,7 @@ const isCreatingStage = ref(false);
 const isCreatingStageDraft = ref(false);
 const selectedOpportunityCardId = ref(null);
 const opportunityModalRef = ref(null);
+const opportunityTriggerRef = ref(null);
 const showUnsavedOpportunityChangesConfirm = ref(false);
 const isSavingOpportunityBeforeExit = ref(false);
 // Keyed by the thing being acted on, not by the verb, so a new action never has
@@ -1080,13 +1081,24 @@ const openDetails = card => {
     return;
   }
 
+  const cardElement = document.querySelector(`[data-card-id="${card.id}"]`);
+  const activeElement = document.activeElement;
+  opportunityTriggerRef.value =
+    cardElement ||
+    (activeElement && activeElement !== document.body ? activeElement : null);
   selectedOpportunityCardId.value = card.id;
 };
 
 const closeOpportunityDetails = () => {
   selectedOpportunityCardId.value = null;
   showUnsavedOpportunityChangesConfirm.value = false;
+  nextTick(() => {
+    opportunityTriggerRef.value?.focus?.();
+    opportunityTriggerRef.value = null;
+  });
 };
+const moveOpportunityToStage = (card, targetStageId) =>
+  moveCardToStage(card, targetStageId);
 
 const attemptCloseOpportunityDetails = () => {
   if (opportunityModalRef.value?.hasUnsavedChanges) {
@@ -1427,28 +1439,23 @@ watch(searchInput, () => {
       :reject-text="t('KANBAN.STAGE_MENU.DELETE_CARDS_CONFIRM.CANCEL')"
     />
 
-    <woot-modal
+    <KanbanOpportunityPanel
       v-if="selectedOpportunityCardId && selectedBoard"
-      :show="!!selectedOpportunityCardId"
-      :show-close-button="false"
-      size="modal-fit-content"
-      :on-close="attemptCloseOpportunityDetails"
-    >
-      <KanbanOpportunityDetailsModal
-        ref="opportunityModalRef"
-        :board-id="selectedBoard.id"
-        :card-id="selectedOpportunityCardId"
-        :won-stage-id="selectedBoard.wonStageId"
-        :lost-stage-id="selectedBoard.lostStageId"
-        :lost-reason-required="!!selectedBoard.lostReasonRequired"
-        :reasons="selectedBoard.reasons || []"
-        :custom-fields="selectedBoard.customFields || []"
-        @close="attemptCloseOpportunityDetails"
-        @updated="onOpportunityUpdated"
-        @open-conversation="openConversation"
-        @remove-card="onOpportunityRemoveCard"
-      />
-    </woot-modal>
+      ref="opportunityModalRef"
+      :board-id="selectedBoard.id"
+      :card-id="selectedOpportunityCardId"
+      :stages="selectedBoard.stages || []"
+      :won-stage-id="selectedBoard.wonStageId"
+      :lost-stage-id="selectedBoard.lostStageId"
+      :lost-reason-required="!!selectedBoard.lostReasonRequired"
+      :reasons="selectedBoard.reasons || []"
+      :custom-fields="selectedBoard.customFields || []"
+      :move-to-stage="moveOpportunityToStage"
+      @close="attemptCloseOpportunityDetails"
+      @updated="onOpportunityUpdated"
+      @open-conversation="openConversation"
+      @remove-card="onOpportunityRemoveCard"
+    />
 
     <woot-modal
       :show="showUnsavedOpportunityChangesConfirm"

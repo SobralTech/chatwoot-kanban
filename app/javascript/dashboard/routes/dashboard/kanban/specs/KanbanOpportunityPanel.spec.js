@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
-import KanbanOpportunityDetailsModal from '../KanbanOpportunityDetailsModal.vue';
+import KanbanOpportunityPanel from '../opportunity/KanbanOpportunityPanel.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -305,7 +305,7 @@ const mountModal = async ({
     KanbanBoardsAPI.showCardById.mockResolvedValue({ data: card });
   }
 
-  const wrapper = mount(KanbanOpportunityDetailsModal, {
+  const wrapper = mount(KanbanOpportunityPanel, {
     props: {
       boardId: 10,
       cardId: 501,
@@ -351,7 +351,7 @@ const labelButtons = wrapper =>
 const labelDropdownOptions = wrapper =>
   wrapper.findAll('[data-testid="kanban-label-dropdown-option"]');
 
-describe('KanbanOpportunityDetailsModal', () => {
+describe('KanbanOpportunityPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storeMocks.labels = [];
@@ -367,14 +367,12 @@ describe('KanbanOpportunityDetailsModal', () => {
   it('renders a responsive two-column layout with more space for description', async () => {
     const wrapper = await mountModal();
 
-    expect(wrapper.text()).toContain('Edit Opportunity');
-    expect(wrapper.classes()).toEqual(
-      expect.arrayContaining([
-        'mx-auto',
-        'w-full',
-        'max-w-[calc(100vw-1rem)]',
-        '2xl:max-w-[118rem]',
-      ])
+    expect(wrapper.text()).toContain('Enterprise expansion');
+    const panel = wrapper.find('[data-testid="kanban-opportunity-panel"]');
+    expect(panel.attributes('role')).toBe('dialog');
+    expect(panel.attributes('aria-modal')).toBe('true');
+    expect(panel.attributes('aria-labelledby')).toBe(
+      'kanban-opportunity-title'
     );
     expect(
       wrapper.find('[data-testid="kanban-opportunity-form"]').classes()
@@ -401,7 +399,7 @@ describe('KanbanOpportunityDetailsModal', () => {
     ).toContain('#501');
     expect(
       wrapper.find('[data-testid="kanban-opportunity-close"]').exists()
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('copies card ID from the header', async () => {
@@ -417,7 +415,7 @@ describe('KanbanOpportunityDetailsModal', () => {
 
   it('renders loading state', async () => {
     KanbanBoardsAPI.showCardById.mockReturnValue(new Promise(() => {}));
-    const wrapper = mount(KanbanOpportunityDetailsModal, {
+    const wrapper = mount(KanbanOpportunityPanel, {
       props: {
         boardId: 10,
         cardId: 501,
@@ -614,6 +612,7 @@ describe('KanbanOpportunityDetailsModal', () => {
     );
     const wrapper = await mountModal();
 
+    await subjectInput(wrapper).setValue('Pending subject');
     await wrapper.find('form').trigger('submit');
 
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
@@ -894,6 +893,7 @@ describe('KanbanOpportunityDetailsModal', () => {
   it('emits close from cancel action', async () => {
     const wrapper = await mountModal();
 
+    await subjectInput(wrapper).setValue('Changed subject');
     await wrapper
       .find('[data-testid="kanban-opportunity-cancel"]')
       .trigger('click');

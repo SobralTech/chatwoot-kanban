@@ -189,7 +189,7 @@ export function useKanbanCardActions({
       isTerminalStage(targetStage) ||
       isActionActive(actionKey)
     ) {
-      return;
+      return false;
     }
 
     startAction(actionKey);
@@ -203,8 +203,10 @@ export function useKanbanCardActions({
       });
       await refreshStageFirstPages([card.kanbanStageId, targetStage.id]);
       useAlert(t('KANBAN.CARD.MOVE_SUCCESS'));
+      return true;
     } catch (error) {
       showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
+      return false;
     } finally {
       endAction(actionKey);
     }
