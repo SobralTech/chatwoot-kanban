@@ -8,7 +8,7 @@ import Popover from 'dashboard/components-next/popover/Popover.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import { useAlert } from 'dashboard/composables';
-import { useMapGetter, useStore } from 'dashboard/composables/store';
+import { useMapGetter } from 'dashboard/composables/store';
 import { getCardStatusChangeErrorMessage } from 'dashboard/helper/kanbanCardStatus';
 import { formatDateInput, toIso8601 } from 'dashboard/helper/kanbanDueDate';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
@@ -68,10 +68,10 @@ const emit = defineEmits([
 const TAB_KEYS = ['general', 'products', 'additional_data'];
 
 const { t } = useI18n();
-const store = useStore();
 const accountLabels = useMapGetter('labels/getLabels');
 
 const activeTabIndex = ref(0);
+const loadedTabKeys = ref(['general']);
 const tabItems = computed(() => [
   { label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.GENERAL') },
   { label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.PRODUCTS') },
@@ -80,7 +80,10 @@ const tabItems = computed(() => [
 const activeTabKey = computed(() => TAB_KEYS[activeTabIndex.value]);
 const onTabChanged = tab => {
   const index = tabItems.value.findIndex(item => item.label === tab.label);
-  if (index !== -1) activeTabIndex.value = index;
+  if (index === -1) return;
+
+  activeTabIndex.value = index;
+  loadedTabKeys.value = [...new Set([...loadedTabKeys.value, TAB_KEYS[index]])];
 };
 const card = ref(null);
 const panelRef = ref(null);
@@ -269,52 +272,20 @@ const setFormState = payload => {
   dueAt.value = formatDateInput(card.value.dueAt);
   priority.value = card.value.priority || '';
 };
+const setEmbeddedContext = payload => {
+  const labels = Array.isArray(payload.labels) ? payload.labels : [];
+  const assignees = Array.isArray(payload.assignees) ? payload.assignees : [];
+  const assignable = Array.isArray(payload.assignable_users)
+    ? payload.assignable_users
+    : [];
+
+  selectedLabelTitles.value = labels.map(label => label.title || label);
+  assignedUsers.value = assignees;
+  assignableUsers.value = assignable;
+};
 
 const getLabelsPayload = response =>
   response?.data?.payload || response?.data || [];
-
-const loadLabels = async () => {
-  isLoadingLabels.value = true;
-  labelsLoadError.value = '';
-
-  try {
-    const [assignedLabelsResponse] = await Promise.all([
-      KanbanBoardsAPI.getCardLabels(props.boardId, props.cardId),
-      store.dispatch('labels/get'),
-    ]);
-    selectedLabelTitles.value = getLabelsPayload(assignedLabelsResponse).map(
-      label => label.title || label
-    );
-  } catch (error) {
-    labelsLoadError.value = getErrorMessage(
-      error,
-      t('KANBAN.OPPORTUNITY_DETAILS.LOAD_LABELS_ERROR')
-    );
-  } finally {
-    isLoadingLabels.value = false;
-  }
-};
-
-const loadAssignees = async () => {
-  isLoadingAssignees.value = true;
-  assigneesLoadError.value = '';
-
-  try {
-    const response = await KanbanBoardsAPI.getCardAssignees(
-      props.boardId,
-      props.cardId
-    );
-    assignedUsers.value = response?.data?.payload || [];
-    assignableUsers.value = response?.data?.assignable_users || [];
-  } catch (error) {
-    assigneesLoadError.value = getErrorMessage(
-      error,
-      t('KANBAN.OPPORTUNITY_DETAILS.LOAD_ASSIGNEES_ERROR')
-    );
-  } finally {
-    isLoadingAssignees.value = false;
-  }
-};
 
 const onToggleAssignee = user => {
   assignedUsers.value = selectedAssigneeIds.value.includes(user.id)
@@ -331,7 +302,9 @@ const loadCard = async () => {
       props.boardId,
       props.cardId
     );
-    setFormState(response.data || {});
+    const cardPayload = response.data || {};
+    setFormState(cardPayload);
+    setEmbeddedContext(cardPayload);
   } catch (error) {
     loadError.value = getErrorMessage(
       error,
@@ -469,7 +442,7 @@ const openConversation = () => {
 };
 
 const loadOpportunityData = async () => {
-  await Promise.allSettled([loadCard(), loadLabels(), loadAssignees()]);
+  await loadCard();
   captureSnapshot();
 };
 
@@ -664,23 +637,27 @@ defineExpose({ saveCard, hasUnsavedChanges });
                 </form>
               </section>
 
-              <KanbanCardItemsTab
-                v-show="activeTabKey === 'products'"
-                :board-id="boardId"
-                :card-id="cardId"
-                @total-changed="onProductsTotalChanged"
-              />
-              <section
-                v-show="activeTabKey === 'additional_data'"
-                data-testid="kanban-opportunity-additional-data-tab"
-              >
-                <KanbanCardAdditionalDataTab
-                  ref="additionalDataTabRef"
+              <template v-if="loadedTabKeys.includes('products')">
+                <KanbanCardItemsTab
+                  v-show="activeTabKey === 'products'"
                   :board-id="boardId"
                   :card-id="cardId"
-                  :custom-fields="customFields"
+                  @total-changed="onProductsTotalChanged"
                 />
-              </section>
+              </template>
+              <template v-if="loadedTabKeys.includes('additional_data')">
+                <section
+                  v-show="activeTabKey === 'additional_data'"
+                  data-testid="kanban-opportunity-additional-data-tab"
+                >
+                  <KanbanCardAdditionalDataTab
+                    ref="additionalDataTabRef"
+                    :board-id="boardId"
+                    :card-id="cardId"
+                    :custom-fields="customFields"
+                  />
+                </section>
+              </template>
             </div>
 
             <KanbanCardContextRail

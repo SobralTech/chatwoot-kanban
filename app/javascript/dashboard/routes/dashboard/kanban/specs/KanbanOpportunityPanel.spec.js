@@ -82,6 +82,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     getCardAssignees: vi.fn(),
     updateCardAssignees: vi.fn(),
     getCardProducts: vi.fn(),
+    getCardFieldValues: vi.fn(),
     createCardProduct: vi.fn(),
     updateCardProduct: vi.fn(),
     deleteCardProduct: vi.fn(),
@@ -266,14 +267,13 @@ const tabBarStub = {
 const mountModal = async ({
   card = buildCard(),
   resolveLoad = true,
-  resolveLabels = true,
-  resolveAssignees = true,
   resolveProducts = true,
   accountLabels = labels,
   assignedLabels = [labels[0]],
   assignedUsers = [assignableUsers[0]],
   availableAssignableUsers = assignableUsers,
   cardProducts = [],
+  customFields = [],
   wonStageId = null,
   lostStageId = null,
   lostReasonRequired = false,
@@ -282,33 +282,30 @@ const mountModal = async ({
   storeMocks.labels = accountLabels;
   storeMocks.dispatch.mockResolvedValue();
 
-  if (resolveLabels) {
-    KanbanBoardsAPI.getCardLabels.mockResolvedValue({
-      data: { payload: assignedLabels },
-    });
-  }
+  const cardPayload = {
+    ...card,
+    labels: card.labels ?? assignedLabels,
+    assignees: card.assignees ?? assignedUsers,
+    assignable_users: card.assignable_users ?? availableAssignableUsers,
+  };
 
-  if (resolveAssignees) {
-    KanbanBoardsAPI.getCardAssignees.mockResolvedValue({
-      data: {
-        payload: assignedUsers,
-        assignable_users: availableAssignableUsers,
-      },
-    });
-  }
+  KanbanBoardsAPI.getCardFieldValues.mockResolvedValue({
+    data: { payload: [] },
+  });
 
   if (resolveProducts) {
     KanbanBoardsAPI.getCardProducts.mockResolvedValue({ data: cardProducts });
   }
 
   if (resolveLoad) {
-    KanbanBoardsAPI.showCardById.mockResolvedValue({ data: card });
+    KanbanBoardsAPI.showCardById.mockResolvedValue({ data: cardPayload });
   }
 
   const wrapper = mount(KanbanOpportunityPanel, {
     props: {
       boardId: 10,
       cardId: 501,
+      customFields,
       wonStageId,
       lostStageId,
       lostReasonRequired,
@@ -684,7 +681,7 @@ describe('KanbanOpportunityPanel', () => {
       .find('[data-testid="kanban-opportunity-open-conversation"]')
       .trigger('click');
 
-    expect(wrapper.emitted('openConversation')).toEqual([[card]]);
+    expect(wrapper.emitted('openConversation')[0][0]).toMatchObject(card);
   });
 
   it('renders no linked conversation for unlinked card', async () => {
@@ -742,10 +739,19 @@ describe('KanbanOpportunityPanel', () => {
     ).toBe(false);
   });
 
-  it('loads assignees through getCardAssignees', async () => {
-    await mountModal();
+  it('loads card context from showCardById without separate requests', async () => {
+    const wrapper = await mountModal({
+      assignedLabels: labels,
+      assignedUsers: assignableUsers,
+    });
 
-    expect(KanbanBoardsAPI.getCardAssignees).toHaveBeenCalledWith(10, 501);
+    expect(KanbanBoardsAPI.showCardById).toHaveBeenCalledWith(10, 501);
+    expect(KanbanBoardsAPI.getCardLabels).not.toHaveBeenCalled();
+    expect(KanbanBoardsAPI.getCardAssignees).not.toHaveBeenCalled();
+    expect(
+      wrapper.findAll('[data-testid="kanban-opportunity-assignee"]')
+    ).toHaveLength(2);
+    expect(labelButtons(wrapper)).toHaveLength(2);
   });
 
   it('renders assigned users as chips', async () => {
@@ -819,16 +825,55 @@ describe('KanbanOpportunityPanel', () => {
     );
   });
 
-  it('loads assigned card labels through getCardLabels', async () => {
-    await mountModal();
+  it('does not load deferred tab data before a tab is opened', async () => {
+    const wrapper = await mountModal();
 
-    expect(KanbanBoardsAPI.getCardLabels).toHaveBeenCalledWith(10, 501);
+    expect(KanbanBoardsAPI.getCardProducts).not.toHaveBeenCalled();
+    expect(KanbanBoardsAPI.getCardFieldValues).not.toHaveBeenCalled();
+    expect(
+      wrapper
+        .find('[data-testid="kanban-opportunity-additional-data-tab"]')
+        .exists()
+    ).toBe(false);
   });
 
-  it('loads available account labels through existing pattern', async () => {
-    await mountModal();
+  it('loads each deferred tab once and preserves its mounted state', async () => {
+    const wrapper = await mountModal();
 
-    expect(storeMocks.dispatch).toHaveBeenCalledWith('labels/get');
+    await wrapper
+      .find('[data-testid="kanban-opportunity-tab-1"]')
+      .trigger('click');
+    await flushPromises();
+    expect(KanbanBoardsAPI.getCardProducts).toHaveBeenCalledTimes(1);
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-tab-0"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-opportunity-tab-1"]')
+      .trigger('click');
+    await flushPromises();
+    expect(KanbanBoardsAPI.getCardProducts).toHaveBeenCalledTimes(1);
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-tab-2"]')
+      .trigger('click');
+    await flushPromises();
+    expect(KanbanBoardsAPI.getCardFieldValues).toHaveBeenCalledTimes(1);
+    expect(
+      wrapper
+        .find('[data-testid="kanban-opportunity-additional-data-tab"]')
+        .exists()
+    ).toBe(true);
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-tab-0"]')
+      .trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-opportunity-tab-2"]')
+      .trigger('click');
+    await flushPromises();
+    expect(KanbanBoardsAPI.getCardFieldValues).toHaveBeenCalledTimes(1);
   });
 
   it('renders label title and color', async () => {

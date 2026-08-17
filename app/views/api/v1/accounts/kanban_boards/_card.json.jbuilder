@@ -43,6 +43,14 @@ if stable_card
       json.avatar_url assignee_user.avatar_url
     end
   end
+  json.labels card.account.labels.where(title: card.label_list) do |label|
+    json.extract! label, :id, :title, :color, :description
+  end
+  json.assignable_users card.kanban_board.assignable_users.order(:name) do |user|
+    json.id user.id
+    json.name user.name
+    json.avatar_url user.avatar_url
+  end
 end
 json.active card.active if card.respond_to?(:active)
 if card.respond_to?(:origin)
