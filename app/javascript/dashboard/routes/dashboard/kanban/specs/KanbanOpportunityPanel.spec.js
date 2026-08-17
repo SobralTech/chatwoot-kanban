@@ -382,6 +382,28 @@ describe('KanbanOpportunityPanel', () => {
     ).toContain('xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]');
   });
 
+  it('keeps the context rail visible when switching tabs', async () => {
+    const wrapper = await mountModal();
+
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-context-rail"]').exists()
+    ).toBe(true);
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-tab-1"]')
+      .trigger('click');
+
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-context-rail"]').exists()
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-contact"]').exists()
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-general-tab"]').isVisible()
+    ).toBe(false);
+  });
+
   it('renders title and description controls at full width', async () => {
     const wrapper = await mountModal();
 

@@ -3,23 +3,19 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
-import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
-import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { getCardStatusChangeErrorMessage } from 'dashboard/helper/kanbanCardStatus';
 import { formatDateInput, toIso8601 } from 'dashboard/helper/kanbanDueDate';
-import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
-import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
-import KanbanDueDatePicker from '../KanbanDueDatePicker.vue';
 import KanbanCardAdditionalDataTab from '../KanbanCardAdditionalDataTab.vue';
 import KanbanCardOverviewTab from './tabs/KanbanCardOverviewTab.vue';
 import KanbanCardItemsTab from './tabs/KanbanCardItemsTab.vue';
+import KanbanCardContextRail from './KanbanCardContextRail.vue';
 import KanbanCardStatusBadge from '../KanbanCardStatusBadge.vue';
 
 const props = defineProps({
@@ -212,55 +208,17 @@ const productsTotalValue = ref(null);
 const totalValue = computed(
   () => productsTotalValue.value ?? Number(card.value?.value || 0)
 );
-const formattedTotalValue = computed(() => formatCurrency(totalValue.value));
 const onProductsTotalChanged = value => {
   productsTotalValue.value = value;
 };
 
 const cardDisplayId = computed(() => card.value?.id || props.cardId);
-const hasConversation = computed(() => !!card.value?.conversationId);
-const inboxObject = computed(
-  () => card.value?.inbox || card.value?.conversation?.inbox || null
-);
-const inboxName = computed(
-  () => inboxObject.value?.name || t('KANBAN.OPPORTUNITY_DETAILS.NO_INBOX')
-);
 const selectedAssigneeIds = computed(() =>
   assignedUsers.value.map(user => user.id)
-);
-const assigneesSummary = computed(() => {
-  if (!assignedUsers.value.length) {
-    return t('KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED');
-  }
-
-  return assignedUsers.value.map(user => user.name).join(', ');
-});
-const hasContact = computed(() => !!card.value?.contact);
-const contactName = computed(
-  () =>
-    card.value?.contact?.name ||
-    card.value?.contact?.email ||
-    card.value?.contact?.phone_number ||
-    t('KANBAN.OPPORTUNITY_DETAILS.NO_CONTACT')
 );
 const selectedLabelTitleSet = computed(
   () => new Set(selectedLabelTitles.value)
 );
-const selectedLabels = computed(() =>
-  selectedLabelTitles.value.map(title => {
-    const accountLabel = accountLabels.value.find(
-      label => label.title === title
-    );
-    return accountLabel || { title };
-  })
-);
-const selectedLabelsSummary = computed(() => {
-  if (!selectedLabelTitles.value.length) {
-    return t('KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_SELECTED');
-  }
-
-  return selectedLabelTitles.value.join(', ');
-});
 
 const additionalDataTabRef = ref(null);
 
@@ -505,7 +463,7 @@ const copyCardId = async () => {
 };
 
 const openConversation = () => {
-  if (!hasConversation.value) return;
+  if (!card.value?.conversationId) return;
 
   emit('openConversation', card.value);
 };
@@ -674,347 +632,75 @@ defineExpose({ saveCard, hasUnsavedChanges });
         </p>
 
         <template v-else-if="card">
-          <section
-            v-show="activeTabKey === 'general'"
-            data-testid="kanban-opportunity-general-tab"
+          <div
+            data-testid="kanban-opportunity-layout"
+            class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]"
           >
-            <form
-              data-testid="kanban-opportunity-form"
-              class="grid gap-5"
-              @submit.prevent="saveCard"
-            >
-              <div
-                data-testid="kanban-opportunity-layout"
-                class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]"
+            <div class="min-w-0">
+              <section
+                v-show="activeTabKey === 'general'"
+                data-testid="kanban-opportunity-general-tab"
               >
-                <KanbanCardOverviewTab
-                  v-model:subject="subject"
-                  v-model:description="description"
-                  v-model:priority="priority"
-                  :subject-error="subjectError"
-                  @clear-subject-error="subjectError = ''"
+                <form
+                  data-testid="kanban-opportunity-form"
+                  class="grid gap-5"
+                  @submit.prevent="saveCard"
                 >
-                  <template #after-subject>
-                    <section
-                      class="grid min-w-0 gap-2 rounded-lg border border-n-weak p-3"
-                    >
-                      <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                        {{ t('KANBAN.OPPORTUNITY_DETAILS.CONTACT') }}
-                      </h3>
-                      <p
-                        data-testid="kanban-opportunity-contact"
-                        class="mb-0 flex min-w-0 items-center gap-2 text-sm text-n-slate-11"
-                      >
-                        <Avatar
-                          v-if="hasContact"
-                          :name="contactName"
-                          :src="card.contact.thumbnail"
-                          :size="20"
-                          rounded-full
-                        />
-                        <i
-                          v-else
-                          class="i-lucide-user-round size-4 flex-shrink-0"
-                        />
-                        <span class="min-w-0 truncate">{{ contactName }}</span>
-                      </p>
-                    </section>
-                  </template>
-                </KanbanCardOverviewTab>
+                  <KanbanCardOverviewTab
+                    v-model:subject="subject"
+                    v-model:description="description"
+                    v-model:priority="priority"
+                    :subject-error="subjectError"
+                    @clear-subject-error="subjectError = ''"
+                  />
 
-                <aside class="grid min-w-0 content-start gap-4">
-                  <section
-                    class="grid min-w-0 gap-3 rounded-lg border border-n-weak p-3"
+                  <p
+                    v-if="saveError"
+                    data-testid="kanban-opportunity-save-error"
+                    class="mb-0 text-sm text-n-ruby-11"
                   >
-                    <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                      {{ t('KANBAN.OPPORTUNITY_DETAILS.CONVERSATION') }}
-                    </h3>
-                    <p
-                      v-if="hasConversation"
-                      data-testid="kanban-opportunity-conversation"
-                      class="mb-0 flex min-w-0 items-center gap-2 text-sm text-n-slate-11"
-                    >
-                      <ChannelIcon
-                        v-if="inboxObject"
-                        :inbox="inboxObject"
-                        class="size-4 flex-shrink-0"
-                      />
-                      <i v-else class="i-lucide-inbox size-4 flex-shrink-0" />
-                      <span class="min-w-0 truncate">{{ inboxName }}</span>
-                    </p>
-                    <p
-                      v-else
-                      data-testid="kanban-opportunity-no-conversation"
-                      class="mb-0 flex items-center gap-2 text-sm text-n-slate-11"
-                    >
-                      <i class="i-lucide-message-square-off size-4" />
-                      {{
-                        t('KANBAN.OPPORTUNITY_DETAILS.NO_LINKED_CONVERSATION')
-                      }}
-                    </p>
-                    <NextButton
-                      v-if="hasConversation"
-                      type="button"
-                      outline
-                      slate
-                      xs
-                      data-testid="kanban-opportunity-open-conversation"
-                      icon="i-lucide-external-link"
-                      :label="t('KANBAN.OPPORTUNITY_DETAILS.OPEN_CONVERSATION')"
-                      @click="openConversation"
-                    />
-                  </section>
+                    {{ saveError }}
+                  </p>
+                </form>
+              </section>
 
-                  <section
-                    class="grid gap-3 rounded-lg border border-n-weak p-3"
-                  >
-                    <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                      {{ t('KANBAN.OPPORTUNITY_DETAILS.LABELS') }}
-                    </h3>
-                    <p
-                      v-if="labelsLoadError"
-                      data-testid="kanban-opportunity-labels-load-error"
-                      class="mb-0 text-sm text-n-ruby-11"
-                    >
-                      {{ labelsLoadError }}
-                    </p>
-
-                    <Popover
-                      align="start"
-                      disable-mobile-view
-                      :show-content-border="false"
-                    >
-                      <button
-                        type="button"
-                        data-testid="kanban-opportunity-labels-menu"
-                        class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                        :disabled="isLoadingLabels"
-                      >
-                        <i
-                          class="i-lucide-tags size-4 flex-shrink-0 text-n-slate-11"
-                        />
-                        <span class="min-w-0 flex-1 truncate">
-                          {{ selectedLabelsSummary }}
-                        </span>
-                        <i
-                          class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11"
-                        />
-                      </button>
-
-                      <template #content>
-                        <div
-                          class="block visible w-80 rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
-                        >
-                          <LabelDropdown
-                            :account-labels="accountLabels"
-                            :selected-labels="selectedLabelTitles"
-                            allow-creation
-                            @add="onAddLabel"
-                            @remove="onRemoveLabel"
-                          />
-                        </div>
-                      </template>
-                    </Popover>
-
-                    <div
-                      v-if="selectedLabels.length"
-                      data-testid="kanban-opportunity-labels"
-                      class="flex flex-wrap gap-2"
-                    >
-                      <span
-                        v-for="label in selectedLabels"
-                        :key="label.id || label.title"
-                        data-testid="kanban-opportunity-label"
-                        class="inline-flex items-center gap-2 rounded-full border border-n-weak bg-n-alpha-1 px-3 py-1 text-xs font-medium text-n-slate-11"
-                      >
-                        <span
-                          class="size-2 rounded-full"
-                          :style="{ backgroundColor: label.color }"
-                        />
-                        <span>{{ label.title }}</span>
-                      </span>
-                    </div>
-
-                    <p
-                      v-else-if="!isLoadingLabels && !labelsLoadError"
-                      data-testid="kanban-opportunity-no-labels"
-                      class="mb-0 text-sm text-n-slate-11"
-                    >
-                      {{ t('KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_SELECTED') }}
-                    </p>
-                  </section>
-
-                  <section
-                    class="grid gap-3 rounded-lg border border-n-weak p-3"
-                  >
-                    <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                      {{ t('KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE') }}
-                    </h3>
-                    <p
-                      v-if="assigneesLoadError"
-                      data-testid="kanban-opportunity-assignees-load-error"
-                      class="mb-0 text-sm text-n-ruby-11"
-                    >
-                      {{ assigneesLoadError }}
-                    </p>
-
-                    <Popover
-                      align="start"
-                      disable-mobile-view
-                      :show-content-border="false"
-                    >
-                      <button
-                        type="button"
-                        data-testid="kanban-opportunity-assignees-menu"
-                        class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                        :disabled="isLoadingAssignees"
-                      >
-                        <i
-                          class="i-lucide-users size-4 flex-shrink-0 text-n-slate-11"
-                        />
-                        <span class="min-w-0 flex-1 truncate">
-                          {{ assigneesSummary }}
-                        </span>
-                        <i
-                          class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11"
-                        />
-                      </button>
-
-                      <template #content>
-                        <div
-                          class="block visible w-72 rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
-                        >
-                          <ul class="grid gap-1">
-                            <li v-for="user in assignableUsers" :key="user.id">
-                              <button
-                                type="button"
-                                data-testid="kanban-opportunity-assignee-option"
-                                :data-selected="
-                                  selectedAssigneeIds.includes(user.id)
-                                "
-                                class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
-                                @click="onToggleAssignee(user)"
-                              >
-                                <input
-                                  type="checkbox"
-                                  class="pointer-events-none"
-                                  :checked="
-                                    selectedAssigneeIds.includes(user.id)
-                                  "
-                                  tabindex="-1"
-                                />
-                                <Avatar
-                                  :name="user.name"
-                                  :src="user.avatar_url"
-                                  :size="20"
-                                  rounded-full
-                                />
-                                <span class="min-w-0 flex-1 truncate">
-                                  {{ user.name }}
-                                </span>
-                              </button>
-                            </li>
-                          </ul>
-                          <p
-                            v-if="!assignableUsers.length"
-                            class="mb-0 px-2 py-1.5 text-sm text-n-slate-11"
-                          >
-                            {{
-                              t(
-                                'KANBAN.OPPORTUNITY_DETAILS.NO_ASSIGNABLE_USERS'
-                              )
-                            }}
-                          </p>
-                        </div>
-                      </template>
-                    </Popover>
-
-                    <div
-                      v-if="assignedUsers.length"
-                      data-testid="kanban-opportunity-assignees"
-                      class="flex flex-wrap gap-2"
-                    >
-                      <span
-                        v-for="user in assignedUsers"
-                        :key="user.id"
-                        data-testid="kanban-opportunity-assignee"
-                        class="inline-flex items-center gap-2 rounded-full border border-n-weak bg-n-alpha-1 px-3 py-1 text-xs font-medium text-n-slate-11"
-                      >
-                        <Avatar
-                          :name="user.name"
-                          :src="user.avatar_url"
-                          :size="16"
-                          rounded-full
-                        />
-                        <span>{{ user.name }}</span>
-                      </span>
-                    </div>
-                    <p
-                      v-else-if="!isLoadingAssignees && !assigneesLoadError"
-                      data-testid="kanban-opportunity-no-assignees"
-                      class="mb-0 text-sm text-n-slate-11"
-                    >
-                      {{ t('KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED') }}
-                    </p>
-                  </section>
-
-                  <section
-                    class="grid gap-4 rounded-lg border border-n-weak p-3"
-                  >
-                    <div class="grid gap-1">
-                      <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                        {{
-                          t(
-                            'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.TOTAL_VALUE'
-                          )
-                        }}
-                      </h3>
-                      <p
-                        data-testid="kanban-opportunity-total-value"
-                        class="mb-0 text-sm text-n-slate-11"
-                      >
-                        {{ formattedTotalValue }}
-                      </p>
-                    </div>
-
-                    <KanbanDueDatePicker
-                      v-model="dueAt"
-                      data-testid="kanban-opportunity-due-at"
-                      :label="t('KANBAN.OPPORTUNITY_DETAILS.DUE_DATE')"
-                      :placeholder="t('KANBAN.OPPORTUNITY_DETAILS.CHOOSE_DATE')"
-                      :clear-label="t('KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE')"
-                    />
-                  </section>
-                </aside>
-              </div>
-
-              <p
-                v-if="saveError"
-                data-testid="kanban-opportunity-save-error"
-                class="mb-0 text-sm text-n-ruby-11"
+              <KanbanCardItemsTab
+                v-show="activeTabKey === 'products'"
+                :board-id="boardId"
+                :card-id="cardId"
+                @total-changed="onProductsTotalChanged"
+              />
+              <section
+                v-show="activeTabKey === 'additional_data'"
+                data-testid="kanban-opportunity-additional-data-tab"
               >
-                {{ saveError }}
-              </p>
-            </form>
-          </section>
+                <KanbanCardAdditionalDataTab
+                  ref="additionalDataTabRef"
+                  :board-id="boardId"
+                  :card-id="cardId"
+                  :custom-fields="customFields"
+                />
+              </section>
+            </div>
 
-          <KanbanCardItemsTab
-            v-show="activeTabKey === 'products'"
-            :board-id="boardId"
-            :card-id="cardId"
-            @total-changed="onProductsTotalChanged"
-          />
-          <section
-            v-show="activeTabKey === 'additional_data'"
-            data-testid="kanban-opportunity-additional-data-tab"
-          >
-            <KanbanCardAdditionalDataTab
-              ref="additionalDataTabRef"
-              :board-id="boardId"
-              :card-id="cardId"
-              :custom-fields="customFields"
+            <KanbanCardContextRail
+              v-model:due-at="dueAt"
+              :card="card"
+              :account-labels="accountLabels"
+              :selected-label-titles="selectedLabelTitles"
+              :is-loading-labels="isLoadingLabels"
+              :labels-load-error="labelsLoadError"
+              :assigned-users="assignedUsers"
+              :assignable-users="assignableUsers"
+              :is-loading-assignees="isLoadingAssignees"
+              :assignees-load-error="assigneesLoadError"
+              :total-value="totalValue"
+              @add-label="onAddLabel"
+              @remove-label="onRemoveLabel"
+              @toggle-assignee="onToggleAssignee"
+              @open-conversation="openConversation"
             />
-          </section>
+          </div>
         </template>
       </div>
 
