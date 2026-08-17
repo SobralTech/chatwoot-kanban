@@ -266,7 +266,7 @@ export const mutations = {
       const { conversation: { unread_count: unreadCount = 0 } = {} } = message;
       chat.unread_count = unreadCount;
       if (selectedChatId === conversationId) {
-        emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
+        emitter.emit(BUS_EVENTS.MESSAGE_ADDED, { message });
       }
     }
   },
@@ -309,7 +309,9 @@ export const mutations = {
         ...updates,
       };
       if (_state.selectedChatId === conversation.id) {
-        emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
+        // no message payload: keeps the list pinned to the bottom when the user
+        // is already there, without counting towards the new messages pill
+        emitter.emit(BUS_EVENTS.MESSAGE_ADDED);
       }
     } else {
       const { conversationType } = _state.conversationFilters || {};

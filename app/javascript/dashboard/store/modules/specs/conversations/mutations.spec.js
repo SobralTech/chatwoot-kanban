@@ -144,7 +144,7 @@ describe('#mutations', () => {
       expect(emitter.emit).not.toHaveBeenCalled();
     });
 
-    it('add message to the conversation and emit scrollToMessage if it does not exist in the store', () => {
+    it('add message to the conversation and emit messageAdded if it does not exist in the store', () => {
       global.bus = { $emit: vi.fn() };
       const state = {
         allConversations: [{ id: 1, messages: [] }],
@@ -169,7 +169,13 @@ describe('#mutations', () => {
           timestamp: 1602256198,
         },
       ]);
-      expect(emitter.emit).toHaveBeenCalledWith('SCROLL_TO_MESSAGE');
+      expect(emitter.emit).toHaveBeenCalledWith('MESSAGE_ADDED', {
+        message: {
+          conversation_id: 1,
+          content: 'Test message',
+          created_at: 1602256198,
+        },
+      });
     });
 
     it('update message if it exist in the store', () => {
@@ -977,7 +983,7 @@ describe('#mutations', () => {
       };
 
       mutations[types.UPDATE_CONVERSATION](state, conversation);
-      expect(emitter.emit).toHaveBeenCalledWith('SCROLL_TO_MESSAGE');
+      expect(emitter.emit).toHaveBeenCalledWith('MESSAGE_ADDED');
     });
 
     it('should ignore updates with older timestamps', () => {

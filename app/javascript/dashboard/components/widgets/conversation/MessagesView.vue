@@ -31,10 +31,15 @@ import {
 
 // constants
 import { BUS_EVENTS } from 'shared/constants/busEvents';
+import { MESSAGE_TYPE } from 'shared/constants/messages';
 import { REPLY_POLICY } from 'shared/constants/links';
 import wootConstants from 'dashboard/constants/globals';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
+
+// distance from the bottom of the list that still counts as "at the bottom",
+// same order as the threshold used to paginate older messages
+const NEAR_BOTTOM_THRESHOLD = 100;
 
 export default {
   components: {
@@ -94,6 +99,8 @@ export default {
       programmaticScrollTimer: null,
       messageSentSinceOpened: false,
       labelSuggestions: [],
+      newMessageCount: 0,
+      isNearBottom: true,
     };
   },
 
@@ -246,6 +253,14 @@ export default {
           : 'CONVERSATION.UNREAD_MESSAGE';
       return `${count} ${this.$t(label)}`;
     },
+    newMessagesLabel() {
+      const count = this.newMessageCount > 9 ? '9+' : this.newMessageCount;
+      const label =
+        this.newMessageCount > 1
+          ? 'CONVERSATION.NEW_MESSAGES'
+          : 'CONVERSATION.NEW_MESSAGE';
+      return `${count} ${this.$t(label)}`;
+    },
     inboxSupportsReplyTo() {
       const incoming = this.inboxHasFeature(INBOX_FEATURES.REPLY_TO);
       const outgoing =
@@ -264,6 +279,8 @@ export default {
       this.fetchAllAttachmentsFromCurrentChat();
       this.fetchSuggestions();
       this.messageSentSinceOpened = false;
+      this.newMessageCount = 0;
+      this.isNearBottom = true;
       this.resetReplyEditorHeight();
     },
   },
@@ -271,6 +288,7 @@ export default {
   created() {
     this.currentScrollTarget = null;
     emitter.on(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
+    emitter.on(BUS_EVENTS.MESSAGE_ADDED, this.onMessageAdded);
     // when a message is sent we set the flag to true this hides the label suggestions,
     // until the chat is changed and the flag is reset in the watch for currentChat
     emitter.on(BUS_EVENTS.MESSAGE_SENT, () => {
@@ -337,6 +355,36 @@ export default {
     removeBusListeners() {
       this.currentScrollTarget = null;
       emitter.off(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
+      emitter.off(BUS_EVENTS.MESSAGE_ADDED, this.onMessageAdded);
+    },
+    // a message arrived on its own (not an action the agent took). Only follow it
+    // when the agent is already at the bottom, otherwise surface the pill instead
+    // of yanking them away from what they are reading.
+    onMessageAdded({ message } = {}) {
+      if (this.isNearBottom) {
+        this.makeMessagesRead();
+        this.$nextTick(() => this.scrollToBottom());
+        return;
+      }
+      // activity lines (resolved, assigned, labelled) are not messages someone sent
+      if (message && message.message_type !== MESSAGE_TYPE.ACTIVITY) {
+        this.newMessageCount += 1;
+      }
+    },
+    onScrollToBottomClick() {
+      this.makeMessagesRead();
+      this.scrollToBottom();
+    },
+    updateNearBottom() {
+      const el = this.conversationPanel;
+      if (!el) return;
+      this.isNearBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight <
+        NEAR_BOTTOM_THRESHOLD;
+      if (this.isNearBottom && this.newMessageCount) {
+        this.newMessageCount = 0;
+        this.makeMessagesRead();
+      }
     },
     onScrollToMessage({ messageId = '' } = {}) {
       this.makeMessagesRead();
@@ -375,6 +423,8 @@ export default {
     scrollToBottom() {
       this.isProgrammaticScroll = true;
       this.conversationPanel.scrollTop = this.conversationPanel.scrollHeight;
+      this.isNearBottom = true;
+      this.newMessageCount = 0;
     },
     setScrollParams() {
       this.heightBeforeLoad = this.conversationPanel.scrollHeight;
@@ -413,6 +463,7 @@ export default {
     },
 
     handleScroll(e) {
+      this.updateNearBottom();
       if (this.isProgrammaticScroll) {
         this.hasUserScrolled = false;
         // A smooth scrollIntoView fires scroll events for the duration of its
@@ -514,11 +565,19 @@ export default {
     </MessageList>
     <div class="flex relative flex-col bg-n-surface-1">
       <div
-        v-if="isAnyoneTyping"
-        class="absolute flex items-center w-full h-0 -top-7"
+        class="absolute left-0 bottom-full flex flex-col items-center w-full gap-1 pb-1 pointer-events-none"
       >
+        <button
+          v-if="newMessageCount"
+          class="flex items-center gap-1.5 px-2.5 py-1.5 mx-auto text-xs font-medium text-white rounded-full shadow-lg pointer-events-auto bg-n-brand"
+          @click="onScrollToBottomClick"
+        >
+          <i class="i-lucide-arrow-down size-3" />
+          {{ newMessagesLabel }}
+        </button>
         <div
-          class="flex py-2 pr-4 pl-5 shadow-md rounded-full bg-white dark:bg-n-solid-3 text-n-slate-11 text-xs font-semibold my-2.5 mx-auto"
+          v-if="isAnyoneTyping"
+          class="flex py-2 pr-4 pl-5 mx-auto text-xs font-semibold bg-white rounded-full shadow-md dark:bg-n-solid-3 text-n-slate-11"
         >
           {{ typingUserNames }}
           <img
@@ -528,6 +587,15 @@ export default {
           />
         </div>
       </div>
+      <button
+        v-if="!isNearBottom"
+        :title="$t('CONVERSATION.SCROLL_TO_BOTTOM')"
+        :aria-label="$t('CONVERSATION.SCROLL_TO_BOTTOM')"
+        class="absolute z-10 flex items-center justify-center mb-3 border rounded-full shadow-lg right-4 bottom-full size-9 bg-n-solid-3 hover:bg-n-solid-2 text-n-slate-12 border-n-weak"
+        @click="onScrollToBottomClick"
+      >
+        <i class="i-lucide-arrow-down size-4" />
+      </button>
       <ResizableEditorWrapper
         ref="resizableEditorWrapperRef"
         :container-height="Math.max(0, containerHeight - topBannerHeight)"
