@@ -8,6 +8,7 @@ import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { useAlert } from 'dashboard/composables';
 import kanbanBoardsModule from 'dashboard/store/modules/kanbanBoards';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
+import { FLUSH_DELAY } from 'dashboard/composables/useKanbanRealtimeBuffer';
 
 const mockPush = vi.fn();
 const mockReplace = vi.fn();
@@ -446,7 +447,7 @@ const getKanbanRealtimeHandler = () =>
 
 const emitKanbanRealtimeEvent = async payload => {
   getKanbanRealtimeHandler()(payload);
-  await vi.advanceTimersByTimeAsync(500);
+  await vi.advanceTimersByTimeAsync(FLUSH_DELAY);
   await flushPromises();
   await nextTick();
 };

@@ -1,42 +1,35 @@
 import { onUnmounted } from 'vue';
 
-const FLUSH_DELAY = 500;
-const MAX_INDIVIDUAL_CARDS = 5;
+export const FLUSH_DELAY = 500;
+
+const createBuffer = () => ({
+  board: false,
+  stageIds: new Set(),
+  cardIds: new Set(),
+  cardStageIds: new Set(),
+});
+
+const addAll = (target, ids) =>
+  ids.filter(Boolean).forEach(id => target.add(id));
 
 export function useKanbanRealtimeBuffer({ onFlush }) {
   let timer = null;
-  let buffer = {
-    board: false,
-    stageIds: new Set(),
-    cardIds: new Set(),
-    cardStageIds: new Set(),
-  };
-
-  const reset = () => {
-    buffer = {
-      board: false,
-      stageIds: new Set(),
-      cardIds: new Set(),
-      cardStageIds: new Set(),
-    };
-  };
+  let buffer = createBuffer();
 
   const flush = () => {
     timer = null;
     const pending = buffer;
-    reset();
-    if (!pending.board && !pending.stageIds.size && !pending.cardIds.size)
+    buffer = createBuffer();
+
+    if (!pending.board && !pending.stageIds.size && !pending.cardIds.size) {
       return;
-    const hasTooManyCards = pending.cardIds.size > MAX_INDIVIDUAL_CARDS;
+    }
+
     onFlush({
       board: pending.board,
-      stageIds: [
-        ...new Set([
-          ...pending.stageIds,
-          ...(hasTooManyCards ? pending.cardStageIds : []),
-        ]),
-      ],
-      cardIds: hasTooManyCards ? [] : [...pending.cardIds],
+      stageIds: [...pending.stageIds],
+      cardIds: [...pending.cardIds],
+      cardStageIds: [...pending.cardStageIds],
     });
   };
 
@@ -52,18 +45,17 @@ export function useKanbanRealtimeBuffer({ onFlush }) {
     cardStageIds = [],
   }) => {
     if (board) buffer.board = true;
-    stageIds.filter(Boolean).forEach(id => buffer.stageIds.add(id));
-    cardIds.filter(Boolean).forEach(id => buffer.cardIds.add(id));
-    cardStageIds.filter(Boolean).forEach(id => buffer.cardStageIds.add(id));
+    addAll(buffer.stageIds, stageIds);
+    addAll(buffer.cardIds, cardIds);
+    addAll(buffer.cardStageIds, cardStageIds);
     schedule();
   };
 
-  const cancel = () => {
+  onUnmounted(() => {
     clearTimeout(timer);
     timer = null;
-    reset();
-  };
-  onUnmounted(cancel);
+    buffer = createBuffer();
+  });
 
-  return { push, flush, cancel };
+  return { push };
 }

@@ -594,20 +594,17 @@ const patchVisibleCard = card => {
   const updatedCard = normalizePayload(card);
   if (!updatedCard?.id) return false;
 
-  const stageId = findCardStageId(updatedCard);
-  const visibleStage = stages.value.find(item => item.id === stageId);
+  const visibleStage = stages.value.find(stage =>
+    stage.cards.some(existingCard => existingCard.id === updatedCard.id)
+  );
   if (
-    !stageId ||
     !visibleStage ||
-    (updatedCard.kanbanStageId &&
-      !visibleStage.cards.some(
-        existingCard => existingCard.id === updatedCard.id
-      ))
+    (updatedCard.kanbanStageId && updatedCard.kanbanStageId !== visibleStage.id)
   ) {
     return false;
   }
 
-  updateStageCards(stageId, stage => ({
+  updateStageCards(visibleStage.id, stage => ({
     ...stage,
     cards: stage.cards.map(existingCard =>
       existingCard.id === updatedCard.id
@@ -1425,10 +1422,28 @@ const patchCardById = async cardId => {
   }
 };
 
-const applyRealtimeFlush = async ({ board, stageIds, cardIds }) => {
+// Beyond this many buffered cards, refreshing whole stages costs less than
+// fetching each card on its own.
+const MAX_INDIVIDUAL_CARDS = 5;
+
+const applyRealtimeFlush = async ({
+  board,
+  stageIds,
+  cardIds,
+  cardStageIds,
+}) => {
   if (!selectedBoard.value?.id) return;
   if (board) {
     await refreshSelectedBoard();
+    return;
+  }
+
+  if (cardIds.length > MAX_INDIVIDUAL_CARDS) {
+    await refreshStageFirstPages([
+      ...stageIds,
+      ...cardStageIds,
+      ...cardIds.map(cardId => findCardStageId({ id: cardId })),
+    ]);
     return;
   }
 
@@ -1440,7 +1455,7 @@ const realtimeBuffer = useKanbanRealtimeBuffer({
   onFlush: applyRealtimeFlush,
 });
 
-const bufferRealtimeEvent = (event, data) => {
+const processRealtimeKanbanEvent = (event, data) => {
   if (boardRefreshEvents.has(event)) {
     realtimeBuffer.push({ board: true });
     return;
@@ -1468,13 +1483,9 @@ const bufferRealtimeEvent = (event, data) => {
 
     realtimeBuffer.push({
       cardIds: [data.card_id],
-      cardStageIds: [data.stage_id, findCardStageId({ id: data.card_id })],
+      cardStageIds: [data.stage_id],
     });
   }
-};
-
-const processRealtimeKanbanEvent = (event, data) => {
-  bufferRealtimeEvent(event, data);
 };
 
 const flushPendingRealtimeKanbanEvents = () => {
