@@ -79,7 +79,7 @@ const contactName = computed(
   () =>
     props.card.contact?.name ||
     props.card.contact?.email ||
-    props.card.contact?.phone_number ||
+    props.card.contact?.phoneNumber ||
     t('KANBAN.OPPORTUNITY_DETAILS.NO_CONTACT')
 );
 const selectedAssigneeIds = computed(() =>
@@ -296,7 +296,7 @@ const openConversation = () => {
                   />
                   <Avatar
                     :name="user.name"
-                    :src="user.avatar_url"
+                    :src="user.avatarUrl"
                     :size="20"
                     rounded-full
                   />
@@ -329,7 +329,7 @@ const openConversation = () => {
         >
           <Avatar
             :name="user.name"
-            :src="user.avatar_url"
+            :src="user.avatarUrl"
             :size="16"
             rounded-full
           />

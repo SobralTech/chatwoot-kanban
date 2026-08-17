@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import ProductsAPI from 'dashboard/api/products';
@@ -29,6 +30,8 @@ const { isAdmin } = useAdmin();
 
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.message || fallback;
+const normalizePayload = payload =>
+  camelcaseKeys(payload || {}, { deep: true });
 // --- Products tab ---
 
 const PRICE_LIST_OPTIONS = [
@@ -70,7 +73,7 @@ const isRemovingProductId = ref(null);
 const totalValue = computed(() =>
   cardProducts.value.reduce(
     (sum, product) =>
-      sum + Number(product.subtotal ?? product.unit_price * product.quantity),
+      sum + Number(product.subtotal ?? product.unitPrice * product.quantity),
     0
   )
 );
@@ -86,7 +89,7 @@ const loadCardProducts = async () => {
       props.boardId,
       props.cardId
     );
-    cardProducts.value = response?.data || [];
+    cardProducts.value = normalizePayload(response?.data || []);
     emit('totalChanged', totalValue.value);
   } catch (error) {
     productsLoadError.value = getErrorMessage(
@@ -139,7 +142,7 @@ const performSearch = async () => {
       price_list: priceList.value,
       limit: 20,
     });
-    searchResults.value = response?.data?.products || [];
+    searchResults.value = normalizePayload(response?.data).products || [];
   } catch (error) {
     searchError.value = getErrorMessage(
       error,
@@ -160,15 +163,15 @@ const confirmAddProduct = async product => {
   const draft = getDraft(product.sku);
   if (draft.isSaving) return;
 
-  const maxQuantity = Math.max(Number(product.stock_quantity) || 1, 1);
+  const maxQuantity = Math.max(Number(product.stockQuantity) || 1, 1);
   const quantity = Math.min(
     Math.max(Number(draft.quantity) || 1, 1),
     maxQuantity
   );
   const unitPrice =
     draft.priceType === 'pix'
-      ? product.pricing?.pix_price
-      : product.pricing?.base_price;
+      ? product.pricing?.pixPrice
+      : product.pricing?.basePrice;
 
   draft.isSaving = true;
   draft.error = '';
@@ -178,7 +181,7 @@ const confirmAddProduct = async product => {
       sku: product.sku,
       name: product.name,
       brand: product.brand,
-      image_url: product.image_url,
+      image_url: product.imageUrl,
       quantity,
       unit_price: unitPrice,
       price_type: draft.priceType,
@@ -202,7 +205,7 @@ const startEditUnitPrice = product => {
   if (!isAdmin.value) return;
 
   editingUnitPriceId.value = product.id;
-  editingUnitPriceValue.value = product.unit_price;
+  editingUnitPriceValue.value = product.unitPrice;
 };
 
 const cancelEditUnitPrice = () => {
@@ -338,8 +341,8 @@ defineExpose({ reload: loadCardProducts });
         >
           <div class="flex items-start gap-3">
             <img
-              v-if="product.image_url"
-              :src="product.image_url"
+              v-if="product.imageUrl"
+              :src="product.imageUrl"
               alt=""
               class="size-12 flex-none rounded-md object-cover"
             />
@@ -355,21 +358,21 @@ defineExpose({ reload: loadCardProducts });
               <span class="text-xs text-n-slate-11">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.PIX_PRICE', {
-                    price: formatCurrency(product.pricing?.pix_price),
+                    price: formatCurrency(product.pricing?.pixPrice),
                   })
                 }}
                 ·
                 {{
                   t(
                     'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.INSTALLMENT_PRICE',
-                    { price: formatCurrency(product.pricing?.base_price) }
+                    { price: formatCurrency(product.pricing?.basePrice) }
                   )
                 }}
               </span>
               <span class="text-xs text-n-slate-11">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.STOCK', {
-                    count: product.stock_quantity,
+                    count: product.stockQuantity,
                   })
                 }}
               </span>
@@ -396,7 +399,7 @@ defineExpose({ reload: loadCardProducts });
                 v-model.number="getDraft(product.sku).quantity"
                 type="number"
                 min="1"
-                :max="product.stock_quantity || 1"
+                :max="product.stockQuantity || 1"
                 data-testid="kanban-opportunity-product-add-quantity"
                 class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
               />
@@ -414,7 +417,7 @@ defineExpose({ reload: loadCardProducts });
                   {{
                     t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_PRICE_PIX')
                   }}
-                  ({{ formatCurrency(product.pricing?.pix_price) }})
+                  ({{ formatCurrency(product.pricing?.pixPrice) }})
                 </label>
                 <label class="flex items-center gap-1.5 text-n-slate-12">
                   <input
@@ -426,7 +429,7 @@ defineExpose({ reload: loadCardProducts });
                   {{
                     t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_PRICE_BASE')
                   }}
-                  ({{ formatCurrency(product.pricing?.base_price) }})
+                  ({{ formatCurrency(product.pricing?.basePrice) }})
                 </label>
               </div>
             </div>
@@ -577,7 +580,7 @@ defineExpose({ reload: loadCardProducts });
                   </button>
                 </span>
                 <span v-else class="flex items-center gap-1">
-                  {{ formatCurrency(product.unit_price) }}
+                  {{ formatCurrency(product.unitPrice) }}
                   <button
                     v-if="isAdmin"
                     type="button"

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import NextButton from 'dashboard/components-next/button/Button.vue';
@@ -291,15 +292,8 @@ const onTabChanged = tab => {
   loadedTabKeys.value = [...new Set([...loadedTabKeys.value, TAB_KEYS[index]])];
 };
 
-const normalizeCard = payload => ({
-  ...payload,
-  accountId: payload.accountId ?? payload.account_id,
-  kanbanBoardId: payload.kanbanBoardId ?? payload.kanban_board_id,
-  kanbanStageId: payload.kanbanStageId ?? payload.kanban_stage_id,
-  kanbanReasonId: payload.kanbanReasonId ?? payload.kanban_reason_id,
-  conversationId: payload.conversationId ?? payload.conversation_id,
-  dueAt: payload.dueAt ?? payload.due_at,
-});
+const normalizePayload = payload =>
+  camelcaseKeys(payload || {}, { deep: true });
 
 const getErrorMessage = (error, fallback) => {
   const errors = error?.response?.data?.errors;
@@ -314,7 +308,7 @@ const getErrorMessage = (error, fallback) => {
 };
 
 const setFormState = payload => {
-  card.value = normalizeCard(payload);
+  card.value = payload;
   subject.value = card.value.subject || '';
   description.value = card.value.description || '';
   dueAt.value = formatDateInput(card.value.dueAt);
@@ -323,8 +317,8 @@ const setFormState = payload => {
 const setEmbeddedContext = payload => {
   const labels = Array.isArray(payload.labels) ? payload.labels : [];
   const assignees = Array.isArray(payload.assignees) ? payload.assignees : [];
-  const assignable = Array.isArray(payload.assignable_users)
-    ? payload.assignable_users
+  const assignable = Array.isArray(payload.assignableUsers)
+    ? payload.assignableUsers
     : [];
 
   selectedLabelTitles.value = labels.map(label => label.title || label);
@@ -350,7 +344,7 @@ const loadCard = async () => {
       props.boardId,
       props.cardId
     );
-    const cardPayload = response.data || {};
+    const cardPayload = normalizePayload(response.data);
     setFormState(cardPayload);
     setEmbeddedContext(cardPayload);
   } catch (error) {
@@ -373,7 +367,7 @@ const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
             kanban_reason_id: reasonId || null,
           },
         });
-    const updatedCard = normalizeCard(response.data || {});
+    const updatedCard = normalizePayload(response.data);
     const nextCard = {
       ...(card.value || {}),
       kanbanStageId:
@@ -433,9 +427,8 @@ saveCard = async () => {
       return false;
     }
 
-    const updatedCard = normalizeCard(cardResponse.data || {});
-    card.value = { ...(card.value || {}), ...updatedCard };
-    setFormState(updatedCard);
+    const updatedCard = normalizePayload(cardResponse.data);
+    setFormState({ ...(card.value || {}), ...updatedCard });
 
     let labelsResponse;
     try {
@@ -448,9 +441,9 @@ saveCard = async () => {
       saveError.value = t('KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_LABELS');
       return false;
     }
-    selectedLabelTitles.value = getLabelsPayload(labelsResponse).map(
-      label => label.title || label
-    );
+    selectedLabelTitles.value = normalizePayload(
+      getLabelsPayload(labelsResponse)
+    ).map(label => label.title || label);
 
     let assigneesResponse;
     try {
@@ -465,9 +458,10 @@ saveCard = async () => {
       );
       return false;
     }
-    assignedUsers.value = assigneesResponse?.data?.payload || [];
+    const assigneesResponseData = normalizePayload(assigneesResponse?.data);
+    assignedUsers.value = assigneesResponseData.payload || [];
     assignableUsers.value =
-      assigneesResponse?.data?.assignable_users || assignableUsers.value;
+      assigneesResponseData.assignableUsers || assignableUsers.value;
 
     if (additionalDataTabRef.value?.hasUnsavedChanges) {
       let additionalDataSaved = false;

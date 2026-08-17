@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils';
+import camelcaseKeys from 'camelcase-keys';
 import { nextTick } from 'vue';
 import KanbanOpportunityPanel from '../opportunity/KanbanOpportunityPanel.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
@@ -673,7 +674,9 @@ describe('KanbanOpportunityPanel', () => {
     await wrapper.find('form').trigger('submit');
     await flushPromises();
 
-    expect(wrapper.emitted('updated')).toEqual([[updatedCard]]);
+    expect(wrapper.emitted('updated')[0][0]).toMatchObject(
+      camelcaseKeys(updatedCard, { deep: true })
+    );
     expect(useAlert).toHaveBeenCalledWith('Opportunity saved.');
   });
   it('keeps the savebar visible and disables saving without changes', async () => {
@@ -761,7 +764,7 @@ describe('KanbanOpportunityPanel', () => {
         .find('[data-testid="kanban-opportunity-conversation"]')
         .findComponent({ name: 'ChannelIcon' })
         .props('inbox')
-    ).toEqual(buildCard().inbox);
+    ).toEqual(camelcaseKeys(buildCard().inbox, { deep: true }));
     expect(
       wrapper
         .find('[data-testid="kanban-opportunity-open-conversation"]')
@@ -777,7 +780,9 @@ describe('KanbanOpportunityPanel', () => {
       .find('[data-testid="kanban-opportunity-open-conversation"]')
       .trigger('click');
 
-    expect(wrapper.emitted('openConversation')[0][0]).toMatchObject(card);
+    expect(wrapper.emitted('openConversation')[0][0]).toMatchObject(
+      camelcaseKeys(card, { deep: true })
+    );
   });
 
   it('renders no linked conversation for unlinked card', async () => {
@@ -977,6 +982,33 @@ describe('KanbanOpportunityPanel', () => {
     expect(KanbanBoardsAPI.getCardFieldValues).toHaveBeenCalledTimes(1);
   });
 
+  it('normalizes linked product payloads before rendering', async () => {
+    const wrapper = await mountModal({
+      cardProducts: [
+        {
+          id: 12,
+          sku: 'SKU-1',
+          name: 'Produto',
+          quantity: 2,
+          unit_price: 12.5,
+          subtotal: 25,
+        },
+      ],
+    });
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-tab-1"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-linked-product"]').text()
+    ).toContain('12,50');
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-products-total"]').text()
+    ).toContain('25,00');
+  });
+
   it('renders label title and color', async () => {
     const wrapper = await mountModal();
     const firstLabel = labelButtons(wrapper)[0];
@@ -1077,7 +1109,9 @@ describe('KanbanOpportunityPanel', () => {
       .find('[data-testid="kanban-opportunity-remove-card"]')
       .trigger('click');
 
-    expect(wrapper.emitted('removeCard')[0][0]).toMatchObject(card);
+    expect(wrapper.emitted('removeCard')[0][0]).toMatchObject(
+      camelcaseKeys(card, { deep: true })
+    );
   });
 
   it('does not render the status badge when the board has no won/lost stages', async () => {
