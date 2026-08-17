@@ -258,6 +258,7 @@ const mountView = async (
       plugins: [store],
       stubs: {
         KanbanStageColumn: false,
+        KanbanStageHeader: false,
         OnClickOutside: {
           template: '<div><slot /></div>',
         },
