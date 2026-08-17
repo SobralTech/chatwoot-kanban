@@ -10,6 +10,7 @@ import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useKanbanRealtimeBuffer } from 'dashboard/composables/useKanbanRealtimeBuffer';
 import { useKanbanDragAutoScroll } from 'dashboard/composables/useKanbanDragAutoScroll';
+import { useKanbanBoardFiltersState } from 'dashboard/composables/useKanbanBoardFiltersState';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import {
@@ -35,7 +36,6 @@ import {
   saveKanbanBoardPrefs,
   saveKanbanBoardSnapshot,
 } from 'dashboard/helper/kanbanBoardSnapshot';
-import { applyMatchModeConstraints } from 'dashboard/helper/kanbanBoardFilters';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -74,26 +74,6 @@ const cardActionKey = card => `card-${card.id}`;
 const isCardBusy = (card, stage) =>
   isActionActive(cardActionKey(card)) || isActionActive(stageActionKey(stage));
 const hasError = ref(false);
-const emptyBoardFilters = () => ({
-  inboxIds: [],
-  assigneeIds: [],
-  cardStatuses: [],
-  priorities: [],
-  dueDates: [],
-  labels: [],
-  matchMode: 'any',
-});
-const normalizeBoardFilters = filters =>
-  applyMatchModeConstraints({
-    inboxIds: [...new Set(filters?.inboxIds || [])],
-    assigneeIds: [...new Set(filters?.assigneeIds || [])],
-    cardStatuses: [...new Set(filters?.cardStatuses || [])],
-    priorities: [...new Set(filters?.priorities || [])],
-    dueDates: [...new Set(filters?.dueDates || [])],
-    labels: [...new Set(filters?.labels || [])],
-    matchMode: filters?.matchMode === 'all' ? 'all' : 'any',
-  });
-const boardFilters = ref(emptyBoardFilters());
 const isBoardDropdownOpen = ref(false);
 const editingStageId = ref(null);
 const stageNames = ref({});
@@ -134,9 +114,6 @@ const {
   stopBoardAutoScroll,
 } = useKanbanDragAutoScroll(boardScrollContainer);
 const pendingScrollToStageId = ref(null);
-const searchInput = ref('');
-const activeSearchTerm = ref('');
-let searchDebounceTimer = null;
 let searchRequestToken = 0;
 const preSearchScrollLeft = ref(null);
 let requestGeneration = 0;
@@ -155,6 +132,29 @@ const boardRefreshEvents = new Set([
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
+const {
+  activeBoardFilterCount,
+  activeSearchTerm,
+  boardFilters,
+  currentBoardRequestConfig,
+  clearSearchDebounce,
+  currentFilterParams,
+  emptyBoardFilters,
+  hasActiveBoardFilters,
+  hasActiveFilters,
+  hasNoSearchResults,
+  isMineActive,
+  isSearchLoading,
+  isTodayActive,
+  normalizeBoardFilters,
+  scheduleSearch,
+  searchInput,
+  todayCardsCount,
+} = useKanbanBoardFiltersState({
+  currentUserId,
+  isFetchingBoard,
+  stages,
+});
 const hasBoards = computed(() => boards.value.length > 0);
 const activeAddItemStage = computed(() =>
   stages.value.find(stage => stage.id === activeAddItemStageId.value)
@@ -224,23 +224,6 @@ const TERMINAL_STAGE_CLASSES = {
   },
 };
 const stageAccent = stage => TERMINAL_STAGE_CLASSES[stageTone(stage)] ?? null;
-const activeBoardFilterCount = computed(() =>
-  [
-    boardFilters.value.inboxIds,
-    boardFilters.value.assigneeIds,
-    boardFilters.value.cardStatuses,
-    boardFilters.value.priorities,
-    boardFilters.value.dueDates,
-    boardFilters.value.labels,
-  ].reduce((count, values) => count + values.length, 0)
-);
-const hasActiveBoardFilters = computed(() => activeBoardFilterCount.value > 0);
-const hasActiveFilters = computed(
-  () => hasActiveBoardFilters.value || activeSearchTerm.value.length >= 2
-);
-const isSearchLoading = computed(
-  () => isFetchingBoard.value && searchInput.value !== ''
-);
 const isCardDragDisabled = computed(
   () =>
     isPersistingCardDrag.value || isBoardBusy.value || hasActiveFilters.value
@@ -284,40 +267,6 @@ const normalizeKanbanPayload = data => {
 
   return payload;
 };
-
-const currentBoardFilterParams = () => {
-  const params = {};
-  const filterParams = {
-    inboxIds: 'inbox_ids',
-    assigneeIds: 'assignee_ids',
-    cardStatuses: 'card_statuses',
-    priorities: 'priorities',
-    dueDates: 'due_dates',
-    labels: 'labels',
-  };
-
-  Object.entries(filterParams).forEach(([filterKey, paramKey]) => {
-    if (boardFilters.value[filterKey].length > 0) {
-      params[paramKey] = boardFilters.value[filterKey];
-    }
-  });
-
-  if (Object.keys(params).length > 0) {
-    params.match_mode = boardFilters.value.matchMode;
-  }
-
-  return params;
-};
-const currentSearchParams = () =>
-  activeSearchTerm.value.length >= 2 ? { q: activeSearchTerm.value } : {};
-const currentFilterParams = () => ({
-  ...currentBoardFilterParams(),
-  ...currentSearchParams(),
-});
-const currentBoardRequestConfig = () =>
-  Object.keys(currentFilterParams()).length > 0
-    ? { params: currentFilterParams() }
-    : undefined;
 
 const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.error ||
@@ -817,23 +766,6 @@ const onSearchKeydown = event => {
   event.preventDefault();
   clearSearch();
 };
-const searchResultCount = computed(() =>
-  stages.value.reduce((total, stage) => total + (stage.cardsCount || 0), 0)
-);
-const hasNoSearchResults = computed(
-  () => activeSearchTerm.value.length >= 2 && searchResultCount.value === 0
-);
-
-const isMineActive = computed(() =>
-  Boolean(
-    currentUserId.value &&
-      boardFilters.value.assigneeIds.includes(currentUserId.value)
-  )
-);
-const isTodayActive = computed(() =>
-  ['overdue', 'day'].every(v => boardFilters.value.dueDates.includes(v))
-);
-const todayCardsCount = computed(() => searchResultCount.value);
 
 const persistBoardPrefs = prefs => {
   if (!selectedBoard.value?.id) return;
@@ -1945,7 +1877,7 @@ watch(activeBoardId, (boardId, previousBoardId) => {
     selectedBoard.value = null;
     searchRequestToken += 1;
     requestGeneration += 1;
-    clearTimeout(searchDebounceTimer);
+    clearSearchDebounce();
     searchInput.value = '';
     activeSearchTerm.value = '';
     preSearchScrollLeft.value = null;
@@ -1964,7 +1896,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  clearTimeout(searchDebounceTimer);
   clearTimeout(createdCardHighlightTimer);
   stopBoardAutoScroll();
   cancelEditingStage();
@@ -1973,8 +1904,7 @@ onUnmounted(() => {
 });
 
 watch(searchInput, () => {
-  clearTimeout(searchDebounceTimer);
-  searchDebounceTimer = setTimeout(runSearch, 350);
+  scheduleSearch(runSearch);
 });
 </script>
 
