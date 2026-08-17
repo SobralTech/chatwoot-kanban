@@ -20,16 +20,17 @@ export function useKanbanDragAutoScroll(boardScrollContainer) {
   };
 
   // Ramps from 0 at the edge threshold up to AUTO_SCROLL_MAX_SPEED at the very
-  // border, so the board eases in instead of jumping at a fixed speed.
+  // border, so the board eases in instead of jumping at a fixed speed. The zone
+  // is capped at half the axis so both edges never overlap on short containers,
+  // where the leading branch would otherwise win and scroll the wrong way.
   const edgeScrollDelta = (position, start, end) => {
-    if (position < start + AUTO_SCROLL_EDGE) {
-      const intensity =
-        (start + AUTO_SCROLL_EDGE - position) / AUTO_SCROLL_EDGE;
+    const edge = Math.min(AUTO_SCROLL_EDGE, (end - start) / 2);
+    if (position < start + edge) {
+      const intensity = (start + edge - position) / edge;
       return -AUTO_SCROLL_MAX_SPEED * Math.min(intensity, 1);
     }
-    if (position > end - AUTO_SCROLL_EDGE) {
-      const intensity =
-        (position - (end - AUTO_SCROLL_EDGE)) / AUTO_SCROLL_EDGE;
+    if (position > end - edge) {
+      const intensity = (position - (end - edge)) / edge;
       return AUTO_SCROLL_MAX_SPEED * Math.min(intensity, 1);
     }
     return 0;
