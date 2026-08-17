@@ -1468,7 +1468,11 @@ watch(searchInput, () => {
           {{ t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_TITLE') }}
         </h2>
         <p class="mb-6 text-sm text-n-slate-11">
-          {{ t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_MESSAGE') }}
+          {{
+            t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_FIELDS_MESSAGE', {
+              fields: opportunityModalRef?.unsavedFields?.join(', '),
+            })
+          }}
         </p>
         <div class="flex flex-wrap items-center justify-end gap-2">
           <NextButton

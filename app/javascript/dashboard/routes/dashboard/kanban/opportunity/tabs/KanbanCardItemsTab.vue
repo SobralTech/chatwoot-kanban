@@ -274,6 +274,12 @@ defineExpose({ reload: loadCardProducts });
     data-testid="kanban-opportunity-products-tab"
     class="grid min-w-0 gap-5"
   >
+    <span
+      data-testid="kanban-opportunity-products-autosaved"
+      class="inline-flex w-fit items-center rounded-full bg-n-teal-2 px-2 py-0.5 text-xs font-medium text-n-teal-11"
+    >
+      {{ t('KANBAN.OPPORTUNITY_DETAILS.AUTOSAVED_TAB') }}
+    </span>
     <section class="grid gap-3 rounded-lg border border-n-weak p-3">
       <h3 class="mb-0 text-sm font-medium text-n-slate-12">
         {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SEARCH_LABEL') }}

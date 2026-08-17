@@ -72,19 +72,7 @@ const accountLabels = useMapGetter('labels/getLabels');
 
 const activeTabIndex = ref(0);
 const loadedTabKeys = ref(['general']);
-const tabItems = computed(() => [
-  { label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.GENERAL') },
-  { label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.PRODUCTS') },
-  { label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.ADDITIONAL_DATA') },
-]);
 const activeTabKey = computed(() => TAB_KEYS[activeTabIndex.value]);
-const onTabChanged = tab => {
-  const index = tabItems.value.findIndex(item => item.label === tab.label);
-  if (index === -1) return;
-
-  activeTabIndex.value = index;
-  loadedTabKeys.value = [...new Set([...loadedTabKeys.value, TAB_KEYS[index]])];
-};
 const card = ref(null);
 const panelRef = ref(null);
 const previousActiveElement = ref(null);
@@ -156,39 +144,7 @@ const onStageChanged = async stageId => {
 const focusableSelector =
   'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 const focusPanel = () => panelRef.value?.focus();
-const onDocumentKeydown = event => {
-  if (!panelRef.value) return;
-
-  if (event.key === 'Escape') {
-    event.preventDefault();
-    emit('close');
-    return;
-  }
-
-  if (event.key !== 'Tab') return;
-
-  const focusableElements = [
-    ...panelRef.value.querySelectorAll(focusableSelector),
-  ];
-  if (!focusableElements.length) {
-    event.preventDefault();
-    focusPanel();
-    return;
-  }
-
-  const firstElement = focusableElements[0];
-  const lastElement = focusableElements.at(-1);
-  if (!panelRef.value.contains(document.activeElement)) {
-    event.preventDefault();
-    (event.shiftKey ? lastElement : firstElement).focus();
-  } else if (event.shiftKey && document.activeElement === firstElement) {
-    event.preventDefault();
-    lastElement.focus();
-  } else if (!event.shiftKey && document.activeElement === lastElement) {
-    event.preventDefault();
-    firstElement.focus();
-  }
-};
+let saveCard;
 
 const subject = ref('');
 const description = ref('');
@@ -225,30 +181,122 @@ const selectedLabelTitleSet = computed(
 
 const additionalDataTabRef = ref(null);
 
-const savedSnapshot = ref('');
-const buildSnapshot = () =>
-  JSON.stringify({
-    subject: subject.value,
-    description: description.value,
-    dueAt: dueAt.value,
-    priority: priority.value,
-    labels: [...selectedLabelTitles.value].sort(),
-    assigneeIds: selectedAssigneeIds.value.slice().sort((a, b) => a - b),
-  });
+const initial = ref({
+  subject: '',
+  description: '',
+  dueAt: '',
+  priority: '',
+  labels: [],
+  assigneeIds: [],
+});
+const savedAt = ref(null);
+const currentTime = ref(Date.now());
+let savedTimeTimer = null;
+
+const normalizeIds = ids =>
+  ids.map(value => Number(value)).sort((a, b) => a - b);
+const buildFormState = () => ({
+  subject: subject.value,
+  description: description.value,
+  dueAt: dueAt.value,
+  priority: priority.value,
+  labels: [...selectedLabelTitles.value].sort(),
+  assigneeIds: normalizeIds(selectedAssigneeIds.value),
+});
 const captureSnapshot = () => {
-  savedSnapshot.value = buildSnapshot();
+  initial.value = buildFormState();
+  savedAt.value = Date.now();
 };
-const hasUnsavedChanges = computed(
-  () =>
-    (!!card.value && buildSnapshot() !== savedSnapshot.value) ||
-    !!additionalDataTabRef.value?.hasUnsavedChanges
+const dirtyFields = computed(() => {
+  const current = buildFormState();
+
+  return {
+    subject: current.subject !== initial.value.subject,
+    description: current.description !== initial.value.description,
+    dueAt: current.dueAt !== initial.value.dueAt,
+    priority: current.priority !== initial.value.priority,
+    labels: current.labels.join('|') !== initial.value.labels.join('|'),
+    assignees:
+      current.assigneeIds.join('|') !== initial.value.assigneeIds.join('|'),
+    additionalData: !!additionalDataTabRef.value?.hasUnsavedChanges,
+  };
+});
+const hasGeneralChanges = computed(() =>
+  Object.entries(dirtyFields.value).some(
+    ([field, isDirty]) => field !== 'additionalData' && isDirty
+  )
 );
+const unsavedFields = computed(() => {
+  const fields = [];
+
+  if (dirtyFields.value.subject)
+    fields.push(t('KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE'));
+  if (dirtyFields.value.description)
+    fields.push(t('KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION'));
+  if (dirtyFields.value.priority)
+    fields.push(t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY'));
+  if (dirtyFields.value.dueAt)
+    fields.push(t('KANBAN.OPPORTUNITY_DETAILS.DUE_DATE'));
+  if (dirtyFields.value.labels)
+    fields.push(t('KANBAN.OPPORTUNITY_DETAILS.LABELS'));
+  if (dirtyFields.value.assignees)
+    fields.push(t('KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE'));
+  if (dirtyFields.value.additionalData)
+    fields.push(t('KANBAN.OPPORTUNITY_DETAILS.TABS.ADDITIONAL_DATA'));
+
+  return fields;
+});
+const hasUnsavedChanges = computed(
+  () => !!card.value && Object.values(dirtyFields.value).some(Boolean)
+);
+const savedTimeLabel = computed(() => {
+  if (!savedAt.value) return '';
+
+  const elapsedSeconds = Math.max(
+    0,
+    (currentTime.value - savedAt.value) / 1000
+  );
+  const relativeTime = new Intl.RelativeTimeFormat(undefined, {
+    numeric: 'auto',
+  });
+
+  if (elapsedSeconds < 60) return relativeTime.format(0, 'second');
+  if (elapsedSeconds < 3600) {
+    return relativeTime.format(-Math.floor(elapsedSeconds / 60), 'minute');
+  }
+  if (elapsedSeconds < 86400) {
+    return relativeTime.format(-Math.floor(elapsedSeconds / 3600), 'hour');
+  }
+
+  return relativeTime.format(-Math.floor(elapsedSeconds / 86400), 'day');
+});
+const tabItems = computed(() => [
+  {
+    label: `${t('KANBAN.OPPORTUNITY_DETAILS.TABS.GENERAL')}${
+      hasGeneralChanges.value ? ' •' : ''
+    }`,
+  },
+  { label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.PRODUCTS') },
+  {
+    label: `${t('KANBAN.OPPORTUNITY_DETAILS.TABS.ADDITIONAL_DATA')}${
+      dirtyFields.value.additionalData ? ' •' : ''
+    }`,
+  },
+]);
+const onTabChanged = tab => {
+  const index = tabItems.value.findIndex(item => item.label === tab.label);
+  if (index === -1) return;
+
+  activeTabIndex.value = index;
+  loadedTabKeys.value = [...new Set([...loadedTabKeys.value, TAB_KEYS[index]])];
+};
 
 const normalizeCard = payload => ({
   ...payload,
   accountId: payload.accountId ?? payload.account_id,
   kanbanBoardId: payload.kanbanBoardId ?? payload.kanban_board_id,
   kanbanStageId: payload.kanbanStageId ?? payload.kanban_stage_id,
+  kanbanReasonId: payload.kanbanReasonId ?? payload.kanban_reason_id,
   conversationId: payload.conversationId ?? payload.conversation_id,
   dueAt: payload.dueAt ?? payload.due_at,
 });
@@ -326,9 +374,17 @@ const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
           },
         });
     const updatedCard = normalizeCard(response.data || {});
-    setFormState(updatedCard);
-    captureSnapshot();
-    emit('updated', updatedCard);
+    const nextCard = {
+      ...(card.value || {}),
+      kanbanStageId:
+        updatedCard.kanbanStageId ??
+        (reopen ? card.value?.kanbanStageId : targetStageId),
+      kanbanReasonId:
+        updatedCard.kanbanReasonId ?? (reopen ? null : reasonId || null),
+    };
+
+    card.value = nextCard;
+    emit('updated', nextCard);
     useAlert(
       t(
         reopen
@@ -343,8 +399,8 @@ const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
   }
 };
 
-const saveCard = async () => {
-  if (isSaving.value) return false;
+saveCard = async () => {
+  if (isSaving.value || !hasUnsavedChanges.value) return false;
 
   const trimmedSubject = subject.value.trim();
   subjectError.value = '';
@@ -364,54 +420,117 @@ const saveCard = async () => {
       due_at: toIso8601(dueAt.value),
       priority: priority.value || null,
     };
-    const [cardResponse, labelsResponse, assigneesResponse] = await Promise.all(
-      [
-        KanbanBoardsAPI.updateCardDetailsById(
-          props.boardId,
-          props.cardId,
-          payload
-        ),
-        KanbanBoardsAPI.updateCardLabels(
-          props.boardId,
-          props.cardId,
-          selectedLabelTitles.value
-        ),
-        KanbanBoardsAPI.updateCardAssignees(
-          props.boardId,
-          props.cardId,
-          selectedAssigneeIds.value
-        ),
-      ]
-    );
+    let cardResponse;
+
+    try {
+      cardResponse = await KanbanBoardsAPI.updateCardDetailsById(
+        props.boardId,
+        props.cardId,
+        payload
+      );
+    } catch {
+      saveError.value = t('KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_CARD');
+      return false;
+    }
 
     const updatedCard = normalizeCard(cardResponse.data || {});
+    card.value = { ...(card.value || {}), ...updatedCard };
     setFormState(updatedCard);
+
+    let labelsResponse;
+    try {
+      labelsResponse = await KanbanBoardsAPI.updateCardLabels(
+        props.boardId,
+        props.cardId,
+        selectedLabelTitles.value
+      );
+    } catch {
+      saveError.value = t('KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_LABELS');
+      return false;
+    }
     selectedLabelTitles.value = getLabelsPayload(labelsResponse).map(
       label => label.title || label
     );
+
+    let assigneesResponse;
+    try {
+      assigneesResponse = await KanbanBoardsAPI.updateCardAssignees(
+        props.boardId,
+        props.cardId,
+        selectedAssigneeIds.value
+      );
+    } catch {
+      saveError.value = t(
+        'KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_ASSIGNEES'
+      );
+      return false;
+    }
     assignedUsers.value = assigneesResponse?.data?.payload || [];
     assignableUsers.value =
       assigneesResponse?.data?.assignable_users || assignableUsers.value;
 
-    captureSnapshot();
-
     if (additionalDataTabRef.value?.hasUnsavedChanges) {
-      const additionalDataSaved =
-        await additionalDataTabRef.value.saveFieldValues();
-      if (!additionalDataSaved) return false;
+      let additionalDataSaved = false;
+
+      try {
+        additionalDataSaved =
+          await additionalDataTabRef.value.saveFieldValues();
+      } catch {
+        additionalDataSaved = false;
+      }
+
+      if (!additionalDataSaved) {
+        saveError.value = t(
+          'KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_FIELDS'
+        );
+        return false;
+      }
     }
 
-    emit('updated', updatedCard);
+    captureSnapshot();
+    emit('updated', card.value);
     useAlert(t('KANBAN.OPPORTUNITY_DETAILS.SAVE_SUCCESS'));
     return true;
-  } catch (error) {
-    saveError.value = getErrorMessage(
-      error,
-      t('KANBAN.OPPORTUNITY_DETAILS.SAVE_ERROR')
-    );
-    return false;
   } finally {
     isSaving.value = false;
+  }
+};
+const onDocumentKeydown = event => {
+  if (!panelRef.value) return;
+
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    saveCard();
+    return;
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    emit('close');
+    return;
+  }
+
+  if (event.key !== 'Tab') return;
+
+  const focusableElements = [
+    ...panelRef.value.querySelectorAll(focusableSelector),
+  ];
+  if (!focusableElements.length) {
+    event.preventDefault();
+    focusPanel();
+    return;
+  }
+
+  const firstElement = focusableElements[0];
+  const lastElement = focusableElements.at(-1);
+  if (!panelRef.value.contains(document.activeElement)) {
+    event.preventDefault();
+    (event.shiftKey ? lastElement : firstElement).focus();
+  } else if (event.shiftKey && document.activeElement === firstElement) {
+    event.preventDefault();
+    lastElement.focus();
+  } else if (!event.shiftKey && document.activeElement === lastElement) {
+    event.preventDefault();
+    firstElement.focus();
   }
 };
 
@@ -443,24 +562,28 @@ const openConversation = () => {
 
 const loadOpportunityData = async () => {
   await loadCard();
-  captureSnapshot();
+  if (card.value) captureSnapshot();
 };
 
 onMounted(() => {
   previousActiveElement.value = document.activeElement;
   document.addEventListener('keydown', onDocumentKeydown);
+  savedTimeTimer = setInterval(() => {
+    currentTime.value = Date.now();
+  }, 60000);
   nextTick(focusPanel);
   loadOpportunityData();
 });
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onDocumentKeydown);
+  clearInterval(savedTimeTimer);
   if (previousActiveElement.value?.isConnected) {
     previousActiveElement.value.focus();
   }
 });
 
-defineExpose({ saveCard, hasUnsavedChanges });
+defineExpose({ saveCard, hasUnsavedChanges, unsavedFields });
 </script>
 
 <template>
@@ -626,14 +749,6 @@ defineExpose({ saveCard, hasUnsavedChanges });
                     :subject-error="subjectError"
                     @clear-subject-error="subjectError = ''"
                   />
-
-                  <p
-                    v-if="saveError"
-                    data-testid="kanban-opportunity-save-error"
-                    class="mb-0 text-sm text-n-ruby-11"
-                  >
-                    {{ saveError }}
-                  </p>
                 </form>
               </section>
 
@@ -678,36 +793,65 @@ defineExpose({ saveCard, hasUnsavedChanges });
               @open-conversation="openConversation"
             />
           </div>
+          <p
+            v-if="saveError"
+            data-testid="kanban-opportunity-save-error"
+            class="mb-0 mt-4 text-sm text-n-ruby-11"
+          >
+            {{ saveError }}
+          </p>
         </template>
       </div>
 
       <div
-        v-if="hasUnsavedChanges"
         data-testid="kanban-opportunity-savebar"
-        class="flex flex-none items-center justify-end gap-3 border-t border-n-weak bg-n-background px-4 py-3"
+        class="flex flex-none items-center justify-between gap-3 border-t border-n-weak bg-n-background px-4 py-3"
       >
-        <NextButton
-          type="button"
-          outline
-          slate
-          sm
-          data-testid="kanban-opportunity-cancel"
-          :label="t('KANBAN.OPPORTUNITY_DETAILS.CANCEL')"
-          @click="emit('close')"
-        />
-        <NextButton
-          type="button"
-          sm
-          data-testid="kanban-opportunity-save"
-          :label="
-            isSaving
-              ? t('KANBAN.OPPORTUNITY_DETAILS.SAVING')
-              : t('KANBAN.OPPORTUNITY_DETAILS.SAVE_CHANGES')
-          "
-          :disabled="isSaving"
-          :is-loading="isSaving"
-          @click="saveCard"
-        />
+        <p
+          data-testid="kanban-opportunity-save-state"
+          class="mb-0 text-sm text-n-slate-11"
+        >
+          <span v-if="isSaving">{{
+            t('KANBAN.OPPORTUNITY_DETAILS.SAVING_STATE')
+          }}</span>
+          <span v-else-if="hasUnsavedChanges">{{
+            t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_STATE')
+          }}</span>
+          <span v-else-if="savedAt">{{
+            t('KANBAN.OPPORTUNITY_DETAILS.SAVED_AGO', {
+              time: savedTimeLabel,
+            })
+          }}</span>
+        </p>
+        <div class="flex items-center justify-end gap-3">
+          <NextButton
+            type="button"
+            outline
+            slate
+            sm
+            data-testid="kanban-opportunity-cancel"
+            :label="t('KANBAN.OPPORTUNITY_DETAILS.CANCEL')"
+            @click="emit('close')"
+          />
+          <NextButton
+            type="button"
+            sm
+            data-testid="kanban-opportunity-save"
+            :label="
+              isSaving
+                ? t('KANBAN.OPPORTUNITY_DETAILS.SAVING')
+                : t('KANBAN.OPPORTUNITY_DETAILS.SAVE_CHANGES')
+            "
+            :title="
+              !hasUnsavedChanges
+                ? t('KANBAN.OPPORTUNITY_DETAILS.NO_CHANGES')
+                : undefined
+            "
+            :disabled="isSaving || !hasUnsavedChanges"
+            :is-loading="isSaving"
+            @click="saveCard"
+          />
+        </div>
       </div>
     </aside>
   </div>
