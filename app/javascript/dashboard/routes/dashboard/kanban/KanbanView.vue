@@ -24,10 +24,9 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import InlineInput from 'dashboard/components-next/inline-input/InlineInput.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import KanbanFilterMenu from './KanbanFilterMenu.vue';
-import KanbanStageMenu from './KanbanStageMenu.vue';
+import KanbanStageColumn from './board/KanbanStageColumn.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
-import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
 import {
   getKanbanBoardPrefs,
@@ -39,7 +38,6 @@ import {
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
-import KanbanConversationCard from './KanbanConversationCard.vue';
 import KanbanOpportunityDetailsModal from './KanbanOpportunityDetailsModal.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
 
@@ -641,6 +639,19 @@ const setStageNameInput = (stageId, element) => {
   }
 
   stageNameInputs.delete(stageId);
+};
+const updateStageNameDraft = ({ stageId, value }) => {
+  stageNames.value = {
+    ...stageNames.value,
+    [stageId]: value,
+  };
+};
+
+const updateStageColorDraft = ({ stageId, value }) => {
+  stageColors.value = {
+    ...stageColors.value,
+    [stageId]: value,
+  };
 };
 
 const startEditingStage = stage => {
@@ -2149,250 +2160,57 @@ watch(searchInput, () => {
             @end="onStageDragEnd"
           >
             <template #item="{ element: stage }">
-              <section
-                :data-stage-id="stage.id"
-                class="flex w-64 lg:w-80 flex-shrink-0 flex-col snap-start rounded-lg border bg-n-solid-1"
-                :class="[
-                  editingStageId === stage.id
-                    ? 'overflow-visible'
-                    : 'overflow-hidden',
-                  stageAccent(stage)?.border ?? 'border-n-weak',
-                ]"
-              >
-                <header
-                  class="flex min-h-10 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
-                  :class="[
-                    editingStageId === stage.id
-                      ? ''
-                      : 'stage-drag-handle cursor-grab',
-                    stageAccent(stage)?.header,
-                  ]"
-                >
-                  <OnClickOutside
-                    v-if="editingStageId === stage.id"
-                    class="min-w-0 flex-1"
-                    @trigger="cancelEditingStage"
-                  >
-                    <form
-                      class="flex min-w-0 w-full items-center gap-2"
-                      @submit.prevent="updateStage(stage)"
-                    >
-                      <ColorPicker
-                        v-if="!isTerminalStage(stage)"
-                        v-model="stageColors[stage.id]"
-                        preview-only
-                        :aria-label="t('KANBAN.ACTIONS.STAGE_COLOR')"
-                        data-testid="kanban-stage-color-picker"
-                        class="flex-shrink-0"
-                      />
-                      <input
-                        :ref="element => setStageNameInput(stage.id, element)"
-                        v-model="stageNames[stage.id]"
-                        type="text"
-                        class="reset-base !mb-0 h-8 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-                        :placeholder="
-                          t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')
-                        "
-                        @keydown.escape.prevent="cancelEditingStage"
-                      />
-                      <NextButton
-                        type="submit"
-                        icon="i-lucide-check"
-                        ghost
-                        xs
-                        slate
-                        class="no-drag"
-                        :aria-label="t('KANBAN.ACTIONS.SAVE_STAGE')"
-                        :title="t('KANBAN.ACTIONS.SAVE_STAGE')"
-                      />
-                      <NextButton
-                        icon="i-lucide-x"
-                        ghost
-                        xs
-                        slate
-                        class="no-drag"
-                        :aria-label="t('KANBAN.ACTIONS.CANCEL')"
-                        :title="t('KANBAN.ACTIONS.CANCEL')"
-                        @click="cancelEditingStage"
-                      />
-                    </form>
-                  </OnClickOutside>
-                  <template v-else>
-                    <div class="flex min-w-0 flex-1 items-center gap-2">
-                      <span
-                        class="size-2.5 flex-shrink-0 rounded-full"
-                        :class="stageAccent(stage)?.dot"
-                        :style="
-                          isTerminalStage(stage)
-                            ? null
-                            : { backgroundColor: stage.color }
-                        "
-                        aria-hidden="true"
-                      />
-                      <h3
-                        class="truncate text-sm font-semibold"
-                        :class="stageAccent(stage)?.title ?? 'text-n-slate-12'"
-                      >
-                        {{ stage.name }}
-                      </h3>
-                      <span
-                        class="flex-shrink-0 rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
-                      >
-                        {{ stage.cardsCount }}
-                      </span>
-                      <span
-                        v-if="stage.totalValue > 0"
-                        data-testid="kanban-stage-total-value"
-                        class="flex-shrink-0 rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
-                      >
-                        {{ formatCurrency(stage.totalValue) }}
-                      </span>
-                    </div>
-                    <div class="flex flex-shrink-0 gap-1">
-                      <KanbanStageMenu
-                        :stage="stage"
-                        :stages="stages"
-                        :boards="boards"
-                        :won-stage-id="selectedBoard?.wonStageId"
-                        :lost-stage-id="selectedBoard?.lostStageId"
-                        :is-admin="isAdmin"
-                        :is-busy="isActionActive(stageActionKey(stage))"
-                        @add-card="toggleAddItemPicker(stage)"
-                        @edit="startEditingStage(stage)"
-                        @copy="copyStage(stage, $event)"
-                        @move="moveStage(stage, $event)"
-                        @move-cards="moveAllStageCards(stage, $event)"
-                        @sort="sortStageCards(stage, $event)"
-                        @delete-stage="openRemoveStageConfirmation(stage)"
-                        @delete-cards="openRemoveStageCardsConfirmation(stage)"
-                      />
-                    </div>
-                  </template>
-                </header>
-
-                <div
-                  :data-stage-scroll-id="stage.id"
-                  class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
-                >
-                  <Draggable
-                    :list="stage.cards"
-                    item-key="id"
-                    class="flex flex-1 flex-col gap-2 rounded-md"
-                    :title="
-                      hasActiveFilters
-                        ? t('KANBAN.ACTIONS.REORDER_DISABLED_FILTERED')
-                        : undefined
-                    "
-                    :group="{ name: 'kanban-cards' }"
-                    handle=".card-drag-handle"
-                    :filter="interactiveDragFilter"
-                    :prevent-on-filter="false"
-                    :empty-insert-threshold="30"
-                    :swap-threshold="0.65"
-                    :inverted-swap-threshold="1"
-                    v-bind="sortableFallbackOptions"
-                    :disabled="isCardDragDisabled"
-                    ghost-class="opacity-60"
-                    chosen-class="opacity-90"
-                    :animation="150"
-                    @start="onCardDragStart"
-                    @change="onCardDragChange(stage, $event)"
-                    @end="onCardDragEnd"
-                  >
-                    <template #item="{ element: card }">
-                      <KanbanConversationCard
-                        :class="{
-                          'ring-2 ring-n-brand':
-                            card.id === highlightedCreatedCardId,
-                        }"
-                        :card="card"
-                        :is-busy="isCardBusy(card, stage)"
-                        :stages="stages"
-                        :assignable-users="assignableUsers"
-                        :won-stage-id="selectedBoard?.wonStageId"
-                        :lost-stage-id="selectedBoard?.lostStageId"
-                        :reasons="selectedBoard?.reasons || []"
-                        :lost-reason-required="
-                          selectedBoard?.lostReasonRequired
-                        "
-                        @open-conversation-in-new-tab="openConversationInNewTab"
-                        @move-to-stage="moveCardToStage"
-                        @assign-agent="assignAgent"
-                        @update-due-date="updateCardDueDate"
-                        @open-details="openDetails"
-                        @open-conversation="openConversation"
-                        @remove-card="openRemoveCardConfirmation"
-                        @update-priority="updateCardPriority"
-                        @change-status="onChangeCardStatus"
-                      />
-                    </template>
-                    <template #footer>
-                      <template v-if="stage.cards.length === 0">
-                        <button
-                          v-if="canAddCardInEmptyStage(stage)"
-                          type="button"
-                          data-testid="kanban-empty-stage-add-card"
-                          :data-stage-id="stage.id"
-                          class="flex min-h-24 w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-n-weak px-3 py-6 text-sm font-medium text-n-slate-11 hover:border-n-brand hover:bg-n-alpha-1 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                          :disabled="isActionActive(stageActionKey(stage))"
-                          @click="toggleAddItemPicker(stage)"
-                        >
-                          <i class="i-lucide-plus size-5" />
-                          {{ t('KANBAN.ACTIONS.ADD_FIRST_CARD') }}
-                        </button>
-                        <p
-                          v-else
-                          class="pointer-events-none px-1 py-2 text-sm text-n-slate-10"
-                        >
-                          {{ emptyCardsLabel }}
-                        </p>
-                      </template>
-                    </template>
-                  </Draggable>
-
-                  <div
-                    v-if="getStageCardsError(stage.id)"
-                    class="text-sm text-n-ruby-11"
-                  >
-                    {{ getStageCardsError(stage.id) }}
-                  </div>
-
-                  <button
-                    v-if="stage.pagination?.hasMore"
-                    type="button"
-                    data-testid="kanban-load-more-cards"
-                    :data-stage-id="stage.id"
-                    class="no-drag flex w-full items-center justify-center gap-1 rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white hover:enabled:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="isStageCardsLoading(stage.id)"
-                    @click="loadMoreStageCards(stage)"
-                  >
-                    <i
-                      v-if="isStageCardsLoading(stage.id)"
-                      class="i-lucide-loader-2 size-4 animate-spin"
-                    />
-                    <span v-else>{{
-                      t('KANBAN.ACTIONS.LOAD_MORE_CARDS')
-                    }}</span>
-                  </button>
-                </div>
-
-                <div
-                  v-if="canAddCardInStageFooter(stage)"
-                  class="border-t border-n-weak p-2"
-                >
-                  <button
-                    type="button"
-                    data-testid="kanban-stage-add-card"
-                    :data-stage-id="stage.id"
-                    class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-n-slate-11 hover:bg-n-alpha-1 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="isActionActive(stageActionKey(stage))"
-                    @click="toggleAddItemPicker(stage)"
-                  >
-                    <i class="i-lucide-plus size-4" />
-                    {{ t('KANBAN.STAGE_MENU.ADD_CARD') }}
-                  </button>
-                </div>
-              </section>
+              <KanbanStageColumn
+                :stage="stage"
+                :board="selectedBoard"
+                :stages="stages"
+                :boards="boards"
+                :is-admin="isAdmin"
+                :is-busy="isActionActive(stageActionKey(stage))"
+                :is-card-drag-disabled="isCardDragDisabled"
+                :has-active-filters="hasActiveFilters"
+                :highlighted-card-id="highlightedCreatedCardId"
+                :sortable-options="sortableFallbackOptions"
+                :cards-error="getStageCardsError(stage.id)"
+                :is-loading-cards="isStageCardsLoading(stage.id)"
+                :assignable-users="assignableUsers"
+                :interactive-drag-filter="interactiveDragFilter"
+                :is-card-busy="isCardBusy"
+                :is-terminal-stage="isTerminalStage"
+                :stage-accent="stageAccent"
+                :can-add-card-in-empty-stage="canAddCardInEmptyStage"
+                :can-add-card-in-stage-footer="canAddCardInStageFooter"
+                :empty-cards-label="emptyCardsLabel"
+                :editing-stage-id="editingStageId"
+                :stage-names="stageNames"
+                :stage-colors="stageColors"
+                :set-stage-name-input="setStageNameInput"
+                @update-stage-name="updateStageNameDraft"
+                @update-stage-color="updateStageColorDraft"
+                @add-card="toggleAddItemPicker"
+                @edit-stage="startEditingStage"
+                @update-stage="updateStage"
+                @cancel-editing-stage="cancelEditingStage"
+                @copy-stage="copyStage"
+                @move-stage="moveStage"
+                @move-all-cards="moveAllStageCards"
+                @sort-cards="sortStageCards"
+                @delete-stage="openRemoveStageConfirmation"
+                @delete-all-cards="openRemoveStageCardsConfirmation"
+                @open-card="openDetails"
+                @open-conversation="openConversation"
+                @open-conversation-in-new-tab="openConversationInNewTab"
+                @remove-card="openRemoveCardConfirmation"
+                @update-priority="updateCardPriority"
+                @change-status="onChangeCardStatus"
+                @move-card-to-stage="moveCardToStage"
+                @assign-agent="assignAgent"
+                @update-due-date="updateCardDueDate"
+                @load-more="loadMoreStageCards"
+                @drag-start="onCardDragStart"
+                @drag-change="onCardDragChange"
+                @drag-end="onCardDragEnd"
+              />
             </template>
           </Draggable>
           <button
