@@ -5,10 +5,8 @@ import { useI18n } from 'vue-i18n';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
-import NextInput from 'dashboard/components-next/input/Input.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
-import Editor from 'dashboard/components-next/Editor/Editor.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
@@ -18,8 +16,8 @@ import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
-import KanbanPriorityDropdown from './KanbanPriorityDropdown.vue';
 import KanbanCardAdditionalDataTab from './KanbanCardAdditionalDataTab.vue';
+import KanbanCardOverviewTab from './opportunity/tabs/KanbanCardOverviewTab.vue';
 import KanbanCardItemsTab from './opportunity/tabs/KanbanCardItemsTab.vue';
 import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
 
@@ -511,69 +509,40 @@ defineExpose({ saveCard, hasUnsavedChanges });
               data-testid="kanban-opportunity-layout"
               class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]"
             >
-              <section class="grid min-w-0 content-start gap-4">
-                <NextInput
-                  v-model="subject"
-                  data-testid="kanban-opportunity-subject"
-                  class="w-full"
-                  :label="t('KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE')"
-                  :message="subjectError"
-                  :message-type="subjectError ? 'error' : 'info'"
-                  autofocus
-                  @input="subjectError = ''"
-                />
-
-                <section
-                  class="grid min-w-0 gap-2 rounded-lg border border-n-weak p-3"
-                >
-                  <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                    {{ t('KANBAN.OPPORTUNITY_DETAILS.CONTACT') }}
-                  </h3>
-                  <p
-                    data-testid="kanban-opportunity-contact"
-                    class="mb-0 flex min-w-0 items-center gap-2 text-sm text-n-slate-11"
+              <KanbanCardOverviewTab
+                v-model:subject="subject"
+                v-model:description="description"
+                v-model:priority="priority"
+                :subject-error="subjectError"
+                @clear-subject-error="subjectError = ''"
+              >
+                <template #after-subject>
+                  <section
+                    class="grid min-w-0 gap-2 rounded-lg border border-n-weak p-3"
                   >
-                    <Avatar
-                      v-if="hasContact"
-                      :name="contactName"
-                      :src="card.contact.thumbnail"
-                      :size="20"
-                      rounded-full
-                    />
-                    <i
-                      v-else
-                      class="i-lucide-user-round size-4 flex-shrink-0"
-                    />
-                    <span class="min-w-0 truncate">{{ contactName }}</span>
-                  </p>
-                </section>
-
-                <section class="grid gap-2 rounded-lg border border-n-weak p-3">
-                  <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-                    {{ t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY') }}
-                  </h3>
-                  <KanbanPriorityDropdown
-                    v-model="priority"
-                    test-id="kanban-opportunity-priority"
-                    :none-label="t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY_NONE')"
-                  />
-                </section>
-
-                <div class="grid min-w-0 gap-1.5">
-                  <span class="text-sm font-medium text-n-slate-12">
-                    {{ t('KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION') }}
-                  </span>
-                  <Editor
-                    v-model="description"
-                    data-testid="kanban-opportunity-description"
-                    :show-character-count="false"
-                    :placeholder="
-                      t('KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_PLACEHOLDER')
-                    "
-                    class="max-w-full w-full [&>div]:min-h-[18rem]"
-                  />
-                </div>
-              </section>
+                    <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+                      {{ t('KANBAN.OPPORTUNITY_DETAILS.CONTACT') }}
+                    </h3>
+                    <p
+                      data-testid="kanban-opportunity-contact"
+                      class="mb-0 flex min-w-0 items-center gap-2 text-sm text-n-slate-11"
+                    >
+                      <Avatar
+                        v-if="hasContact"
+                        :name="contactName"
+                        :src="card.contact.thumbnail"
+                        :size="20"
+                        rounded-full
+                      />
+                      <i
+                        v-else
+                        class="i-lucide-user-round size-4 flex-shrink-0"
+                      />
+                      <span class="min-w-0 truncate">{{ contactName }}</span>
+                    </p>
+                  </section>
+                </template>
+              </KanbanCardOverviewTab>
 
               <aside class="grid min-w-0 content-start gap-4">
                 <section
