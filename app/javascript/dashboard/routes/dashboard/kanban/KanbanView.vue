@@ -169,7 +169,6 @@ const currentBoardRequestConfigWithPreferences = () => {
 };
 const {
   applyStageFirstPage,
-  clearStageCards,
   fetchStageCardsPage,
   findCardStageId,
   getStageCardsError,
@@ -182,7 +181,6 @@ const {
   requestGeneration,
   showBoard,
   staleRequest,
-  updateStageSummary,
 } = useKanbanBoardData({
   collapsedStageIds,
   currentBoardRequestConfig: currentBoardRequestConfigWithPreferences,
@@ -601,21 +599,18 @@ const toggleStageCollapsed = async stage => {
   if (!stage?.id) return;
 
   const nextCollapsedStageIds = new Set(collapsedStageIds.value);
-  const willCollapse = !nextCollapsedStageIds.has(stage.id);
-  if (willCollapse) nextCollapsedStageIds.add(stage.id);
-  else nextCollapsedStageIds.delete(stage.id);
+  if (nextCollapsedStageIds.has(stage.id)) {
+    nextCollapsedStageIds.delete(stage.id);
+  } else {
+    nextCollapsedStageIds.add(stage.id);
+  }
 
   collapsedStageIds.value = nextCollapsedStageIds;
   persistBoardPrefs({ collapsedStageIds: [...nextCollapsedStageIds] });
 
-  if (willCollapse) {
-    clearStageCards(stage.id);
-    return;
-  }
-
-  await refreshStageFirstPage(stage.id, requestGeneration.value, {
-    force: true,
-  });
+  // Collapsing drops the cards and keeps the counters, expanding brings the
+  // cards back; both are the same first-page refresh.
+  await refreshStageFirstPage(stage.id);
 };
 
 const updateTerminalPeriod = async ({ stageId, value }) => {
@@ -970,7 +965,6 @@ const {
   hasCardDragChanged,
   isActionActive,
   isCardDragging,
-  isStageCollapsed,
   isLostReasonRequiredError,
   isPersistingCardDrag,
   isTerminalStage,
@@ -988,7 +982,6 @@ const {
   suppressNextCardClick,
   t,
   toIso8601,
-  updateStageSummary,
   useAlert,
 });
 

@@ -28,7 +28,6 @@ json.stages do
       json.has_more stage_card_result.has_more
       json.next_cursor stage_card_result.next_cursor
       json.total_count stage_card_result.total_count
-      json.total_value stage_card_result.total_value
     end
   end
 end

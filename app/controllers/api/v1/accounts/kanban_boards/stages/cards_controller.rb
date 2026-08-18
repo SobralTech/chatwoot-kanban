@@ -17,7 +17,7 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       limit: @limit,
       cursor: params[:cursor],
       **kanban_card_filter_params
-    ).call
+    ).call(load_cards: !metadata_only?)
   rescue KanbanCards::VisibleStageCardsQuery::RefreshRequiredError
     render json: { error: 'refresh_required' }, status: :conflict
   end
@@ -78,6 +78,12 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
 
   def fetch_kanban_stage
     @kanban_stage = @kanban_board.kanban_stages.active.find(params[:stage_id] || params[:id])
+  end
+
+  # Collapsed columns still need fresh counters, so they refresh through the same
+  # endpoint asking for totals only instead of skipping the request altogether.
+  def metadata_only?
+    ActiveModel::Type::Boolean.new.cast(params[:metadata_only]).present?
   end
 
   def cards_limit

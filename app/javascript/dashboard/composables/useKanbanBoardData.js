@@ -153,8 +153,13 @@ export function useKanbanBoardData({
   ) => {
     const stage = stages.value.find(item => item.id === stageId);
     const limit = Math.max(stageCardsPageLimit, stage?.cards?.length || 0);
+    // A collapsed column shows no cards but still shows its counters, so it
+    // refreshes through the same endpoint asking for totals only.
+    const params = collapsedStageIds.value.has(stageId)
+      ? { limit, metadata_only: true }
+      : { limit };
 
-    const page = await fetchStageCardsPage(stageId, { limit }, generation);
+    const page = await fetchStageCardsPage(stageId, params, generation);
     if (page === staleRequest) return false;
     applyStageFirstPage(stageId, page);
     return true;
@@ -162,14 +167,14 @@ export function useKanbanBoardData({
 
   const refreshStageFirstPage = (
     stageId,
-    generation = requestGeneration.value,
-    { force = false } = {}
+    generation = requestGeneration.value
   ) => {
     if (!selectedBoard.value?.id || !stageId) return Promise.resolve();
-    if (!force && collapsedStageIds.value.has(stageId))
-      return Promise.resolve();
 
-    const requestKey = `${generation}:${stageId}`;
+    // The collapsed flag is part of the key so that toggling a column does not
+    // reuse an in-flight request fetching the other shape.
+    const isCollapsed = collapsedStageIds.value.has(stageId);
+    const requestKey = `${generation}:${stageId}:${isCollapsed}`;
     if (stageRefreshRequests.has(requestKey)) {
       return stageRefreshRequests.get(requestKey);
     }
@@ -187,34 +192,10 @@ export function useKanbanBoardData({
   };
 
   const refreshStageFirstPages = stageIds => {
-    const uniqueStageIds = [...new Set(stageIds.filter(Boolean))].filter(
-      stageId => !collapsedStageIds.value.has(stageId)
-    );
+    const uniqueStageIds = [...new Set(stageIds.filter(Boolean))];
     return Promise.all(
       uniqueStageIds.map(stageId => refreshStageFirstPage(stageId))
     );
-  };
-
-  const clearStageCards = stageId => {
-    updateStageCards(stageId, stage => ({ ...stage, cards: [] }));
-  };
-
-  const updateStageSummary = (stageId, { countDelta = 0, valueDelta = 0 }) => {
-    updateStageCards(stageId, stage => {
-      const totalCount = (stage.cardsCount || 0) + countDelta;
-      const totalValue = (stage.totalValue || 0) + valueDelta;
-
-      return {
-        ...stage,
-        cardsCount: totalCount,
-        totalValue,
-        pagination: {
-          ...stage.pagination,
-          totalCount,
-          totalValue,
-        },
-      };
-    });
   };
 
   const findCardStageId = card => {
@@ -256,7 +237,6 @@ export function useKanbanBoardData({
     if (
       !selectedBoard.value?.id ||
       !stage?.id ||
-      collapsedStageIds.value.has(stage.id) ||
       isStageCardsLoading(stage.id)
     ) {
       return;
@@ -336,7 +316,6 @@ export function useKanbanBoardData({
 
   return {
     applyStageFirstPage,
-    clearStageCards,
     fetchStageCardsPage,
     findCardStageId,
     getStageCardsError,
@@ -349,6 +328,5 @@ export function useKanbanBoardData({
     requestGeneration,
     showBoard,
     staleRequest,
-    updateStageSummary,
   };
 }
