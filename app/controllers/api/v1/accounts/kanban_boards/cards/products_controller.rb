@@ -10,20 +10,44 @@ class Api::V1::Accounts::KanbanBoards::Cards::ProductsController < Api::V1::Acco
 
   def create
     authorize @kanban_card, :update?
-    @kanban_card_product = @kanban_card.kanban_card_products.create!(
-      product_params.merge(account: Current.account)
-    )
+    KanbanCard.transaction do
+      @kanban_card_product = @kanban_card.kanban_card_products.create!(
+        product_params.merge(account: Current.account)
+      )
+      record_product_event('product_added', product_metadata(@kanban_card_product))
+    end
   end
 
   def update
     return render_forbidden unless Current.account_user&.administrator?
 
-    @kanban_card_product.update!(update_product_params)
+    previous_unit_price = @kanban_card_product.unit_price
+    previous_quantity = @kanban_card_product.quantity
+
+    KanbanCard.transaction do
+      @kanban_card_product.update!(update_product_params)
+      if previous_unit_price != @kanban_card_product.unit_price
+        record_product_event(
+          'product_price_changed',
+          { sku: @kanban_card_product.sku, name: @kanban_card_product.name, from: previous_unit_price, to: @kanban_card_product.unit_price }
+        )
+      end
+      if previous_quantity != @kanban_card_product.quantity
+        record_product_event(
+          'product_quantity_changed',
+          { sku: @kanban_card_product.sku, name: @kanban_card_product.name, from: previous_quantity, to: @kanban_card_product.quantity }
+        )
+      end
+    end
   end
 
   def destroy
     authorize @kanban_card, :update?
-    @kanban_card_product.destroy!
+    KanbanCard.transaction do
+      metadata = product_metadata(@kanban_card_product)
+      @kanban_card_product.destroy!
+      record_product_event('product_removed', metadata)
+    end
     head :no_content
   end
 
@@ -47,6 +71,24 @@ class Api::V1::Accounts::KanbanBoards::Cards::ProductsController < Api::V1::Acco
 
   def update_product_params
     params.permit(:unit_price, :quantity)
+  end
+
+  def product_metadata(product)
+    {
+      sku: product.sku,
+      name: product.name,
+      quantity: product.quantity,
+      unit_price: product.unit_price
+    }
+  end
+
+  def record_product_event(event_type, metadata)
+    KanbanCards::RecordEventService.call(
+      card: @kanban_card,
+      event_type: event_type,
+      user: Current.user,
+      metadata: metadata
+    )
   end
 
   def render_forbidden

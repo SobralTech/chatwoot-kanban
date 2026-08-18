@@ -150,6 +150,7 @@ Rails.application.routes.draw do
               get 'cards/lookup', to: 'cards#lookup'
               post 'cards/manual', to: 'cards#create_manual'
               get 'cards/by_id/:id', to: 'cards#show'
+              get 'cards/by_id/:id/events', to: 'cards/events#index'
               patch 'cards/by_id/:id/reopen', to: 'cards#reopen'
               patch 'cards/by_id/:id', to: 'cards#update'
               delete 'cards/by_id/:id', to: 'cards#destroy'

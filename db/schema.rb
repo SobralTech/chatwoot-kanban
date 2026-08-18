@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_13_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_18_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1110,6 +1110,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_13_000000) do
     t.index ["kanban_card_id", "user_id"], name: "index_kanban_card_assignees_on_kanban_card_id_and_user_id", unique: true
     t.index ["kanban_card_id"], name: "index_kanban_card_assignees_on_kanban_card_id"
     t.index ["user_id"], name: "index_kanban_card_assignees_on_user_id"
+  end
+
+  create_table "kanban_card_events", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_card_id", null: false
+    t.bigint "kanban_board_id", null: false
+    t.bigint "user_id"
+    t.string "event_type", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.index ["account_id"], name: "index_kanban_card_events_on_account_id"
+    t.index ["kanban_board_id", "event_type", "created_at"], name: "idx_on_kanban_board_id_event_type_created_at_095a845e7f"
+    t.index ["kanban_board_id"], name: "index_kanban_card_events_on_kanban_board_id"
+    t.index ["kanban_card_id", "created_at"], name: "index_kanban_card_events_on_kanban_card_id_and_created_at"
+    t.index ["kanban_card_id"], name: "index_kanban_card_events_on_kanban_card_id"
+    t.index ["user_id"], name: "index_kanban_card_events_on_user_id"
   end
 
   create_table "kanban_card_field_values", force: :cascade do |t|

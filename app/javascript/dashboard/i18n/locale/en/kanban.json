@@ -409,7 +409,8 @@
       "TABS": {
         "GENERAL": "General",
         "PRODUCTS": "Products",
-        "ADDITIONAL_DATA": "Additional data"
+        "ADDITIONAL_DATA": "Additional data",
+        "HISTORY": "History"
       },
       "TITLE": "Edit Opportunity",
       "CLOSE_PANEL": "Close opportunity details",
@@ -423,6 +424,34 @@
       "SAVE_STEP_ERROR_ASSIGNEES": "The opportunity was saved, but the agents were not.",
       "SAVE_STEP_ERROR_FIELDS": "The opportunity was saved, but the additional data was not.",
       "UNSAVED_FIELDS_MESSAGE": "You changed: {fields}.",
+      "TIMELINE": {
+        "TITLE": "History",
+        "LOADING": "Loading history...",
+        "LOAD_ERROR": "Could not load the history.",
+        "EMPTY": "No activity recorded yet.",
+        "SYSTEM_AUTHOR": "System",
+        "LOAD_MORE": "Load more",
+        "UNKNOWN_VALUE": "unknown value",
+        "EVENTS": {
+          "CARD_CREATED": "created this opportunity",
+          "STAGE_CHANGED": "moved from {from} to {to}",
+          "WON": "marked as won ({reason})",
+          "WON_NO_REASON": "marked as won",
+          "LOST": "marked as lost ({reason})",
+          "LOST_NO_REASON": "marked as lost",
+          "REOPENED": "reopened the opportunity",
+          "PRIORITY_CHANGED": "changed priority to {to}",
+          "ASSIGNEES_CHANGED": "changed the assigned agents",
+          "DUE_AT_CHANGED": "changed the due date to {to}",
+          "LABELS_CHANGED": "changed the labels",
+          "PRODUCT_ADDED": "added {quantity}× {name}",
+          "PRODUCT_REMOVED": "removed {name}",
+          "PRODUCT_PRICE_CHANGED": "changed the price of {name}",
+          "PRODUCT_QUANTITY_CHANGED": "changed the quantity of {name}",
+          "CARD_DELETED": "deleted this opportunity",
+          "UNKNOWN": "updated this opportunity"
+        }
+      },
       "MORE_ACTIONS": "More actions",
       "MOVE_TO_STAGE": "Move to stage",
       "CARD_ID": "#{id}",

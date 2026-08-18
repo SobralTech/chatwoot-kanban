@@ -30,8 +30,27 @@ class KanbanCards::ImportExistingConversationsService
   attr_reader :account, :kanban_board, :ignore_groups, :summary
 
   def import_batch(batch)
-    inserted_count = KanbanCard.connection.exec_query(insert_sql(batch)).rows.length
+    inserted_count = KanbanCard.transaction do
+      result = KanbanCard.connection.exec_query(insert_sql(batch))
+      cards = KanbanCard.where(id: result.rows.flatten).to_a
+      cards.each { |card| record_card_created_event(card) }
+      cards.length
+    end
+
     summary[:created] += inserted_count
+  end
+
+  def record_card_created_event(card)
+    KanbanCards::RecordEventService.call(
+      card: card,
+      event_type: 'card_created',
+      metadata: {
+        origin: card.origin,
+        stage_id: card.kanban_stage_id,
+        conversation_id: card.conversation_id,
+        recreated_from_card_id: card.recreated_from_card_id
+      }
+    )
   end
 
   def insert_sql(batch)

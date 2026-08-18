@@ -11,6 +11,7 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import KanbanCardAdditionalDataTab from '../KanbanCardAdditionalDataTab.vue';
 import KanbanCardOverviewTab from './tabs/KanbanCardOverviewTab.vue';
 import KanbanCardItemsTab from './tabs/KanbanCardItemsTab.vue';
+import KanbanCardTimelineTab from './KanbanCardTimelineTab.vue';
 import KanbanCardContextRail from './KanbanCardContextRail.vue';
 import KanbanOpportunityHeader from './KanbanOpportunityHeader.vue';
 import KanbanOpportunitySaveBar from './KanbanOpportunitySaveBar.vue';
@@ -139,6 +140,10 @@ const tabItems = computed(() => [
     label: `${t('KANBAN.OPPORTUNITY_DETAILS.TABS.ADDITIONAL_DATA')}${
       dirtyFields.value.additionalData ? ' •' : ''
     }`,
+  },
+  {
+    key: 'history',
+    label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.HISTORY'),
   },
 ]);
 const activeTabIndex = computed(() =>
@@ -353,6 +358,12 @@ defineExpose({
                   :custom-fields="customFields"
                 />
               </section>
+              <KanbanCardTimelineTab
+                v-if="loadedTabKeys.includes('history')"
+                v-show="activeTabKey === 'history'"
+                :board-id="boardId"
+                :card-id="cardId"
+              />
             </div>
 
             <KanbanCardContextRail

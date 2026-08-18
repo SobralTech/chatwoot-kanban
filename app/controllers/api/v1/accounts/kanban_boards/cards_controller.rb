@@ -44,13 +44,17 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     target_stage = reopen_target_stage
     return render_no_reopen_stage unless target_stage
 
-    source_stage_id = @kanban_card.kanban_stage_id
+    source_stage = @kanban_card.kanban_stage
     KanbanCard.transaction do
       @kanban_card.reorder_to_position!(kanban_stage: target_stage, position: next_card_position(target_stage))
       @kanban_card.update!(kanban_reason_id: nil)
+      record_event(
+        event_type: 'reopened',
+        metadata: { from_stage_id: source_stage.id, to_stage_id: target_stage.id }
+      )
     end
 
-    dispatch_kanban_card_reordered_event(source_stage_id)
+    dispatch_kanban_card_reordered_event(source_stage.id)
     render_card
   end
 
@@ -126,6 +130,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def perform_kanban_card_update!(source_stage_id)
     invalid_label_titles = []
+    update_snapshot = card_update_snapshot
 
     KanbanCard.transaction do
       if labels_param_present? && unknown_label_titles.present?
@@ -136,29 +141,35 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       move_kanban_card!(source_stage_id, @kanban_stage, card_params[:position] || target_card_position(@kanban_stage)) if stable_card_move_params?
       @kanban_card.update!(stable_card_update_params)
       @kanban_card.update_labels(label_titles) if labels_param_present?
+
+      record_update_events(update_snapshot)
     end
 
     invalid_label_titles
   end
 
   def reorder_kanban_card
-    source_stage_id = @kanban_card.kanban_stage_id
+    source_stage = @kanban_card.kanban_stage
     target_stage = target_card_stage_for_reorder
 
-    transition_error = card_stage_transition_error(source_stage_id, target_stage)
+    transition_error = card_stage_transition_error(source_stage.id, target_stage)
     return render json: transition_error, status: :unprocessable_content if transition_error
 
     KanbanCard.transaction do
-      move_kanban_card!(source_stage_id, target_stage, params.dig(:card, :position) || next_card_position(target_stage))
+      move_kanban_card!(source_stage.id, target_stage, params.dig(:card, :position) || next_card_position(target_stage))
+      record_stage_event(source_stage, target_stage)
     end
 
-    dispatch_kanban_card_reordered_event(source_stage_id)
+    dispatch_kanban_card_reordered_event(source_stage.id)
     render_card
   end
 
   def destroy_kanban_card
     stage_id = @kanban_card.kanban_stage_id
-    @kanban_card.deactivate_and_normalize!
+    KanbanCard.transaction do
+      @kanban_card.deactivate_and_normalize!
+      record_event(event_type: 'card_deleted', metadata: { stage_id: stage_id })
+    end
 
     dispatch_kanban_card_event(Events::Types::KANBAN_CARD_DELETED, stage_id: stage_id)
     head :no_content
@@ -176,6 +187,88 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def stable_card_update_params
     card_params.slice(:subject, :description, :starts_at, :due_at, :priority)
+  end
+
+  def card_label_titles
+    @kanban_card.label_list.to_a
+  end
+
+  def card_update_snapshot
+    {
+      source_stage: @kanban_card.kanban_stage,
+      previous_priority: @kanban_card.priority,
+      previous_due_at: @kanban_card.due_at,
+      previous_labels: card_label_titles
+    }
+  end
+
+  def record_update_events(snapshot)
+    record_stage_event(snapshot[:source_stage], @kanban_stage) if stable_card_move_params?
+    record_attribute_event('priority_changed', snapshot[:previous_priority], @kanban_card.priority) if card_params.key?(:priority)
+    record_attribute_event('due_at_changed', snapshot[:previous_due_at], @kanban_card.due_at, time_value: true) if card_params.key?(:due_at)
+    record_labels_event(snapshot[:previous_labels], card_label_titles) if labels_param_present?
+  end
+
+  def record_stage_event(source_stage, target_stage)
+    return if source_stage.id == target_stage.id
+
+    event_type = terminal_event_type(target_stage)
+    metadata = event_type ? terminal_event_metadata(target_stage) : stage_event_metadata(source_stage, target_stage)
+    record_event(event_type: event_type || 'stage_changed', metadata: metadata)
+  end
+
+  def terminal_event_type(target_stage)
+    return 'won' if target_stage.id == @kanban_board.won_stage_id
+    return 'lost' if target_stage.id == @kanban_board.lost_stage_id
+
+    nil
+  end
+
+  def stage_event_metadata(source_stage, target_stage)
+    {
+      from_stage_id: source_stage.id,
+      to_stage_id: target_stage.id,
+      from_stage_name: source_stage.name,
+      to_stage_name: target_stage.name
+    }
+  end
+
+  def terminal_event_metadata(target_stage)
+    reason = @kanban_board.kanban_reasons.find_by(id: @kanban_card.kanban_reason_id)
+
+    {
+      stage_id: target_stage.id,
+      reason_id: reason&.id,
+      reason_title: reason&.title
+    }
+  end
+
+  def record_attribute_event(event_type, from, to, time_value: false)
+    return if from == to
+
+    values = { from: from, to: to }
+    values = values.transform_values { |value| value&.iso8601 } if time_value
+    record_event(event_type: event_type, metadata: values)
+  end
+
+  def record_labels_event(previous_labels, current_labels)
+    added = current_labels - previous_labels
+    removed = previous_labels - current_labels
+    return if added.blank? && removed.blank?
+
+    record_event(
+      event_type: 'labels_changed',
+      metadata: { added: added.sort, removed: removed.sort }
+    )
+  end
+
+  def record_event(event_type:, metadata: {})
+    KanbanCards::RecordEventService.call(
+      card: @kanban_card,
+      event_type: event_type,
+      user: Current.user,
+      metadata: metadata
+    )
   end
 
   def labels_param_present?
@@ -311,9 +404,13 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def render_card
+    movement_events = @kanban_card.kanban_card_events.where(event_type: %w[stage_changed won lost reopened])
+    last_movement_event = movement_events.order(created_at: :desc, id: :desc).first
+
     render partial: 'api/v1/accounts/kanban_boards/card', formats: [:json], locals: {
       card: @kanban_card,
-      stable_card: true
+      stable_card: true,
+      last_movement_event: last_movement_event
     }
   end
 end

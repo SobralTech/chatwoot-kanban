@@ -12,7 +12,21 @@ class Api::V1::Accounts::KanbanBoards::Cards::AssigneesController < Api::V1::Acc
     authorize @kanban_card, :update?
     return render_unknown_assignees if unknown_assignee_ids.present?
 
-    @kanban_card.update_assignees!(assignee_ids)
+    previous_assignee_ids = @kanban_card.kanban_card_assignees.pluck(:user_id)
+    KanbanCard.transaction do
+      @kanban_card.update_assignees!(assignee_ids)
+      added_ids = assignee_ids - previous_assignee_ids
+      removed_ids = previous_assignee_ids - assignee_ids
+
+      if added_ids.present? || removed_ids.present?
+        KanbanCards::RecordEventService.call(
+          card: @kanban_card,
+          event_type: 'assignees_changed',
+          user: Current.user,
+          metadata: { added_ids: added_ids.sort, removed_ids: removed_ids.sort }
+        )
+      end
+    end
     fetch_assignees
     fetch_assignable_users
     render :index

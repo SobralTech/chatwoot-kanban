@@ -26,6 +26,7 @@ class KanbanCards::CreateFromConversationService
       create_card!.tap do |created_card|
         created_card.update_labels(label_titles)
         created_card.update_assignees!(assignee_ids)
+        record_card_created_event(created_card)
       end
     end
     dispatch_card_created_event(card)
@@ -126,6 +127,20 @@ class KanbanCards::CreateFromConversationService
       stage_id: card.kanban_stage_id,
       card_id: card.id,
       conversation_id: card.conversation_id
+    )
+  end
+
+  def record_card_created_event(card)
+    KanbanCards::RecordEventService.call(
+      card: card,
+      event_type: 'card_created',
+      user: user,
+      metadata: {
+        origin: card.origin,
+        stage_id: card.kanban_stage_id,
+        conversation_id: card.conversation_id,
+        recreated_from_card_id: card.recreated_from_card_id
+      }
     )
   end
 

@@ -60,6 +60,7 @@ class KanbanCard < ApplicationRecord
   has_many :assignees, through: :kanban_card_assignees, source: :user
   has_many :kanban_card_products, dependent: :destroy
   has_many :kanban_card_field_values, dependent: :destroy
+  has_many :kanban_card_events, dependent: :delete_all
 
   enum :origin, {
     conversation: 'conversation',

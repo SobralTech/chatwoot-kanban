@@ -56,6 +56,7 @@ class KanbanCards::AutoCreateFromConversationService
       lock_active_cards!(kanban_board, stage)
       shift_active_cards_down!(kanban_board, stage)
       card = create_card!(kanban_board, stage)
+      record_card_created_event(card)
       summary[:created] += 1
       card
     end
@@ -86,6 +87,19 @@ class KanbanCards::AutoCreateFromConversationService
       stage_id: card.kanban_stage_id,
       card_id: card.id,
       conversation_id: card.conversation_id
+    )
+  end
+
+  def record_card_created_event(card)
+    KanbanCards::RecordEventService.call(
+      card: card,
+      event_type: 'card_created',
+      metadata: {
+        origin: card.origin,
+        stage_id: card.kanban_stage_id,
+        conversation_id: card.conversation_id,
+        recreated_from_card_id: card.recreated_from_card_id
+      }
     )
   end
 
