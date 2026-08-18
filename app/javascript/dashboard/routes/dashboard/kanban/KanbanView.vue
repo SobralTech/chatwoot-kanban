@@ -47,6 +47,10 @@ const inboxes = useMapGetter('inboxes/getAllInboxes');
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
+const DEFAULT_TERMINAL_PERIOD = '30d';
+const TERMINAL_PERIOD_VALUES = ['7d', DEFAULT_TERMINAL_PERIOD, '90d', 'all'];
+const collapsedStageIds = ref(new Set());
+const terminalPeriod = ref(DEFAULT_TERMINAL_PERIOD);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
 const isCreatingStageDraft = ref(false);
@@ -122,7 +126,6 @@ const {
   activeBoardFilterCount,
   activeSearchTerm,
   boardFilters,
-  currentBoardRequestConfig,
   clearSearchDebounce,
   currentFilterParams,
   emptyBoardFilters,
@@ -141,8 +144,32 @@ const {
   isFetchingBoard,
   stages,
 });
+const isStageCollapsed = stageId => collapsedStageIds.value.has(stageId);
+const terminalPeriodOptions = computed(() => [
+  { value: '7d', label: t('KANBAN.STAGE.PERIOD.7D') },
+  { value: DEFAULT_TERMINAL_PERIOD, label: t('KANBAN.STAGE.PERIOD.30D') },
+  { value: '90d', label: t('KANBAN.STAGE.PERIOD.90D') },
+  { value: 'all', label: t('KANBAN.STAGE.PERIOD.ALL') },
+]);
+const currentFilterParamsWithPreferences = () => ({
+  ...currentFilterParams(),
+  ...(terminalPeriod.value !== DEFAULT_TERMINAL_PERIOD
+    ? { terminal_period: terminalPeriod.value }
+    : {}),
+});
+const currentBoardRequestConfigWithPreferences = () => {
+  const params = {
+    ...currentFilterParamsWithPreferences(),
+    ...(collapsedStageIds.value.size
+      ? { collapsed_stage_ids: [...collapsedStageIds.value] }
+      : {}),
+  };
+
+  return Object.keys(params).length ? { params } : undefined;
+};
 const {
   applyStageFirstPage,
+  clearStageCards,
   fetchStageCardsPage,
   findCardStageId,
   getStageCardsError,
@@ -155,9 +182,11 @@ const {
   requestGeneration,
   showBoard,
   staleRequest,
+  updateStageSummary,
 } = useKanbanBoardData({
-  currentBoardRequestConfig,
-  currentFilterParams,
+  collapsedStageIds,
+  currentBoardRequestConfig: currentBoardRequestConfigWithPreferences,
+  currentFilterParams: currentFilterParamsWithPreferences,
   hasError,
   isFetchingBoard,
   route,
@@ -292,6 +321,26 @@ const showActionError = (error, fallbackMessage) => {
 const isLostReasonRequiredError = error =>
   error?.response?.data?.error === 'lost_reason_required';
 
+const boardPrefsUserId = () => currentUserId.value ?? 'unknown';
+
+const loadBoardPrefs = boardId => {
+  const prefs = getKanbanBoardPrefs({
+    accountId: route.params.accountId,
+    boardId,
+    userId: boardPrefsUserId(),
+  });
+  const storedStageIds = Array.isArray(prefs?.collapsedStageIds)
+    ? prefs.collapsedStageIds.map(Number).filter(Boolean)
+    : [];
+
+  collapsedStageIds.value = new Set(storedStageIds);
+  terminalPeriod.value = TERMINAL_PERIOD_VALUES.includes(prefs?.terminalPeriod)
+    ? prefs.terminalPeriod
+    : DEFAULT_TERMINAL_PERIOD;
+
+  return prefs;
+};
+
 const getStageScrollElement = stageId =>
   boardScrollContainer.value?.querySelector(
     `[data-stage-scroll-id="${stageId}"]`
@@ -341,6 +390,8 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
         return;
       }
 
+      if (isStageCollapsed(stage.id)) return;
+
       const { loadedCount } = snapshot.stages[stage.id] ?? {};
       if (!loadedCount || loadedCount <= stage.cards.length) return;
 
@@ -388,6 +439,7 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
 
 const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   const generation = requestGeneration.value;
+  const prefs = loadBoardPrefs(boardId);
   const snapshot = restoreSnapshot
     ? getKanbanBoardSnapshot({
         accountId: route.params.accountId,
@@ -403,10 +455,6 @@ const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   }
 
   if (!snapshot || !restoreSnapshot) {
-    const prefs = getKanbanBoardPrefs({
-      accountId: route.params.accountId,
-      boardId,
-    });
     if (prefs) {
       const initialFilters = emptyBoardFilters();
       if (prefs.mine && currentUserId.value) {
@@ -529,11 +577,53 @@ const onSearchKeydown = event => {
 
 const persistBoardPrefs = prefs => {
   if (!selectedBoard.value?.id) return;
+  const currentPrefs =
+    getKanbanBoardPrefs({
+      accountId: route.params.accountId,
+      boardId: selectedBoard.value.id,
+      userId: boardPrefsUserId(),
+    }) || {};
+
   saveKanbanBoardPrefs({
     accountId: route.params.accountId,
     boardId: selectedBoard.value.id,
-    prefs,
+    userId: boardPrefsUserId(),
+    prefs: {
+      ...currentPrefs,
+      ...prefs,
+      collapsedStageIds: [...collapsedStageIds.value],
+      terminalPeriod: terminalPeriod.value,
+    },
   });
+};
+
+const toggleStageCollapsed = async stage => {
+  if (!stage?.id) return;
+
+  const nextCollapsedStageIds = new Set(collapsedStageIds.value);
+  const willCollapse = !nextCollapsedStageIds.has(stage.id);
+  if (willCollapse) nextCollapsedStageIds.add(stage.id);
+  else nextCollapsedStageIds.delete(stage.id);
+
+  collapsedStageIds.value = nextCollapsedStageIds;
+  persistBoardPrefs({ collapsedStageIds: [...nextCollapsedStageIds] });
+
+  if (willCollapse) {
+    clearStageCards(stage.id);
+    return;
+  }
+
+  await refreshStageFirstPage(stage.id, requestGeneration.value, {
+    force: true,
+  });
+};
+
+const updateTerminalPeriod = async ({ stageId, value }) => {
+  if (!TERMINAL_PERIOD_VALUES.includes(value)) return;
+
+  terminalPeriod.value = value;
+  persistBoardPrefs({ terminalPeriod: value });
+  await refreshStageFirstPage(stageId);
 };
 
 const updateBoardFilters = async filters => {
@@ -880,6 +970,7 @@ const {
   hasCardDragChanged,
   isActionActive,
   isCardDragging,
+  isStageCollapsed,
   isLostReasonRequiredError,
   isPersistingCardDrag,
   isTerminalStage,
@@ -897,6 +988,7 @@ const {
   suppressNextCardClick,
   t,
   toIso8601,
+  updateStageSummary,
   useAlert,
 });
 
@@ -1330,6 +1422,9 @@ watch(searchInput, () => {
             <template #item="{ element: stage }">
               <KanbanStageColumn
                 :stage="stage"
+                :collapsed="isStageCollapsed(stage.id)"
+                :terminal-period="terminalPeriod"
+                :terminal-period-options="terminalPeriodOptions"
                 :board="selectedBoard"
                 :stages="stages"
                 :boards="boards"
@@ -1378,6 +1473,8 @@ watch(searchInput, () => {
                 @drag-start="onCardDragStart"
                 @drag-change="onCardDragChange"
                 @drag-end="onCardDragEnd"
+                @toggle-collapse="toggleStageCollapsed(stage)"
+                @update-terminal-period="updateTerminalPeriod"
               />
             </template>
           </Draggable>

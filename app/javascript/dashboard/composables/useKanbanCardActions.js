@@ -14,6 +14,7 @@ export function useKanbanCardActions({
   isActionActive,
   isCardDragging,
   hasCardDragChanged,
+  isStageCollapsed,
   isLostReasonRequiredError,
   isPersistingCardDrag,
   isTerminalStage,
@@ -31,6 +32,7 @@ export function useKanbanCardActions({
   suppressNextCardClick,
   t,
   toIso8601,
+  updateStageSummary,
   useAlert,
 }) {
   const onCardDragStart = () => {
@@ -86,6 +88,12 @@ export function useKanbanCardActions({
         payload
       );
       await refreshStageFirstPages([card.kanbanStageId, stage.id]);
+      if (isStageCollapsed(stage.id)) {
+        updateStageSummary(stage.id, {
+          countDelta: 1,
+          valueDelta: Number(card.value) || 0,
+        });
+      }
     } catch (error) {
       let message = getErrorMessage(
         error,

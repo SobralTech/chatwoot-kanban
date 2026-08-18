@@ -4,6 +4,7 @@ import { OnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 import ColorPicker from 'dashboard/components-next/colorpicker/ColorPicker.vue';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import KanbanStageMenu from '../KanbanStageMenu.vue';
@@ -57,6 +58,14 @@ const props = defineProps({
     type: Function,
     required: true,
   },
+  terminalPeriod: {
+    type: String,
+    default: '30d',
+  },
+  terminalPeriodOptions: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits([
@@ -72,6 +81,8 @@ const emit = defineEmits([
   'sortCards',
   'deleteStage',
   'deleteAllCards',
+  'toggleCollapse',
+  'updateTerminalPeriod',
 ]);
 
 const { t } = useI18n();
@@ -85,6 +96,19 @@ const stageColor = computed({
   get: () => props.stageColors[props.stage.id] || '',
   set: value => emit('updateStageColor', { stageId: props.stage.id, value }),
 });
+
+const terminalPeriodLabel = computed(
+  () =>
+    props.terminalPeriodOptions.find(
+      option => option.value === props.terminalPeriod
+    )?.label || ''
+);
+
+const toggleCollapseOnDoubleClick = () => {
+  if (props.editingStageId === props.stage.id) return;
+
+  emit('toggleCollapse');
+};
 </script>
 
 <template>
@@ -94,6 +118,7 @@ const stageColor = computed({
       editingStageId === stage.id ? '' : 'stage-drag-handle cursor-grab',
       stageAccent(stage)?.header,
     ]"
+    @dblclick="toggleCollapseOnDoubleClick"
   >
     <OnClickOutside
       v-if="editingStageId === stage.id"
@@ -164,6 +189,16 @@ const stageColor = computed({
           {{ stage.cardsCount }}
         </span>
         <span
+          v-if="isTerminalStage(stage)"
+          class="hidden min-w-0 truncate text-[10px] font-normal text-n-slate-11 xl:inline"
+        >
+          {{
+            t('KANBAN.STAGE.PERIOD_SUMMARY', {
+              period: terminalPeriodLabel,
+            })
+          }}
+        </span>
+        <span
           v-if="stage.totalValue > 0"
           data-testid="kanban-stage-total-value"
           class="flex-shrink-0 rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
@@ -172,6 +207,36 @@ const stageColor = computed({
         </span>
       </div>
       <div class="flex flex-shrink-0 gap-1">
+        <div
+          v-if="isTerminalStage(stage)"
+          class="w-28 flex-shrink-0"
+          @dblclick.stop
+        >
+          <Select
+            :model-value="terminalPeriod"
+            :options="terminalPeriodOptions"
+            full-width
+            class="[&>select]:!px-2 [&>select]:!py-1 [&>select]:!pr-7 [&>select]:text-xs"
+            :aria-label="t('KANBAN.STAGE.PERIOD.LABEL')"
+            :title="
+              t('KANBAN.STAGE.PERIOD_SUMMARY', { period: terminalPeriodLabel })
+            "
+            @update:model-value="
+              value =>
+                emit('updateTerminalPeriod', { stageId: stage.id, value })
+            "
+          />
+        </div>
+        <NextButton
+          icon="i-lucide-chevrons-right-left"
+          ghost
+          xs
+          slate
+          class="no-drag"
+          :aria-label="t('KANBAN.STAGE.COLLAPSE')"
+          :title="t('KANBAN.STAGE.COLLAPSE')"
+          @click.stop="emit('toggleCollapse')"
+        />
         <KanbanStageMenu
           :stage="stage"
           :stages="stages"

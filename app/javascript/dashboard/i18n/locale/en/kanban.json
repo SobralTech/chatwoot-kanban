@@ -10,6 +10,18 @@
     "EMPTY_CARDS": "No cards in this stage.",
     "EMPTY_CARDS_FILTERED": "No cards match the current filters.",
     "NO_BOARD_SELECTED": "Select a board",
+    "STAGE": {
+      "COLLAPSE": "Collapse column",
+      "EXPAND": "Expand column",
+      "PERIOD": {
+        "LABEL": "Period",
+        "7D": "Last 7 days",
+        "30D": "Last 30 days",
+        "90D": "Last 90 days",
+        "ALL": "All time"
+      },
+      "PERIOD_SUMMARY": "Showing {period}"
+    },
     "ERROR": "Could not load kanban data.",
     "SEARCH": {
       "PLACEHOLDER": "Search cards...",

@@ -4,6 +4,7 @@ import camelcaseKeys from 'camelcase-keys';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
 export function useKanbanBoardData({
+  collapsedStageIds,
   currentBoardRequestConfig,
   currentFilterParams,
   hasError,
@@ -161,9 +162,12 @@ export function useKanbanBoardData({
 
   const refreshStageFirstPage = (
     stageId,
-    generation = requestGeneration.value
+    generation = requestGeneration.value,
+    { force = false } = {}
   ) => {
     if (!selectedBoard.value?.id || !stageId) return Promise.resolve();
+    if (!force && collapsedStageIds.value.has(stageId))
+      return Promise.resolve();
 
     const requestKey = `${generation}:${stageId}`;
     if (stageRefreshRequests.has(requestKey)) {
@@ -183,10 +187,34 @@ export function useKanbanBoardData({
   };
 
   const refreshStageFirstPages = stageIds => {
-    const uniqueStageIds = [...new Set(stageIds.filter(Boolean))];
+    const uniqueStageIds = [...new Set(stageIds.filter(Boolean))].filter(
+      stageId => !collapsedStageIds.value.has(stageId)
+    );
     return Promise.all(
       uniqueStageIds.map(stageId => refreshStageFirstPage(stageId))
     );
+  };
+
+  const clearStageCards = stageId => {
+    updateStageCards(stageId, stage => ({ ...stage, cards: [] }));
+  };
+
+  const updateStageSummary = (stageId, { countDelta = 0, valueDelta = 0 }) => {
+    updateStageCards(stageId, stage => {
+      const totalCount = (stage.cardsCount || 0) + countDelta;
+      const totalValue = (stage.totalValue || 0) + valueDelta;
+
+      return {
+        ...stage,
+        cardsCount: totalCount,
+        totalValue,
+        pagination: {
+          ...stage.pagination,
+          totalCount,
+          totalValue,
+        },
+      };
+    });
   };
 
   const findCardStageId = card => {
@@ -228,6 +256,7 @@ export function useKanbanBoardData({
     if (
       !selectedBoard.value?.id ||
       !stage?.id ||
+      collapsedStageIds.value.has(stage.id) ||
       isStageCardsLoading(stage.id)
     ) {
       return;
@@ -307,6 +336,7 @@ export function useKanbanBoardData({
 
   return {
     applyStageFirstPage,
+    clearStageCards,
     fetchStageCardsPage,
     findCardStageId,
     getStageCardsError,
@@ -319,5 +349,6 @@ export function useKanbanBoardData({
     requestGeneration,
     showBoard,
     staleRequest,
+    updateStageSummary,
   };
 }

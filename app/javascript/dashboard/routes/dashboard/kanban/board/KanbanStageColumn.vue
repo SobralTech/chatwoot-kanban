@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n';
 import Draggable from 'vuedraggable';
 
+import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import KanbanConversationCard from '../KanbanConversationCard.vue';
 import KanbanStageHeader from './KanbanStageHeader.vue';
 
@@ -9,6 +10,18 @@ defineProps({
   stage: {
     type: Object,
     required: true,
+  },
+  collapsed: {
+    type: Boolean,
+    default: false,
+  },
+  terminalPeriod: {
+    type: String,
+    default: '30d',
+  },
+  terminalPeriodOptions: {
+    type: Array,
+    default: () => [],
   },
   board: {
     type: Object,
@@ -130,6 +143,8 @@ const emit = defineEmits([
   'dragEnd',
   'updateStageName',
   'updateStageColor',
+  'toggleCollapse',
+  'updateTerminalPeriod',
 ]);
 const { t } = useI18n();
 </script>
@@ -137,13 +152,82 @@ const { t } = useI18n();
 <template>
   <section
     :data-stage-id="stage.id"
-    class="flex w-64 lg:w-80 flex-shrink-0 flex-col snap-start rounded-lg border bg-n-solid-1"
+    class="flex flex-shrink-0 flex-col snap-start rounded-lg border bg-n-solid-1"
     :class="[
-      editingStageId === stage.id ? 'overflow-visible' : 'overflow-hidden',
+      collapsed
+        ? 'w-12 overflow-hidden'
+        : editingStageId === stage.id
+          ? 'w-64 overflow-visible lg:w-80'
+          : 'w-64 overflow-hidden lg:w-80',
       stageAccent(stage)?.border ?? 'border-n-weak',
     ]"
   >
+    <template v-if="collapsed">
+      <div
+        class="flex min-h-0 flex-1 flex-col items-center gap-2 p-1"
+        :class="stageAccent(stage)?.header"
+      >
+        <button
+          type="button"
+          data-testid="kanban-stage-expand"
+          class="no-drag flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+          :aria-label="t('KANBAN.STAGE.EXPAND')"
+          :title="t('KANBAN.STAGE.EXPAND')"
+          @click.stop="emit('toggleCollapse')"
+        >
+          <i class="i-lucide-chevrons-right-left size-4" />
+        </button>
+        <span
+          class="stage-drag-handle min-h-0 flex-1 cursor-grab truncate text-xs font-semibold text-n-slate-12 [writing-mode:vertical-rl]"
+          :title="stage.name"
+        >
+          {{ stage.name }}
+        </span>
+        <Draggable
+          :list="stage.cards"
+          item-key="id"
+          class="min-h-8 w-full flex-1 rounded-md"
+          :group="{ name: 'kanban-cards' }"
+          handle=".card-drag-handle"
+          :filter="interactiveDragFilter"
+          :prevent-on-filter="false"
+          :empty-insert-threshold="30"
+          :swap-threshold="0.65"
+          :inverted-swap-threshold="1"
+          v-bind="sortableOptions"
+          :disabled="isCardDragDisabled"
+          ghost-class="opacity-60"
+          chosen-class="opacity-90"
+          :animation="150"
+          @start="emit('dragStart')"
+          @change="
+            emit(
+              'dragChange',
+              { ...stage, pagination: { ...stage.pagination, hasMore: true } },
+              $event
+            )
+          "
+          @end="emit('dragEnd')"
+        >
+          <template #item="{ element: card }">
+            <span class="hidden" :data-card-id="card.id" />
+          </template>
+        </Draggable>
+        <span
+          class="flex-shrink-0 rounded-full bg-n-alpha-2 px-1.5 py-0.5 text-[10px] font-semibold text-n-slate-11"
+        >
+          {{ stage.cardsCount }}
+        </span>
+        <span
+          data-testid="kanban-stage-collapsed-total-value"
+          class="flex-shrink-0 rounded-full bg-n-alpha-2 px-1.5 py-0.5 text-[10px] font-medium text-n-slate-11"
+        >
+          {{ formatCurrency(stage.totalValue) }}
+        </span>
+      </div>
+    </template>
     <KanbanStageHeader
+      v-else
       :stage="stage"
       :board="board"
       :stages="stages"
@@ -156,6 +240,8 @@ const { t } = useI18n();
       :set-stage-name-input="setStageNameInput"
       :is-terminal-stage="isTerminalStage"
       :stage-accent="stageAccent"
+      :terminal-period="terminalPeriod"
+      :terminal-period-options="terminalPeriodOptions"
       @update-stage-name="emit('updateStageName', $event)"
       @update-stage-color="emit('updateStageColor', $event)"
       @update-stage="emit('updateStage', $event)"
@@ -168,9 +254,12 @@ const { t } = useI18n();
       @sort-cards="(...args) => emit('sortCards', ...args)"
       @delete-stage="emit('deleteStage', $event)"
       @delete-all-cards="emit('deleteAllCards', $event)"
+      @toggle-collapse="emit('toggleCollapse')"
+      @update-terminal-period="emit('updateTerminalPeriod', $event)"
     />
 
     <div
+      v-if="!collapsed"
       :data-stage-scroll-id="stage.id"
       class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
     >
@@ -285,7 +374,7 @@ const { t } = useI18n();
     </div>
 
     <div
-      v-if="canAddCardInStageFooter(stage)"
+      v-if="!collapsed && canAddCardInStageFooter(stage)"
       class="border-t border-n-weak p-2"
     >
       <button

@@ -7,12 +7,14 @@ class KanbanCards::VisibleStageCardsQuery
   MAX_LIMIT = 50
   MATCH_MODES = %w[all any].freeze
   DEFAULT_MATCH_MODE = 'any'.freeze
+  TERMINAL_PERIODS = { '7d' => 7, '30d' => 30, '90d' => 90 }.freeze
+  DEFAULT_TERMINAL_PERIOD = '30d'.freeze
 
   # rubocop:disable Metrics/ParameterLists
   def initialize(account:, user:, kanban_board:, kanban_stage:, limit: DEFAULT_LIMIT, cursor: nil, visible_inbox_ids: nil,
                  visible_team_ids: nil, account_user: nil, filtered_inbox_ids: nil, filtered_assignee_ids: nil,
                  filtered_card_statuses: nil, filtered_priorities: nil, filtered_due_dates: nil, filtered_labels: nil,
-                 match_mode: DEFAULT_MATCH_MODE, search_query: nil)
+                 match_mode: DEFAULT_MATCH_MODE, search_query: nil, terminal_period: DEFAULT_TERMINAL_PERIOD)
     @account = account
     @user = user
     @kanban_board = kanban_board
@@ -30,11 +32,14 @@ class KanbanCards::VisibleStageCardsQuery
     @filtered_labels = normalized_filter(filtered_labels)
     @match_mode = match_mode
     @search_query = search_query
+    @terminal_period = terminal_period.presence || DEFAULT_TERMINAL_PERIOD
   end
   # rubocop:enable Metrics/ParameterLists
 
-  def call
+  def call(load_cards: true)
     return empty_result unless valid_board_and_stage?
+
+    return metadata_result unless load_cards
 
     anchor = cursor_after_id.present? ? cursor_anchor! : nil
     ids = paginated_card_ids(anchor)
@@ -57,7 +62,8 @@ class KanbanCards::VisibleStageCardsQuery
 
   attr_reader :account, :user, :kanban_board, :kanban_stage, :limit, :cursor,
               :filtered_inbox_ids, :filtered_assignee_ids, :filtered_card_statuses,
-              :filtered_priorities, :filtered_due_dates, :filtered_labels, :match_mode, :search_query
+              :filtered_priorities, :filtered_due_dates, :filtered_labels, :match_mode, :search_query,
+              :terminal_period
 
   def normalized_filter(values)
     values.nil? ? nil : Array(values).uniq
@@ -82,6 +88,8 @@ class KanbanCards::VisibleStageCardsQuery
               .left_outer_joins(:conversation, :contact)
               .where(account_id: account.id, kanban_board_id: kanban_board.id, kanban_stage_id: kanban_stage.id)
               .where(visibility_condition)
+      # The period is a column slice, not a user filter, so it stays outside match_mode.
+      scope = scope.where(terminal_period_condition) if terminal_period_condition
       scope = scope.where(combined_filter_condition) if combined_filter_condition
       scope = scope.where(search_condition) if search_query.present?
       scope
@@ -103,6 +111,19 @@ class KanbanCards::VisibleStageCardsQuery
       due_date_condition,
       label_condition
     ].compact
+  end
+
+  def terminal_period_condition
+    return unless terminal_stage?
+
+    days = TERMINAL_PERIODS[terminal_period]
+    return if days.blank? # 'all' or an invalid value
+
+    card_table[:stage_entered_at].gteq(days.days.ago)
+  end
+
+  def terminal_stage?
+    [kanban_board.won_stage_id, kanban_board.lost_stage_id].include?(kanban_stage.id)
   end
 
   def inbox_condition
@@ -284,6 +305,18 @@ class KanbanCards::VisibleStageCardsQuery
     @visible_totals ||= visible_cards
                         .left_outer_joins(:kanban_card_products)
                         .pick(card_table[:id].count(true), total_value_expression)
+  end
+
+  def metadata_result
+    total_count, total_value = visible_totals
+
+    Result.new(
+      cards: [],
+      has_more: false,
+      next_cursor: nil,
+      total_count: total_count,
+      total_value: total_value
+    )
   end
 
   def total_value_expression

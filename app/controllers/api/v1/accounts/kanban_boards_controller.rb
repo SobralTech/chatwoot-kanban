@@ -20,6 +20,8 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
     sanitized_due_dates
     sanitized_labels
     sanitized_match_mode
+    sanitized_terminal_period
+    @collapsed_stage_ids = sanitized_collapsed_stage_ids
     @kanban_stages = @kanban_board.kanban_stages.active.ordered
     fetch_stage_card_results
   end
@@ -112,7 +114,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
   def fetch_stage_card_results
     @stage_card_limit = KanbanCards::VisibleStageCardsQuery::DEFAULT_LIMIT
     @stage_card_results = @kanban_stages.index_with do |kanban_stage|
-      KanbanCards::VisibleStageCardsQuery.new(
+      query = KanbanCards::VisibleStageCardsQuery.new(
         account: Current.account,
         user: Current.user,
         kanban_board: @kanban_board,
@@ -122,7 +124,8 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
         visible_inbox_ids: board_list_inbox_ids,
         visible_team_ids: board_list_team_ids,
         account_user: Current.account_user
-      ).call
+      )
+      query.call(load_cards: @collapsed_stage_ids.exclude?(kanban_stage.id))
     end
   end
 

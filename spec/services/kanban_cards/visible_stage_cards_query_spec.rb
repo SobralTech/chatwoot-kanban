@@ -220,6 +220,59 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(query(kanban_stage: lost_stage, filtered_card_statuses: ['lost']).call.cards).to eq([lost_card])
     end
 
+    it 'applies the default period only to terminal stages' do
+      won_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+      lost_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 3)
+      kanban_board.update!(won_stage: won_stage, lost_stage: lost_stage)
+
+      recent_won_card = create_visible_card(kanban_stage: won_stage)
+      old_won_card = create_visible_card(kanban_stage: won_stage)
+      old_won_card.update_column(:stage_entered_at, 31.days.ago) # rubocop:disable Rails/SkipsModelValidations
+      old_regular_card = create_visible_card
+      old_regular_card.update_column(:stage_entered_at, 31.days.ago) # rubocop:disable Rails/SkipsModelValidations
+
+      expect(query(kanban_stage: won_stage).call.cards).to eq([recent_won_card])
+      expect(query.call.cards).to include(old_regular_card)
+    end
+
+    it 'does not filter terminal cards when the period is all time' do
+      won_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+      lost_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 3)
+      kanban_board.update!(won_stage: won_stage, lost_stage: lost_stage)
+
+      recent_card = create_visible_card(kanban_stage: won_stage)
+      old_card = create_visible_card(kanban_stage: won_stage)
+      old_card.update_column(:stage_entered_at, 31.days.ago) # rubocop:disable Rails/SkipsModelValidations
+
+      result = query(kanban_stage: won_stage, terminal_period: 'all').call
+
+      expect(result.cards).to contain_exactly(recent_card, old_card)
+      expect(result.total_count).to eq(2)
+    end
+
+    it 'keeps the terminal period as an AND condition with any user filters' do
+      create(:label, account: account, title: 'vip')
+      won_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2)
+      lost_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 3)
+      kanban_board.update!(won_stage: won_stage, lost_stage: lost_stage)
+
+      recent_card = create_visible_card(kanban_stage: won_stage, priority: :high)
+      old_card = create_visible_card(kanban_stage: won_stage)
+      old_card.add_labels(['vip'])
+      old_card.update_column(:stage_entered_at, 31.days.ago) # rubocop:disable Rails/SkipsModelValidations
+
+      result = query(
+        kanban_stage: won_stage,
+        terminal_period: '30d',
+        filtered_priorities: ['high'],
+        filtered_labels: ['vip'],
+        match_mode: 'any'
+      ).call
+
+      expect(result.cards).to eq([recent_card])
+      expect(result.total_count).to eq(1)
+    end
+
     it 'filters card priorities including cards without a priority' do
       unprioritized_card = create_visible_card(position: 1)
       high_priority_card = create_visible_card(position: 2, priority: :high)
@@ -456,7 +509,8 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       filtered_due_dates: options[:filtered_due_dates],
       filtered_labels: options[:filtered_labels],
       match_mode: options[:match_mode],
-      search_query: options[:search_query]
+      search_query: options[:search_query],
+      terminal_period: options[:terminal_period]
     )
   end
 
