@@ -8,6 +8,7 @@ json.position card.position
 json.origin card.origin
 json.subject card.subject
 json.active card.active
+json.custom_field_keys(card.kanban_card_field_values.map { |field_value| field_value.kanban_custom_field.key })
 json.kanban_reason_id card.kanban_reason_id
 json.products card.kanban_card_products.ordered do |product|
   json.id product.id

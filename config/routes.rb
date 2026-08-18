@@ -155,6 +155,7 @@ Rails.application.routes.draw do
               patch 'cards/by_id/:id', to: 'cards#update'
               delete 'cards/by_id/:id', to: 'cards#destroy'
               patch 'cards/by_id/:id/reorder', to: 'cards#reorder'
+              patch 'cards/by_id/:id/move', to: 'cards#move'
               get 'cards/by_id/:id/labels', to: 'cards/labels#index'
               put 'cards/by_id/:id/labels', to: 'cards/labels#update'
               get 'cards/by_id/:id/products', to: 'cards/products#index'

@@ -5,6 +5,8 @@ json.description kanban_board.description
 json.position kanban_board.position
 json.active kanban_board.active
 json.auto_create_cards_from_conversations kanban_board.auto_create_cards_from_conversations
+json.won_recurrence_enabled kanban_board.won_recurrence_enabled
+json.lost_recurrence_enabled kanban_board.lost_recurrence_enabled
 json.won_stage_id kanban_board.won_stage_id
 json.lost_stage_id kanban_board.lost_stage_id
 json.lost_reason_required kanban_board.lost_reason_required

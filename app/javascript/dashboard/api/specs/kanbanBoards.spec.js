@@ -29,6 +29,7 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('getCardLabels');
     expect(kanbanBoards).toHaveProperty('updateCardLabels');
     expect(kanbanBoards).toHaveProperty('reorderCardById');
+    expect(kanbanBoards).toHaveProperty('moveCardToBoard');
     expect(kanbanBoards).toHaveProperty('deleteCardById');
   });
 
@@ -349,6 +350,15 @@ describe('#KanbanBoardsAPI', () => {
 
       expect(axiosMock.patch).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/reorder',
+        payload
+      );
+    });
+    it('#moveCardToBoard', () => {
+      const payload = { target_kanban_board_id: 3, kanban_stage_id: 8 };
+      kanbanBoards.moveCardToBoard(2, 501, payload);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/move',
         payload
       );
     });

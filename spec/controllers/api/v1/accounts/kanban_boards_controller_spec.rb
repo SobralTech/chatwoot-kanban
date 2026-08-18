@@ -22,6 +22,10 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body.first['name']).to eq('Sales')
       expect(response.parsed_body.first['auto_create_cards_from_conversations']).to be(false)
       expect(response.parsed_body.first).not_to have_key('use_opportunity_card_reads')
+      expect(response.parsed_body.first).to include(
+        'won_recurrence_enabled' => false,
+        'lost_recurrence_enabled' => false
+      )
     end
 
     it 'does not return inactive boards' do

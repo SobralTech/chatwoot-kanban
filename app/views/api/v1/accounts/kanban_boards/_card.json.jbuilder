@@ -18,6 +18,11 @@ json.stage_entered_at card.stage_entered_at&.iso8601 if card.respond_to?(:stage_
 json.origin card.origin if card.respond_to?(:origin)
 json.subject card.subject if card.respond_to?(:subject)
 json.kanban_reason_id card.kanban_reason_id if card.respond_to?(:kanban_reason_id)
+if card.respond_to?(:kanban_card_field_values)
+  json.custom_field_keys(card.kanban_card_field_values.map do |field_value|
+    field_value.kanban_custom_field.key
+  end)
+end
 if card.respond_to?(:kanban_card_products)
   json.products card.kanban_card_products.ordered do |product|
     json.id product.id

@@ -5,8 +5,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   before_action :authorize_kanban_board_show
   before_action :fetch_manual_card_records, only: [:create_manual]
   before_action :reject_terminal_stage_card_creation, only: [:create_manual]
-  before_action :fetch_kanban_card, only: [:show, :update, :destroy, :reorder, :reopen]
-  before_action :authorize_mutation_target, only: [:show, :update, :destroy, :reorder, :reopen]
+  before_action :fetch_kanban_card, only: [:show, :update, :destroy, :reorder, :move, :reopen]
+  before_action :authorize_mutation_target, only: [:show, :update, :destroy, :reorder, :move, :reopen]
   before_action :fetch_kanban_stage, only: [:update]
 
   def show
@@ -42,6 +42,27 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     reorder_kanban_card
   end
 
+  def move
+    target_board = target_kanban_board
+    return reorder if target_board.blank? || target_board == @kanban_board
+
+    result = KanbanCards::MoveToBoardService.new(
+      card: @kanban_card,
+      target_board: target_board,
+      target_stage_id: params[:kanban_stage_id],
+      user: Current.user
+    ).perform!
+    return render json: { error: result.error }, status: :unprocessable_content unless result.success?
+
+    dispatch_kanban_card_move_events(
+      source_board: @kanban_board,
+      target_board: target_board,
+      source_stage_id: result.source_stage_id
+    )
+    @kanban_board = target_board
+    render_card
+  end
+
   def reopen
     target_stage = reopen_target_stage
     return render_no_reopen_stage unless target_stage
@@ -68,6 +89,12 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def fetch_kanban_board
     @kanban_board = policy_scope(KanbanBoard).find(params[:kanban_board_id])
+  end
+
+  def target_kanban_board
+    return if params[:target_kanban_board_id].blank?
+
+    policy_scope(KanbanBoard).active.find(params[:target_kanban_board_id])
   end
 
   def authorize_kanban_board_show
@@ -373,12 +400,25 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     end
   end
 
-  def dispatch_kanban_card_event(event_name, stage_id: @kanban_card.kanban_stage_id)
+  def dispatch_kanban_card_move_events(source_board:, target_board:, source_stage_id:)
+    dispatch_kanban_card_event(
+      Events::Types::KANBAN_CARD_DELETED,
+      board_id: source_board.id,
+      stage_id: source_stage_id
+    )
+    dispatch_kanban_card_event(
+      Events::Types::KANBAN_CARD_CREATED,
+      board_id: target_board.id,
+      stage_id: @kanban_card.kanban_stage_id
+    )
+  end
+
+  def dispatch_kanban_card_event(event_name, board_id: @kanban_card.kanban_board_id, stage_id: @kanban_card.kanban_stage_id)
     Rails.configuration.dispatcher.dispatch(
       event_name,
       Time.zone.now,
       account_id: @kanban_card.account_id,
-      board_id: @kanban_card.kanban_board_id,
+      board_id: board_id,
       stage_id: stage_id,
       card_id: @kanban_card.id,
       conversation_id: @kanban_card.conversation_id

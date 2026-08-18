@@ -84,6 +84,15 @@ const EVENT_MESSAGES = {
       to: orUnknown(metadata.toStageName || metadata.toStageId),
     },
   ],
+  board_changed: metadata => [
+    'BOARD_CHANGED',
+    {
+      fromBoard: orUnknown(metadata.fromBoardName || metadata.fromBoardId),
+      fromStage: orUnknown(metadata.fromStageName || metadata.fromStageId),
+      toBoard: orUnknown(metadata.toBoardName || metadata.toBoardId),
+      toStage: orUnknown(metadata.toStageName || metadata.toStageId),
+    },
+  ],
   won: metadata =>
     metadata.reasonTitle
       ? ['WON', { reason: metadata.reasonTitle }]

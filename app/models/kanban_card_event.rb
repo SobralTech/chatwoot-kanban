@@ -28,7 +28,7 @@
 #  fk_rails_...  (user_id => users.id) ON DELETE => nullify
 #
 class KanbanCardEvent < ApplicationRecord
-  MOVEMENT_TYPES = %w[stage_changed won lost reopened].freeze
+  MOVEMENT_TYPES = %w[stage_changed board_changed won lost reopened].freeze
 
   belongs_to :account
   # Absent only for `card_deleted`, which describes a card row that no longer exists.

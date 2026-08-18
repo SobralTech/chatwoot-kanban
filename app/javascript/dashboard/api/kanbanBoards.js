@@ -172,6 +172,13 @@ class KanbanBoardsAPI extends ApiClient {
     );
   }
 
+  moveCardToBoard(boardId, cardId, payload) {
+    return axios.patch(
+      `${this.url}/${boardId}/cards/by_id/${cardId}/move`,
+      payload
+    );
+  }
+
   deleteCardById(boardId, cardId) {
     return axios.delete(`${this.url}/${boardId}/cards/by_id/${cardId}`);
   }

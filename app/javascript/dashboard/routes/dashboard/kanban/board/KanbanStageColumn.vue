@@ -122,6 +122,7 @@ const emit = defineEmits([
   'updatePriority',
   'changeStatus',
   'moveCardToStage',
+  'moveCardToBoard',
   'assignAgent',
   'updateDueDate',
   'loadMore',
@@ -206,6 +207,8 @@ const { t } = useI18n();
             }"
             :card="card"
             :is-busy="isCardBusy(card, stage)"
+            :board="board"
+            :boards="boards"
             :stages="stages"
             :assignable-users="assignableUsers"
             :won-stage-id="board?.wonStageId"
@@ -218,6 +221,10 @@ const { t } = useI18n();
             @move-to-stage="
               (cardValue, stageId) =>
                 emit('moveCardToStage', cardValue, stageId)
+            "
+            @move-to-board="
+              (cardValue, payload) =>
+                emit('moveCardToBoard', cardValue, payload)
             "
             @assign-agent="
               (cardValue, userId) => emit('assignAgent', cardValue, userId)

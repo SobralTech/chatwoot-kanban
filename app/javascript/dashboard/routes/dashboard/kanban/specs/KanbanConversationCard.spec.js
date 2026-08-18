@@ -83,6 +83,8 @@ const buildManualCard = overrides =>
 const mountCard = ({
   card = buildCard(),
   isBusy = false,
+  board = {},
+  boards = [],
   stages = [],
   assignableUsers = [],
   wonStageId = null,
@@ -94,6 +96,8 @@ const mountCard = ({
     props: {
       card,
       isBusy,
+      board,
+      boards,
       stages,
       assignableUsers,
       wonStageId,
@@ -287,6 +291,79 @@ describe('KanbanConversationCard', () => {
     await moveOptions[0].trigger('click');
 
     expect(wrapper.emitted('moveToStage')).toEqual([[card, 2]]);
+  });
+  it('filters eligible boards and confirms cross-board moves', async () => {
+    const card = buildCard({
+      kanbanBoardId: 1,
+      inbox: { id: 5, name: 'Sales Inbox' },
+      kanbanStageId: 1,
+    });
+    const sourceBoard = {
+      id: 1,
+      name: 'Sales',
+      position: 2,
+      inboxScopeMode: 'all_inboxes',
+      wonStageId: 3,
+      lostStageId: 4,
+      customFields: [],
+    };
+    const targetBoard = {
+      id: 2,
+      name: 'Support',
+      position: 1,
+      inboxScopeMode: 'selected_inboxes',
+      allowedInboxIds: [5],
+      stagesSummary: [{ id: 10, name: 'Triage', color: '#00f' }],
+      customFields: [],
+    };
+    const blockedBoard = {
+      id: 3,
+      name: 'Blocked',
+      position: 0,
+      inboxScopeMode: 'selected_inboxes',
+      allowedInboxIds: [99],
+      stagesSummary: [{ id: 11, name: 'Other', color: '#000' }],
+      customFields: [],
+    };
+    const wrapper = mountCard({
+      card,
+      board: sourceBoard,
+      boards: [blockedBoard, targetBoard, sourceBoard],
+      stages: [
+        { id: 1, name: 'Current stage' },
+        { id: 2, name: 'Next stage' },
+        { id: 3, name: 'Won', color: '#0f0' },
+        { id: 4, name: 'Lost', color: '#f00' },
+      ],
+      wonStageId: 3,
+      lostStageId: 4,
+    });
+
+    await wrapper.find('[data-testid="kanban-card-move"]').trigger('click');
+
+    const boardSelect = wrapper.findComponent({ name: 'Select' });
+    expect(boardSelect.props('options').map(option => option.value)).toEqual([
+      1, 2,
+    ]);
+
+    await boardSelect.vm.$emit('update:modelValue', 2);
+    await nextTick();
+    await wrapper
+      .find('[data-testid="kanban-card-move-stage"]')
+      .trigger('click');
+
+    expect(
+      wrapper.find('[data-testid="kanban-card-move-confirm-clean"]').exists()
+    ).toBe(true);
+    expect(wrapper.emitted('moveToBoard')).toBeUndefined();
+
+    await wrapper
+      .find('[data-testid="kanban-card-move-confirm-submit"]')
+      .trigger('click');
+
+    expect(wrapper.emitted('moveToBoard')).toEqual([
+      [card, { boardId: 2, stageId: 10 }],
+    ]);
   });
 
   it('toggles an assignee from the assign submenu', async () => {

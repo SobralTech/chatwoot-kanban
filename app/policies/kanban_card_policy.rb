@@ -19,6 +19,10 @@ class KanbanCardPolicy < ApplicationPolicy
     show?
   end
 
+  def move?
+    show?
+  end
+
   def reopen?
     show?
   end

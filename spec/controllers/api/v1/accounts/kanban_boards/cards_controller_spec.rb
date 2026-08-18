@@ -255,6 +255,51 @@ RSpec.describe 'Kanban Cards API', type: :request do
     end
   end
 
+  describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/by_id/{id}/move' do
+    it 'moves a card across boards and emits delete and create events' do
+      target_board = create(:kanban_board, account: account, name: 'Support')
+      target_stage = create(:kanban_stage, account: account, kanban_board: target_board, name: 'Triage')
+      card = create_manual_card(subject: 'Cross-board opportunity')
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch stable_card_url(card, suffix: 'move'),
+            headers: agent.create_new_auth_token,
+            params: { target_kanban_board_id: target_board.id, kanban_stage_id: target_stage.id },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(card.reload).to have_attributes(kanban_board_id: target_board.id, kanban_stage_id: target_stage.id)
+      expect(response.parsed_body).to include('kanban_board_id' => target_board.id, 'kanban_stage_id' => target_stage.id)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_DELETED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id, card_id: card.id, conversation_id: nil }
+      )
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_CARD_CREATED,
+        anything,
+        { account_id: account.id, board_id: target_board.id, stage_id: target_stage.id, card_id: card.id, conversation_id: nil }
+      )
+    end
+
+    it 'returns a duplicate error without moving the source card' do
+      target_board = create(:kanban_board, account: account, name: 'Support')
+      target_stage = create(:kanban_stage, account: account, kanban_board: target_board, name: 'Triage')
+      card = create_manual_card(subject: 'Duplicate opportunity')
+      create(:kanban_card, account: account, kanban_board: target_board, kanban_stage: target_stage,
+                           contact: card.contact, inbox: card.inbox, subject: card.subject)
+
+      patch stable_card_url(card, suffix: 'move'),
+            headers: agent.create_new_auth_token,
+            params: { target_kanban_board_id: target_board.id, kanban_stage_id: target_stage.id },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body).to eq('error' => 'card_already_in_target_board')
+      expect(card.reload.kanban_board_id).to eq(kanban_board.id)
+    end
+  end
+
   describe 'stable card ID routes' do
     it 'returns a card detail by stable ID' do
       card = create_manual_card(subject: 'Cotação de notebooks')

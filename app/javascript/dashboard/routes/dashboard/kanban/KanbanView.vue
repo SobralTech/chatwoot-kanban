@@ -862,6 +862,7 @@ const {
   assignAgent,
   closeRemoveCardConfirmation,
   confirmRemoveCard,
+  moveCardToBoard,
   moveCardToStage,
   onCardDragChange,
   onCardDragEnd,
@@ -871,6 +872,7 @@ const {
   updateCardDueDate,
   updateCardPriority,
 } = useKanbanCardActions({
+  boards,
   cardActionKey,
   cardPendingRemoval,
   endAction,
@@ -1372,6 +1374,7 @@ watch(searchInput, () => {
                 @update-priority="updateCardPriority"
                 @change-status="onChangeCardStatus"
                 @move-card-to-stage="moveCardToStage"
+                @move-card-to-board="moveCardToBoard"
                 @assign-agent="assignAgent"
                 @update-due-date="updateCardDueDate"
                 @load-more="loadMoreStageCards"

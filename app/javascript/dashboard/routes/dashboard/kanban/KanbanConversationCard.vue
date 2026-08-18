@@ -12,6 +12,7 @@ import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import InboxName from 'dashboard/components/widgets/InboxName.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
@@ -26,6 +27,14 @@ const props = defineProps({
   isBusy: {
     type: Boolean,
     default: false,
+  },
+  board: {
+    type: Object,
+    default: () => ({}),
+  },
+  boards: {
+    type: Array,
+    default: () => [],
   },
   stages: {
     type: Array,
@@ -61,6 +70,7 @@ const emit = defineEmits([
   'updatePriority',
   'changeStatus',
   'moveToStage',
+  'moveToBoard',
   'assignAgent',
   'updateDueDate',
 ]);
@@ -73,20 +83,6 @@ const { isTerminalStage } = useKanbanStageOrder({
   stages: toRef(props, 'stages'),
   wonStageId: toRef(props, 'wonStageId'),
   lostStageId: toRef(props, 'lostStageId'),
-});
-const viewTitle = computed(() => {
-  switch (view.value) {
-    case 'move':
-      return t('KANBAN.CARD.MOVE_TO');
-    case 'assign':
-      return t('KANBAN.CARD.ASSIGN_TO');
-    case 'priority':
-      return t('KANBAN.CARD.CHANGE_PRIORITY');
-    case 'due':
-      return t('KANBAN.CARD.DUE_DATE');
-    default:
-      return t('KANBAN.CARD.ACTIONS_MENU');
-  }
 });
 
 const conversation = computed(() => props.card.conversation || {});
@@ -140,13 +136,281 @@ const primaryAssignee = computed(() => assignees.value[0] || null);
 const extraAssigneeCount = computed(() =>
   Math.max(assignees.value.length - 1, 0)
 );
-const moveTargets = computed(() =>
-  props.stages.filter(
-    stage =>
-      Number(stage.id) !== Number(props.card.kanbanStageId) &&
-      !isTerminalStage(stage)
-  )
+const moveBoardId = ref(null);
+const moveTargetStage = ref(null);
+const boardValue = (board, camelKey, snakeKey, fallback = null) =>
+  board?.[camelKey] ?? board?.[snakeKey] ?? fallback;
+const currentBoardId = computed(() => {
+  const boardId =
+    props.board?.id ?? props.card.kanbanBoardId ?? props.card.kanban_board_id;
+  return boardId ? Number(boardId) : null;
+});
+const sourceBoard = computed(() => {
+  if (props.board?.id) return props.board;
+
+  return (
+    props.boards.find(board => Number(board.id) === currentBoardId.value) || {}
+  );
+});
+const cardInboxId = computed(() => {
+  const inboxId =
+    props.card.inboxId ??
+    props.card.inbox?.id ??
+    props.card.inbox_id ??
+    conversation.value.inboxId ??
+    conversation.value.inbox_id;
+  return inboxId ? Number(inboxId) : null;
+});
+const boardAllowedInboxIds = board => {
+  const allowedInboxIds = boardValue(
+    board,
+    'allowedInboxIds',
+    'allowed_inbox_ids'
+  );
+  if (Array.isArray(allowedInboxIds)) return allowedInboxIds.map(Number);
+
+  const allowedInboxes = boardValue(
+    board,
+    'allowedInboxes',
+    'allowed_inboxes',
+    []
+  );
+  return Array.isArray(allowedInboxes)
+    ? allowedInboxes.map(allowedInbox => Number(allowedInbox.id))
+    : [];
+};
+const boardAcceptsCardInbox = board => {
+  const scopeMode = boardValue(
+    board,
+    'inboxScopeMode',
+    'inbox_scope_mode',
+    'all_inboxes'
+  );
+  return (
+    scopeMode !== 'selected_inboxes' ||
+    boardAllowedInboxIds(board).includes(cardInboxId.value)
+  );
+};
+const movableBoards = computed(() => {
+  let availableBoards = props.boards;
+  if (!availableBoards.length && props.board?.id) {
+    availableBoards = [props.board];
+  }
+  return availableBoards
+    .filter(
+      board =>
+        boardValue(board, 'active', 'active', true) !== false &&
+        boardAcceptsCardInbox(board)
+    )
+    .slice()
+    .sort((firstBoard, secondBoard) => {
+      const firstIsCurrent = Number(firstBoard.id) === currentBoardId.value;
+      const secondIsCurrent = Number(secondBoard.id) === currentBoardId.value;
+      if (firstIsCurrent !== secondIsCurrent) return firstIsCurrent ? -1 : 1;
+
+      return (
+        Number(boardValue(firstBoard, 'position', 'position', 0)) -
+        Number(boardValue(secondBoard, 'position', 'position', 0))
+      );
+    });
+});
+const selectedMoveBoard = computed(
+  () =>
+    movableBoards.value.find(
+      board => Number(board.id) === Number(moveBoardId.value)
+    ) || sourceBoard.value
 );
+const moveBoardName = computed(
+  () =>
+    selectedMoveBoard.value?.name ||
+    t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: '' })
+);
+const moveBoardOptions = computed(() =>
+  movableBoards.value.map(board => ({
+    value: board.id,
+    label:
+      Number(board.id) === currentBoardId.value
+        ? t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: board.name })
+        : board.name,
+  }))
+);
+const isCurrentMoveBoard = computed(() => {
+  if (!currentBoardId.value) return moveBoardId.value === null;
+
+  return Number(moveBoardId.value) === currentBoardId.value;
+});
+const moveStages = computed(() => {
+  const board = selectedMoveBoard.value || {};
+  const stages = isCurrentMoveBoard.value
+    ? props.stages
+    : boardValue(board, 'stagesSummary', 'stages_summary', []);
+  const wonStageId = isCurrentMoveBoard.value
+    ? props.wonStageId
+    : boardValue(board, 'wonStageId', 'won_stage_id');
+  const lostStageId = isCurrentMoveBoard.value
+    ? props.lostStageId
+    : boardValue(board, 'lostStageId', 'lost_stage_id');
+  const terminalStageIds = [wonStageId, lostStageId]
+    .filter(Boolean)
+    .map(Number);
+
+  return stages.filter(stage => {
+    if (stage.active === false) return false;
+    if (terminalStageIds.includes(Number(stage.id))) return false;
+    return (
+      !isCurrentMoveBoard.value ||
+      Number(stage.id) !== Number(props.card.kanbanStageId)
+    );
+  });
+});
+const sourceCustomFields = computed(() =>
+  boardValue(sourceBoard.value, 'customFields', 'custom_fields', [])
+);
+const targetCustomFields = computed(() =>
+  boardValue(selectedMoveBoard.value, 'customFields', 'custom_fields', [])
+);
+const cardCustomFieldKeys = computed(() => {
+  const keys = props.card.customFieldKeys || props.card.custom_field_keys;
+  if (Array.isArray(keys)) return keys.filter(Boolean);
+
+  const values = props.card.fieldValues || props.card.field_values;
+  if (!Array.isArray(values)) return [];
+
+  return values
+    .map(
+      fieldValue =>
+        fieldValue.customField?.key ||
+        fieldValue.custom_field?.key ||
+        fieldValue.kanbanCustomField?.key ||
+        fieldValue.kanban_custom_field?.key
+    )
+    .filter(Boolean);
+});
+const fieldAttribute = (field, camelKey, snakeKey) =>
+  field?.[camelKey] ?? field?.[snakeKey];
+const droppedFieldKeys = computed(() =>
+  cardCustomFieldKeys.value.filter(key => {
+    const sourceField = sourceCustomFields.value.find(
+      field => field.key === key
+    );
+    if (!sourceField) return true;
+
+    return !targetCustomFields.value.some(
+      targetField =>
+        targetField.key === key &&
+        fieldAttribute(targetField, 'fieldType', 'field_type') ===
+          fieldAttribute(sourceField, 'fieldType', 'field_type') &&
+        Boolean(fieldAttribute(targetField, 'multiple', 'multiple')) ===
+          Boolean(fieldAttribute(sourceField, 'multiple', 'multiple'))
+    );
+  })
+);
+const moveConsequences = computed(() => {
+  const sourceStageId = Number(props.card.kanbanStageId);
+  const sourceWonStageId = Number(
+    boardValue(sourceBoard.value, 'wonStageId', 'won_stage_id')
+  );
+  const sourceLostStageId = Number(
+    boardValue(sourceBoard.value, 'lostStageId', 'lost_stage_id')
+  );
+  const consequences = [];
+
+  if ([sourceWonStageId, sourceLostStageId].includes(sourceStageId)) {
+    consequences.push({ key: 'MOVE_CONFIRM_REOPEN', params: {} });
+  }
+
+  const reasonId = Number(
+    props.card.kanbanReasonId ?? props.card.kanban_reason_id
+  );
+  if (reasonId) {
+    const reason = props.reasons.find(item => Number(item.id) === reasonId);
+    consequences.push({
+      key: 'MOVE_CONFIRM_REASON',
+      params: { reason: reason?.title || reasonId },
+    });
+  }
+
+  if (droppedFieldKeys.value.length) {
+    consequences.push({
+      key: 'MOVE_CONFIRM_FIELDS',
+      params: {
+        count: droppedFieldKeys.value.length,
+        total: cardCustomFieldKeys.value.length,
+        board: moveBoardName.value,
+        keys: droppedFieldKeys.value.join(', '),
+      },
+    });
+  }
+
+  const isTerminal = [sourceWonStageId, sourceLostStageId].includes(
+    sourceStageId
+  );
+  const terminalRecurrenceEnabled =
+    (sourceStageId === sourceWonStageId &&
+      Boolean(
+        boardValue(
+          sourceBoard.value,
+          'wonRecurrenceEnabled',
+          'won_recurrence_enabled'
+        )
+      )) ||
+    (sourceStageId === sourceLostStageId &&
+      Boolean(
+        boardValue(
+          sourceBoard.value,
+          'lostRecurrenceEnabled',
+          'lost_recurrence_enabled'
+        )
+      ));
+
+  if (isTerminal && terminalRecurrenceEnabled) {
+    consequences.push({
+      key: 'MOVE_CONFIRM_RECURRENCE_REFERENCE_LEAVES',
+      params: { board: sourceBoard.value.name },
+    });
+  } else if (
+    !isTerminal &&
+    (Boolean(
+      boardValue(
+        sourceBoard.value,
+        'wonRecurrenceEnabled',
+        'won_recurrence_enabled'
+      )
+    ) ||
+      Boolean(
+        boardValue(
+          sourceBoard.value,
+          'lostRecurrenceEnabled',
+          'lost_recurrence_enabled'
+        )
+      ))
+  ) {
+    consequences.push({
+      key: 'MOVE_CONFIRM_RECURRENCE_MAY_RECREATE',
+      params: { board: sourceBoard.value.name },
+    });
+  }
+
+  return consequences;
+});
+const viewTitle = computed(() => {
+  switch (view.value) {
+    case 'move':
+      return t('KANBAN.CARD.MOVE_TO');
+    case 'move-confirm':
+      return t('KANBAN.CARD.MOVE_CONFIRM_TITLE', {
+        board: moveBoardName.value,
+      });
+    case 'assign':
+      return t('KANBAN.CARD.ASSIGN_TO');
+    case 'priority':
+      return t('KANBAN.CARD.CHANGE_PRIORITY');
+    case 'due':
+      return t('KANBAN.CARD.DUE_DATE');
+    default:
+      return t('KANBAN.CARD.ACTIONS_MENU');
+  }
+});
 const subject = computed(() => props.card.subject || '');
 const labels = computed(() => props.card.labels || props.card.label_list || []);
 
@@ -204,6 +468,8 @@ const openDetails = () => {
 
 const resetView = () => {
   view.value = 'root';
+  moveBoardId.value = null;
+  moveTargetStage.value = null;
 };
 
 const closeMenu = hide => {
@@ -213,7 +479,15 @@ const closeMenu = hide => {
 
 const openView = nextView => {
   if (nextView === 'due') dueDateInput.value = formatDateInput(dueAt.value);
+  if (nextView === 'move') {
+    moveBoardId.value = currentBoardId.value;
+    moveTargetStage.value = null;
+  }
   view.value = nextView;
+};
+
+const goBack = () => {
+  view.value = view.value === 'move-confirm' ? 'move' : 'root';
 };
 
 const onSelectDueDate = (value, hide) => {
@@ -227,7 +501,23 @@ const onSelectPriority = (option, hide) => {
 };
 
 const onMoveToStage = (stage, hide) => {
-  emit('moveToStage', props.card, stage.id);
+  if (isCurrentMoveBoard.value) {
+    emit('moveToStage', props.card, stage.id);
+    closeMenu(hide);
+    return;
+  }
+
+  moveTargetStage.value = stage;
+  view.value = 'move-confirm';
+};
+
+const onConfirmMoveToBoard = hide => {
+  if (!moveTargetStage.value || !moveBoardId.value) return;
+
+  emit('moveToBoard', props.card, {
+    boardId: Number(moveBoardId.value),
+    stageId: moveTargetStage.value.id,
+  });
   closeMenu(hide);
 };
 
@@ -299,7 +589,7 @@ const openCard = event => {
             <KanbanMenuHeader
               :title="viewTitle"
               :show-back="view !== 'root'"
-              @back="view = 'root'"
+              @back="goBack"
               @close="closeMenu(hide)"
             />
 
@@ -414,18 +704,36 @@ const openCard = event => {
             </div>
 
             <div v-else-if="view === 'move'" class="p-1">
+              <label
+                v-if="moveBoardOptions.length"
+                class="block px-3 py-2 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('KANBAN.CARD.MOVE_BOARD_LABEL') }}
+                <Select
+                  v-model="moveBoardId"
+                  data-testid="kanban-card-move-board"
+                  :options="moveBoardOptions"
+                  full-width
+                  class="mt-1 font-normal"
+                />
+              </label>
+              <div
+                v-if="moveBoardOptions.length"
+                class="mx-2 border-t border-n-weak"
+              />
               <p
-                v-if="!moveTargets.length"
+                v-if="!moveStages.length"
                 class="px-3 py-2 text-sm text-n-slate-10"
               >
                 {{
+                  isCurrentMoveBoard &&
                   isTerminalStage({ id: card.kanbanStageId })
                     ? t('KANBAN.CARD.TERMINAL_STAGE_HINT')
                     : t('KANBAN.CARD.NO_REGULAR_STAGES')
                 }}
               </p>
               <button
-                v-for="stage in moveTargets"
+                v-for="stage in moveStages"
                 :key="stage.id"
                 type="button"
                 data-testid="kanban-card-move-stage"
@@ -439,6 +747,53 @@ const openCard = event => {
                 />
                 <span class="min-w-0 truncate">{{ stage.name }}</span>
               </button>
+            </div>
+
+            <div v-else-if="view === 'move-confirm'" class="p-3">
+              <p
+                data-testid="kanban-card-move-confirm-stage"
+                class="font-medium text-n-slate-12"
+              >
+                {{ moveTargetStage?.name }}
+              </p>
+              <ul
+                v-if="moveConsequences.length"
+                data-testid="kanban-card-move-consequences"
+                class="mt-3 list-disc space-y-2 pl-4 text-sm text-n-slate-11"
+              >
+                <li
+                  v-for="consequence in moveConsequences"
+                  :key="consequence.key"
+                >
+                  {{ t(`KANBAN.CARD.${consequence.key}`, consequence.params) }}
+                </li>
+              </ul>
+              <p
+                v-else
+                data-testid="kanban-card-move-confirm-clean"
+                class="mt-3 text-sm text-n-slate-11"
+              >
+                {{ t('KANBAN.CARD.MOVE_CONFIRM_CLEAN') }}
+              </p>
+              <div class="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  data-testid="kanban-card-move-confirm-cancel"
+                  class="rounded-md px-3 py-2 text-sm hover:bg-n-alpha-2"
+                  @click="view = 'move'"
+                >
+                  {{ t('KANBAN.CARD.MOVE_CONFIRM_CANCEL') }}
+                </button>
+                <button
+                  type="button"
+                  data-testid="kanban-card-move-confirm-submit"
+                  class="rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="isBusy"
+                  @click="onConfirmMoveToBoard(hide)"
+                >
+                  {{ t('KANBAN.CARD.MOVE_CONFIRM_SUBMIT') }}
+                </button>
+              </div>
             </div>
 
             <div v-else-if="view === 'assign'" class="p-1">

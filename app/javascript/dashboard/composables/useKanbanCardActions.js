@@ -6,6 +6,7 @@ import {
 
 export function useKanbanCardActions({
   cardActionKey,
+  boards,
   cardPendingRemoval,
   endAction,
   findCardStageId,
@@ -211,6 +212,51 @@ export function useKanbanCardActions({
       endAction(actionKey);
     }
   };
+  const moveCardToBoard = async (card, { boardId, stageId } = {}) => {
+    const targetBoard = (boards?.value || []).find(
+      board => Number(board.id) === Number(boardId)
+    );
+    const actionKey = cardActionKey(card);
+    if (
+      !selectedBoard.value?.id ||
+      !targetBoard ||
+      Number(targetBoard.id) === Number(selectedBoard.value.id) ||
+      !stageId ||
+      isActionActive(actionKey)
+    ) {
+      return false;
+    }
+
+    startAction(actionKey);
+
+    try {
+      await KanbanBoardsAPI.moveCardToBoard(selectedBoard.value.id, card.id, {
+        target_kanban_board_id: targetBoard.id,
+        kanban_stage_id: stageId,
+      });
+      await refreshStageFirstPages([card.kanbanStageId]);
+      useAlert(
+        t('KANBAN.CARD.MOVE_BOARD_SUCCESS', { board: targetBoard.name })
+      );
+      return true;
+    } catch (error) {
+      const errorCode = error?.response?.data?.error;
+      let errorMessage = t('KANBAN.CARD.MOVE_BOARD_ERROR');
+      if (errorCode === 'card_already_in_target_board') {
+        errorMessage = t('KANBAN.CARD.MOVE_BOARD_ERROR_DUPLICATE', {
+          board: targetBoard.name,
+        });
+      } else if (errorCode === 'inbox_not_allowed') {
+        errorMessage = t('KANBAN.CARD.MOVE_BOARD_ERROR_INBOX', {
+          board: targetBoard.name,
+        });
+      }
+      useAlert(errorMessage);
+      return false;
+    } finally {
+      endAction(actionKey);
+    }
+  };
 
   const assignAgent = async (card, userId) => {
     const actionKey = cardActionKey(card);
@@ -316,6 +362,7 @@ export function useKanbanCardActions({
     assignAgent,
     closeRemoveCardConfirmation,
     confirmRemoveCard,
+    moveCardToBoard,
     moveCardToStage,
     onCardDragChange,
     onCardDragEnd,
