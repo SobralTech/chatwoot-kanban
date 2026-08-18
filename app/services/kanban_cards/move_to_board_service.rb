@@ -69,8 +69,11 @@ class KanbanCards::MoveToBoardService
     next_target_position(target_stage)
   end
 
+  # The card has to be persisted on the target board before the field values are repointed:
+  # KanbanCardFieldValue#validate_board_consistency compares the new custom field's board
+  # against the card's own, so remapping any earlier fails validation.
   def update_moved_card!(target_stage, target_position)
-    @card.assign_attributes(
+    @card.update!(
       kanban_board: @target_board,
       kanban_stage: target_stage,
       position: target_position,
@@ -79,7 +82,6 @@ class KanbanCards::MoveToBoardService
       stage_entered_at: Time.current
     )
     remap_field_values!
-    @card.save!
   end
 
   def normalize_moved_stages!(source_board, source_stage, target_stage)
