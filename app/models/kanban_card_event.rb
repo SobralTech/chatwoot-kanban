@@ -8,7 +8,7 @@
 #  created_at      :datetime         not null
 #  account_id      :bigint           not null
 #  kanban_board_id :bigint           not null
-#  kanban_card_id  :bigint           not null
+#  kanban_card_id  :bigint
 #  user_id         :bigint
 #
 # Indexes
@@ -20,20 +20,24 @@
 #  index_kanban_card_events_on_kanban_card_id_and_created_at  (kanban_card_id,created_at)
 #  index_kanban_card_events_on_user_id                        (user_id)
 #
+# Foreign Keys
+#
+#  fk_rails_...  (account_id => accounts.id)
+#  fk_rails_...  (kanban_board_id => kanban_boards.id)
+#  fk_rails_...  (kanban_card_id => kanban_cards.id) ON DELETE => nullify
+#  fk_rails_...  (user_id => users.id) ON DELETE => nullify
+#
 class KanbanCardEvent < ApplicationRecord
+  MOVEMENT_TYPES = %w[stage_changed won lost reopened].freeze
+
   belongs_to :account
+  # Absent only for `card_deleted`, which describes a card row that no longer exists.
   belongs_to :kanban_card, optional: true
   belongs_to :kanban_board
   belongs_to :user, optional: true
 
-  validates :account_id, :kanban_card_id, :kanban_board_id, :event_type, presence: true
-  validate :metadata_is_a_hash
+  validates :event_type, presence: true
 
-  private
-
-  def metadata_is_a_hash
-    return if metadata.is_a?(Hash)
-
-    errors.add(:metadata, 'must be a hash')
-  end
+  scope :movements, -> { where(event_type: MOVEMENT_TYPES) }
+  scope :recent_first, -> { order(created_at: :desc, id: :desc) }
 end

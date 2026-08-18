@@ -1114,7 +1114,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_120000) do
 
   create_table "kanban_card_events", force: :cascade do |t|
     t.bigint "account_id", null: false
-    t.bigint "kanban_card_id", null: false
+    t.bigint "kanban_card_id"
     t.bigint "kanban_board_id", null: false
     t.bigint "user_id"
     t.string "event_type", null: false
@@ -1668,6 +1668,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_120000) do
   add_foreign_key "kanban_card_assignees", "accounts"
   add_foreign_key "kanban_card_assignees", "kanban_cards"
   add_foreign_key "kanban_card_assignees", "users"
+  add_foreign_key "kanban_card_events", "accounts"
+  add_foreign_key "kanban_card_events", "kanban_boards"
+  add_foreign_key "kanban_card_events", "kanban_cards", on_delete: :nullify
+  add_foreign_key "kanban_card_events", "users", on_delete: :nullify
   add_foreign_key "kanban_card_field_values", "accounts"
   add_foreign_key "kanban_card_field_values", "kanban_cards"
   add_foreign_key "kanban_card_field_values", "kanban_custom_fields"

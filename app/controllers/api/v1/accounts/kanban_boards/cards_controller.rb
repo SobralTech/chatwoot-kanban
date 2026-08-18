@@ -168,7 +168,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     stage_id = @kanban_card.kanban_stage_id
     KanbanCard.transaction do
       @kanban_card.deactivate_and_normalize!
-      record_event(event_type: 'card_deleted', metadata: { stage_id: stage_id })
+      KanbanCards::RecordEventService.card_deleted(card: @kanban_card, user: Current.user, metadata: { stage_id: stage_id })
     end
 
     dispatch_kanban_card_event(Events::Types::KANBAN_CARD_DELETED, stage_id: stage_id)
@@ -404,8 +404,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def render_card
-    movement_events = @kanban_card.kanban_card_events.where(event_type: %w[stage_changed won lost reopened])
-    last_movement_event = movement_events.order(created_at: :desc, id: :desc).first
+    last_movement_event = @kanban_card.kanban_card_events.movements.recent_first.first
 
     render partial: 'api/v1/accounts/kanban_boards/card', formats: [:json], locals: {
       card: @kanban_card,

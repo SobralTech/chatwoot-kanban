@@ -83,14 +83,36 @@ RSpec.describe 'Kanban card timeline API', type: :request do
     expect(response.parsed_body['has_more']).to be(false)
   end
 
-  it 'keeps a card deletion event after removing the card and its previous events' do
+  it 'returns backfilled events whose id is newer than their timestamp' do
+    recent_event = create(:kanban_card_event, account: account, kanban_card: card, kanban_board: kanban_board, created_at: 1.minute.ago)
+    backfilled_event = create(
+      :kanban_card_event,
+      account: account, kanban_card: card, kanban_board: kanban_board,
+      event_type: 'card_created', created_at: 1.year.ago
+    )
+
+    get events_url(card), headers: agent.create_new_auth_token, params: { limit: 1 }, as: :json
+
+    expect(response.parsed_body['payload'].map { |event| event['id'] }).to eq([recent_event.id])
+    expect(response.parsed_body['next_cursor']).to eq(recent_event.id)
+
+    get events_url(card), headers: agent.create_new_auth_token,
+                          params: { limit: 1, before_id: recent_event.id }, as: :json
+
+    expect(response.parsed_body['payload'].map { |event| event['id'] }).to eq([backfilled_event.id])
+  end
+
+  it 'keeps a board scoped deletion event after removing the card and its previous events' do
     create(:kanban_card_event, account: account, kanban_card: card, kanban_board: kanban_board)
     deleted_card_id = card.id
 
     delete base_url(card), headers: agent.create_new_auth_token, as: :json
 
     expect(response).to have_http_status(:no_content)
-    expect(KanbanCardEvent.where(kanban_card_id: deleted_card_id).pluck(:event_type)).to eq(['card_deleted'])
+    remaining_events = KanbanCardEvent.where(kanban_board_id: kanban_board.id)
+    expect(remaining_events.pluck(:event_type)).to eq(['card_deleted'])
+    expect(remaining_events.first).to have_attributes(kanban_card_id: nil, user_id: agent.id)
+    expect(remaining_events.first.metadata).to include('card_id' => deleted_card_id, 'stage_id' => stage.id)
   end
 
   it 'returns the latest movement author and timestamp on the card payload' do
