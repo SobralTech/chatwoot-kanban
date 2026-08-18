@@ -122,6 +122,14 @@ const {
   },
 });
 
+// Bumped on every server side change so views rebuilt from the card, like the
+// timeline, remount instead of showing what they fetched before the change.
+const cardVersion = ref(0);
+const notifyCardUpdated = () => {
+  cardVersion.value += 1;
+  emit('updated', card.value);
+};
+
 const cardDisplayId = computed(() => card.value?.id || props.cardId);
 const totalValue = computed(
   () => productsTotalValue.value ?? Number(card.value?.value || 0)
@@ -192,7 +200,7 @@ const loadCard = async () => {
 
 const saveCard = async () => {
   const saved = await persistCard();
-  if (saved) emit('updated', card.value);
+  if (saved) notifyCardUpdated();
 
   return saved;
 };
@@ -217,7 +225,7 @@ const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
       kanbanReasonId:
         updatedCard.kanbanReasonId ?? (reopen ? null : reasonId || null),
     });
-    emit('updated', card.value);
+    notifyCardUpdated();
     useAlert(
       t(
         reopen
@@ -358,9 +366,12 @@ defineExpose({
                   :custom-fields="customFields"
                 />
               </section>
+              <!-- Mounted on demand instead of kept alive: the timeline holds no
+              editable state, so remounting on every visit and on every card
+              change is all it takes to keep it fresh. -->
               <KanbanCardTimelineTab
-                v-if="loadedTabKeys.includes('history')"
-                v-show="activeTabKey === 'history'"
+                v-if="activeTabKey === 'history'"
+                :key="cardVersion"
                 :board-id="boardId"
                 :card-id="cardId"
               />
