@@ -557,24 +557,20 @@ const onSearchKeydown = event => {
   clearSearch();
 };
 
-const persistBoardPrefs = prefs => {
+// Every stored preference is derived from live board state, so persisting is
+// always a full snapshot taken after that state has been updated.
+const persistBoardPrefs = () => {
   if (!selectedBoard.value?.id) return;
-  const currentPrefs =
-    getKanbanBoardPrefs({
-      accountId: route.params.accountId,
-      boardId: selectedBoard.value.id,
-      userId: boardPrefsUserId(),
-    }) || {};
 
   saveKanbanBoardPrefs({
     accountId: route.params.accountId,
     boardId: selectedBoard.value.id,
     userId: boardPrefsUserId(),
     prefs: {
-      ...currentPrefs,
-      ...prefs,
       collapsedStageIds: [...collapsedStageIds.value],
       terminalPeriod: terminalPeriod.value,
+      mine: isMineActive.value,
+      today: isTodayActive.value,
     },
   });
 };
@@ -590,7 +586,7 @@ const toggleStageCollapsed = async stage => {
   }
 
   collapsedStageIds.value = nextCollapsedStageIds;
-  persistBoardPrefs({ collapsedStageIds: [...nextCollapsedStageIds] });
+  persistBoardPrefs();
 
   // Collapsing drops the cards and keeps the counters, expanding brings the
   // cards back; both are the same first-page refresh.
@@ -599,25 +595,18 @@ const toggleStageCollapsed = async stage => {
 
 const updateTerminalPeriod = async ({ stageId, value }) => {
   terminalPeriod.value = normalizeTerminalPeriod(value);
-  persistBoardPrefs({ terminalPeriod: terminalPeriod.value });
+  persistBoardPrefs();
   await refreshStageFirstPage(stageId);
 };
 
 const updateBoardFilters = async filters => {
   boardFilters.value = normalizeBoardFilters(filters);
-  persistBoardPrefs({
-    mine: isMineActive.value,
-    today: isTodayActive.value,
-  });
+  persistBoardPrefs();
   requestGeneration.value += 1;
   await refreshSelectedBoard();
 };
 
 const clearBoardFilters = () => {
-  persistBoardPrefs({
-    mine: false,
-    today: false,
-  });
   updateBoardFilters(emptyBoardFilters());
 };
 
@@ -637,10 +626,6 @@ const toggleMine = () => {
     nextFilters.matchMode = 'all';
   }
 
-  persistBoardPrefs({
-    mine: willBeActive,
-    today: isTodayActive.value,
-  });
   updateBoardFilters(nextFilters);
 };
 
@@ -675,10 +660,6 @@ const toggleToday = () => {
     nextFilters.matchMode = 'all';
   }
 
-  persistBoardPrefs({
-    mine: isMineActive.value,
-    today: willBeActive,
-  });
   updateBoardFilters(nextFilters);
 };
 

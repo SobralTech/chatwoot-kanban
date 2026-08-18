@@ -21,7 +21,6 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
     sanitized_labels
     sanitized_match_mode
     sanitized_terminal_period
-    @collapsed_stage_ids = sanitized_collapsed_stage_ids
     @kanban_stages = @kanban_board.kanban_stages.active.ordered
     fetch_stage_card_results
   end
@@ -125,7 +124,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
         visible_team_ids: board_list_team_ids,
         account_user: Current.account_user
       )
-      query.call(load_cards: @collapsed_stage_ids.exclude?(kanban_stage.id))
+      query.call(load_cards: sanitized_collapsed_stage_ids.exclude?(kanban_stage.id))
     end
   end
 

@@ -1,7 +1,6 @@
 module KanbanCardFilterParams
   CARD_STATUSES = %w[open won lost].freeze
   DUE_DATES = %w[none overdue day week month].freeze
-  TERMINAL_PERIOD_VALUES = %w[7d 30d 90d all].freeze
 
   private
 
@@ -65,7 +64,9 @@ module KanbanCardFilterParams
   end
 
   def sanitized_terminal_period
-    @sanitized_terminal_period ||= params[:terminal_period].to_s.presence_in(TERMINAL_PERIOD_VALUES) || TERMINAL_PERIOD_VALUES[1]
+    @sanitized_terminal_period ||=
+      params[:terminal_period].to_s.presence_in(KanbanCards::VisibleStageCardsQuery::TERMINAL_PERIOD_VALUES) ||
+      KanbanCards::VisibleStageCardsQuery::DEFAULT_TERMINAL_PERIOD
   end
 
   def sanitized_collapsed_stage_ids = @sanitized_collapsed_stage_ids ||= normalized_integer_filter_ids(:collapsed_stage_ids)

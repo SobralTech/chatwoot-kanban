@@ -8,6 +8,8 @@ class KanbanCards::VisibleStageCardsQuery
   MATCH_MODES = %w[all any].freeze
   DEFAULT_MATCH_MODE = 'any'.freeze
   TERMINAL_PERIODS = { '7d' => 7, '30d' => 30, '90d' => 90 }.freeze
+  ALL_TIME_TERMINAL_PERIOD = 'all'.freeze
+  TERMINAL_PERIOD_VALUES = (TERMINAL_PERIODS.keys + [ALL_TIME_TERMINAL_PERIOD]).freeze
   DEFAULT_TERMINAL_PERIOD = '30d'.freeze
 
   # rubocop:disable Metrics/ParameterLists
@@ -117,13 +119,13 @@ class KanbanCards::VisibleStageCardsQuery
     return unless terminal_stage?
 
     days = TERMINAL_PERIODS[terminal_period]
-    return if days.blank? # 'all' or an invalid value
+    return if days.blank? # 'all' keeps the whole history
 
     card_table[:stage_entered_at].gteq(days.days.ago)
   end
 
   def terminal_stage?
-    [kanban_board.won_stage_id, kanban_board.lost_stage_id].include?(kanban_stage.id)
+    KanbanStage.special_stage_ids(kanban_board).include?(kanban_stage.id)
   end
 
   def inbox_condition

@@ -39,10 +39,6 @@ export const saveKanbanBoardPrefs = ({ accountId, boardId, userId, prefs }) => {
   LocalStorage.set(prefsKey(accountId, boardId, userId), prefs);
 };
 
-export const removeKanbanBoardPrefs = ({ accountId, boardId, userId }) => {
-  LocalStorage.remove(prefsKey(accountId, boardId, userId));
-};
-
 export const getKanbanBoardPrefs = ({ accountId, boardId, userId }) => {
   return LocalStorage.get(prefsKey(accountId, boardId, userId));
 };
