@@ -298,6 +298,9 @@ const mountModal = async ({
   lostStageId = null,
   lostReasonRequired = false,
   reasons = [],
+  stages = [],
+  moveToStage = vi.fn().mockResolvedValue(true),
+  hasBlockingDialog = false,
 } = {}) => {
   storeMocks.labels = accountLabels;
   storeMocks.dispatch.mockResolvedValue();
@@ -330,6 +333,9 @@ const mountModal = async ({
       lostStageId,
       lostReasonRequired,
       reasons,
+      stages,
+      moveToStage,
+      hasBlockingDialog,
     },
     global: {
       stubs: {
@@ -458,6 +464,7 @@ describe('KanbanOpportunityPanel', () => {
       props: {
         boardId: 10,
         cardId: 501,
+        moveToStage: vi.fn(),
       },
       global: {
         stubs: {
@@ -1157,5 +1164,85 @@ describe('KanbanOpportunityPanel', () => {
         .exists()
     ).toBe(true);
     expect(wrapper.emitted('updated')).toBeTruthy();
+  });
+  it('stands down from keyboard shortcuts while a blocking dialog is open', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
+      data: buildCard(),
+    });
+    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({ data: [] });
+    KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
+      data: { payload: [] },
+    });
+    const wrapper = await mountModal({ hasBlockingDialog: true });
+
+    await subjectInput(wrapper).setValue('Updated subject');
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 's', ctrlKey: true })
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await flushPromises();
+
+    expect(wrapper.emitted('updated')).toBeUndefined();
+    expect(wrapper.emitted('close')).toBeUndefined();
+    expect(
+      wrapper
+        .find('[data-testid="kanban-opportunity-unsaved-indicator"]')
+        .exists()
+    ).toBe(true);
+  });
+
+  it('does not trap tab while a blocking dialog is open', async () => {
+    await mountModal({ hasBlockingDialog: true });
+    const tabEvent = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      cancelable: true,
+    });
+
+    document.dispatchEvent(tabEvent);
+
+    expect(tabEvent.defaultPrevented).toBe(false);
+  });
+
+  it('moves the card to another stage through the injected action', async () => {
+    const moveToStage = vi.fn().mockResolvedValue(true);
+    const wrapper = await mountModal({
+      card: buildCard({ kanbanStageId: 15 }),
+      stages: [
+        { id: 15, name: 'Prospecting' },
+        { id: 16, name: 'Negotiation' },
+      ],
+      moveToStage,
+    });
+
+    wrapper
+      .findComponent('[data-testid="kanban-opportunity-stage-select"]')
+      .vm.$emit('update:modelValue', 16);
+    await flushPromises();
+
+    expect(moveToStage).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 501 }),
+      16
+    );
+    expect(wrapper.emitted('moveToStage')).toBeUndefined();
+  });
+
+  it('reverts the stage select when the move is rejected', async () => {
+    const moveToStage = vi.fn().mockResolvedValue(false);
+    const wrapper = await mountModal({
+      card: buildCard({ kanbanStageId: 15 }),
+      stages: [
+        { id: 15, name: 'Prospecting' },
+        { id: 16, name: 'Negotiation' },
+      ],
+      moveToStage,
+    });
+    const select = wrapper.findComponent(
+      '[data-testid="kanban-opportunity-stage-select"]'
+    );
+
+    select.vm.$emit('update:modelValue', 16);
+    await flushPromises();
+
+    expect(select.props('modelValue')).toBe(15);
   });
 });

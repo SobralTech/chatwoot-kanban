@@ -1097,9 +1097,6 @@ const closeOpportunityDetails = () => {
     opportunityTriggerRef.value = null;
   });
 };
-const moveOpportunityToStage = (card, targetStageId) =>
-  moveCardToStage(card, targetStageId);
-
 const attemptCloseOpportunityDetails = () => {
   if (opportunityModalRef.value?.hasUnsavedChanges) {
     showUnsavedOpportunityChangesConfirm.value = true;
@@ -1450,7 +1447,8 @@ watch(searchInput, () => {
       :lost-reason-required="!!selectedBoard.lostReasonRequired"
       :reasons="selectedBoard.reasons || []"
       :custom-fields="selectedBoard.customFields || []"
-      :move-to-stage="moveOpportunityToStage"
+      :move-to-stage="moveCardToStage"
+      :has-blocking-dialog="showUnsavedOpportunityChangesConfirm"
       @close="attemptCloseOpportunityDetails"
       @updated="onOpportunityUpdated"
       @open-conversation="openConversation"

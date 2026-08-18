@@ -23,14 +23,6 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
-  isLoadingLabels: {
-    type: Boolean,
-    default: false,
-  },
-  labelsLoadError: {
-    type: String,
-    default: '',
-  },
   assignedUsers: {
     type: Array,
     default: () => [],
@@ -38,14 +30,6 @@ const props = defineProps({
   assignableUsers: {
     type: Array,
     default: () => [],
-  },
-  isLoadingAssignees: {
-    type: Boolean,
-    default: false,
-  },
-  assigneesLoadError: {
-    type: String,
-    default: '',
   },
   totalValue: {
     type: Number,
@@ -181,20 +165,11 @@ const openConversation = () => {
       <h3 class="mb-0 text-sm font-medium text-n-slate-12">
         {{ t('KANBAN.OPPORTUNITY_DETAILS.LABELS') }}
       </h3>
-      <p
-        v-if="labelsLoadError"
-        data-testid="kanban-opportunity-labels-load-error"
-        class="mb-0 text-sm text-n-ruby-11"
-      >
-        {{ labelsLoadError }}
-      </p>
-
       <Popover align="start" disable-mobile-view :show-content-border="false">
         <button
           type="button"
           data-testid="kanban-opportunity-labels-menu"
-          class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isLoadingLabels"
+          class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand"
         >
           <i class="i-lucide-tags size-4 flex-shrink-0 text-n-slate-11" />
           <span class="min-w-0 flex-1 truncate">
@@ -239,7 +214,7 @@ const openConversation = () => {
         </span>
       </div>
       <p
-        v-else-if="!isLoadingLabels && !labelsLoadError"
+        v-else
         data-testid="kanban-opportunity-no-labels"
         class="mb-0 text-sm text-n-slate-11"
       >
@@ -251,20 +226,11 @@ const openConversation = () => {
       <h3 class="mb-0 text-sm font-medium text-n-slate-12">
         {{ t('KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE') }}
       </h3>
-      <p
-        v-if="assigneesLoadError"
-        data-testid="kanban-opportunity-assignees-load-error"
-        class="mb-0 text-sm text-n-ruby-11"
-      >
-        {{ assigneesLoadError }}
-      </p>
-
       <Popover align="start" disable-mobile-view :show-content-border="false">
         <button
           type="button"
           data-testid="kanban-opportunity-assignees-menu"
-          class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isLoadingAssignees"
+          class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand"
         >
           <i class="i-lucide-users size-4 flex-shrink-0 text-n-slate-11" />
           <span class="min-w-0 flex-1 truncate">
@@ -337,7 +303,7 @@ const openConversation = () => {
         </span>
       </div>
       <p
-        v-else-if="!isLoadingAssignees && !assigneesLoadError"
+        v-else
         data-testid="kanban-opportunity-no-assignees"
         class="mb-0 text-sm text-n-slate-11"
       >
