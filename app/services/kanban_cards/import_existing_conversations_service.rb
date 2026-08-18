@@ -30,27 +30,35 @@ class KanbanCards::ImportExistingConversationsService
   attr_reader :account, :kanban_board, :ignore_groups, :summary
 
   def import_batch(batch)
-    inserted_count = KanbanCard.transaction do
-      result = KanbanCard.connection.exec_query(insert_sql(batch))
-      cards = KanbanCard.where(id: result.rows.flatten).to_a
-      cards.each { |card| record_card_created_event(card) }
-      cards.length
+    inserted_rows = KanbanCard.transaction do
+      rows = KanbanCard.connection.exec_query(insert_sql(batch)).to_a
+      record_card_created_events(rows)
+      rows
     end
 
-    summary[:created] += inserted_count
+    summary[:created] += inserted_rows.length
   end
 
-  def record_card_created_event(card)
-    KanbanCards::RecordEventService.call(
-      card: card,
-      event_type: 'card_created',
-      metadata: {
-        origin: card.origin,
-        stage_id: card.kanban_stage_id,
-        conversation_id: card.conversation_id,
-        recreated_from_card_id: card.recreated_from_card_id
-      }
+  # Stays bulk: the events are built from the INSERT ... RETURNING rows, so an
+  # import costs two statements per batch instead of one per imported card.
+  def record_card_created_events(rows)
+    return if rows.empty?
+
+    recorded_at = Time.current
+    # rubocop:disable Rails/SkipsModelValidations
+    KanbanCardEvent.insert_all(
+      rows.map do |row|
+        {
+          account_id: row['account_id'],
+          kanban_card_id: row['id'],
+          kanban_board_id: row['kanban_board_id'],
+          event_type: 'card_created',
+          metadata: KanbanCards::RecordEventService.card_created_metadata(row),
+          created_at: recorded_at
+        }
+      end
     )
+    # rubocop:enable Rails/SkipsModelValidations
   end
 
   def insert_sql(batch)
@@ -61,7 +69,7 @@ class KanbanCards::ImportExistingConversationsService
       ON CONFLICT (kanban_board_id, conversation_id, inbox_id, normalized_subject)
         WHERE origin = 'conversation' AND conversation_id IS NOT NULL AND normalized_subject IS NOT NULL
         DO NOTHING
-      RETURNING id
+      RETURNING id, account_id, kanban_board_id, kanban_stage_id, conversation_id, origin
     SQL
   end
 

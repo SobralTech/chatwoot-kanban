@@ -1,4 +1,6 @@
 class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::BaseController # rubocop:disable Metrics/ClassLength
+  CardSnapshot = Data.define(:stage, :priority, :due_at, :labels)
+
   before_action :fetch_kanban_board
   before_action :authorize_kanban_board_show
   before_action :fetch_manual_card_records, only: [:create_manual]
@@ -117,20 +119,20 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def update_kanban_card
-    source_stage_id = @kanban_card.kanban_stage_id
-    transition_error = stable_card_move_params? && card_stage_transition_error(source_stage_id, @kanban_stage)
+    card_before_update = card_update_snapshot
+    transition_error = stable_card_move_params? && card_stage_transition_error(card_before_update.stage.id, @kanban_stage)
     return render json: transition_error, status: :unprocessable_content if transition_error
 
-    invalid_label_titles = perform_kanban_card_update!(source_stage_id)
+    invalid_label_titles = perform_kanban_card_update!(card_before_update)
     return render_unknown_labels(invalid_label_titles) if invalid_label_titles.present?
 
     dispatch_kanban_card_event(Events::Types::KANBAN_CARD_UPDATED)
     render_card
   end
 
-  def perform_kanban_card_update!(source_stage_id)
+  def perform_kanban_card_update!(card_before_update)
     invalid_label_titles = []
-    update_snapshot = card_update_snapshot
+    source_stage_id = card_before_update.stage.id
 
     KanbanCard.transaction do
       if labels_param_present? && unknown_label_titles.present?
@@ -142,7 +144,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       @kanban_card.update!(stable_card_update_params)
       @kanban_card.update_labels(label_titles) if labels_param_present?
 
-      record_update_events(update_snapshot)
+      record_update_events(card_before_update)
     end
 
     invalid_label_titles
@@ -194,19 +196,23 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def card_update_snapshot
-    {
-      source_stage: @kanban_card.kanban_stage,
-      previous_priority: @kanban_card.priority,
-      previous_due_at: @kanban_card.due_at,
-      previous_labels: card_label_titles
-    }
+    CardSnapshot.new(
+      stage: @kanban_card.kanban_stage,
+      priority: @kanban_card.priority,
+      due_at: @kanban_card.due_at,
+      labels: card_label_titles
+    )
   end
 
-  def record_update_events(snapshot)
-    record_stage_event(snapshot[:source_stage], @kanban_stage) if stable_card_move_params?
-    record_attribute_event('priority_changed', snapshot[:previous_priority], @kanban_card.priority) if card_params.key?(:priority)
-    record_attribute_event('due_at_changed', snapshot[:previous_due_at], @kanban_card.due_at, time_value: true) if card_params.key?(:due_at)
-    record_labels_event(snapshot[:previous_labels], card_label_titles) if labels_param_present?
+  # Every recorder below no-ops when the value did not move, so the params do not
+  # need a second round of guards here.
+  def record_update_events(card_before_update)
+    record_stage_event(card_before_update.stage, @kanban_stage)
+    record_attribute_event('priority_changed', card_before_update.priority, @kanban_card.priority)
+    record_attribute_event('due_at_changed', card_before_update.due_at, @kanban_card.due_at, time_value: true)
+    KanbanCards::RecordEventService.labels_changed(
+      card: @kanban_card, from: card_before_update.labels, to: card_label_titles, user: Current.user
+    )
   end
 
   def record_stage_event(source_stage, target_stage)
@@ -249,17 +255,6 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     values = { from: from, to: to }
     values = values.transform_values { |value| value&.iso8601 } if time_value
     record_event(event_type: event_type, metadata: values)
-  end
-
-  def record_labels_event(previous_labels, current_labels)
-    added = current_labels - previous_labels
-    removed = previous_labels - current_labels
-    return if added.blank? && removed.blank?
-
-    record_event(
-      event_type: 'labels_changed',
-      metadata: { added: added.sort, removed: removed.sort }
-    )
   end
 
   def record_event(event_type:, metadata: {})

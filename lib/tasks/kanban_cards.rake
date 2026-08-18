@@ -26,17 +26,7 @@ class KanbanCardsCreationEventsBackfill
     KanbanCard.find_each do |card|
       next if card.kanban_card_events.exists?(event_type: 'card_created')
 
-      KanbanCards::RecordEventService.call(
-        card: card,
-        event_type: 'card_created',
-        metadata: {
-          origin: card.origin,
-          stage_id: card.kanban_stage_id,
-          conversation_id: card.conversation_id,
-          recreated_from_card_id: card.recreated_from_card_id
-        },
-        created_at: card.created_at
-      )
+      KanbanCards::RecordEventService.card_created(card, created_at: card.created_at)
       created_count += 1
     end
 

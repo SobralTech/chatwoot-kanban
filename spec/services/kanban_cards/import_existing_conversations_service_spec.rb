@@ -26,6 +26,24 @@ RSpec.describe KanbanCards::ImportExistingConversationsService do
       )
     end
 
+    it 'records one system card_created event per imported card, in bulk' do
+      create(:conversation, account: account, inbox: inbox)
+      create(:conversation, account: account, inbox: inbox)
+
+      expect { described_class.new(account: account, kanban_board: board).perform! }
+        .to change(KanbanCardEvent, :count).by(2)
+
+      card = KanbanCard.conversation.last
+      event = KanbanCardEvent.find_by(kanban_card_id: card.id)
+      expect(event).to have_attributes(event_type: 'card_created', user_id: nil, kanban_board_id: board.id)
+      expect(event.metadata).to eq(
+        'origin' => 'conversation',
+        'stage_id' => stage.id,
+        'conversation_id' => card.conversation_id,
+        'recreated_from_card_id' => nil
+      )
+    end
+
     it 'imports conversations regardless of status' do
       create(:conversation, account: account, inbox: inbox, status: 'open')
       create(:conversation, account: account, inbox: inbox, status: 'pending')

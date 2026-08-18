@@ -14,17 +14,9 @@ class Api::V1::Accounts::KanbanBoards::Cards::LabelsController < Api::V1::Accoun
     previous_label_titles = @kanban_card.label_list.to_a
     KanbanCard.transaction do
       @kanban_card.update_labels(label_titles)
-      added = label_titles - previous_label_titles
-      removed = previous_label_titles - label_titles
-
-      if added.present? || removed.present?
-        KanbanCards::RecordEventService.call(
-          card: @kanban_card,
-          event_type: 'labels_changed',
-          user: Current.user,
-          metadata: { added: added.sort, removed: removed.sort }
-        )
-      end
+      KanbanCards::RecordEventService.labels_changed(
+        card: @kanban_card, from: previous_label_titles, to: label_titles, user: Current.user
+      )
     end
     fetch_labels
     render :index

@@ -30,6 +30,30 @@ RSpec.describe KanbanCards::RecordEventService do
     )
   end
 
+  it 'records card_created with the card scope and an explicit timestamp' do
+    described_class.card_created(card, created_at: card.created_at)
+
+    event = KanbanCardEvent.last
+    expect(event).to have_attributes(event_type: 'card_created', user_id: nil, created_at: card.created_at)
+    expect(event.metadata).to eq(
+      'origin' => card.origin,
+      'stage_id' => card.kanban_stage_id,
+      'conversation_id' => card.conversation_id,
+      'recreated_from_card_id' => nil
+    )
+  end
+
+  it 'records only the added and removed sides of a list change' do
+    described_class.labels_changed(card: card, from: %w[billing urgent], to: %w[urgent vip], user: user)
+
+    expect(KanbanCardEvent.last.metadata).to eq('added' => ['vip'], 'removed' => ['billing'])
+  end
+
+  it 'skips list events when nothing moved' do
+    expect { described_class.assignees_changed(card: card, from: [1, 2], to: [2, 1], user: user) }
+      .not_to change(KanbanCardEvent, :count)
+  end
+
   it 'records system events without a user' do
     described_class.call(card: card, event_type: 'card_created')
 
