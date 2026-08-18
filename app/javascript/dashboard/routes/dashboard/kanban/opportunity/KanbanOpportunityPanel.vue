@@ -150,8 +150,8 @@ const tabItems = computed(() => [
     }`,
   },
   {
-    key: 'history',
-    label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.HISTORY'),
+    key: 'activity',
+    label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.ACTIVITY'),
   },
 ]);
 const activeTabIndex = computed(() =>
@@ -370,7 +370,7 @@ defineExpose({
               editable state, so remounting on every visit and on every card
               change is all it takes to keep it fresh. -->
               <KanbanCardTimelineTab
-                v-if="activeTabKey === 'history'"
+                v-if="activeTabKey === 'activity'"
                 :key="cardVersion"
                 :board-id="boardId"
                 :card-id="cardId"

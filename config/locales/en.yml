@@ -125,6 +125,10 @@ en:
       value:
         invalid_for_field_type: 'is invalid for "%{field_key}" (expected a valid %{field_type} value)'
         multiple_not_allowed: 'for "%{field_key}" does not accept multiple values'
+    kanban_card_note:
+      attachments:
+        too_many: 'Up to 5 files per note.'
+        too_large: 'Each file must be 20MB or smaller.'
     signup:
       disposable_email: We do not allow disposable emails
       blocked_domain: This domain is not allowed. If you believe this is a mistake, please contact support.

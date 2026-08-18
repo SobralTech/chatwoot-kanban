@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_18_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_18_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1141,6 +1141,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_120000) do
     t.index ["kanban_custom_field_id"], name: "index_kanban_card_field_values_on_kanban_custom_field_id"
   end
 
+  create_table "kanban_card_notes", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_card_id", null: false
+    t.bigint "user_id"
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_kanban_card_notes_on_account_id"
+    t.index ["kanban_card_id", "created_at"], name: "index_kanban_card_notes_on_kanban_card_id_and_created_at"
+    t.index ["kanban_card_id"], name: "index_kanban_card_notes_on_kanban_card_id"
+    t.index ["user_id"], name: "index_kanban_card_notes_on_user_id"
+  end
+
   create_table "kanban_card_products", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "kanban_card_id", null: false
@@ -1675,6 +1688,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_120000) do
   add_foreign_key "kanban_card_field_values", "accounts"
   add_foreign_key "kanban_card_field_values", "kanban_cards"
   add_foreign_key "kanban_card_field_values", "kanban_custom_fields"
+  add_foreign_key "kanban_card_notes", "accounts"
+  add_foreign_key "kanban_card_notes", "kanban_cards"
+  add_foreign_key "kanban_card_notes", "users", on_delete: :nullify
   add_foreign_key "kanban_card_products", "accounts"
   add_foreign_key "kanban_card_products", "kanban_cards"
   add_foreign_key "kanban_cards", "kanban_cards", column: "recreated_from_card_id", on_delete: :nullify

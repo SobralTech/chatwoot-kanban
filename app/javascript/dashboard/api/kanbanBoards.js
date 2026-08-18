@@ -135,6 +135,32 @@ class KanbanBoardsAPI extends ApiClient {
     });
   }
 
+  getCardNotes(boardId, cardId, params = {}) {
+    return axios.get(`${this.url}/${boardId}/cards/by_id/${cardId}/notes`, {
+      params,
+    });
+  }
+
+  createCardNote(boardId, cardId, payload) {
+    return axios.post(
+      `${this.url}/${boardId}/cards/by_id/${cardId}/notes`,
+      payload
+    );
+  }
+
+  updateCardNote(boardId, cardId, noteId, payload) {
+    return axios.patch(
+      `${this.url}/${boardId}/cards/by_id/${cardId}/notes/${noteId}`,
+      { note: payload }
+    );
+  }
+
+  deleteCardNote(boardId, cardId, noteId) {
+    return axios.delete(
+      `${this.url}/${boardId}/cards/by_id/${cardId}/notes/${noteId}`
+    );
+  }
+
   updateCardDetailsById(boardId, cardId, payload) {
     return axios.patch(`${this.url}/${boardId}/cards/by_id/${cardId}`, {
       card: payload,

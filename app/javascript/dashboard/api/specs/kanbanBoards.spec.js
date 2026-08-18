@@ -30,6 +30,10 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('updateCardLabels');
     expect(kanbanBoards).toHaveProperty('reorderCardById');
     expect(kanbanBoards).toHaveProperty('deleteCardById');
+    expect(kanbanBoards).toHaveProperty('getCardNotes');
+    expect(kanbanBoards).toHaveProperty('createCardNote');
+    expect(kanbanBoards).toHaveProperty('updateCardNote');
+    expect(kanbanBoards).toHaveProperty('deleteCardNote');
   });
 
   describe('API calls', () => {
@@ -259,6 +263,42 @@ describe('#KanbanBoardsAPI', () => {
 
       expect(axiosMock.get).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501'
+      );
+    });
+    it('#getCardNotes', () => {
+      kanbanBoards.getCardNotes(2, 501, { limit: 20 });
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/notes',
+        { params: { limit: 20 } }
+      );
+    });
+
+    it('#createCardNote', () => {
+      const payload = new FormData();
+      kanbanBoards.createCardNote(2, 501, payload);
+
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/notes',
+        payload
+      );
+    });
+
+    it('#updateCardNote', () => {
+      const payload = { content: 'Updated note' };
+      kanbanBoards.updateCardNote(2, 501, 9, payload);
+
+      expect(axiosMock.patch).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/notes/9',
+        { note: payload }
+      );
+    });
+
+    it('#deleteCardNote', () => {
+      kanbanBoards.deleteCardNote(2, 501, 9);
+
+      expect(axiosMock.delete).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/by_id/501/notes/9'
       );
     });
 
