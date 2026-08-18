@@ -56,9 +56,7 @@ const copyNameInput = ref(null);
 const targetBoardId = ref(null);
 const targetPosition = ref(1);
 
-const currentBoardId = computed(() =>
-  Number(props.stage.kanbanBoardId || props.stage.kanban_board_id)
-);
+const currentBoardId = computed(() => Number(props.stage.kanbanBoardId));
 const targetBoard = computed(() =>
   props.boards.find(board => Number(board.id) === Number(targetBoardId.value))
 );
@@ -92,11 +90,7 @@ const targetBoardStageCount = computed(() => {
     return props.stages.length;
   }
 
-  return (
-    targetBoard.value?.stagesSummary?.length ||
-    targetBoard.value?.stages_summary?.length ||
-    0
-  );
+  return targetBoard.value?.stagesSummary?.length || 0;
 });
 const positionOptions = computed(() => {
   // Moving within the same board reuses the slot the stage already occupies.
@@ -113,9 +107,7 @@ const positionSelectOptions = computed(() =>
     label: t('KANBAN.STAGE_MENU.MOVE.POSITION_VALUE', { position }),
   }))
 );
-const cardCount = computed(
-  () => props.stage.cardsCount ?? props.stage.cards_count ?? 0
-);
+const cardCount = computed(() => props.stage.cardsCount ?? 0);
 const hasCards = computed(() => cardCount.value > 0);
 const canMoveToAnotherBoard = computed(
   () => !isCurrentStageTerminal.value && cardCount.value === 0

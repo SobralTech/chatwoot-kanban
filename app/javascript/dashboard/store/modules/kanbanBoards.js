@@ -1,3 +1,4 @@
+import camelcaseKeys from 'camelcase-keys';
 import KanbanBoardsAPI from '../../api/kanbanBoards';
 import types from '../mutation-types';
 
@@ -56,7 +57,7 @@ export const actions = {
 
 export const mutations = {
   [types.SET_KANBAN_BOARDS](_state, data) {
-    _state.records = data;
+    _state.records = camelcaseKeys(data || [], { deep: true });
   },
   [types.SET_KANBAN_BOARDS_UI_FLAG](_state, data) {
     _state.uiFlags = { ..._state.uiFlags, ...data };

@@ -58,11 +58,25 @@ describe('Kanban Boards Store', () => {
   });
 
   describe('Mutations', () => {
-    it('SET_KANBAN_BOARDS replaces records', () => {
+    it('SET_KANBAN_BOARDS replaces records with a camelized payload', () => {
       const state = { records: [], uiFlags: {} };
-      const data = [{ id: 1, name: 'Board A' }];
+      const data = [
+        {
+          id: 1,
+          name: 'Board A',
+          cards_count: 3,
+          stages_summary: [{ id: 9, cards_count: 2 }],
+        },
+      ];
       storeModule.mutations[types.SET_KANBAN_BOARDS](state, data);
-      expect(state.records).toEqual(data);
+      expect(state.records).toEqual([
+        {
+          id: 1,
+          name: 'Board A',
+          cardsCount: 3,
+          stagesSummary: [{ id: 9, cardsCount: 2 }],
+        },
+      ]);
     });
 
     it('SET_KANBAN_BOARDS_UI_FLAG merges flags', () => {

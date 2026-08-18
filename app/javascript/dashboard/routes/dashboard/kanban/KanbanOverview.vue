@@ -37,26 +37,12 @@ const openBoard = boardId => {
   });
 };
 
-const boardCardsCount = board => board.cards_count ?? board.cardsCount ?? 0;
-const boardStages = board => board.stages_summary || board.stagesSummary || [];
-const boardUsers = board => board.visible_users || board.visibleUsers || [];
-const boardInboxes = board =>
-  board.allowed_inboxes || board.allowedInboxes || [];
-const boardVisibilityMode = board =>
-  board.visibility_mode || board.visibilityMode || 'all_agents';
-const boardInboxScopeMode = board =>
-  board.inbox_scope_mode || board.inboxScopeMode || 'all_inboxes';
-
-const previewItems = (items, limit = 4) => items.slice(0, limit);
-const extraItemsCount = (items, limit = 4) => Math.max(items.length - limit, 0);
+const previewItems = (items = [], limit = 4) => items.slice(0, limit);
+const extraItemsCount = (items = [], limit = 4) =>
+  Math.max(items.length - limit, 0);
 
 const inboxIcon = inbox =>
-  getInboxIconByType(
-    inbox.channel_type || inbox.channelType,
-    inbox.medium,
-    'line',
-    inbox.name
-  );
+  getInboxIconByType(inbox.channelType, inbox.medium, 'line', inbox.name);
 
 const retryFetch = () => {
   store.dispatch('kanbanBoards/fetchBoards');
@@ -196,7 +182,7 @@ onMounted(async () => {
               >
                 {{
                   t('KANBAN.OVERVIEW.OPPORTUNITIES_COUNT', {
-                    count: boardCardsCount(board),
+                    count: board.cardsCount ?? 0,
                   })
                 }}
               </span>
@@ -204,7 +190,7 @@ onMounted(async () => {
 
             <div class="flex flex-wrap items-center gap-3 lg:justify-end">
               <div class="flex items-center" data-testid="overview-agent-list">
-                <template v-if="boardVisibilityMode(board) === 'all_agents'">
+                <template v-if="board.visibilityMode !== 'selected_agents'">
                   <span
                     class="inline-flex items-center gap-1.5 rounded-full border border-n-weak bg-n-surface-1 px-2.5 py-1 text-xs font-medium text-n-slate-11"
                   >
@@ -214,22 +200,22 @@ onMounted(async () => {
                 </template>
                 <template v-else>
                   <Avatar
-                    v-for="user in previewItems(boardUsers(board))"
+                    v-for="user in previewItems(board.visibleUsers)"
                     :key="user.id"
                     :name="user.name"
-                    :src="user.avatar_url || user.avatarUrl || ''"
+                    :src="user.avatarUrl || ''"
                     :size="28"
                     rounded-full
                     class="-ml-2 first:ml-0 ring-2 ring-n-surface-2"
                     data-testid="overview-agent-avatar"
                   />
                   <span
-                    v-if="extraItemsCount(boardUsers(board))"
+                    v-if="extraItemsCount(board.visibleUsers)"
                     class="-ml-2 inline-flex size-7 items-center justify-center rounded-full bg-n-alpha-2 text-xs font-medium text-n-slate-11 ring-2 ring-n-surface-2"
                   >
                     {{
                       t('KANBAN.OVERVIEW.EXTRA_COUNT', {
-                        count: extraItemsCount(boardUsers(board)),
+                        count: extraItemsCount(board.visibleUsers),
                       })
                     }}
                   </span>
@@ -240,7 +226,7 @@ onMounted(async () => {
                 class="flex flex-wrap items-center gap-2"
                 data-testid="overview-inbox-list"
               >
-                <template v-if="boardInboxScopeMode(board) === 'all_inboxes'">
+                <template v-if="board.inboxScopeMode !== 'selected_inboxes'">
                   <span
                     class="inline-flex items-center gap-1.5 rounded-full border border-n-weak bg-n-surface-1 px-2.5 py-1 text-xs font-medium text-n-slate-11"
                     data-testid="overview-inbox-pill"
@@ -251,7 +237,7 @@ onMounted(async () => {
                 </template>
                 <template v-else>
                   <span
-                    v-for="inbox in previewItems(boardInboxes(board))"
+                    v-for="inbox in previewItems(board.allowedInboxes)"
                     :key="inbox.id"
                     class="inline-flex max-w-40 items-center gap-1.5 rounded-full border border-n-weak bg-n-surface-1 px-2.5 py-1 text-xs font-medium text-n-slate-11"
                     data-testid="overview-inbox-pill"
@@ -263,12 +249,12 @@ onMounted(async () => {
                     <span class="truncate">{{ inbox.name }}</span>
                   </span>
                   <span
-                    v-if="extraItemsCount(boardInboxes(board))"
+                    v-if="extraItemsCount(board.allowedInboxes)"
                     class="inline-flex items-center rounded-full bg-n-alpha-2 px-2 py-1 text-xs font-medium text-n-slate-11"
                   >
                     {{
                       t('KANBAN.OVERVIEW.EXTRA_COUNT', {
-                        count: extraItemsCount(boardInboxes(board)),
+                        count: extraItemsCount(board.allowedInboxes),
                       })
                     }}
                   </span>
@@ -278,12 +264,12 @@ onMounted(async () => {
           </div>
 
           <div
-            v-if="boardStages(board).length"
+            v-if="board.stagesSummary?.length"
             class="flex flex-wrap gap-2"
             data-testid="overview-stage-list"
           >
             <span
-              v-for="stage in boardStages(board)"
+              v-for="stage in board.stagesSummary"
               :key="stage.id"
               class="inline-flex max-w-full items-center gap-2 rounded-full border border-n-weak bg-n-surface-1 px-3 py-1.5 text-xs font-medium text-n-slate-11"
               data-testid="overview-stage-pill"
@@ -296,7 +282,7 @@ onMounted(async () => {
               <span
                 class="inline-flex min-w-5 justify-center rounded-full bg-n-alpha-2 px-1.5 py-0.5 text-[11px] font-semibold text-n-slate-12"
               >
-                {{ stage.cards_count ?? stage.cardsCount ?? 0 }}
+                {{ stage.cardsCount ?? 0 }}
               </span>
             </span>
           </div>

@@ -138,11 +138,8 @@ const extraAssigneeCount = computed(() =>
 );
 const moveBoardId = ref(null);
 const moveTargetStage = ref(null);
-const boardValue = (board, camelKey, snakeKey, fallback = null) =>
-  board?.[camelKey] ?? board?.[snakeKey] ?? fallback;
 const currentBoardId = computed(() => {
-  const boardId =
-    props.board?.id ?? props.card.kanbanBoardId ?? props.card.kanban_board_id;
+  const boardId = props.board?.id ?? props.card.kanbanBoardId;
   return boardId ? Number(boardId) : null;
 });
 const sourceBoard = computed(() => {
@@ -154,54 +151,28 @@ const sourceBoard = computed(() => {
 });
 const cardInboxId = computed(() => {
   const inboxId =
-    props.card.inboxId ??
-    props.card.inbox?.id ??
-    props.card.inbox_id ??
-    conversation.value.inboxId ??
-    conversation.value.inbox_id;
+    props.card.inboxId ?? props.card.inbox?.id ?? conversation.value.inboxId;
   return inboxId ? Number(inboxId) : null;
 });
-const boardAllowedInboxIds = board => {
-  const allowedInboxIds = boardValue(
-    board,
-    'allowedInboxIds',
-    'allowed_inbox_ids'
-  );
-  if (Array.isArray(allowedInboxIds)) return allowedInboxIds.map(Number);
-
-  const allowedInboxes = boardValue(
-    board,
-    'allowedInboxes',
-    'allowed_inboxes',
+// The board the card sits on comes from the show endpoint, which sends
+// allowedInboxIds; every other board comes from the index, which sends the
+// inboxes themselves.
+const boardAllowedInboxIds = board =>
+  (
+    board.allowedInboxIds ??
+    board.allowedInboxes?.map(allowedInbox => allowedInbox.id) ??
     []
-  );
-  return Array.isArray(allowedInboxes)
-    ? allowedInboxes.map(allowedInbox => Number(allowedInbox.id))
-    : [];
-};
-const boardAcceptsCardInbox = board => {
-  const scopeMode = boardValue(
-    board,
-    'inboxScopeMode',
-    'inbox_scope_mode',
-    'all_inboxes'
-  );
-  return (
-    scopeMode !== 'selected_inboxes' ||
-    boardAllowedInboxIds(board).includes(cardInboxId.value)
-  );
-};
+  ).map(Number);
+const boardAcceptsCardInbox = board =>
+  board.inboxScopeMode !== 'selected_inboxes' ||
+  boardAllowedInboxIds(board).includes(cardInboxId.value);
 const movableBoards = computed(() => {
   let availableBoards = props.boards;
   if (!availableBoards.length && props.board?.id) {
     availableBoards = [props.board];
   }
   return availableBoards
-    .filter(
-      board =>
-        boardValue(board, 'active', 'active', true) !== false &&
-        boardAcceptsCardInbox(board)
-    )
+    .filter(board => board.active !== false && boardAcceptsCardInbox(board))
     .slice()
     .sort((firstBoard, secondBoard) => {
       const firstIsCurrent = Number(firstBoard.id) === currentBoardId.value;
@@ -209,8 +180,7 @@ const movableBoards = computed(() => {
       if (firstIsCurrent !== secondIsCurrent) return firstIsCurrent ? -1 : 1;
 
       return (
-        Number(boardValue(firstBoard, 'position', 'position', 0)) -
-        Number(boardValue(secondBoard, 'position', 'position', 0))
+        Number(firstBoard.position ?? 0) - Number(secondBoard.position ?? 0)
       );
     });
 });
@@ -240,16 +210,16 @@ const isCurrentMoveBoard = computed(() => {
   return Number(moveBoardId.value) === currentBoardId.value;
 });
 const moveStages = computed(() => {
-  const board = selectedMoveBoard.value || {};
+  const board = selectedMoveBoard.value;
   const stages = isCurrentMoveBoard.value
     ? props.stages
-    : boardValue(board, 'stagesSummary', 'stages_summary', []);
+    : board.stagesSummary || [];
   const wonStageId = isCurrentMoveBoard.value
     ? props.wonStageId
-    : boardValue(board, 'wonStageId', 'won_stage_id');
+    : board.wonStageId;
   const lostStageId = isCurrentMoveBoard.value
     ? props.lostStageId
-    : boardValue(board, 'lostStageId', 'lost_stage_id');
+    : board.lostStageId;
   const terminalStageIds = [wonStageId, lostStageId]
     .filter(Boolean)
     .map(Number);
@@ -263,31 +233,13 @@ const moveStages = computed(() => {
     );
   });
 });
-const sourceCustomFields = computed(() =>
-  boardValue(sourceBoard.value, 'customFields', 'custom_fields', [])
+const sourceCustomFields = computed(() => sourceBoard.value.customFields || []);
+const targetCustomFields = computed(
+  () => selectedMoveBoard.value.customFields || []
 );
-const targetCustomFields = computed(() =>
-  boardValue(selectedMoveBoard.value, 'customFields', 'custom_fields', [])
+const cardCustomFieldKeys = computed(() =>
+  (props.card.customFieldKeys || []).filter(Boolean)
 );
-const cardCustomFieldKeys = computed(() => {
-  const keys = props.card.customFieldKeys || props.card.custom_field_keys;
-  if (Array.isArray(keys)) return keys.filter(Boolean);
-
-  const values = props.card.fieldValues || props.card.field_values;
-  if (!Array.isArray(values)) return [];
-
-  return values
-    .map(
-      fieldValue =>
-        fieldValue.customField?.key ||
-        fieldValue.custom_field?.key ||
-        fieldValue.kanbanCustomField?.key ||
-        fieldValue.kanban_custom_field?.key
-    )
-    .filter(Boolean);
-});
-const fieldAttribute = (field, camelKey, snakeKey) =>
-  field?.[camelKey] ?? field?.[snakeKey];
 const droppedFieldKeys = computed(() =>
   cardCustomFieldKeys.value.filter(key => {
     const sourceField = sourceCustomFields.value.find(
@@ -298,30 +250,22 @@ const droppedFieldKeys = computed(() =>
     return !targetCustomFields.value.some(
       targetField =>
         targetField.key === key &&
-        fieldAttribute(targetField, 'fieldType', 'field_type') ===
-          fieldAttribute(sourceField, 'fieldType', 'field_type') &&
-        Boolean(fieldAttribute(targetField, 'multiple', 'multiple')) ===
-          Boolean(fieldAttribute(sourceField, 'multiple', 'multiple'))
+        targetField.fieldType === sourceField.fieldType &&
+        Boolean(targetField.multiple) === Boolean(sourceField.multiple)
     );
   })
 );
 const moveConsequences = computed(() => {
   const sourceStageId = Number(props.card.kanbanStageId);
-  const sourceWonStageId = Number(
-    boardValue(sourceBoard.value, 'wonStageId', 'won_stage_id')
-  );
-  const sourceLostStageId = Number(
-    boardValue(sourceBoard.value, 'lostStageId', 'lost_stage_id')
-  );
+  const sourceWonStageId = Number(sourceBoard.value.wonStageId);
+  const sourceLostStageId = Number(sourceBoard.value.lostStageId);
   const consequences = [];
 
   if ([sourceWonStageId, sourceLostStageId].includes(sourceStageId)) {
     consequences.push({ key: 'MOVE_CONFIRM_REOPEN', params: {} });
   }
 
-  const reasonId = Number(
-    props.card.kanbanReasonId ?? props.card.kanban_reason_id
-  );
+  const reasonId = Number(props.card.kanbanReasonId);
   if (reasonId) {
     const reason = props.reasons.find(item => Number(item.id) === reasonId);
     consequences.push({
@@ -345,46 +289,17 @@ const moveConsequences = computed(() => {
   const isTerminal = [sourceWonStageId, sourceLostStageId].includes(
     sourceStageId
   );
-  const terminalRecurrenceEnabled =
-    (sourceStageId === sourceWonStageId &&
-      Boolean(
-        boardValue(
-          sourceBoard.value,
-          'wonRecurrenceEnabled',
-          'won_recurrence_enabled'
-        )
-      )) ||
-    (sourceStageId === sourceLostStageId &&
-      Boolean(
-        boardValue(
-          sourceBoard.value,
-          'lostRecurrenceEnabled',
-          'lost_recurrence_enabled'
-        )
-      ));
+  const { wonRecurrenceEnabled, lostRecurrenceEnabled } = sourceBoard.value;
+  const recurrenceEnabledForSourceStage =
+    (sourceStageId === sourceWonStageId && Boolean(wonRecurrenceEnabled)) ||
+    (sourceStageId === sourceLostStageId && Boolean(lostRecurrenceEnabled));
 
-  if (isTerminal && terminalRecurrenceEnabled) {
+  if (isTerminal && recurrenceEnabledForSourceStage) {
     consequences.push({
       key: 'MOVE_CONFIRM_RECURRENCE_REFERENCE_LEAVES',
       params: { board: sourceBoard.value.name },
     });
-  } else if (
-    !isTerminal &&
-    (Boolean(
-      boardValue(
-        sourceBoard.value,
-        'wonRecurrenceEnabled',
-        'won_recurrence_enabled'
-      )
-    ) ||
-      Boolean(
-        boardValue(
-          sourceBoard.value,
-          'lostRecurrenceEnabled',
-          'lost_recurrence_enabled'
-        )
-      ))
-  ) {
+  } else if (!isTerminal && (wonRecurrenceEnabled || lostRecurrenceEnabled)) {
     consequences.push({
       key: 'MOVE_CONFIRM_RECURRENCE_MAY_RECREATE',
       params: { board: sourceBoard.value.name },
