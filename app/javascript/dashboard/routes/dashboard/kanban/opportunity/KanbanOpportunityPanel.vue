@@ -11,7 +11,7 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import KanbanCardAdditionalDataTab from '../KanbanCardAdditionalDataTab.vue';
 import KanbanCardOverviewTab from './tabs/KanbanCardOverviewTab.vue';
 import KanbanCardItemsTab from './tabs/KanbanCardItemsTab.vue';
-import KanbanCardTimelineTab from './KanbanCardTimelineTab.vue';
+import KanbanCardTimelineTab from './tabs/KanbanCardTimelineTab.vue';
 import KanbanCardContextRail from './KanbanCardContextRail.vue';
 import KanbanOpportunityHeader from './KanbanOpportunityHeader.vue';
 import KanbanOpportunitySaveBar from './KanbanOpportunitySaveBar.vue';

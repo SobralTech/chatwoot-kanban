@@ -1,7 +1,4 @@
-class Api::V1::Accounts::KanbanBoards::Cards::FieldValuesController < Api::V1::Accounts::BaseController
-  before_action :fetch_kanban_board
-  before_action :fetch_kanban_card
-
+class Api::V1::Accounts::KanbanBoards::Cards::FieldValuesController < Api::V1::Accounts::KanbanBoards::Cards::BaseController
   def index
     authorize @kanban_card, :show?
     fetch_field_values
@@ -15,14 +12,6 @@ class Api::V1::Accounts::KanbanBoards::Cards::FieldValuesController < Api::V1::A
   end
 
   private
-
-  def fetch_kanban_board
-    @kanban_board = policy_scope(KanbanBoard).find(params[:kanban_board_id])
-  end
-
-  def fetch_kanban_card
-    @kanban_card = @kanban_board.kanban_cards.active.joins(:kanban_stage).merge(KanbanStage.active).find(params[:id])
-  end
 
   def fetch_field_values
     @kanban_card_field_values = @kanban_card.kanban_card_field_values.includes(:kanban_custom_field)
