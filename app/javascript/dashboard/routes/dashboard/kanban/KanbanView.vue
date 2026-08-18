@@ -29,6 +29,10 @@ import {
   saveKanbanBoardPrefs,
   saveKanbanBoardSnapshot,
 } from 'dashboard/helper/kanbanBoardSnapshot';
+import {
+  ALL_TIME_TERMINAL_PERIOD,
+  normalizeTerminalPeriod,
+} from 'dashboard/helper/kanbanBoardFilters';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -47,10 +51,7 @@ const inboxes = useMapGetter('inboxes/getAllInboxes');
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
-const DEFAULT_TERMINAL_PERIOD = '30d';
-const TERMINAL_PERIOD_VALUES = ['7d', DEFAULT_TERMINAL_PERIOD, '90d', 'all'];
 const collapsedStageIds = ref(new Set());
-const terminalPeriod = ref(DEFAULT_TERMINAL_PERIOD);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
 const isCreatingStageDraft = ref(false);
@@ -138,6 +139,7 @@ const {
   normalizeBoardFilters,
   scheduleSearch,
   searchInput,
+  terminalPeriod,
   todayCardsCount,
 } = useKanbanBoardFiltersState({
   currentUserId,
@@ -147,26 +149,10 @@ const {
 const isStageCollapsed = stageId => collapsedStageIds.value.has(stageId);
 const terminalPeriodOptions = computed(() => [
   { value: '7d', label: t('KANBAN.STAGE.PERIOD.7D') },
-  { value: DEFAULT_TERMINAL_PERIOD, label: t('KANBAN.STAGE.PERIOD.30D') },
+  { value: '30d', label: t('KANBAN.STAGE.PERIOD.30D') },
   { value: '90d', label: t('KANBAN.STAGE.PERIOD.90D') },
-  { value: 'all', label: t('KANBAN.STAGE.PERIOD.ALL') },
+  { value: ALL_TIME_TERMINAL_PERIOD, label: t('KANBAN.STAGE.PERIOD.ALL') },
 ]);
-const currentFilterParamsWithPreferences = () => ({
-  ...currentFilterParams(),
-  ...(terminalPeriod.value !== DEFAULT_TERMINAL_PERIOD
-    ? { terminal_period: terminalPeriod.value }
-    : {}),
-});
-const currentBoardRequestConfigWithPreferences = () => {
-  const params = {
-    ...currentFilterParamsWithPreferences(),
-    ...(collapsedStageIds.value.size
-      ? { collapsed_stage_ids: [...collapsedStageIds.value] }
-      : {}),
-  };
-
-  return Object.keys(params).length ? { params } : undefined;
-};
 const {
   applyStageFirstPage,
   fetchStageCardsPage,
@@ -183,8 +169,7 @@ const {
   staleRequest,
 } = useKanbanBoardData({
   collapsedStageIds,
-  currentBoardRequestConfig: currentBoardRequestConfigWithPreferences,
-  currentFilterParams: currentFilterParamsWithPreferences,
+  currentFilterParams,
   hasError,
   isFetchingBoard,
   route,
@@ -270,11 +255,12 @@ const canAddCardInEmptyStage = stage =>
   !isTerminalStage(stage) && !hasActiveFilters.value && !isCardDragging.value;
 const canAddCardInStageFooter = stage =>
   !isTerminalStage(stage) && stage.cards.length > 0;
-const emptyCardsLabel = computed(() =>
-  hasActiveFilters.value
+const isTerminalStagePeriodFiltered = stage =>
+  isTerminalStage(stage) && terminalPeriod.value !== ALL_TIME_TERMINAL_PERIOD;
+const emptyCardsLabel = stage =>
+  hasActiveFilters.value || isTerminalStagePeriodFiltered(stage)
     ? t('KANBAN.EMPTY_CARDS_FILTERED')
-    : t('KANBAN.EMPTY_CARDS')
-);
+    : t('KANBAN.EMPTY_CARDS');
 
 const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.error ||
@@ -332,9 +318,7 @@ const loadBoardPrefs = boardId => {
     : [];
 
   collapsedStageIds.value = new Set(storedStageIds);
-  terminalPeriod.value = TERMINAL_PERIOD_VALUES.includes(prefs?.terminalPeriod)
-    ? prefs.terminalPeriod
-    : DEFAULT_TERMINAL_PERIOD;
+  terminalPeriod.value = normalizeTerminalPeriod(prefs?.terminalPeriod);
 
   return prefs;
 };
@@ -614,10 +598,8 @@ const toggleStageCollapsed = async stage => {
 };
 
 const updateTerminalPeriod = async ({ stageId, value }) => {
-  if (!TERMINAL_PERIOD_VALUES.includes(value)) return;
-
-  terminalPeriod.value = value;
-  persistBoardPrefs({ terminalPeriod: value });
+  terminalPeriod.value = normalizeTerminalPeriod(value);
+  persistBoardPrefs({ terminalPeriod: terminalPeriod.value });
   await refreshStageFirstPage(stageId);
 };
 
@@ -1436,7 +1418,7 @@ watch(searchInput, () => {
                 :stage-accent="stageAccent"
                 :can-add-card-in-empty-stage="canAddCardInEmptyStage"
                 :can-add-card-in-stage-footer="canAddCardInStageFooter"
-                :empty-cards-label="emptyCardsLabel"
+                :empty-cards-label="emptyCardsLabel(stage)"
                 :editing-stage-id="editingStageId"
                 :stage-names="stageNames"
                 :stage-colors="stageColors"

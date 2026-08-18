@@ -5,7 +5,6 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
 export function useKanbanBoardData({
   collapsedStageIds,
-  currentBoardRequestConfig,
   currentFilterParams,
   hasError,
   isFetchingBoard,
@@ -22,6 +21,17 @@ export function useKanbanBoardData({
   const stageDataVersions = new Map();
   const requestGeneration = ref(0);
   const staleRequest = Symbol('stale-kanban-request');
+
+  // Collapsed columns are a per-user view preference rather than a filter, so
+  // the board request carries them next to the shared filter params.
+  const boardRequestConfig = () => {
+    const params = { ...currentFilterParams() };
+    if (collapsedStageIds.value.size) {
+      params.collapsed_stage_ids = [...collapsedStageIds.value];
+    }
+
+    return Object.keys(params).length ? { params } : undefined;
+  };
 
   const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
@@ -292,7 +302,7 @@ export function useKanbanBoardData({
     try {
       const response = await KanbanBoardsAPI.showBoard(
         boardId,
-        currentBoardRequestConfig()
+        boardRequestConfig()
       );
       if (generation !== requestGeneration.value) return;
       stageCardsLoading.value = {};

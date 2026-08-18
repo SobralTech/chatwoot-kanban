@@ -1,6 +1,9 @@
 import { computed, onUnmounted, ref } from 'vue';
 
-import { applyMatchModeConstraints } from 'dashboard/helper/kanbanBoardFilters';
+import {
+  applyMatchModeConstraints,
+  DEFAULT_TERMINAL_PERIOD,
+} from 'dashboard/helper/kanbanBoardFilters';
 
 export function useKanbanBoardFiltersState({
   currentUserId,
@@ -29,6 +32,7 @@ export function useKanbanBoardFiltersState({
     });
 
   const boardFilters = ref(emptyBoardFilters());
+  const terminalPeriod = ref(DEFAULT_TERMINAL_PERIOD);
   const searchInput = ref('');
   const activeSearchTerm = ref('');
   let searchDebounceTimer = null;
@@ -107,15 +111,19 @@ export function useKanbanBoardFiltersState({
   const currentSearchParams = () =>
     activeSearchTerm.value.length >= 2 ? { q: activeSearchTerm.value } : {};
 
+  // The period slices the two terminal columns only, so it is sent as a param
+  // but deliberately left out of activeBoardFilterCount, which gates whether
+  // cards can be dragged and reordered across the whole board.
+  const currentTerminalPeriodParams = () =>
+    terminalPeriod.value === DEFAULT_TERMINAL_PERIOD
+      ? {}
+      : { terminal_period: terminalPeriod.value };
+
   const currentFilterParams = () => ({
     ...currentBoardFilterParams(),
     ...currentSearchParams(),
+    ...currentTerminalPeriodParams(),
   });
-
-  const currentBoardRequestConfig = () =>
-    Object.keys(currentFilterParams()).length > 0
-      ? { params: currentFilterParams() }
-      : undefined;
 
   onUnmounted(() => {
     clearSearchDebounce();
@@ -125,7 +133,6 @@ export function useKanbanBoardFiltersState({
     activeBoardFilterCount,
     activeSearchTerm,
     boardFilters,
-    currentBoardRequestConfig,
     clearSearchDebounce,
     currentFilterParams,
     emptyBoardFilters,
@@ -138,6 +145,7 @@ export function useKanbanBoardFiltersState({
     normalizeBoardFilters,
     scheduleSearch,
     searchInput,
+    terminalPeriod,
     todayCardsCount,
   };
 }
