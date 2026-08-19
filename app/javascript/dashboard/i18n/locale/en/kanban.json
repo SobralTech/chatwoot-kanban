@@ -10,6 +10,18 @@
     "EMPTY_CARDS": "No cards in this stage.",
     "EMPTY_CARDS_FILTERED": "No cards match the current filters.",
     "NO_BOARD_SELECTED": "Select a board",
+    "STAGE": {
+      "COLLAPSE": "Collapse column",
+      "EXPAND": "Expand column",
+      "PERIOD": {
+        "LABEL": "Period",
+        "7D": "Last 7 days",
+        "30D": "Last 30 days",
+        "90D": "Last 90 days",
+        "ALL": "All time"
+      },
+      "PERIOD_SUMMARY": "Showing {period}"
+    },
     "ERROR": "Could not load kanban data.",
     "SEARCH": {
       "PLACEHOLDER": "Search cards...",
@@ -272,6 +284,27 @@
       "DRAG_LOST_REASON_REQUIRED": "This stage requires a loss reason — open the card and use the status badge to pick one before moving it here.",
       "DRAG_DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED": "Reopen the opportunity before marking it as won or lost."
     },
+    "BULK": {
+      "SELECTED": "{count} selected",
+      "CLEAR": "Clear selection",
+      "MOVE": "Move to",
+      "ASSIGN": "Assign to",
+      "APPLY": "Apply",
+      "UNASSIGN": "Unassign everyone",
+      "LABEL": "Add labels",
+      "PRIORITY": "Priority",
+      "LOSE": "Mark as lost",
+      "DELETE": "Delete",
+      "DELETE_CONFIRM_TITLE": "Delete opportunities",
+      "DELETE_CONFIRM_MESSAGE": "This permanently deletes {count} opportunities.",
+      "SUCCESS": "{count} opportunities updated.",
+      "PARTIAL": "{succeeded} of {total} updated. {failed} failed.",
+      "ERROR": "Could not apply the action.",
+      "LIMIT": "Select up to {count} opportunities at a time.",
+      "SELECT_CARD": "Select opportunity",
+      "NO_LABELS": "No labels available.",
+      "REMOVE_ALL_LABELS": "Remove all labels"
+    },
     "CUSTOM_FIELDS": {
       "LOADING": "Loading custom fields...",
       "LOAD_ERROR": "Could not load custom fields.",
@@ -410,7 +443,7 @@
         "GENERAL": "General",
         "PRODUCTS": "Products",
         "ADDITIONAL_DATA": "Additional data",
-        "HISTORY": "History"
+        "ACTIVITY": "Activity"
       },
       "TITLE": "Edit Opportunity",
       "CLOSE_PANEL": "Close opportunity details",
@@ -425,11 +458,22 @@
       "SAVE_STEP_ERROR_FIELDS": "The opportunity was saved, but the additional data was not.",
       "UNSAVED_FIELDS_MESSAGE": "You changed: {fields}.",
       "TIMELINE": {
-        "TITLE": "History",
-        "LOADING": "Loading history...",
-        "LOAD_ERROR": "Could not load the history.",
+        "TAB_TITLE": "Activity",
+        "LOADING": "Loading activity...",
+        "LOAD_ERROR": "Could not load the activity.",
         "EMPTY": "No activity recorded yet.",
         "SYSTEM_AUTHOR": "System",
+        "NOTE_PLACEHOLDER": "Add a note about this opportunity",
+        "ADD_NOTE": "Add note",
+        "ATTACH": "Attach file",
+        "NOTE_SAVED": "Note added.",
+        "NOTE_ERROR": "Could not add the note.",
+        "EDIT_NOTE": "Edit",
+        "DELETE_NOTE": "Delete",
+        "DELETE_NOTE_CONFIRM": "Delete this note?",
+        "ATTACHMENT_TOO_LARGE": "Each file must be 20MB or smaller.",
+        "TOO_MANY_ATTACHMENTS": "Up to 5 files per note.",
+        "ATTACHMENT_COUNT": "{count} / {max}",
         "LOAD_MORE": "Load more",
         "UNKNOWN_VALUE": "unknown value",
         "EVENTS": {
@@ -461,8 +505,9 @@
       "COPY_CARD_ID": "Copy card ID",
       "CARD_ID_COPIED": "Card ID copied.",
       "FIELD_TITLE": "Subject",
+      "FIELD_SUMMARY": "Summary",
       "FIELD_DESCRIPTION": "Description",
-      "DESCRIPTION_PLACEHOLDER": "Add a single note for this card",
+      "DESCRIPTION_PLACEHOLDER": "Add a summary of this opportunity",
       "ASSIGNEE": "Agent",
       "UNASSIGNED": "Unassigned",
       "NO_ASSIGNABLE_USERS": "No agents available",

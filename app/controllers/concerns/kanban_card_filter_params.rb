@@ -63,6 +63,14 @@ module KanbanCardFilterParams
       end
   end
 
+  def sanitized_terminal_period
+    @sanitized_terminal_period ||=
+      params[:terminal_period].to_s.presence_in(KanbanCards::VisibleStageCardsQuery::TERMINAL_PERIOD_VALUES) ||
+      KanbanCards::VisibleStageCardsQuery::DEFAULT_TERMINAL_PERIOD
+  end
+
+  def sanitized_collapsed_stage_ids = @sanitized_collapsed_stage_ids ||= normalized_integer_filter_ids(:collapsed_stage_ids)
+
   def sanitized_search_query
     return @sanitized_search_query if defined?(@sanitized_search_query)
 
@@ -79,7 +87,8 @@ module KanbanCardFilterParams
       filtered_due_dates: sanitized_due_dates,
       filtered_labels: sanitized_labels,
       match_mode: sanitized_match_mode,
-      search_query: sanitized_search_query
+      search_query: sanitized_search_query,
+      terminal_period: sanitized_terminal_period
     }
   end
 

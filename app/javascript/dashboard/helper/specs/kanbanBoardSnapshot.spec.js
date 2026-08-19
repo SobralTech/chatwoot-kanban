@@ -1,6 +1,8 @@
 import {
   getKanbanBoardSnapshot,
+  getKanbanBoardPrefs,
   removeKanbanBoardSnapshot,
+  saveKanbanBoardPrefs,
   saveKanbanBoardSnapshot,
 } from '../kanbanBoardSnapshot';
 
@@ -49,5 +51,21 @@ describe('kanbanBoardSnapshot', () => {
     removeKanbanBoardSnapshot({ accountId: 1, boardId: 10 });
 
     expect(getKanbanBoardSnapshot({ accountId: 1, boardId: 10 })).toBeNull();
+  });
+
+  it('stores board preferences independently by account, board, and user', () => {
+    saveKanbanBoardPrefs({
+      accountId: 1,
+      boardId: 10,
+      userId: 7,
+      prefs: { collapsedStageIds: [100], terminalPeriod: '7d' },
+    });
+
+    expect(
+      getKanbanBoardPrefs({ accountId: 1, boardId: 10, userId: 7 })
+    ).toEqual({ collapsedStageIds: [100], terminalPeriod: '7d' });
+    expect(
+      getKanbanBoardPrefs({ accountId: 1, boardId: 10, userId: 8 })
+    ).toBeNull();
   });
 });

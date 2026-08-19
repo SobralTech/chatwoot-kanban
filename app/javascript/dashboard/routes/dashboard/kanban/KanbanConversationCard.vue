@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, toRef } from 'vue';
+import { computed, nextTick, ref, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
@@ -15,6 +15,8 @@ import InboxName from 'dashboard/components/widgets/InboxName.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
+import WootLabel from 'dashboard/components/ui/Label.vue';
+import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
 import KanbanMenuHeader from './KanbanMenuHeader.vue';
@@ -35,6 +37,18 @@ const props = defineProps({
   boards: {
     type: Array,
     default: () => [],
+  },
+  isSelected: {
+    type: Boolean,
+    default: false,
+  },
+  isSelectionMode: {
+    type: Boolean,
+    default: false,
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false,
   },
   stages: {
     type: Array,
@@ -73,10 +87,13 @@ const emit = defineEmits([
   'moveToBoard',
   'assignAgent',
   'updateDueDate',
+  'updateLabels',
+  'toggleSelect',
 ]);
 
 const { t } = useI18n();
 const store = useStore();
+const accountLabels = computed(() => store.getters['labels/getLabels'] || []);
 const view = ref('root');
 const dueDateInput = ref('');
 const { isTerminalStage } = useKanbanStageOrder({
@@ -136,6 +153,7 @@ const primaryAssignee = computed(() => assignees.value[0] || null);
 const extraAssigneeCount = computed(() =>
   Math.max(assignees.value.length - 1, 0)
 );
+const extraAssigneeLabel = computed(() => `+${extraAssigneeCount.value}`);
 const moveBoardId = ref(null);
 const moveTargetStage = ref(null);
 const currentBoardId = computed(() => {
@@ -322,12 +340,31 @@ const viewTitle = computed(() => {
       return t('KANBAN.CARD.CHANGE_PRIORITY');
     case 'due':
       return t('KANBAN.CARD.DUE_DATE');
+    case 'labels':
+      return t('CONTACT_PANEL.LABELS.LABEL_SELECT.TITLE');
     default:
       return t('KANBAN.CARD.ACTIONS_MENU');
   }
 });
 const subject = computed(() => props.card.subject || '');
-const labels = computed(() => props.card.labels || props.card.label_list || []);
+const labels = computed(() => {
+  const cardLabels = props.card.labels || props.card.label_list || [];
+
+  return cardLabels.map(label => {
+    if (typeof label !== 'string') return label;
+
+    return (
+      accountLabels.value.find(
+        accountLabel => accountLabel.title === label
+      ) || {
+        title: label,
+      }
+    );
+  });
+});
+const cardLabelTitles = computed(() =>
+  labels.value.map(label => label.title).filter(Boolean)
+);
 
 const toUnixTimestamp = value => {
   if (!value) return null;
@@ -441,6 +478,21 @@ const onAssignAgent = (user, hide) => {
   closeMenu(hide);
 };
 
+const onAddLabel = label => {
+  const title = label?.title || label;
+  if (!title || cardLabelTitles.value.includes(title)) return;
+
+  emit('updateLabels', props.card, [...cardLabelTitles.value, title]);
+};
+
+const onRemoveLabel = title => {
+  emit(
+    'updateLabels',
+    props.card,
+    cardLabelTitles.value.filter(labelTitle => labelTitle !== title)
+  );
+};
+
 const openConversationFromMenu = hide => {
   emit('openConversation', props.card, {});
   closeMenu(hide);
@@ -469,16 +521,40 @@ const openCard = event => {
 
   emit('openDetails', props.card);
 };
+
+const toggleSelection = async event => {
+  const checkbox = event.target;
+  emit('toggleSelect', props.card, event);
+
+  // The board can refuse the toggle once the selection cap is reached, and the browser
+  // has already flipped the box by then, so re-assert whatever the board decided.
+  await nextTick();
+  checkbox.checked = props.isSelected;
+};
 </script>
 
 <template>
   <article
     tabindex="0"
-    class="card-drag-handle group relative cursor-pointer rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-brand"
+    class="card-drag-handle group relative cursor-pointer select-none rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-brand"
+    :class="{ 'border-n-brand ring-1 ring-n-brand': isSelected }"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openCard"
   >
+    <label
+      class="no-drag absolute top-1.5 z-10 flex size-7 items-center justify-center rounded-md bg-n-surface-1 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 ltr:right-11 rtl:left-11"
+      :class="{ 'opacity-100': isSelectionMode || isSelected }"
+      @click.stop
+    >
+      <input
+        type="checkbox"
+        class="no-drag size-4 cursor-pointer accent-n-brand"
+        :checked="isSelected"
+        :aria-label="t('KANBAN.BULK.SELECT_CARD')"
+        @click.stop="toggleSelection"
+      />
+    </label>
     <span
       class="no-drag absolute top-1.5 inline-flex ltr:right-1.5 rtl:left-1.5"
       @click.stop
@@ -556,6 +632,29 @@ const openCard = event => {
                   <span class="truncate">{{ t('KANBAN.CARD.MOVE_TO') }}</span>
                 </span>
                 <i class="i-lucide-chevron-right size-4 flex-shrink-0" />
+              </button>
+              <button
+                type="button"
+                data-testid="kanban-card-labels"
+                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="openView('labels')"
+              >
+                <span class="flex min-w-0 items-center gap-2">
+                  <i class="i-lucide-tags size-4" />
+                  <span class="truncate">
+                    {{ t('CONTACT_PANEL.LABELS.LABEL_SELECT.TITLE') }}
+                  </span>
+                </span>
+                <span class="flex flex-shrink-0 items-center gap-1">
+                  <span
+                    v-if="cardLabelTitles.length"
+                    class="text-xs text-n-slate-11"
+                  >
+                    {{ cardLabelTitles.length }}
+                  </span>
+                  <i class="i-lucide-chevron-right size-4" />
+                </span>
               </button>
               <button
                 type="button"
@@ -770,6 +869,16 @@ const openCard = event => {
                 @change="onSelectDueDate($event, hide)"
               />
             </div>
+
+            <div v-else-if="view === 'labels'" class="p-2">
+              <LabelDropdown
+                :account-labels="accountLabels"
+                :selected-labels="cardLabelTitles"
+                :allow-creation="isAdmin"
+                @add="onAddLabel"
+                @remove="onRemoveLabel"
+              />
+            </div>
           </div>
         </template>
       </Popover>
@@ -783,6 +892,17 @@ const openCard = event => {
       >
         {{ subject }}
       </p>
+
+      <div v-if="labels.length" class="mt-1 flex flex-wrap gap-1">
+        <WootLabel
+          v-for="label in labels"
+          :key="label.title"
+          :title="label.title"
+          :bg-color="label.color"
+          small
+          class="!m-0 max-w-full"
+        />
+      </div>
 
       <div class="mt-1 flex items-center gap-1.5">
         <span
@@ -824,7 +944,7 @@ const openCard = event => {
             v-if="extraAssigneeCount"
             class="absolute -bottom-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-n-slate-9 px-0.5 text-[9px] font-medium leading-none text-white"
           >
-            +{{ extraAssigneeCount }}
+            {{ extraAssigneeLabel }}
           </span>
         </span>
       </div>
@@ -839,16 +959,6 @@ const openCard = event => {
             class="max-w-full"
           />
         </div>
-      </div>
-
-      <div v-if="labels.length" class="mt-1 flex flex-wrap gap-1">
-        <span
-          v-for="label in labels"
-          :key="label"
-          class="max-w-full truncate rounded-full bg-n-slate-3 px-1.5 py-0.5 text-[11px] font-medium leading-4 text-n-slate-11"
-        >
-          {{ label }}
-        </span>
       </div>
 
       <div

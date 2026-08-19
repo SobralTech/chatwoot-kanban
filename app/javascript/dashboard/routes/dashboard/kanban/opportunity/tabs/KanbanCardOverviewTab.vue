@@ -63,14 +63,14 @@ const { t } = useI18n();
 
     <div class="grid min-w-0 gap-1.5">
       <span class="text-sm font-medium text-n-slate-12">
-        {{ t('KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION') }}
+        {{ t('KANBAN.OPPORTUNITY_DETAILS.FIELD_SUMMARY') }}
       </span>
       <Editor
         :model-value="props.description"
         data-testid="kanban-opportunity-description"
         :show-character-count="false"
         :placeholder="t('KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_PLACEHOLDER')"
-        class="max-w-full w-full [&>div]:min-h-[18rem]"
+        class="max-w-full w-full [&>div]:min-h-[6rem]"
         @update:model-value="emit('update:description', $event)"
       />
     </div>

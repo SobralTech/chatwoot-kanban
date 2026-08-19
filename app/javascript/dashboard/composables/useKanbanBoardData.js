@@ -4,7 +4,7 @@ import camelcaseKeys from 'camelcase-keys';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 
 export function useKanbanBoardData({
-  currentBoardRequestConfig,
+  collapsedStageIds,
   currentFilterParams,
   hasError,
   isFetchingBoard,
@@ -21,6 +21,17 @@ export function useKanbanBoardData({
   const stageDataVersions = new Map();
   const requestGeneration = ref(0);
   const staleRequest = Symbol('stale-kanban-request');
+
+  // Collapsed columns are a per-user view preference rather than a filter, so
+  // the board request carries them next to the shared filter params.
+  const boardRequestConfig = () => {
+    const params = { ...currentFilterParams() };
+    if (collapsedStageIds.value.size) {
+      params.collapsed_stage_ids = [...collapsedStageIds.value];
+    }
+
+    return Object.keys(params).length ? { params } : undefined;
+  };
 
   const normalizePayload = data => camelcaseKeys(data || {}, { deep: true });
 
@@ -152,8 +163,13 @@ export function useKanbanBoardData({
   ) => {
     const stage = stages.value.find(item => item.id === stageId);
     const limit = Math.max(stageCardsPageLimit, stage?.cards?.length || 0);
+    // A collapsed column shows no cards but still shows its counters, so it
+    // refreshes through the same endpoint asking for totals only.
+    const params = collapsedStageIds.value.has(stageId)
+      ? { limit, metadata_only: true }
+      : { limit };
 
-    const page = await fetchStageCardsPage(stageId, { limit }, generation);
+    const page = await fetchStageCardsPage(stageId, params, generation);
     if (page === staleRequest) return false;
     applyStageFirstPage(stageId, page);
     return true;
@@ -165,7 +181,10 @@ export function useKanbanBoardData({
   ) => {
     if (!selectedBoard.value?.id || !stageId) return Promise.resolve();
 
-    const requestKey = `${generation}:${stageId}`;
+    // The collapsed flag is part of the key so that toggling a column does not
+    // reuse an in-flight request fetching the other shape.
+    const isCollapsed = collapsedStageIds.value.has(stageId);
+    const requestKey = `${generation}:${stageId}:${isCollapsed}`;
     if (stageRefreshRequests.has(requestKey)) {
       return stageRefreshRequests.get(requestKey);
     }
@@ -189,13 +208,11 @@ export function useKanbanBoardData({
     );
   };
 
-  const findCardStageId = card => {
-    if (card?.kanbanStageId) return card.kanbanStageId;
+  const findCardStage = card =>
+    stages.value.find(stage => stage.cards.some(item => item.id === card?.id));
 
-    return stages.value.find(stage =>
-      stage.cards.some(item => item.id === card?.id)
-    )?.id;
-  };
+  const findCardStageId = card =>
+    card?.kanbanStageId || findCardStage(card)?.id;
 
   const patchVisibleCard = card => {
     const updatedCard = normalizePayload(card);
@@ -283,7 +300,7 @@ export function useKanbanBoardData({
     try {
       const response = await KanbanBoardsAPI.showBoard(
         boardId,
-        currentBoardRequestConfig()
+        boardRequestConfig()
       );
       if (generation !== requestGeneration.value) return;
       stageCardsLoading.value = {};
@@ -308,6 +325,7 @@ export function useKanbanBoardData({
   return {
     applyStageFirstPage,
     fetchStageCardsPage,
+    findCardStage,
     findCardStageId,
     getStageCardsError,
     isStageCardsLoading,

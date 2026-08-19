@@ -149,8 +149,13 @@ Rails.application.routes.draw do
               resources :custom_fields, only: [:index, :create, :update, :destroy]
               get 'cards/lookup', to: 'cards#lookup'
               post 'cards/manual', to: 'cards#create_manual'
+              post 'cards/bulk_actions', to: 'cards/bulk_actions#create'
               get 'cards/by_id/:id', to: 'cards#show'
               get 'cards/by_id/:id/events', to: 'cards/events#index'
+              get 'cards/by_id/:id/notes', to: 'cards/notes#index'
+              post 'cards/by_id/:id/notes', to: 'cards/notes#create'
+              patch 'cards/by_id/:id/notes/:note_id', to: 'cards/notes#update'
+              delete 'cards/by_id/:id/notes/:note_id', to: 'cards/notes#destroy'
               patch 'cards/by_id/:id/reopen', to: 'cards#reopen'
               patch 'cards/by_id/:id', to: 'cards#update'
               delete 'cards/by_id/:id', to: 'cards#destroy'

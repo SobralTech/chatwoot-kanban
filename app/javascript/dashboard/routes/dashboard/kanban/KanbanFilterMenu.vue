@@ -6,6 +6,7 @@ import { SINGLE_VALUE_FILTER_KEYS } from 'dashboard/helper/kanbanBoardFilters';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import WootLabel from 'dashboard/components/ui/Label.vue';
 
 const props = defineProps({
   modelValue: {
@@ -52,7 +53,11 @@ const dueDateOptions = computed(() => [
 ]);
 const labelOptions = computed(() => [
   { value: 'none', label: t('KANBAN.FILTERS.LABELS_NONE') },
-  ...labels.value.map(label => ({ value: label.title, label: label.title })),
+  ...labels.value.map(label => ({
+    value: label.title,
+    label: label.title,
+    color: label.color,
+  })),
 ]);
 
 const filterGroups = computed(() => [
@@ -200,9 +205,20 @@ const updateMatchMode = matchMode => {
                   updateFilter(group.key, option.value, $event)
                 "
               />
-              <span :class="{ 'min-w-0 truncate': group.truncateOption }">{{
-                option.label
-              }}</span>
+              <WootLabel
+                v-if="option.color"
+                :title="option.label"
+                :bg-color="option.color"
+                small
+                class="!m-0 !max-w-full !flex-1"
+                :class="{ '!min-w-0': group.truncateOption }"
+              />
+              <span
+                v-else
+                :class="{ 'min-w-0 truncate': group.truncateOption }"
+              >
+                {{ option.label }}
+              </span>
             </label>
           </section>
         </div>

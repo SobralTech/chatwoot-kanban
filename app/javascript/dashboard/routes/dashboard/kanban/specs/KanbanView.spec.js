@@ -2565,7 +2565,7 @@ describe('KanbanView filters', () => {
 
   it('restores quick filter preferences from localStorage on mount', async () => {
     window.localStorage.setItem(
-      'kanban_board_prefs_1_10',
+      'kanban_board_prefs_1_10_7',
       JSON.stringify({ mine: true, today: true })
     );
 
@@ -2587,6 +2587,6 @@ describe('KanbanView filters', () => {
     expect(mineButton.classes()).toContain('text-n-brand');
     expect(todayButton.classes()).toContain('text-n-brand');
 
-    window.localStorage.removeItem('kanban_board_prefs_1_10');
+    window.localStorage.removeItem('kanban_board_prefs_1_10_7');
   });
 });

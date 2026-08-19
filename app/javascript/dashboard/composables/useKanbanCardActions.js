@@ -40,7 +40,11 @@ export function useKanbanCardActions({
     startBoardAutoScroll();
   };
 
-  const onCardDragChange = async (stage, event) => {
+  const onCardDragChange = async (
+    stage,
+    event,
+    { appendToStageEnd = false } = {}
+  ) => {
     if (event?.added || event?.moved || event?.removed) {
       hasCardDragChanged.value = true;
     }
@@ -60,8 +64,10 @@ export function useKanbanCardActions({
     // Dropping on the last loaded slot while more cards exist beyond the
     // page means the true end of the stage isn't known locally, so the
     // position is omitted and the backend appends the card to the real end.
+    // A collapsed column loads no cards at all, so it always appends.
     const isLastLoadedSlot = targetIndex === stage.cards.length - 1;
-    const appendsToStageEnd = isLastLoadedSlot && !!stage.pagination?.hasMore;
+    const appendsToStageEnd =
+      appendToStageEnd || (isLastLoadedSlot && !!stage.pagination?.hasMore);
     const destinationPosition = appendsToStageEnd ? undefined : targetIndex + 1;
     const stageChanged = card.kanbanStageId !== stage.id;
     const positionChanged =
@@ -317,6 +323,30 @@ export function useKanbanCardActions({
     }
   };
 
+  const updateCardLabels = async (card, labelTitles) => {
+    const actionKey = cardActionKey(card);
+    if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
+
+    startAction(actionKey);
+
+    try {
+      const response = await KanbanBoardsAPI.updateCardLabels(
+        selectedBoard.value.id,
+        card.id,
+        labelTitles
+      );
+      patchVisibleCard({
+        id: card.id,
+        kanbanStageId: card.kanbanStageId,
+        labels: normalizePayload(response.data.payload),
+      });
+    } catch (error) {
+      showActionError(error, t('CONTACT_PANEL.LABELS.CONVERSATION.ERROR'));
+    } finally {
+      endAction(actionKey);
+    }
+  };
+
   const onChangeCardStatus = async (
     card,
     { targetStageId, reasonId, reopen }
@@ -371,6 +401,7 @@ export function useKanbanCardActions({
     openRemoveCardConfirmation,
     removeCard,
     updateCardDueDate,
+    updateCardLabels,
     updateCardPriority,
   };
 }

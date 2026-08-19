@@ -15,3 +15,12 @@ export const applyMatchModeConstraints = filters => {
     { ...filters }
   );
 };
+
+// Terminal stages (won/lost) are sliced by a time window instead of showing
+// every card ever closed. The window applies to those two columns only.
+export const TERMINAL_PERIODS = ['7d', '30d', '90d', 'all'];
+export const DEFAULT_TERMINAL_PERIOD = '30d';
+export const ALL_TIME_TERMINAL_PERIOD = 'all';
+
+export const normalizeTerminalPeriod = value =>
+  TERMINAL_PERIODS.includes(value) ? value : DEFAULT_TERMINAL_PERIOD;

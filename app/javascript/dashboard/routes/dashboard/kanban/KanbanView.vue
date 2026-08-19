@@ -13,12 +13,15 @@ import { useKanbanBoardData } from 'dashboard/composables/useKanbanBoardData';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { useKanbanStageActions } from 'dashboard/composables/useKanbanStageActions';
 import { useKanbanCardActions } from 'dashboard/composables/useKanbanCardActions';
+import { useKanbanCardSelection } from 'dashboard/composables/useKanbanCardSelection';
+import { useKanbanBulkActions } from 'dashboard/composables/useKanbanBulkActions';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import KanbanStageColumn from './board/KanbanStageColumn.vue';
 import KanbanBoardHeader from './board/KanbanBoardHeader.vue';
 import KanbanStageDraft from './board/KanbanStageDraft.vue';
+import KanbanBulkActions from './KanbanBulkActions.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
@@ -29,6 +32,10 @@ import {
   saveKanbanBoardPrefs,
   saveKanbanBoardSnapshot,
 } from 'dashboard/helper/kanbanBoardSnapshot';
+import {
+  ALL_TIME_TERMINAL_PERIOD,
+  normalizeTerminalPeriod,
+} from 'dashboard/helper/kanbanBoardFilters';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -44,9 +51,11 @@ const currentUserId = useMapGetter('getCurrentUserID');
 const agents = useMapGetter('agents/getAgents');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
+const labels = useMapGetter('labels/getLabels');
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
+const collapsedStageIds = ref(new Set());
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
 const isCreatingStageDraft = ref(false);
@@ -122,7 +131,6 @@ const {
   activeBoardFilterCount,
   activeSearchTerm,
   boardFilters,
-  currentBoardRequestConfig,
   clearSearchDebounce,
   currentFilterParams,
   emptyBoardFilters,
@@ -135,15 +143,24 @@ const {
   normalizeBoardFilters,
   scheduleSearch,
   searchInput,
+  terminalPeriod,
   todayCardsCount,
 } = useKanbanBoardFiltersState({
   currentUserId,
   isFetchingBoard,
   stages,
 });
+const isStageCollapsed = stageId => collapsedStageIds.value.has(stageId);
+const terminalPeriodOptions = computed(() => [
+  { value: '7d', label: t('KANBAN.STAGE.PERIOD.7D') },
+  { value: '30d', label: t('KANBAN.STAGE.PERIOD.30D') },
+  { value: '90d', label: t('KANBAN.STAGE.PERIOD.90D') },
+  { value: ALL_TIME_TERMINAL_PERIOD, label: t('KANBAN.STAGE.PERIOD.ALL') },
+]);
 const {
   applyStageFirstPage,
   fetchStageCardsPage,
+  findCardStage,
   findCardStageId,
   getStageCardsError,
   isStageCardsLoading,
@@ -156,7 +173,7 @@ const {
   showBoard,
   staleRequest,
 } = useKanbanBoardData({
-  currentBoardRequestConfig,
+  collapsedStageIds,
   currentFilterParams,
   hasError,
   isFetchingBoard,
@@ -166,6 +183,27 @@ const {
   stages,
   t,
 });
+// The server owns the cap; the board payload carries it so the two cannot drift.
+const selectionLimit = computed(() => selectedBoard.value?.bulkActionLimit);
+const {
+  clearCardSelection,
+  isSelectionMode,
+  selectedCardIds,
+  selectedCards,
+  toggleCardSelection,
+} = useKanbanCardSelection({
+  findCardStage,
+  selectionLimit,
+  stages,
+  t,
+  useAlert,
+});
+const hasAssignedSelectedCards = computed(() =>
+  selectedCards.value.some(card => card.assignees?.length)
+);
+const hasLabeledSelectedCards = computed(() =>
+  selectedCards.value.some(card => card.labels?.length)
+);
 const hasBoards = computed(() => boards.value.length > 0);
 const activeAddItemStage = computed(() =>
   stages.value.find(stage => stage.id === activeAddItemStageId.value)
@@ -243,11 +281,12 @@ const canAddCardInEmptyStage = stage =>
   !isTerminalStage(stage) && !hasActiveFilters.value && !isCardDragging.value;
 const canAddCardInStageFooter = stage =>
   !isTerminalStage(stage) && stage.cards.length > 0;
-const emptyCardsLabel = computed(() =>
-  hasActiveFilters.value
+const isTerminalStagePeriodFiltered = stage =>
+  isTerminalStage(stage) && terminalPeriod.value !== ALL_TIME_TERMINAL_PERIOD;
+const emptyCardsLabel = stage =>
+  hasActiveFilters.value || isTerminalStagePeriodFiltered(stage)
     ? t('KANBAN.EMPTY_CARDS_FILTERED')
-    : t('KANBAN.EMPTY_CARDS')
-);
+    : t('KANBAN.EMPTY_CARDS');
 
 const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.error ||
@@ -291,6 +330,24 @@ const showActionError = (error, fallbackMessage) => {
 
 const isLostReasonRequiredError = error =>
   error?.response?.data?.error === 'lost_reason_required';
+
+const boardPrefsUserId = () => currentUserId.value ?? 'unknown';
+
+const loadBoardPrefs = boardId => {
+  const prefs = getKanbanBoardPrefs({
+    accountId: route.params.accountId,
+    boardId,
+    userId: boardPrefsUserId(),
+  });
+  const storedStageIds = Array.isArray(prefs?.collapsedStageIds)
+    ? prefs.collapsedStageIds.map(Number).filter(Boolean)
+    : [];
+
+  collapsedStageIds.value = new Set(storedStageIds);
+  terminalPeriod.value = normalizeTerminalPeriod(prefs?.terminalPeriod);
+
+  return prefs;
+};
 
 const getStageScrollElement = stageId =>
   boardScrollContainer.value?.querySelector(
@@ -341,6 +398,8 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
         return;
       }
 
+      if (isStageCollapsed(stage.id)) return;
+
       const { loadedCount } = snapshot.stages[stage.id] ?? {};
       if (!loadedCount || loadedCount <= stage.cards.length) return;
 
@@ -388,6 +447,7 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
 
 const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   const generation = requestGeneration.value;
+  const prefs = loadBoardPrefs(boardId);
   const snapshot = restoreSnapshot
     ? getKanbanBoardSnapshot({
         accountId: route.params.accountId,
@@ -403,10 +463,6 @@ const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   }
 
   if (!snapshot || !restoreSnapshot) {
-    const prefs = getKanbanBoardPrefs({
-      accountId: route.params.accountId,
-      boardId,
-    });
     if (prefs) {
       const initialFilters = emptyBoardFilters();
       if (prefs.mine && currentUserId.value) {
@@ -527,30 +583,56 @@ const onSearchKeydown = event => {
   clearSearch();
 };
 
-const persistBoardPrefs = prefs => {
+// Every stored preference is derived from live board state, so persisting is
+// always a full snapshot taken after that state has been updated.
+const persistBoardPrefs = () => {
   if (!selectedBoard.value?.id) return;
+
   saveKanbanBoardPrefs({
     accountId: route.params.accountId,
     boardId: selectedBoard.value.id,
-    prefs,
+    userId: boardPrefsUserId(),
+    prefs: {
+      collapsedStageIds: [...collapsedStageIds.value],
+      terminalPeriod: terminalPeriod.value,
+      mine: isMineActive.value,
+      today: isTodayActive.value,
+    },
   });
+};
+
+const toggleStageCollapsed = async stage => {
+  if (!stage?.id) return;
+
+  const nextCollapsedStageIds = new Set(collapsedStageIds.value);
+  if (nextCollapsedStageIds.has(stage.id)) {
+    nextCollapsedStageIds.delete(stage.id);
+  } else {
+    nextCollapsedStageIds.add(stage.id);
+  }
+
+  collapsedStageIds.value = nextCollapsedStageIds;
+  persistBoardPrefs();
+
+  // Collapsing drops the cards and keeps the counters, expanding brings the
+  // cards back; both are the same first-page refresh.
+  await refreshStageFirstPage(stage.id);
+};
+
+const updateTerminalPeriod = async ({ stageId, value }) => {
+  terminalPeriod.value = normalizeTerminalPeriod(value);
+  persistBoardPrefs();
+  await refreshStageFirstPage(stageId);
 };
 
 const updateBoardFilters = async filters => {
   boardFilters.value = normalizeBoardFilters(filters);
-  persistBoardPrefs({
-    mine: isMineActive.value,
-    today: isTodayActive.value,
-  });
+  persistBoardPrefs();
   requestGeneration.value += 1;
   await refreshSelectedBoard();
 };
 
 const clearBoardFilters = () => {
-  persistBoardPrefs({
-    mine: false,
-    today: false,
-  });
   updateBoardFilters(emptyBoardFilters());
 };
 
@@ -570,10 +652,6 @@ const toggleMine = () => {
     nextFilters.matchMode = 'all';
   }
 
-  persistBoardPrefs({
-    mine: willBeActive,
-    today: isTodayActive.value,
-  });
   updateBoardFilters(nextFilters);
 };
 
@@ -608,10 +686,6 @@ const toggleToday = () => {
     nextFilters.matchMode = 'all';
   }
 
-  persistBoardPrefs({
-    mine: isMineActive.value,
-    today: willBeActive,
-  });
   updateBoardFilters(nextFilters);
 };
 
@@ -870,6 +944,7 @@ const {
   onChangeCardStatus,
   openRemoveCardConfirmation,
   updateCardDueDate,
+  updateCardLabels,
   updateCardPriority,
 } = useKanbanCardActions({
   boards,
@@ -1153,6 +1228,31 @@ const onOpportunityRemoveCard = card => {
   openRemoveCardConfirmation(card);
 };
 
+const {
+  applyBulkAction,
+  closeBulkDeleteConfirmation,
+  confirmBulkDelete,
+  openBulkDeleteConfirmation,
+  showBulkDeleteConfirmation,
+} = useKanbanBulkActions({
+  clearCardSelection,
+  endAction,
+  findCardStageId,
+  getErrorMessage,
+  isBoardBusy,
+  refreshStageFirstPages,
+  selectedBoard,
+  selectedCardIds,
+  selectionLimit,
+  startAction,
+  t,
+  useAlert,
+});
+
+watch(isFetchingBoard, isFetching => {
+  if (isFetching) clearCardSelection();
+});
+
 watch(activeBoardId, (boardId, previousBoardId) => {
   if (!boards.value.length) return;
 
@@ -1304,7 +1404,7 @@ watch(searchInput, () => {
 
         <div
           ref="boardScrollContainer"
-          class="flex min-h-0 flex-1 overflow-x-auto p-4"
+          class="flex min-h-0 flex-1 overflow-x-auto p-4 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-n-alpha-3 [&::-webkit-scrollbar-track]:bg-transparent"
           :class="[
             isDraggingBoard
               ? 'snap-none'
@@ -1332,12 +1432,17 @@ watch(searchInput, () => {
             <template #item="{ element: stage }">
               <KanbanStageColumn
                 :stage="stage"
+                :collapsed="isStageCollapsed(stage.id)"
+                :terminal-period="terminalPeriod"
+                :terminal-period-options="terminalPeriodOptions"
                 :board="selectedBoard"
                 :stages="stages"
                 :boards="boards"
                 :is-admin="isAdmin"
                 :is-busy="isActionActive(stageActionKey(stage))"
                 :is-card-drag-disabled="isCardDragDisabled"
+                :selected-card-ids="selectedCardIds"
+                :is-selection-mode="isSelectionMode"
                 :has-active-filters="hasActiveFilters"
                 :highlighted-card-id="highlightedCreatedCardId"
                 :sortable-options="sortableFallbackOptions"
@@ -1350,7 +1455,7 @@ watch(searchInput, () => {
                 :stage-accent="stageAccent"
                 :can-add-card-in-empty-stage="canAddCardInEmptyStage"
                 :can-add-card-in-stage-footer="canAddCardInStageFooter"
-                :empty-cards-label="emptyCardsLabel"
+                :empty-cards-label="emptyCardsLabel(stage)"
                 :editing-stage-id="editingStageId"
                 :stage-names="stageNames"
                 :stage-colors="stageColors"
@@ -1377,10 +1482,14 @@ watch(searchInput, () => {
                 @move-card-to-board="moveCardToBoard"
                 @assign-agent="assignAgent"
                 @update-due-date="updateCardDueDate"
+                @update-labels="updateCardLabels"
+                @toggle-select="toggleCardSelection"
                 @load-more="loadMoreStageCards"
                 @drag-start="onCardDragStart"
                 @drag-change="onCardDragChange"
                 @drag-end="onCardDragEnd"
+                @toggle-collapse="toggleStageCollapsed(stage)"
+                @update-terminal-period="updateTerminalPeriod"
               />
             </template>
           </Draggable>
@@ -1408,6 +1517,24 @@ watch(searchInput, () => {
       </div>
     </section>
 
+    <KanbanBulkActions
+      v-if="selectedBoard && selectedCardIds.size"
+      :selected-count="selectedCardIds.size"
+      :stages="stages"
+      :assignable-users="assignableUsers"
+      :has-assigned-selected-cards="hasAssignedSelectedCards"
+      :has-labeled-selected-cards="hasLabeledSelectedCards"
+      :labels="labels"
+      :reasons="selectedBoard.reasons || []"
+      :won-stage-id="selectedBoard.wonStageId"
+      :lost-stage-id="selectedBoard.lostStageId"
+      :lost-reason-required="!!selectedBoard.lostReasonRequired"
+      :is-busy="isBoardBusy"
+      @action="applyBulkAction"
+      @delete="openBulkDeleteConfirmation"
+      @clear="clearCardSelection"
+    />
+
     <woot-delete-modal
       v-model:show="showRemoveCardConfirmation"
       :on-close="closeRemoveCardConfirmation"
@@ -1416,6 +1543,20 @@ watch(searchInput, () => {
       :message="t('KANBAN.REMOVE_CARD.MESSAGE')"
       :message-value="removeCardMessageValue"
       :confirm-text="t('KANBAN.REMOVE_CARD.CONFIRM')"
+      :reject-text="t('KANBAN.REMOVE_CARD.CANCEL')"
+    />
+    <woot-delete-modal
+      v-model:show="showBulkDeleteConfirmation"
+      :on-close="closeBulkDeleteConfirmation"
+      :on-confirm="confirmBulkDelete"
+      :is-loading="isBoardBusy"
+      :title="t('KANBAN.BULK.DELETE_CONFIRM_TITLE')"
+      :message="
+        t('KANBAN.BULK.DELETE_CONFIRM_MESSAGE', {
+          count: selectedCardIds.size,
+        })
+      "
+      :confirm-text="t('KANBAN.BULK.DELETE')"
       :reject-text="t('KANBAN.REMOVE_CARD.CANCEL')"
     />
     <woot-delete-modal

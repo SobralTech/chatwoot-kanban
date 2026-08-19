@@ -3,12 +3,25 @@ import { useI18n } from 'vue-i18n';
 import Draggable from 'vuedraggable';
 
 import KanbanConversationCard from '../KanbanConversationCard.vue';
+import KanbanStageColumnCollapsed from './KanbanStageColumnCollapsed.vue';
 import KanbanStageHeader from './KanbanStageHeader.vue';
 
 defineProps({
   stage: {
     type: Object,
     required: true,
+  },
+  collapsed: {
+    type: Boolean,
+    default: false,
+  },
+  terminalPeriod: {
+    type: String,
+    default: '30d',
+  },
+  terminalPeriodOptions: {
+    type: Array,
+    default: () => [],
   },
   board: {
     type: Object,
@@ -31,6 +44,14 @@ defineProps({
     default: false,
   },
   isCardDragDisabled: {
+    type: Boolean,
+    default: false,
+  },
+  selectedCardIds: {
+    type: Object,
+    default: () => new Set(),
+  },
+  isSelectionMode: {
     type: Boolean,
     default: false,
   },
@@ -125,12 +146,16 @@ const emit = defineEmits([
   'moveCardToBoard',
   'assignAgent',
   'updateDueDate',
+  'updateLabels',
+  'toggleSelect',
   'loadMore',
   'dragStart',
   'dragChange',
   'dragEnd',
   'updateStageName',
   'updateStageColor',
+  'toggleCollapse',
+  'updateTerminalPeriod',
 ]);
 const { t } = useI18n();
 </script>
@@ -138,13 +163,27 @@ const { t } = useI18n();
 <template>
   <section
     :data-stage-id="stage.id"
-    class="flex w-64 lg:w-80 flex-shrink-0 flex-col snap-start rounded-lg border bg-n-solid-1"
+    class="flex flex-shrink-0 flex-col snap-start rounded-lg border bg-n-solid-1"
     :class="[
-      editingStageId === stage.id ? 'overflow-visible' : 'overflow-hidden',
+      collapsed
+        ? 'w-12 overflow-hidden'
+        : editingStageId === stage.id
+          ? 'w-64 overflow-visible lg:w-80'
+          : 'w-64 overflow-hidden lg:w-80',
       stageAccent(stage)?.border ?? 'border-n-weak',
     ]"
   >
+    <KanbanStageColumnCollapsed
+      v-if="collapsed"
+      :stage="stage"
+      :header-class="stageAccent(stage)?.header"
+      :is-card-drag-disabled="isCardDragDisabled"
+      :sortable-options="sortableOptions"
+      @toggle-collapse="emit('toggleCollapse')"
+      @drag-change="(...args) => emit('dragChange', ...args)"
+    />
     <KanbanStageHeader
+      v-else
       :stage="stage"
       :board="board"
       :stages="stages"
@@ -157,6 +196,8 @@ const { t } = useI18n();
       :set-stage-name-input="setStageNameInput"
       :is-terminal-stage="isTerminalStage"
       :stage-accent="stageAccent"
+      :terminal-period="terminalPeriod"
+      :terminal-period-options="terminalPeriodOptions"
       @update-stage-name="emit('updateStageName', $event)"
       @update-stage-color="emit('updateStageColor', $event)"
       @update-stage="emit('updateStage', $event)"
@@ -169,9 +210,12 @@ const { t } = useI18n();
       @sort-cards="(...args) => emit('sortCards', ...args)"
       @delete-stage="emit('deleteStage', $event)"
       @delete-all-cards="emit('deleteAllCards', $event)"
+      @toggle-collapse="emit('toggleCollapse')"
+      @update-terminal-period="emit('updateTerminalPeriod', $event)"
     />
 
     <div
+      v-if="!collapsed"
       :data-stage-scroll-id="stage.id"
       class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
     >
@@ -209,6 +253,9 @@ const { t } = useI18n();
             :is-busy="isCardBusy(card, stage)"
             :board="board"
             :boards="boards"
+            :is-selected="selectedCardIds.has(card.id)"
+            :is-selection-mode="isSelectionMode"
+            :is-admin="isAdmin"
             :stages="stages"
             :assignable-users="assignableUsers"
             :won-stage-id="board?.wonStageId"
@@ -232,6 +279,10 @@ const { t } = useI18n();
             @update-due-date="
               (cardValue, dueDate) => emit('updateDueDate', cardValue, dueDate)
             "
+            @update-labels="
+              (cardValue, labelTitles) =>
+                emit('updateLabels', cardValue, labelTitles)
+            "
             @open-details="emit('openCard', card)"
             @open-conversation="
               (cardValue, event) => emit('openConversation', cardValue, event)
@@ -243,6 +294,9 @@ const { t } = useI18n();
             "
             @change-status="
               (cardValue, payload) => emit('changeStatus', cardValue, payload)
+            "
+            @toggle-select="
+              (cardValue, event) => emit('toggleSelect', cardValue, event)
             "
           />
         </template>
@@ -292,7 +346,7 @@ const { t } = useI18n();
     </div>
 
     <div
-      v-if="canAddCardInStageFooter(stage)"
+      v-if="!collapsed && canAddCardInStageFooter(stage)"
       class="border-t border-n-weak p-2"
     >
       <button

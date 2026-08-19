@@ -1,7 +1,4 @@
-class Api::V1::Accounts::KanbanBoards::Cards::LabelsController < Api::V1::Accounts::BaseController
-  before_action :fetch_kanban_board
-  before_action :fetch_kanban_card
-
+class Api::V1::Accounts::KanbanBoards::Cards::LabelsController < Api::V1::Accounts::KanbanBoards::Cards::BaseController
   def index
     authorize @kanban_card, :show?
     fetch_labels
@@ -23,14 +20,6 @@ class Api::V1::Accounts::KanbanBoards::Cards::LabelsController < Api::V1::Accoun
   end
 
   private
-
-  def fetch_kanban_board
-    @kanban_board = policy_scope(KanbanBoard).find(params[:kanban_board_id])
-  end
-
-  def fetch_kanban_card
-    @kanban_card = @kanban_board.kanban_cards.active.joins(:kanban_stage).merge(KanbanStage.active).find(params[:id])
-  end
 
   def fetch_labels
     @labels = Current.account.labels.where(title: @kanban_card.label_list)
