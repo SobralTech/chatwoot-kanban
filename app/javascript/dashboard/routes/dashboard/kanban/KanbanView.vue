@@ -1350,7 +1350,7 @@ watch(searchInput, () => {
 
         <div
           ref="boardScrollContainer"
-          class="flex min-h-0 flex-1 overflow-x-auto p-4"
+          class="flex min-h-0 flex-1 overflow-x-auto p-4 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-n-alpha-3 [&::-webkit-scrollbar-track]:bg-transparent"
           :class="[
             isDraggingBoard
               ? 'snap-none'

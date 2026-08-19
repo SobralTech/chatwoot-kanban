@@ -43,7 +43,7 @@ const { t } = useI18n();
       <i class="i-lucide-chevrons-right-left size-4" />
     </button>
     <span
-      class="stage-drag-handle min-h-0 flex-1 cursor-grab truncate text-xs font-semibold text-n-slate-12 [writing-mode:vertical-rl]"
+      class="stage-drag-handle min-h-0 flex-1 cursor-grab select-none truncate text-xs font-semibold text-n-slate-12 [writing-mode:vertical-rl]"
       :title="stage.name"
     >
       {{ stage.name }}

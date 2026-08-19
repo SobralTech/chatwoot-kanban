@@ -115,7 +115,9 @@ const toggleCollapseOnDoubleClick = () => {
   <header
     class="flex min-h-10 items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
     :class="[
-      editingStageId === stage.id ? '' : 'stage-drag-handle cursor-grab',
+      editingStageId === stage.id
+        ? ''
+        : 'stage-drag-handle cursor-grab select-none',
       stageAccent(stage)?.header,
     ]"
     @dblclick="toggleCollapseOnDoubleClick"

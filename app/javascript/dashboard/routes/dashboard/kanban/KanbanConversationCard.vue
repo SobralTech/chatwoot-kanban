@@ -269,7 +269,7 @@ const openCard = event => {
 <template>
   <article
     tabindex="0"
-    class="card-drag-handle group relative cursor-pointer rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-brand"
+    class="card-drag-handle group relative cursor-pointer select-none rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-brand"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openCard"
