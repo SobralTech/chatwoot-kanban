@@ -6,7 +6,7 @@ import {
   BULK_ACTION_OPTION_CLASSES,
 } from './bulkActionClasses';
 
-defineProps({
+const props = defineProps({
   label: {
     type: String,
     required: true,
@@ -31,6 +31,10 @@ defineProps({
     type: String,
     default: undefined,
   },
+  closeOnSelect: {
+    type: Boolean,
+    default: true,
+  },
   menuClass: {
     type: String,
     default: '',
@@ -41,16 +45,16 @@ defineProps({
   },
 });
 
-const emit = defineEmits(['select']);
+const emit = defineEmits(['select', 'hide']);
 
 const choose = (value, hide) => {
   emit('select', value);
-  hide?.();
+  if (props.closeOnSelect) hide?.();
 };
 </script>
 
 <template>
-  <Popover align="start" disable-mobile-view>
+  <Popover align="start" disable-mobile-view @hide="emit('hide')">
     <button
       type="button"
       :data-testid="triggerTestid"

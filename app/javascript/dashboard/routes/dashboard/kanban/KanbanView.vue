@@ -196,6 +196,13 @@ const {
   t,
   useAlert,
 });
+const hasAssignedSelectedCards = computed(() =>
+  stages.value.some(stage =>
+    stage.cards.some(
+      card => selectedCardIds.value.has(card.id) && card.assignees?.length
+    )
+  )
+);
 const hasBoards = computed(() => boards.value.length > 0);
 const activeAddItemStage = computed(() =>
   stages.value.find(stage => stage.id === activeAddItemStageId.value)
@@ -1509,6 +1516,7 @@ watch(searchInput, () => {
       :selected-count="selectedCardIds.size"
       :stages="stages"
       :assignable-users="assignableUsers"
+      :has-assigned-selected-cards="hasAssignedSelectedCards"
       :labels="labels"
       :reasons="selectedBoard.reasons || []"
       :won-stage-id="selectedBoard.wonStageId"

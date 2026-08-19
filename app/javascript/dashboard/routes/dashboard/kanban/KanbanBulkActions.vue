@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import WootLabel from 'dashboard/components/ui/Label.vue';
@@ -25,6 +26,10 @@ const props = defineProps({
   assignableUsers: {
     type: Array,
     default: () => [],
+  },
+  hasAssignedSelectedCards: {
+    type: Boolean,
+    default: false,
   },
   labels: {
     type: Array,
@@ -55,6 +60,7 @@ const props = defineProps({
 const emit = defineEmits(['action', 'clear', 'delete']);
 const { t } = useI18n();
 const selectedReasonId = ref('');
+const selectedAssigneeIds = ref([]);
 
 const stageOptions = computed(() =>
   props.stages
@@ -63,13 +69,18 @@ const stageOptions = computed(() =>
         Number(stage.id) !== Number(props.wonStageId) &&
         Number(stage.id) !== Number(props.lostStageId)
     )
-    .map(stage => ({ value: stage.id, label: stage.name }))
+    .map(stage => ({
+      value: stage.id,
+      label: stage.name,
+      color: stage.color,
+    }))
 );
 
 const assigneeOptions = computed(() =>
   props.assignableUsers.map(user => ({
     value: user.id,
     label: user.name || user.email,
+    avatarUrl: user.avatarUrl,
   }))
 );
 
@@ -117,6 +128,32 @@ const chooseReason = hide => {
   selectedReasonId.value = '';
 };
 
+const toggleAssignee = userId => {
+  const numericUserId = Number(userId);
+  const nextSelectedAssigneeIds = new Set(selectedAssigneeIds.value);
+
+  if (nextSelectedAssigneeIds.has(numericUserId)) {
+    nextSelectedAssigneeIds.delete(numericUserId);
+  } else {
+    nextSelectedAssigneeIds.add(numericUserId);
+  }
+
+  selectedAssigneeIds.value = [...nextSelectedAssigneeIds];
+};
+
+const isAssigneeSelected = userId =>
+  selectedAssigneeIds.value.includes(Number(userId));
+
+const assignSelected = hide => {
+  if (!selectedAssigneeIds.value.length) return;
+
+  chooseAction('assign', { assignee_ids: selectedAssigneeIds.value }, hide);
+};
+
+const resetAssigneeSelection = () => {
+  selectedAssigneeIds.value = [];
+};
+
 const resetReason = () => {
   selectedReasonId.value = '';
 };
@@ -160,8 +197,11 @@ const resetReason = () => {
       :is-busy="isBusy"
       @select="chooseAction('move', { kanban_stage_id: $event })"
     >
-      <template #optionIcon>
-        <span class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9" />
+      <template #optionIcon="{ option }">
+        <span
+          class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9"
+          :style="{ backgroundColor: option.color }"
+        />
       </template>
     </KanbanBulkActionMenu>
 
@@ -172,14 +212,44 @@ const resetReason = () => {
       :empty-text="t('KANBAN.CARD.NO_ASSIGNABLE_USERS')"
       trigger-testid="kanban-bulk-action-assign"
       option-testid="kanban-bulk-assign-agent"
+      :close-on-select="false"
       :is-busy="isBusy"
-      @select="chooseAction('assign', { assignee_ids: [$event] })"
+      @select="toggleAssignee"
+      @hide="resetAssigneeSelection"
     >
+      <template #optionContent="{ option }">
+        <input
+          type="checkbox"
+          class="pointer-events-none"
+          :checked="isAssigneeSelected(option.value)"
+          tabindex="-1"
+        />
+        <Avatar
+          :name="option.label"
+          :src="option.avatarUrl"
+          :size="20"
+          rounded-full
+        />
+        <span class="min-w-0 flex-1 truncate">{{ option.label }}</span>
+      </template>
       <template #footer="{ hide }">
         <button
+          v-if="selectedAssigneeIds.length"
+          type="button"
+          data-testid="kanban-bulk-assign-submit"
+          class="mt-1 flex w-full items-center justify-center gap-2 rounded-md bg-n-brand px-2 py-1.5 text-sm font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="isBusy"
+          @click="assignSelected(hide)"
+        >
+          <i class="i-lucide-user-round-plus size-4" />
+          {{ t('KANBAN.BULK.APPLY') }}
+        </button>
+        <button
+          v-if="hasAssignedSelectedCards"
           type="button"
           data-testid="kanban-bulk-unassign"
           class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-11 hover:bg-n-alpha-2"
+          :disabled="isBusy"
           @click="chooseAction('assign', { assignee_ids: [] }, hide)"
         >
           <i class="i-lucide-user-round-x size-4" />
