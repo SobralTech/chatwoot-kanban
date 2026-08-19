@@ -27,6 +27,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  isSelected: {
+    type: Boolean,
+    default: false,
+  },
+  isSelectionMode: {
+    type: Boolean,
+    default: false,
+  },
   stages: {
     type: Array,
     default: () => [],
@@ -63,6 +71,7 @@ const emit = defineEmits([
   'moveToStage',
   'assignAgent',
   'updateDueDate',
+  'toggleSelect',
 ]);
 
 const { t } = useI18n();
@@ -264,16 +273,34 @@ const openCard = event => {
 
   emit('openDetails', props.card);
 };
+
+const toggleSelection = event => {
+  emit('toggleSelect', props.card, event);
+};
 </script>
 
 <template>
   <article
     tabindex="0"
     class="card-drag-handle group relative cursor-pointer select-none rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-brand"
+    :class="{ 'border-n-brand ring-1 ring-n-brand': isSelected }"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openCard"
   >
+    <label
+      class="no-drag absolute top-1.5 z-10 flex size-7 items-center justify-center rounded-md bg-n-surface-1 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 ltr:left-1.5 rtl:right-1.5"
+      :class="{ 'opacity-100': isSelectionMode || isSelected }"
+      @click.stop
+    >
+      <input
+        type="checkbox"
+        class="no-drag size-4 cursor-pointer accent-n-brand"
+        :checked="isSelected"
+        :aria-label="t('KANBAN.BULK.SELECT_CARD')"
+        @click.stop="toggleSelection"
+      />
+    </label>
     <span
       class="no-drag absolute top-1.5 inline-flex ltr:right-1.5 rtl:left-1.5"
       @click.stop

@@ -22,6 +22,7 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('createConversationCard');
     expect(kanbanBoards).toHaveProperty('getStageCards');
     expect(kanbanBoards).toHaveProperty('createManualCard');
+    expect(kanbanBoards).toHaveProperty('bulkAction');
     expect(kanbanBoards).toHaveProperty('lookupCards');
     expect(kanbanBoards).toHaveProperty('updateCardById');
     expect(kanbanBoards).toHaveProperty('showCardById');
@@ -235,6 +236,20 @@ describe('#KanbanBoardsAPI', () => {
 
       expect(axiosMock.post).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2/cards/manual',
+        payload
+      );
+    });
+
+    it('#bulkAction', () => {
+      const payload = {
+        action: 'assign',
+        card_ids: [501, 502],
+        payload: { assignee_ids: [9] },
+      };
+      kanbanBoards.bulkAction(2, payload);
+
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/cards/bulk_actions',
         payload
       );
     });

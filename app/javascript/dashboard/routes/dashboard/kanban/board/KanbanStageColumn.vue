@@ -47,6 +47,14 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  selectedCardIds: {
+    type: Object,
+    default: () => new Set(),
+  },
+  isSelectionMode: {
+    type: Boolean,
+    default: false,
+  },
   hasActiveFilters: {
     type: Boolean,
     default: false,
@@ -137,6 +145,7 @@ const emit = defineEmits([
   'moveCardToStage',
   'assignAgent',
   'updateDueDate',
+  'toggleSelect',
   'loadMore',
   'dragStart',
   'dragChange',
@@ -240,6 +249,8 @@ const { t } = useI18n();
             }"
             :card="card"
             :is-busy="isCardBusy(card, stage)"
+            :is-selected="selectedCardIds.has(card.id)"
+            :is-selection-mode="isSelectionMode"
             :stages="stages"
             :assignable-users="assignableUsers"
             :won-stage-id="board?.wonStageId"
@@ -270,6 +281,9 @@ const { t } = useI18n();
             "
             @change-status="
               (cardValue, payload) => emit('changeStatus', cardValue, payload)
+            "
+            @toggle-select="
+              (cardValue, event) => emit('toggleSelect', cardValue, event)
             "
           />
         </template>

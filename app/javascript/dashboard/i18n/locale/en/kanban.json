@@ -284,6 +284,27 @@
       "DRAG_LOST_REASON_REQUIRED": "This stage requires a loss reason — open the card and use the status badge to pick one before moving it here.",
       "DRAG_DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED": "Reopen the opportunity before marking it as won or lost."
     },
+    "BULK": {
+      "SELECTED": "{count} selected",
+      "CLEAR": "Clear selection",
+      "MOVE": "Move to",
+      "ASSIGN": "Assign to",
+      "UNASSIGN": "Unassign everyone",
+      "LABEL": "Add label",
+      "PRIORITY": "Priority",
+      "LOSE": "Mark as lost",
+      "DELETE": "Delete",
+      "DELETE_CONFIRM_TITLE": "Delete opportunities",
+      "DELETE_CONFIRM_MESSAGE": "This permanently deletes {count} opportunities.",
+      "SUCCESS": "{count} opportunities updated.",
+      "PARTIAL": "{succeeded} of {total} updated. {failed} failed.",
+      "ERROR": "Could not apply the action.",
+      "REASON_REQUIRED": "This funnel requires a loss reason.",
+      "LIMIT": "Select up to 100 opportunities at a time.",
+      "SELECTION_VOLATILE": "Selection clears when the board reloads.",
+      "SELECT_CARD": "Select opportunity",
+      "NO_LABELS": "No labels available."
+    },
     "CUSTOM_FIELDS": {
       "LOADING": "Loading custom fields...",
       "LOAD_ERROR": "Could not load custom fields.",

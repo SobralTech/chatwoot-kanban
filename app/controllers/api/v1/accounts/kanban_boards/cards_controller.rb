@@ -120,7 +120,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def update_kanban_card
     card_before_update = card_update_snapshot
-    transition_error = stable_card_move_params? && card_stage_transition_error(card_before_update.stage.id, @kanban_stage)
+    transition_error = stable_card_move_params? && card_stage_transition_error(@kanban_stage)
     return render json: transition_error, status: :unprocessable_content if transition_error
 
     invalid_label_titles = perform_kanban_card_update!(card_before_update)
@@ -154,7 +154,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     source_stage = @kanban_card.kanban_stage
     target_stage = target_card_stage_for_reorder
 
-    transition_error = card_stage_transition_error(source_stage.id, target_stage)
+    transition_error = card_stage_transition_error(target_stage)
     return render json: transition_error, status: :unprocessable_content if transition_error
 
     KanbanCard.transaction do
@@ -303,30 +303,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     apply_stage_reason_transition!(source_stage_id, target_stage)
   end
 
-  def card_stage_transition_error(source_stage_id, target_stage)
-    return direct_won_lost_transition_error(source_stage_id, target_stage) if direct_won_lost_transition?(source_stage_id, target_stage)
-
-    stage_reason_transition_error(source_stage_id, target_stage)
-  end
-
-  def direct_won_lost_transition?(source_stage_id, target_stage)
-    [
-      source_stage_id == @kanban_board.won_stage_id && target_stage.id == @kanban_board.lost_stage_id,
-      source_stage_id == @kanban_board.lost_stage_id && target_stage.id == @kanban_board.won_stage_id
-    ].any?
-  end
-
-  def direct_won_lost_transition_error(_source_stage_id, _target_stage)
-    { error: 'direct_won_lost_transition_not_allowed' }
-  end
-
-  def stage_reason_transition_error(source_stage_id, target_stage)
-    return nil if target_stage.id == source_stage_id
-    return nil unless target_stage.id == @kanban_board.lost_stage_id
-    return nil unless @kanban_board.lost_reason_required?
-    return nil if card_params[:kanban_reason_id].present?
-
-    { error: 'lost_reason_required' }
+  def card_stage_transition_error(target_stage)
+    stage_transition_validator(target_stage).call
   end
 
   def entering_terminal_stage?(source_stage_id, target_stage)
@@ -363,14 +341,22 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def resolve_transition_reason_id(target_stage)
-    reason_id = card_params[:kanban_reason_id]
-    return nil if reason_id.blank?
+    stage_transition_validator(target_stage).resolved_reason_id
+  end
 
-    if target_stage.id == @kanban_board.lost_stage_id
-      @kanban_board.kanban_reasons.active.lost.find(reason_id).id
-    elsif target_stage.id == @kanban_board.won_stage_id
-      @kanban_board.kanban_reasons.active.won.find(reason_id).id
-    end
+  def stage_transition_validator(target_stage)
+    KanbanCards::StageTransitionValidator.new(
+      kanban_board: @kanban_board,
+      kanban_card: @kanban_card,
+      target_stage: target_stage,
+      kanban_reason_id: transition_reason_id
+    )
+  end
+
+  def transition_reason_id
+    return if params[:card].blank?
+
+    card_params[:kanban_reason_id]
   end
 
   def dispatch_kanban_card_event(event_name, stage_id: @kanban_card.kanban_stage_id)

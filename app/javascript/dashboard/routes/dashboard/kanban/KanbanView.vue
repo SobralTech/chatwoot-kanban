@@ -19,6 +19,7 @@ import NextButton from 'dashboard/components-next/button/Button.vue';
 import KanbanStageColumn from './board/KanbanStageColumn.vue';
 import KanbanBoardHeader from './board/KanbanBoardHeader.vue';
 import KanbanStageDraft from './board/KanbanStageDraft.vue';
+import KanbanBulkActions from './KanbanBulkActions.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
@@ -48,9 +49,12 @@ const currentUserId = useMapGetter('getCurrentUserID');
 const agents = useMapGetter('agents/getAgents');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
+const labels = useMapGetter('labels/getLabels');
 const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
+const selectedCardIds = ref(new Set());
+const selectionAnchor = ref(null);
 const collapsedStageIds = ref(new Set());
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
@@ -86,6 +90,7 @@ const cardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
 const stageCardsPendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
+const showBulkDeleteConfirmation = ref(false);
 const showRemoveStageConfirmation = ref(false);
 const showRemoveStageCardsConfirmation = ref(false);
 const isCardDragging = ref(false);
@@ -123,6 +128,58 @@ const boardRefreshEvents = new Set([
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
+const isSelectionMode = computed(() => selectedCardIds.value.size > 0);
+
+const clearCardSelection = () => {
+  selectedCardIds.value = new Set();
+  selectionAnchor.value = null;
+};
+
+const cardStageForSelection = card =>
+  stages.value.find(stage =>
+    stage.cards.some(stageCard => stageCard.id === card?.id)
+  );
+
+const toggleCardSelection = (card, event = {}) => {
+  const stage = cardStageForSelection(card);
+  if (!stage) return;
+
+  const nextSelectedCardIds = new Set(selectedCardIds.value);
+  const isSelected = nextSelectedCardIds.has(card.id);
+
+  if (!isSelected && nextSelectedCardIds.size >= 100) {
+    useAlert(t('KANBAN.BULK.LIMIT'));
+    return;
+  }
+
+  const anchor = selectionAnchor.value;
+  if (event.shiftKey && anchor?.stageId === stage.id) {
+    const anchorIndex = stage.cards.findIndex(item => item.id === anchor.id);
+    const cardIndex = stage.cards.findIndex(item => item.id === card.id);
+    if (anchorIndex < 0 || cardIndex < 0) return;
+
+    const start = Math.min(anchorIndex, cardIndex);
+    const end = Math.max(anchorIndex, cardIndex);
+    const rangeCards = stage.cards.slice(start, end + 1);
+    const newCardCount = rangeCards.filter(
+      item => !nextSelectedCardIds.has(item.id)
+    ).length;
+
+    if (nextSelectedCardIds.size + newCardCount > 100) {
+      useAlert(t('KANBAN.BULK.LIMIT'));
+      return;
+    }
+
+    rangeCards.forEach(item => nextSelectedCardIds.add(item.id));
+  } else if (isSelected) {
+    nextSelectedCardIds.delete(card.id);
+  } else {
+    nextSelectedCardIds.add(card.id);
+  }
+
+  selectionAnchor.value = { id: card.id, stageId: stage.id };
+  selectedCardIds.value = nextSelectedCardIds;
+};
 const {
   activeBoardFilterCount,
   activeSearchTerm,
@@ -1199,6 +1256,90 @@ const onOpportunityRemoveCard = card => {
   openRemoveCardConfirmation(card);
 };
 
+const bulkActionErrorMessage = error => {
+  switch (error?.response?.data?.error) {
+    case 'lost_reason_required':
+      return t('KANBAN.BULK.REASON_REQUIRED');
+    case 'bulk_action_limit_exceeded':
+      return t('KANBAN.BULK.LIMIT');
+    default:
+      return null;
+  }
+};
+
+const bulkActionStageIds = (action, payload = {}) => {
+  const selectedStageIds = [...selectedCardIds.value].map(cardId =>
+    findCardStageId({ id: cardId })
+  );
+  const targetStageId =
+    payload.kanban_stage_id || payload.target_stage_id || payload.stage_id;
+  const terminalStageId =
+    action === 'lose' ? selectedBoard.value?.lostStageId : null;
+
+  return [...selectedStageIds, targetStageId, terminalStageId].filter(Boolean);
+};
+
+const applyBulkAction = async ({ action, payload = {} } = {}) => {
+  if (!selectedBoard.value?.id || !selectedCardIds.value.size) return;
+  if (isBoardBusy.value) return;
+
+  const cardIds = [...selectedCardIds.value];
+  const affectedStageIds = bulkActionStageIds(action, payload);
+  const actionKey = 'bulk-kanban-action';
+  startAction(actionKey);
+
+  try {
+    const response = await KanbanBoardsAPI.bulkAction(selectedBoard.value.id, {
+      action,
+      card_ids: cardIds,
+      payload,
+    });
+    const succeeded = response.data?.succeeded || [];
+    const failed = response.data?.failed || [];
+
+    await refreshStageFirstPages(affectedStageIds);
+    clearCardSelection();
+
+    if (failed.length) {
+      useAlert(
+        t('KANBAN.BULK.PARTIAL', {
+          succeeded: succeeded.length,
+          total: cardIds.length,
+          failed: failed.length,
+        })
+      );
+    } else {
+      useAlert(t('KANBAN.BULK.SUCCESS', { count: succeeded.length }));
+    }
+  } catch (error) {
+    useAlert(
+      bulkActionErrorMessage(error) ||
+        getErrorMessage(error, t('KANBAN.BULK.ERROR'))
+    );
+  } finally {
+    endAction(actionKey);
+  }
+};
+
+const openBulkDeleteConfirmation = () => {
+  if (!selectedCardIds.value.size || isBoardBusy.value) return;
+
+  showBulkDeleteConfirmation.value = true;
+};
+
+const closeBulkDeleteConfirmation = () => {
+  showBulkDeleteConfirmation.value = false;
+};
+
+const confirmBulkDelete = async () => {
+  closeBulkDeleteConfirmation();
+  await applyBulkAction({ action: 'delete' });
+};
+
+watch(isFetchingBoard, isFetching => {
+  if (isFetching) clearCardSelection();
+});
+
 watch(activeBoardId, (boardId, previousBoardId) => {
   if (!boards.value.length) return;
 
@@ -1387,6 +1528,8 @@ watch(searchInput, () => {
                 :is-admin="isAdmin"
                 :is-busy="isActionActive(stageActionKey(stage))"
                 :is-card-drag-disabled="isCardDragDisabled"
+                :selected-card-ids="selectedCardIds"
+                :is-selection-mode="isSelectionMode"
                 :has-active-filters="hasActiveFilters"
                 :highlighted-card-id="highlightedCreatedCardId"
                 :sortable-options="sortableFallbackOptions"
@@ -1425,6 +1568,7 @@ watch(searchInput, () => {
                 @move-card-to-stage="moveCardToStage"
                 @assign-agent="assignAgent"
                 @update-due-date="updateCardDueDate"
+                @toggle-select="toggleCardSelection"
                 @load-more="loadMoreStageCards"
                 @drag-start="onCardDragStart"
                 @drag-change="onCardDragChange"
@@ -1458,6 +1602,22 @@ watch(searchInput, () => {
       </div>
     </section>
 
+    <KanbanBulkActions
+      v-if="selectedBoard && selectedCardIds.size"
+      :selected-count="selectedCardIds.size"
+      :stages="stages"
+      :assignable-users="assignableUsers"
+      :labels="labels || []"
+      :reasons="selectedBoard.reasons || []"
+      :won-stage-id="selectedBoard.wonStageId"
+      :lost-stage-id="selectedBoard.lostStageId"
+      :lost-reason-required="!!selectedBoard.lostReasonRequired"
+      :is-busy="isBoardBusy"
+      @action="applyBulkAction"
+      @delete="openBulkDeleteConfirmation"
+      @clear="clearCardSelection"
+    />
+
     <woot-delete-modal
       v-model:show="showRemoveCardConfirmation"
       :on-close="closeRemoveCardConfirmation"
@@ -1466,6 +1626,20 @@ watch(searchInput, () => {
       :message="t('KANBAN.REMOVE_CARD.MESSAGE')"
       :message-value="removeCardMessageValue"
       :confirm-text="t('KANBAN.REMOVE_CARD.CONFIRM')"
+      :reject-text="t('KANBAN.REMOVE_CARD.CANCEL')"
+    />
+    <woot-delete-modal
+      v-model:show="showBulkDeleteConfirmation"
+      :on-close="closeBulkDeleteConfirmation"
+      :on-confirm="confirmBulkDelete"
+      :is-loading="isBoardBusy"
+      :title="t('KANBAN.BULK.DELETE_CONFIRM_TITLE')"
+      :message="
+        t('KANBAN.BULK.DELETE_CONFIRM_MESSAGE', {
+          count: selectedCardIds.size,
+        })
+      "
+      :confirm-text="t('KANBAN.BULK.DELETE')"
       :reject-text="t('KANBAN.REMOVE_CARD.CANCEL')"
     />
     <woot-delete-modal
