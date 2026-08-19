@@ -55,6 +55,7 @@ const copyName = ref('');
 const copyNameInput = ref(null);
 const targetBoardId = ref(null);
 const targetPosition = ref(1);
+const moveCardsBoardId = ref(null);
 
 const currentBoardId = computed(() => Number(props.stage.kanbanBoardId));
 const targetBoard = computed(() =>
@@ -80,9 +81,49 @@ const { isTerminalStage } = useKanbanStageOrder({
   lostStageId: toRef(props, 'lostStageId'),
 });
 const isCurrentStageTerminal = computed(() => isTerminalStage(props.stage));
+const moveCardsTargetBoards = computed(() =>
+  props.boards.filter(board => board.active !== false)
+);
+const moveCardsTargetBoardOptions = computed(() =>
+  moveCardsTargetBoards.value.map(board => ({
+    value: board.id,
+    label:
+      Number(board.id) === currentBoardId.value
+        ? t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: board.name })
+        : board.name,
+  }))
+);
+const moveCardsTargetBoard = computed(
+  () =>
+    moveCardsTargetBoards.value.find(
+      board => Number(board.id) === Number(moveCardsBoardId.value)
+    ) || props.boards.find(board => Number(board.id) === currentBoardId.value)
+);
+const isCurrentMoveCardsBoard = computed(
+  () => Number(moveCardsBoardId.value) === currentBoardId.value
+);
+const moveCardsStages = computed(() => {
+  const board = moveCardsTargetBoard.value;
+  const stages = isCurrentMoveCardsBoard.value
+    ? props.stages
+    : board?.stagesSummary || [];
+  const terminalStageIds = [
+    isCurrentMoveCardsBoard.value ? props.wonStageId : board?.wonStageId,
+    isCurrentMoveCardsBoard.value ? props.lostStageId : board?.lostStageId,
+  ]
+    .filter(Boolean)
+    .map(Number);
+
+  return stages.filter(
+    stage =>
+      stage.active !== false && !terminalStageIds.includes(Number(stage.id))
+  );
+});
 const cardMoveTargets = computed(() =>
-  props.stages.filter(
-    stage => stage.id !== props.stage.id && !isTerminalStage(stage)
+  moveCardsStages.value.filter(
+    stage =>
+      !isCurrentMoveCardsBoard.value ||
+      Number(stage.id) !== Number(props.stage.id)
   )
 );
 const targetBoardStageCount = computed(() => {
@@ -143,6 +184,7 @@ const resetView = () => {
   copyName.value = '';
   targetBoardId.value = null;
   targetPosition.value = 1;
+  moveCardsBoardId.value = null;
 };
 
 const openView = nextView => {
@@ -156,6 +198,10 @@ const openView = nextView => {
   if (nextView === 'move') {
     targetBoardId.value = currentBoardId.value;
     targetPosition.value = 1;
+  }
+
+  if (nextView === 'moveCards') {
+    moveCardsBoardId.value = currentBoardId.value;
   }
 };
 
@@ -213,6 +259,15 @@ const submitMove = hide => {
     },
     hide
   );
+};
+
+const submitMoveCards = (targetStage, hide) => {
+  const payload = { targetStageId: targetStage.id };
+  if (!isCurrentMoveCardsBoard.value) {
+    payload.targetBoardId = Number(moveCardsBoardId.value);
+  }
+
+  emitAction('moveCards', payload, hide);
 };
 
 watch(targetBoardId, () => {
@@ -386,7 +441,18 @@ watch(targetBoardId, () => {
           </button>
         </form>
 
-        <div v-else-if="view === 'moveCards'" class="p-2">
+        <div v-else-if="view === 'moveCards'" class="space-y-2 p-2">
+          <label class="block px-2 text-xs font-medium text-n-slate-11">
+            {{ t('KANBAN.CARD.MOVE_BOARD_LABEL') }}
+            <Select
+              v-model="moveCardsBoardId"
+              data-testid="kanban-stage-move-cards-board"
+              :options="moveCardsTargetBoardOptions"
+              full-width
+              class="mt-1 font-normal"
+            />
+          </label>
+          <div class="border-t border-n-weak" />
           <p
             v-if="cardMoveTargets.length === 0"
             class="px-2 py-3 text-sm text-n-slate-10"
@@ -399,9 +465,7 @@ watch(targetBoardId, () => {
             type="button"
             class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
-            @click="
-              emitAction('moveCards', { targetStageId: targetStage.id }, hide)
-            "
+            @click="submitMoveCards(targetStage, hide)"
           >
             <span
               class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9"

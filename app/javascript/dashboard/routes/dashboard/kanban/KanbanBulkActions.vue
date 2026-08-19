@@ -6,6 +6,7 @@ import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 import WootLabel from 'dashboard/components/ui/Label.vue';
 import KanbanBulkActionMenu from './KanbanBulkActionMenu.vue';
 import KanbanReasonPicker from './KanbanReasonPicker.vue';
@@ -18,6 +19,14 @@ const props = defineProps({
   selectedCount: {
     type: Number,
     required: true,
+  },
+  board: {
+    type: Object,
+    default: () => ({}),
+  },
+  boards: {
+    type: Array,
+    default: () => [],
   },
   stages: {
     type: Array,
@@ -64,20 +73,82 @@ const props = defineProps({
 const emit = defineEmits(['action', 'clear', 'delete']);
 const { t } = useI18n();
 const selectedReasonId = ref('');
+const moveBoardId = ref(null);
 
-const stageOptions = computed(() =>
-  props.stages
-    .filter(
-      stage =>
-        Number(stage.id) !== Number(props.wonStageId) &&
-        Number(stage.id) !== Number(props.lostStageId)
-    )
-    .map(stage => ({
-      value: stage.id,
-      label: stage.name,
-      color: stage.color,
-    }))
+const chooseAction = (action, payload, hide) => {
+  emit('action', { action, payload });
+  hide?.();
+};
+
+const currentBoardId = computed(() =>
+  props.board?.id ? Number(props.board.id) : null
 );
+const sourceBoard = computed(() =>
+  props.board?.id
+    ? props.board
+    : props.boards.find(board => Number(board.id) === currentBoardId.value) ||
+      {}
+);
+const moveBoards = computed(() => {
+  let boards = props.boards;
+  if (!boards.length && props.board?.id) boards = [sourceBoard.value];
+
+  return boards.filter(board => board?.active !== false);
+});
+const moveBoardOptions = computed(() =>
+  moveBoards.value.map(board => ({
+    value: board.id,
+    label:
+      Number(board.id) === currentBoardId.value
+        ? t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: board.name })
+        : board.name,
+  }))
+);
+const selectedMoveBoard = computed(
+  () =>
+    moveBoards.value.find(
+      board => Number(board.id) === Number(moveBoardId.value)
+    ) || sourceBoard.value
+);
+const isCurrentMoveBoard = computed(() => {
+  if (moveBoardId.value === null || !currentBoardId.value) return true;
+
+  return Number(moveBoardId.value) === currentBoardId.value;
+});
+const moveStages = computed(() => {
+  const board = selectedMoveBoard.value;
+  const stages = isCurrentMoveBoard.value
+    ? props.stages
+    : board?.stagesSummary || [];
+  const terminalStageIds = [
+    isCurrentMoveBoard.value ? props.wonStageId : board?.wonStageId,
+    isCurrentMoveBoard.value ? props.lostStageId : board?.lostStageId,
+  ]
+    .filter(Boolean)
+    .map(Number);
+
+  return stages.filter(
+    stage =>
+      stage.active !== false && !terminalStageIds.includes(Number(stage.id))
+  );
+});
+
+const openMove = () => {
+  moveBoardId.value = currentBoardId.value;
+};
+
+const chooseMoveStage = (stage, hide) => {
+  const payload = { kanban_stage_id: stage.id };
+  if (!isCurrentMoveBoard.value) {
+    payload.target_kanban_board_id = Number(moveBoardId.value);
+  }
+
+  chooseAction('move', payload, hide);
+};
+
+const resetMove = () => {
+  moveBoardId.value = null;
+};
 
 const assigneeOptions = computed(() =>
   props.assignableUsers.map(user => ({
@@ -114,11 +185,6 @@ const priorityOptions = computed(() => [
     label: t('CONVERSATION.PRIORITY.OPTIONS.LOW'),
   },
 ]);
-
-const chooseAction = (action, payload, hide) => {
-  emit('action', { action, payload });
-  hide?.();
-};
 
 const chooseReason = hide => {
   if (props.lostReasonRequired && !selectedReasonId.value) return;
@@ -164,23 +230,54 @@ const resetReason = () => {
       </button>
     </div>
 
-    <KanbanBulkActionMenu
-      :label="t('KANBAN.BULK.MOVE')"
-      icon="i-lucide-corner-up-right"
-      :options="stageOptions"
-      :empty-text="t('KANBAN.CARD.NO_REGULAR_STAGES')"
-      trigger-testid="kanban-bulk-action-move"
-      option-testid="kanban-bulk-move-stage"
-      :is-busy="isBusy"
-      @select="chooseAction('move', { kanban_stage_id: $event })"
-    >
-      <template #optionIcon="{ option }">
-        <span
-          class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9"
-          :style="{ backgroundColor: option.color }"
-        />
+    <Popover align="start" disable-mobile-view @hide="resetMove">
+      <button
+        type="button"
+        data-testid="kanban-bulk-action-move"
+        :class="BULK_ACTION_BUTTON_CLASSES"
+        :disabled="isBusy"
+        @click="openMove"
+      >
+        <i class="i-lucide-corner-up-right size-4" />
+        {{ t('KANBAN.BULK.MOVE') }}
+      </button>
+      <template #content="{ hide }">
+        <div :class="BULK_ACTION_MENU_CLASSES">
+          <label class="block text-xs font-medium text-n-slate-11">
+            {{ t('KANBAN.CARD.MOVE_BOARD_LABEL') }}
+            <Select
+              v-model="moveBoardId"
+              data-testid="kanban-bulk-move-board"
+              :options="moveBoardOptions"
+              full-width
+              class="mt-1 font-normal"
+            />
+          </label>
+          <div class="my-2 border-t border-n-weak" />
+          <p
+            v-if="!moveStages.length"
+            class="px-2 py-2 text-sm text-n-slate-10"
+          >
+            {{ t('KANBAN.CARD.NO_REGULAR_STAGES') }}
+          </p>
+          <button
+            v-for="stage in moveStages"
+            :key="stage.id"
+            type="button"
+            data-testid="kanban-bulk-move-stage"
+            class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="isBusy"
+            @click="chooseMoveStage(stage, hide)"
+          >
+            <span
+              class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9"
+              :style="{ backgroundColor: stage.color }"
+            />
+            <span class="min-w-0 flex-1 truncate">{{ stage.name }}</span>
+          </button>
+        </div>
       </template>
-    </KanbanBulkActionMenu>
+    </Popover>
 
     <KanbanBulkActionMenu
       :label="t('KANBAN.BULK.ASSIGN')"

@@ -1,6 +1,35 @@
 class KanbanCards::MoveToBoardService
   Result = Data.define(:success?, :error, :source_stage_id)
 
+  def self.dispatch_move_events(card:, source_board:, target_board:, source_stage_id:)
+    dispatch_card_event(
+      Events::Types::KANBAN_CARD_DELETED,
+      card,
+      board_id: source_board.id,
+      stage_id: source_stage_id
+    )
+    dispatch_card_event(
+      Events::Types::KANBAN_CARD_CREATED,
+      card,
+      board_id: target_board.id,
+      stage_id: card.kanban_stage_id
+    )
+  end
+
+  def self.dispatch_card_event(event_name, card, board_id:, stage_id:)
+    Rails.configuration.dispatcher.dispatch(
+      event_name,
+      Time.zone.now,
+      account_id: card.account_id,
+      board_id: board_id,
+      stage_id: stage_id,
+      card_id: card.id,
+      conversation_id: card.conversation_id
+    )
+  end
+
+  private_class_method :dispatch_card_event
+
   def initialize(card:, target_board:, target_stage_id:, user:)
     @card = card
     @target_board = target_board

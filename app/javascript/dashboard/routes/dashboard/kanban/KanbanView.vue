@@ -1245,6 +1245,7 @@ const {
   selectedCardIds,
   selectionLimit,
   startAction,
+  store,
   t,
   useAlert,
 });
@@ -1520,6 +1521,8 @@ watch(searchInput, () => {
     <KanbanBulkActions
       v-if="selectedBoard && selectedCardIds.size"
       :selected-count="selectedCardIds.size"
+      :board="selectedBoard"
+      :boards="boards"
       :stages="stages"
       :assignable-users="assignableUsers"
       :has-assigned-selected-cards="hasAssignedSelectedCards"

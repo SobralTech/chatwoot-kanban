@@ -14,14 +14,15 @@ class KanbanCards::BulkActionRequest
     end
   end
 
-  def initialize(kanban_board:, operation:, card_ids:, payload: {})
+  def initialize(kanban_board:, operation:, card_ids:, payload: {}, target_kanban_board: nil)
     @kanban_board = kanban_board
+    @target_kanban_board = target_kanban_board || kanban_board
     @operation = operation.to_s
     @card_ids = Array(card_ids).filter_map(&:presence).map(&:to_i).uniq
     @payload = payload.to_h.deep_symbolize_keys
   end
 
-  attr_reader :operation, :card_ids
+  attr_reader :operation, :card_ids, :target_kanban_board
 
   def validate!
     raise Error, 'bulk_action_limit_exceeded' if card_ids.length > MAX_CARDS
@@ -32,7 +33,7 @@ class KanbanCards::BulkActionRequest
   end
 
   def move_stage
-    @move_stage ||= kanban_board.kanban_stages.active.find_by(id: payload[:kanban_stage_id])
+    @move_stage ||= target_kanban_board.kanban_stages.active.find_by(id: payload[:kanban_stage_id])
   end
 
   def lost_stage
@@ -77,7 +78,7 @@ class KanbanCards::BulkActionRequest
 
   def validate_move!
     raise Error, 'target_stage_required' unless move_stage
-    raise Error, 'terminal_stage_move_not_supported' if KanbanStage.special_stage_ids(kanban_board).include?(move_stage.id)
+    raise Error, 'terminal_stage_move_not_supported' if KanbanStage.special_stage_ids(target_kanban_board).include?(move_stage.id)
   end
 
   def validate_lose!

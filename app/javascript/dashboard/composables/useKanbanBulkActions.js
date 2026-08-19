@@ -14,6 +14,7 @@ export function useKanbanBulkActions({
   selectedCardIds,
   selectionLimit,
   startAction,
+  store,
   t,
   useAlert,
 }) {
@@ -32,18 +33,22 @@ export function useKanbanBulkActions({
     }
   };
 
-  // The cards leave their current stages and land in a new one, so both ends need a
-  // refresh before the board is consistent again.
+  // A cross-board move refreshes the source stages here; the target board is refreshed
+  // through its summary because it is not mounted in this view.
   const affectedStageIds = (action, payload) => {
     const sourceStageIds = [...selectedCardIds.value].map(cardId =>
       findCardStageId({ id: cardId })
     );
     const terminalStageId =
       action === 'lose' ? selectedBoard.value?.lostStageId : null;
+    const isCrossBoardMove =
+      action === 'move' &&
+      payload.target_kanban_board_id &&
+      Number(payload.target_kanban_board_id) !==
+        Number(selectedBoard.value?.id);
+    const targetStageId = isCrossBoardMove ? null : payload.kanban_stage_id;
 
-    return [...sourceStageIds, payload.kanban_stage_id, terminalStageId].filter(
-      Boolean
-    );
+    return [...sourceStageIds, targetStageId, terminalStageId].filter(Boolean);
   };
 
   const applyBulkAction = async ({ action, payload = {} } = {}) => {
@@ -67,6 +72,14 @@ export function useKanbanBulkActions({
       const failed = response.data?.failed || [];
 
       await refreshStageFirstPages(stageIds);
+      if (
+        action === 'move' &&
+        payload.target_kanban_board_id &&
+        Number(payload.target_kanban_board_id) !==
+          Number(selectedBoard.value.id)
+      ) {
+        await store?.dispatch('kanbanBoards/fetchBoards');
+      }
       clearCardSelection();
 
       if (failed.length) {

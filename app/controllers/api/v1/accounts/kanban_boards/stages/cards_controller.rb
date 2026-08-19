@@ -36,9 +36,12 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
   end
 
   def move_all
-    target_stage = @kanban_board.kanban_stages.active.find_by(id: params[:target_stage_id])
-    return render_terminal_stage_not_allowed if target_stage.blank? || terminal_stage?(target_stage)
-    return head :no_content if target_stage == @kanban_stage
+    target_board = target_kanban_board
+    target_stage = target_board.kanban_stages.active.find_by(id: params[:target_stage_id])
+    return render_terminal_stage_not_allowed if target_stage.blank? || terminal_stage?(target_stage, target_board)
+    return head :no_content if target_board == @kanban_board && target_stage == @kanban_stage
+
+    return render json: move_all_cards_to_board(target_board, target_stage) unless target_board == @kanban_board
 
     KanbanCard.move_active_cards_to_stage!(
       kanban_board: @kanban_board,
@@ -80,6 +83,44 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     @kanban_stage = @kanban_board.kanban_stages.active.find(params[:stage_id] || params[:id])
   end
 
+  def target_kanban_board
+    return @kanban_board if params[:target_kanban_board_id].blank?
+
+    policy_scope(KanbanBoard).active.find(params[:target_kanban_board_id])
+  end
+
+  def move_all_cards_to_board(target_board, target_stage)
+    succeeded = []
+    failed = []
+
+    @kanban_stage.kanban_cards.active.order(:position, :id).each do |card|
+      move_card_to_board(card, target_board, target_stage, succeeded, failed)
+    end
+
+    { succeeded: succeeded, failed: failed }
+  end
+
+  def move_card_to_board(card, target_board, target_stage, succeeded, failed)
+    result = KanbanCards::MoveToBoardService.new(
+      card: card,
+      target_board: target_board,
+      target_stage_id: target_stage.id,
+      user: Current.user
+    ).perform!
+    unless result.success?
+      failed << { id: card.id, error: result.error }
+      return
+    end
+
+    succeeded << card.id
+    KanbanCards::MoveToBoardService.dispatch_move_events(
+      card: card,
+      source_board: @kanban_board,
+      target_board: target_board,
+      source_stage_id: result.source_stage_id
+    )
+  end
+
   # Collapsed columns still need fresh counters, so they refresh through the same
   # endpoint asking for totals only instead of skipping the request altogether.
   def metadata_only?
@@ -93,8 +134,8 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     )
   end
 
-  def terminal_stage?(stage)
-    KanbanStage.special_stage_ids(@kanban_board).include?(stage.id)
+  def terminal_stage?(stage, board = @kanban_board)
+    KanbanStage.special_stage_ids(board).include?(stage.id)
   end
 
   def render_invalid_sort

@@ -54,7 +54,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     ).perform!
     return render json: { error: result.error }, status: :unprocessable_content unless result.success?
 
-    dispatch_kanban_card_move_events(
+    KanbanCards::MoveToBoardService.dispatch_move_events(
+      card: @kanban_card,
       source_board: @kanban_board,
       target_board: target_board,
       source_stage_id: result.source_stage_id
@@ -333,19 +334,6 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     return if params[:card].blank?
 
     card_params[:kanban_reason_id]
-  end
-
-  def dispatch_kanban_card_move_events(source_board:, target_board:, source_stage_id:)
-    dispatch_kanban_card_event(
-      Events::Types::KANBAN_CARD_DELETED,
-      board_id: source_board.id,
-      stage_id: source_stage_id
-    )
-    dispatch_kanban_card_event(
-      Events::Types::KANBAN_CARD_CREATED,
-      board_id: target_board.id,
-      stage_id: @kanban_card.kanban_stage_id
-    )
   end
 
   def dispatch_kanban_card_event(event_name, board_id: @kanban_card.kanban_board_id, stage_id: @kanban_card.kanban_stage_id)

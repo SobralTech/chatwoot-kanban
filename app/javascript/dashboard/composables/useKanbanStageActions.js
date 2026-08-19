@@ -275,23 +275,46 @@ export function useKanbanStageActions({
     }
   };
 
-  const moveAllStageCards = async (stage, { targetStageId }) => {
+  const moveAllStageCards = async (stage, { targetStageId, targetBoardId }) => {
     const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
     }
 
+    const isCrossBoardMove =
+      targetBoardId && Number(targetBoardId) !== Number(selectedBoard.value.id);
+
     startAction(actionKey);
 
     try {
-      await KanbanBoardsAPI.moveAllStageCards(
+      const payload = { target_stage_id: targetStageId };
+      if (isCrossBoardMove) payload.target_kanban_board_id = targetBoardId;
+
+      const response = await KanbanBoardsAPI.moveAllStageCards(
         selectedBoard.value.id,
         stage.id,
-        {
-          target_stage_id: targetStageId,
-        }
+        payload
       );
-      await refreshStageFirstPages([stage.id, targetStageId]);
+
+      if (isCrossBoardMove) {
+        const succeeded = response.data?.succeeded || [];
+        const failed = response.data?.failed || [];
+        await refreshStageFirstPages([stage.id]);
+        await store.dispatch('kanbanBoards/fetchBoards');
+
+        if (failed.length) {
+          useAlert(
+            t('KANBAN.BULK.PARTIAL', {
+              succeeded: succeeded.length,
+              total: succeeded.length + failed.length,
+              failed: failed.length,
+            })
+          );
+          return;
+        }
+      } else {
+        await refreshStageFirstPages([stage.id, targetStageId]);
+      }
       useAlert(t('KANBAN.STAGE_MENU.SUCCESS.MOVE_CARDS'));
     } catch (error) {
       showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
