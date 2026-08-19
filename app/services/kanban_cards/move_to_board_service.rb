@@ -1,40 +1,12 @@
 class KanbanCards::MoveToBoardService
   Result = Data.define(:success?, :error, :source_stage_id)
 
-  def self.dispatch_move_events(card:, source_board:, target_board:, source_stage_id:)
-    dispatch_card_event(
-      Events::Types::KANBAN_CARD_DELETED,
-      card,
-      board_id: source_board.id,
-      stage_id: source_stage_id
-    )
-    dispatch_card_event(
-      Events::Types::KANBAN_CARD_CREATED,
-      card,
-      board_id: target_board.id,
-      stage_id: card.kanban_stage_id
-    )
-  end
-
-  def self.dispatch_card_event(event_name, card, board_id:, stage_id:)
-    Rails.configuration.dispatcher.dispatch(
-      event_name,
-      Time.zone.now,
-      account_id: card.account_id,
-      board_id: board_id,
-      stage_id: stage_id,
-      card_id: card.id,
-      conversation_id: card.conversation_id
-    )
-  end
-
-  private_class_method :dispatch_card_event
-
   def initialize(card:, target_board:, target_stage_id:, user:)
     @card = card
     @target_board = target_board
     @target_stage_id = target_stage_id
     @user = user
+    @source_board = card.kanban_board
     @source_stage_id = card.kanban_stage_id
     @dropped_field_keys = []
   end
@@ -48,6 +20,7 @@ class KanbanCards::MoveToBoardService
     return failure('card_already_in_target_board') if duplicate_in_target_board?
 
     move_card!(source_stage, target_stage)
+    dispatch_move_events
     success
   rescue ActiveRecord::RecordNotUnique
     failure('card_already_in_target_board')
@@ -79,21 +52,20 @@ class KanbanCards::MoveToBoardService
   end
 
   def move_card!(source_stage, target_stage)
-    source_board = @card.kanban_board
     source_reason_id = @card.kanban_reason_id
 
     KanbanCard.transaction do
-      target_position = lock_move_records!(source_board, source_stage, target_stage)
+      target_position = lock_move_records!(source_stage, target_stage)
       update_moved_card!(target_stage, target_position)
-      normalize_moved_stages!(source_board, source_stage, target_stage)
+      normalize_moved_stages!(source_stage, target_stage)
       @card.reload
-      record_board_changed_event(source_board, source_stage, target_stage, source_reason_id)
+      record_board_changed_event(source_stage, target_stage, source_reason_id)
     end
   end
 
-  def lock_move_records!(source_board, source_stage, target_stage)
+  def lock_move_records!(source_stage, target_stage)
     KanbanCard.lock_reorder_stages!([source_stage.id, target_stage.id])
-    KanbanCard.lock_active_cards_for_stages!(source_board, [source_stage.id])
+    KanbanCard.lock_active_cards_for_stages!(@source_board, [source_stage.id])
     KanbanCard.lock_active_cards_for_stages!(@target_board, [target_stage.id])
     next_target_position(target_stage)
   end
@@ -113,17 +85,36 @@ class KanbanCards::MoveToBoardService
     remap_field_values!
   end
 
-  def normalize_moved_stages!(source_board, source_stage, target_stage)
-    KanbanCard.normalize_positions_for_stage!(kanban_board: source_board, kanban_stage: source_stage)
+  def normalize_moved_stages!(source_stage, target_stage)
+    KanbanCard.normalize_positions_for_stage!(kanban_board: @source_board, kanban_stage: source_stage)
     KanbanCard.normalize_positions_for_stage!(kanban_board: @target_board, kanban_stage: target_stage)
   end
 
-  def record_board_changed_event(source_board, source_stage, target_stage, source_reason_id)
+  def record_board_changed_event(source_stage, target_stage, source_reason_id)
     KanbanCards::RecordEventService.call(
       card: @card,
       event_type: 'board_changed',
       user: @user,
-      metadata: board_changed_metadata(source_board, source_stage, target_stage, source_reason_id)
+      metadata: board_changed_metadata(source_stage, target_stage, source_reason_id)
+    )
+  end
+
+  # Both ends of the move need the card list refreshed, so the source board hears about a
+  # removal and the target board about an arrival.
+  def dispatch_move_events
+    dispatch_card_event(Events::Types::KANBAN_CARD_DELETED, board_id: @source_board.id, stage_id: @source_stage_id)
+    dispatch_card_event(Events::Types::KANBAN_CARD_CREATED, board_id: @target_board.id, stage_id: @card.kanban_stage_id)
+  end
+
+  def dispatch_card_event(event_name, board_id:, stage_id:)
+    Rails.configuration.dispatcher.dispatch(
+      event_name,
+      Time.zone.now,
+      account_id: @card.account_id,
+      board_id: board_id,
+      stage_id: stage_id,
+      card_id: @card.id,
+      conversation_id: @card.conversation_id
     )
   end
 
@@ -149,10 +140,10 @@ class KanbanCards::MoveToBoardService
     end
   end
 
-  def board_changed_metadata(source_board, source_stage, target_stage, source_reason_id)
+  def board_changed_metadata(source_stage, target_stage, source_reason_id)
     {
-      from_board_id: source_board.id,
-      from_board_name: source_board.name,
+      from_board_id: @source_board.id,
+      from_board_name: @source_board.name,
       to_board_id: @target_board.id,
       to_board_name: @target_board.name,
       from_stage_id: source_stage.id,

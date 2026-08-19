@@ -39,9 +39,8 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     target_board = target_kanban_board
     target_stage = target_board.kanban_stages.active.find_by(id: params[:target_stage_id])
     return render_terminal_stage_not_allowed if target_stage.blank? || terminal_stage?(target_stage, target_board)
-    return head :no_content if target_board == @kanban_board && target_stage == @kanban_stage
-
-    return render json: move_all_cards_to_board(target_board, target_stage) unless target_board == @kanban_board
+    return render json: move_all_cards_to_board(target_board, target_stage) if target_board != @kanban_board
+    return head :no_content if target_stage == @kanban_stage
 
     KanbanCard.move_active_cards_to_stage!(
       kanban_board: @kanban_board,
@@ -51,6 +50,8 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
 
     dispatch_kanban_card_reordered_event(@kanban_stage.id, target_stage.id)
     head :no_content
+  rescue KanbanCards::BulkActionRequest::Error => e
+    render json: { error: e.code }, status: :unprocessable_content
   end
 
   def destroy_all
@@ -89,36 +90,20 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     policy_scope(KanbanBoard).active.find(params[:target_kanban_board_id])
   end
 
+  # Emptying a stage into another board is a bulk move of every card it holds, so it runs
+  # through the same service the bulk bar uses and inherits its cap, per-card
+  # authorization and events.
   def move_all_cards_to_board(target_board, target_stage)
-    succeeded = []
-    failed = []
-
-    @kanban_stage.kanban_cards.active.order(:position, :id).each do |card|
-      move_card_to_board(card, target_board, target_stage, succeeded, failed)
-    end
-
-    { succeeded: succeeded, failed: failed }
-  end
-
-  def move_card_to_board(card, target_board, target_stage, succeeded, failed)
-    result = KanbanCards::MoveToBoardService.new(
-      card: card,
-      target_board: target_board,
-      target_stage_id: target_stage.id,
-      user: Current.user
+    result = KanbanCards::BulkActionService.new(
+      user: Current.user,
+      kanban_board: @kanban_board,
+      target_kanban_board: target_board,
+      operation: 'move',
+      card_ids: @kanban_stage.kanban_cards.active.order(:position, :id).pluck(:id),
+      payload: { kanban_stage_id: target_stage.id }
     ).perform!
-    unless result.success?
-      failed << { id: card.id, error: result.error }
-      return
-    end
 
-    succeeded << card.id
-    KanbanCards::MoveToBoardService.dispatch_move_events(
-      card: card,
-      source_board: @kanban_board,
-      target_board: target_board,
-      source_stage_id: result.source_stage_id
-    )
+    { succeeded: result.succeeded, failed: result.failed }
   end
 
   # Collapsed columns still need fresh counters, so they refresh through the same
@@ -134,7 +119,7 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     )
   end
 
-  def terminal_stage?(stage, board = @kanban_board)
+  def terminal_stage?(stage, board)
     KanbanStage.special_stage_ids(board).include?(stage.id)
   end
 

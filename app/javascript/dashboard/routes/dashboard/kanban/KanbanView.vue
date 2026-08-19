@@ -311,6 +311,10 @@ const stageActionErrorMessage = error => {
       return t('KANBAN.ACTIONS.REMOVE_STAGE_TERMINAL');
     case 'terminal_stage_not_allowed':
       return t('KANBAN.STAGE_MENU.ERRORS.TERMINAL_STAGE_NOT_ALLOWED');
+    case 'bulk_action_limit_exceeded':
+      return t('KANBAN.STAGE_MENU.ERRORS.MOVE_CARDS_LIMIT', {
+        count: selectionLimit.value,
+      });
     default:
       return null;
   }

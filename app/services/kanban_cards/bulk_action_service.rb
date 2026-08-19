@@ -15,7 +15,6 @@ class KanbanCards::BulkActionService
       target_kanban_board: target_kanban_board
     )
     @affected_stage_refs = []
-    @pending_move_events = []
   end
 
   def perform!
@@ -23,14 +22,13 @@ class KanbanCards::BulkActionService
 
     result = Result.new(succeeded: [], failed: [])
     card_ids.each { |card_id| process_card(card_id, result) }
-    dispatch_pending_move_events
     dispatch_affected_stage_events
     result
   end
 
   private
 
-  attr_reader :user, :kanban_board, :request, :affected_stage_refs, :pending_move_events
+  attr_reader :user, :kanban_board, :request, :affected_stage_refs
 
   def account
     kanban_board.account
@@ -44,7 +42,7 @@ class KanbanCards::BulkActionService
     return add_failure(result, card_id, 'not_authorized') unless authorized_card?(card)
 
     stage_ids = KanbanCard.transaction { apply_operation(card) }
-    register_affected_stages(card, stage_ids)
+    stage_ids.each { |stage_id| affected_stage_refs << [kanban_board.id, stage_id] }
     result.succeeded << card.id
   rescue StandardError => e
     add_failure(result, card_id, error_code(e))
@@ -101,6 +99,9 @@ class KanbanCards::BulkActionService
     ).perform!
     raise KanbanCards::BulkActionRequest::Error, result.error unless result.success?
 
+    # The card lives on the target board now, so its arrival stage has to be refreshed
+    # there; the stage it left belongs to the board this request runs on.
+    affected_stage_refs << [target_kanban_board.id, card.kanban_stage_id]
     [result.source_stage_id]
   end
 
@@ -168,31 +169,8 @@ class KanbanCards::BulkActionService
     operation == 'move' && target_kanban_board.id != kanban_board.id
   end
 
-  def register_affected_stages(card, stage_ids)
-    if cross_board_move?
-      source_stage_id = stage_ids.first
-      affected_stage_refs << [kanban_board.id, source_stage_id]
-      affected_stage_refs << [target_kanban_board.id, card.kanban_stage_id]
-      pending_move_events << {
-        card: card,
-        source_board: kanban_board,
-        target_board: target_kanban_board,
-        source_stage_id: source_stage_id
-      }
-      return
-    end
-
-    stage_ids.each { |stage_id| affected_stage_refs << [kanban_board.id, stage_id] }
-  end
-
-  def dispatch_pending_move_events
-    pending_move_events.each do |event|
-      KanbanCards::MoveToBoardService.dispatch_move_events(**event)
-    end
-  end
-
   def dispatch_affected_stage_events
-    affected_stage_refs.compact.uniq.each do |board_id, stage_id|
+    affected_stage_refs.uniq.each do |board_id, stage_id|
       next if stage_id.blank?
 
       Rails.configuration.dispatcher.dispatch(

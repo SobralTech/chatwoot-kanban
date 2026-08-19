@@ -54,12 +54,6 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     ).perform!
     return render json: { error: result.error }, status: :unprocessable_content unless result.success?
 
-    KanbanCards::MoveToBoardService.dispatch_move_events(
-      card: @kanban_card,
-      source_board: @kanban_board,
-      target_board: target_board,
-      source_stage_id: result.source_stage_id
-    )
     @kanban_board = target_board
     render_card
   end

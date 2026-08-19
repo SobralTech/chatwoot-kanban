@@ -104,17 +104,23 @@ const moveBoardOptions = computed(() =>
         : board.name,
   }))
 );
+// The menu always opens on the board the cards already sit on, so the funnel select
+// reads its default from there instead of being primed when the popover opens.
+const selectedMoveBoardId = computed({
+  get: () => moveBoardId.value ?? currentBoardId.value,
+  set: value => {
+    moveBoardId.value = value;
+  },
+});
 const selectedMoveBoard = computed(
   () =>
     moveBoards.value.find(
-      board => Number(board.id) === Number(moveBoardId.value)
+      board => Number(board.id) === Number(selectedMoveBoardId.value)
     ) || sourceBoard.value
 );
-const isCurrentMoveBoard = computed(() => {
-  if (moveBoardId.value === null || !currentBoardId.value) return true;
-
-  return Number(moveBoardId.value) === currentBoardId.value;
-});
+const isCurrentMoveBoard = computed(
+  () => Number(selectedMoveBoardId.value) === Number(currentBoardId.value)
+);
 const moveStages = computed(() => {
   const board = selectedMoveBoard.value;
   const stages = isCurrentMoveBoard.value
@@ -132,18 +138,21 @@ const moveStages = computed(() => {
       stage.active !== false && !terminalStageIds.includes(Number(stage.id))
   );
 });
+const moveStageOptions = computed(() =>
+  moveStages.value.map(stage => ({
+    value: stage.id,
+    label: stage.name,
+    color: stage.color,
+  }))
+);
 
-const openMove = () => {
-  moveBoardId.value = currentBoardId.value;
-};
-
-const chooseMoveStage = (stage, hide) => {
-  const payload = { kanban_stage_id: stage.id };
+const chooseMoveStage = stageId => {
+  const payload = { kanban_stage_id: stageId };
   if (!isCurrentMoveBoard.value) {
-    payload.target_kanban_board_id = Number(moveBoardId.value);
+    payload.target_kanban_board_id = Number(selectedMoveBoardId.value);
   }
 
-  chooseAction('move', payload, hide);
+  chooseAction('move', payload);
 };
 
 const resetMove = () => {
@@ -230,54 +239,37 @@ const resetReason = () => {
       </button>
     </div>
 
-    <Popover align="start" disable-mobile-view @hide="resetMove">
-      <button
-        type="button"
-        data-testid="kanban-bulk-action-move"
-        :class="BULK_ACTION_BUTTON_CLASSES"
-        :disabled="isBusy"
-        @click="openMove"
-      >
-        <i class="i-lucide-corner-up-right size-4" />
-        {{ t('KANBAN.BULK.MOVE') }}
-      </button>
-      <template #content="{ hide }">
-        <div :class="BULK_ACTION_MENU_CLASSES">
-          <label class="block text-xs font-medium text-n-slate-11">
-            {{ t('KANBAN.CARD.MOVE_BOARD_LABEL') }}
-            <Select
-              v-model="moveBoardId"
-              data-testid="kanban-bulk-move-board"
-              :options="moveBoardOptions"
-              full-width
-              class="mt-1 font-normal"
-            />
-          </label>
-          <div class="my-2 border-t border-n-weak" />
-          <p
-            v-if="!moveStages.length"
-            class="px-2 py-2 text-sm text-n-slate-10"
-          >
-            {{ t('KANBAN.CARD.NO_REGULAR_STAGES') }}
-          </p>
-          <button
-            v-for="stage in moveStages"
-            :key="stage.id"
-            type="button"
-            data-testid="kanban-bulk-move-stage"
-            class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="isBusy"
-            @click="chooseMoveStage(stage, hide)"
-          >
-            <span
-              class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9"
-              :style="{ backgroundColor: stage.color }"
-            />
-            <span class="min-w-0 flex-1 truncate">{{ stage.name }}</span>
-          </button>
-        </div>
+    <KanbanBulkActionMenu
+      :label="t('KANBAN.BULK.MOVE')"
+      icon="i-lucide-corner-up-right"
+      :options="moveStageOptions"
+      :empty-text="t('KANBAN.CARD.NO_REGULAR_STAGES')"
+      trigger-testid="kanban-bulk-action-move"
+      option-testid="kanban-bulk-move-stage"
+      :is-busy="isBusy"
+      @hide="resetMove"
+      @select="chooseMoveStage"
+    >
+      <template #header>
+        <label class="block text-xs font-medium text-n-slate-11">
+          {{ t('KANBAN.CARD.MOVE_BOARD_LABEL') }}
+          <Select
+            v-model="selectedMoveBoardId"
+            data-testid="kanban-bulk-move-board"
+            :options="moveBoardOptions"
+            full-width
+            class="mt-1 font-normal"
+          />
+        </label>
+        <div class="my-2 border-t border-n-weak" />
       </template>
-    </Popover>
+      <template #optionIcon="{ option }">
+        <span
+          class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9"
+          :style="{ backgroundColor: option.color }"
+        />
+      </template>
+    </KanbanBulkActionMenu>
 
     <KanbanBulkActionMenu
       :label="t('KANBAN.BULK.ASSIGN')"
