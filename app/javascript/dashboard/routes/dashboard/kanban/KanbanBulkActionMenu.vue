@@ -131,17 +131,21 @@ const reset = () => {
             <span class="truncate">{{ option.label }}</span>
           </slot>
         </button>
-        <button
+        <div
           v-if="multiple && selected.length"
-          type="button"
-          :data-testid="applyTestid"
-          class="mt-1 flex w-full items-center justify-center gap-2 rounded-md bg-n-brand px-2 py-1.5 text-sm font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isBusy"
-          @click="apply(hide)"
+          class="sticky bottom-0 z-20 -mx-2 -mb-2 mt-1 rounded-b-md bg-n-alpha-3 px-2 pb-2 pt-1 backdrop-blur-[4px]"
         >
-          <i :class="`${applyIcon} size-4`" />
-          {{ applyLabel }}
-        </button>
+          <button
+            type="button"
+            :data-testid="applyTestid"
+            class="flex w-full items-center justify-center gap-2 rounded-md bg-n-brand px-2 py-1.5 text-sm font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="isBusy"
+            @click="apply(hide)"
+          >
+            <i :class="`${applyIcon} size-4`" />
+            {{ applyLabel }}
+          </button>
+        </div>
         <slot name="footer" :hide="hide" />
       </div>
     </template>
