@@ -133,7 +133,8 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def card_params
     params.require(:card).permit(
-      :kanban_stage_id, :position, :subject, :description, :starts_at, :due_at, :priority, :kanban_reason_id, labels: []
+      :kanban_stage_id, :position, :after_card_id, :subject, :description, :starts_at, :due_at, :priority, :kanban_reason_id,
+      labels: []
     )
   end
 
@@ -184,12 +185,32 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
     source_stage_id = stage_transition.source_stage.id
     KanbanCard.transaction do
-      stage_transition.apply!(position: params.dig(:card, :position) || stage_transition.next_position)
+      stage_transition.apply!(position: resolved_reorder_position(stage_transition))
       stage_transition.record_event!
     end
 
     dispatch_kanban_card_reordered_event(source_stage_id)
     render_card
+  end
+
+  def resolved_reorder_position(stage_transition)
+    return card_params[:position] if card_params[:position].present?
+    return stage_transition.next_position unless card_params.key?(:after_card_id)
+
+    position_after_anchor(stage_transition, card_params[:after_card_id])
+  end
+
+  # A blank after_card_id means the card was dropped at the top of the stage.
+  def position_after_anchor(stage_transition, after_card_id)
+    return 1 if after_card_id.blank?
+
+    target_stage = stage_transition.target_stage
+    anchor = @kanban_board.kanban_cards.active.find_by(id: after_card_id, kanban_stage_id: target_stage.id)
+    return stage_transition.next_position if anchor.nil?
+
+    return anchor.position + 1 unless target_stage.id == @kanban_card.kanban_stage_id
+
+    anchor.position + (anchor.position > @kanban_card.position ? 0 : 1)
   end
 
   def destroy_kanban_card

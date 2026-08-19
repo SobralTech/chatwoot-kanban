@@ -1416,6 +1416,69 @@ describe('KanbanView drag and drop', () => {
     });
     expect(KanbanBoardsAPI.show).toHaveBeenCalledTimes(1);
   });
+  it('persists filtered card drag using the card above the destination as anchor', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([
+        buildCard({ id: 700, kanban_stage_id: 200, position: 4 }),
+        buildCard({ id: 501, kanban_stage_id: 100, position: 1 }),
+        buildCard({ id: 701, kanban_stage_id: 200, position: 9 }),
+      ])
+    );
+    wrapper.vm.$.setupState.activeSearchTerm = 'sale';
+    await nextTick();
+
+    const targetStageCardDraggable = findCardDraggables(wrapper)[1];
+    expect(targetStageCardDraggable.props('disabled')).toBe(false);
+
+    targetStageCardDraggable.vm.$emit('change', {
+      added: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 1,
+        },
+        newIndex: 1,
+      },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
+      card: {
+        kanban_stage_id: 200,
+        after_card_id: 700,
+      },
+    });
+  });
+
+  it('persists filtered card drag to the top with a null anchor', async () => {
+    const wrapper = await mountView(
+      buildBoardResponse([buildCard({ id: 700, kanban_stage_id: 200 })])
+    );
+    wrapper.vm.$.setupState.activeSearchTerm = 'sale';
+    await nextTick();
+
+    const targetStageCardDraggable = findCardDraggables(wrapper)[1];
+    targetStageCardDraggable.vm.$emit('change', {
+      added: {
+        element: {
+          id: 501,
+          conversationId: 123,
+          kanbanStageId: 100,
+          position: 1,
+        },
+        newIndex: 0,
+      },
+    });
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
+      card: {
+        kanban_stage_id: 200,
+        after_card_id: null,
+      },
+    });
+  });
 
   it('ignores source removed card drag events', async () => {
     const wrapper = await mountView();

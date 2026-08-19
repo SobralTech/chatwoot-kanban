@@ -225,7 +225,7 @@ const { t } = useI18n();
         class="flex flex-1 flex-col gap-2 rounded-md"
         :title="
           hasActiveFilters
-            ? t('KANBAN.ACTIONS.REORDER_DISABLED_FILTERED')
+            ? t('KANBAN.ACTIONS.REORDER_ANCHORED_HINT')
             : undefined
         "
         :group="{ name: 'kanban-cards' }"

@@ -274,8 +274,7 @@ const TERMINAL_STAGE_CLASSES = {
 };
 const stageAccent = stage => TERMINAL_STAGE_CLASSES[stageTone(stage)] ?? null;
 const isCardDragDisabled = computed(
-  () =>
-    isPersistingCardDrag.value || isBoardBusy.value || hasActiveFilters.value
+  () => isPersistingCardDrag.value || isBoardBusy.value
 );
 const canAddCardInEmptyStage = stage =>
   !isTerminalStage(stage) && !hasActiveFilters.value && !isCardDragging.value;
@@ -954,6 +953,7 @@ const {
   findCardStageId,
   flushPendingRealtimeKanbanEvents,
   getErrorMessage,
+  hasActiveFilters,
   hasCardDragChanged,
   isActionActive,
   isCardDragging,

@@ -12,6 +12,7 @@ export function useKanbanCardActions({
   findCardStageId,
   flushPendingRealtimeKanbanEvents,
   getErrorMessage,
+  hasActiveFilters,
   isActionActive,
   isCardDragging,
   hasCardDragChanged,
@@ -70,8 +71,11 @@ export function useKanbanCardActions({
       appendToStageEnd || (isLastLoadedSlot && !!stage.pagination?.hasMore);
     const destinationPosition = appendsToStageEnd ? undefined : targetIndex + 1;
     const stageChanged = card.kanbanStageId !== stage.id;
-    const positionChanged =
-      appendsToStageEnd || card.position !== destinationPosition;
+    // Under filters the visible list is a subset, so a card's local index says
+    // nothing about its real position; only the drag itself signals a move.
+    const positionChanged = hasActiveFilters.value
+      ? stageChanged || event?.moved?.oldIndex !== event?.moved?.newIndex
+      : appendsToStageEnd || card.position !== destinationPosition;
     if (!stageChanged && !positionChanged) return;
 
     const actionKey = cardActionKey(card);
@@ -79,12 +83,15 @@ export function useKanbanCardActions({
 
     isPersistingCardDrag.value = true;
     startAction(actionKey);
-    const payload = {
-      card: {
-        kanban_stage_id: stage.id,
-        ...(appendsToStageEnd ? {} : { position: destinationPosition }),
-      },
-    };
+    // A null anchor means the card was dropped at the top of the stage.
+    const anchorCard = targetIndex > 0 ? stage.cards[targetIndex - 1] : null;
+    const cardPayload = { kanban_stage_id: stage.id };
+    if (hasActiveFilters.value) {
+      cardPayload.after_card_id = anchorCard?.id ?? null;
+    } else if (!appendsToStageEnd) {
+      cardPayload.position = destinationPosition;
+    }
+    const payload = { card: cardPayload };
 
     try {
       await KanbanBoardsAPI.reorderCardById(
