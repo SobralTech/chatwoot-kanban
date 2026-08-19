@@ -203,6 +203,13 @@ const hasAssignedSelectedCards = computed(() =>
     )
   )
 );
+const hasLabeledSelectedCards = computed(() =>
+  stages.value.some(stage =>
+    stage.cards.some(
+      card => selectedCardIds.value.has(card.id) && card.labels?.length
+    )
+  )
+);
 const hasBoards = computed(() => boards.value.length > 0);
 const activeAddItemStage = computed(() =>
   stages.value.find(stage => stage.id === activeAddItemStageId.value)
@@ -1519,6 +1526,7 @@ watch(searchInput, () => {
       :stages="stages"
       :assignable-users="assignableUsers"
       :has-assigned-selected-cards="hasAssignedSelectedCards"
+      :has-labeled-selected-cards="hasLabeledSelectedCards"
       :labels="labels"
       :reasons="selectedBoard.reasons || []"
       :won-stage-id="selectedBoard.wonStageId"

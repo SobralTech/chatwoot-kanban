@@ -3,7 +3,7 @@
 # single code instead of producing one identical failure row per card.
 class KanbanCards::BulkActionRequest
   MAX_CARDS = 100
-  OPERATIONS = %w[move assign label priority lose delete].freeze
+  OPERATIONS = %w[move assign label clear_labels priority lose delete].freeze
 
   class Error < ArgumentError
     attr_reader :code
@@ -43,8 +43,10 @@ class KanbanCards::BulkActionRequest
     @assignee_ids ||= Array(payload[:assignee_ids]).filter_map(&:presence).map(&:to_i).uniq
   end
 
-  def label
-    payload[:label].to_s.strip
+  def labels
+    @labels ||= Array(payload[:labels].presence || payload[:label])
+                .filter_map { |value| value.to_s.strip.presence }
+                .uniq
   end
 
   def priority
@@ -64,7 +66,7 @@ class KanbanCards::BulkActionRequest
     when 'move' then validate_move!
     when 'lose' then validate_lose!
     when 'assign' then validate_assignees!
-    when 'label' then validate_label!
+    when 'label' then validate_labels!
     when 'priority' then validate_priority!
     end
   end
@@ -84,9 +86,11 @@ class KanbanCards::BulkActionRequest
     raise Error, 'unknown_assignees' if unknown_ids.present?
   end
 
-  def validate_label!
-    raise Error, 'label_required' if label.blank?
-    raise Error, 'unknown_label' unless kanban_board.account.labels.exists?(title: label)
+  def validate_labels!
+    raise Error, 'label_required' if labels.blank?
+
+    known_labels = kanban_board.account.labels.where(title: labels).pluck(:title)
+    raise Error, 'unknown_label' if (labels - known_labels).present?
   end
 
   def validate_priority!

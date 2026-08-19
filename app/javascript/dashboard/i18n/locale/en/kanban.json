@@ -291,7 +291,7 @@
       "ASSIGN": "Assign to",
       "APPLY": "Apply",
       "UNASSIGN": "Unassign everyone",
-      "LABEL": "Add label",
+      "LABEL": "Add labels",
       "PRIORITY": "Priority",
       "LOSE": "Mark as lost",
       "DELETE": "Delete",
@@ -302,7 +302,8 @@
       "ERROR": "Could not apply the action.",
       "LIMIT": "Select up to {count} opportunities at a time.",
       "SELECT_CARD": "Select opportunity",
-      "NO_LABELS": "No labels available."
+      "NO_LABELS": "No labels available.",
+      "REMOVE_ALL_LABELS": "Remove all labels"
     },
     "CUSTOM_FIELDS": {
       "LOADING": "Loading custom fields...",

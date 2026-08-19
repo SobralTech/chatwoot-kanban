@@ -31,6 +31,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  hasLabeledSelectedCards: {
+    type: Boolean,
+    default: false,
+  },
   labels: {
     type: Array,
     default: () => [],
@@ -61,6 +65,7 @@ const emit = defineEmits(['action', 'clear', 'delete']);
 const { t } = useI18n();
 const selectedReasonId = ref('');
 const selectedAssigneeIds = ref([]);
+const selectedLabelTitles = ref([]);
 
 const stageOptions = computed(() =>
   props.stages
@@ -150,8 +155,33 @@ const assignSelected = hide => {
   chooseAction('assign', { assignee_ids: selectedAssigneeIds.value }, hide);
 };
 
+const toggleLabel = labelTitle => {
+  const nextSelectedLabelTitles = new Set(selectedLabelTitles.value);
+
+  if (nextSelectedLabelTitles.has(labelTitle)) {
+    nextSelectedLabelTitles.delete(labelTitle);
+  } else {
+    nextSelectedLabelTitles.add(labelTitle);
+  }
+
+  selectedLabelTitles.value = [...nextSelectedLabelTitles];
+};
+
+const isLabelSelected = labelTitle =>
+  selectedLabelTitles.value.includes(labelTitle);
+
+const applySelectedLabels = hide => {
+  if (!selectedLabelTitles.value.length) return;
+
+  chooseAction('label', { labels: selectedLabelTitles.value }, hide);
+};
+
 const resetAssigneeSelection = () => {
   selectedAssigneeIds.value = [];
+};
+
+const resetLabelSelection = () => {
+  selectedLabelTitles.value = [];
 };
 
 const resetReason = () => {
@@ -266,16 +296,48 @@ const resetReason = () => {
       trigger-testid="kanban-bulk-action-label"
       option-testid="kanban-bulk-label-option"
       menu-class="!w-fit"
+      :close-on-select="false"
       :is-busy="isBusy"
-      @select="chooseAction('label', { label: $event })"
+      @select="toggleLabel"
+      @hide="resetLabelSelection"
     >
       <template #optionContent="{ option }">
+        <input
+          type="checkbox"
+          class="pointer-events-none"
+          :checked="isLabelSelected(option.value)"
+          tabindex="-1"
+        />
         <WootLabel
           :title="option.label"
           :bg-color="option.color"
           small
-          class="!m-0 max-w-full"
+          class="!m-0 max-w-full flex-1"
         />
+      </template>
+      <template #footer="{ hide }">
+        <button
+          v-if="selectedLabelTitles.length"
+          type="button"
+          data-testid="kanban-bulk-label-submit"
+          class="mt-1 flex w-full items-center justify-center gap-2 rounded-md bg-n-brand px-2 py-1.5 text-sm font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="isBusy"
+          @click="applySelectedLabels(hide)"
+        >
+          <i class="i-lucide-tags size-4" />
+          {{ t('KANBAN.BULK.APPLY') }}
+        </button>
+        <button
+          v-if="hasLabeledSelectedCards"
+          type="button"
+          data-testid="kanban-bulk-remove-labels"
+          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-11 hover:bg-n-alpha-2"
+          :disabled="isBusy"
+          @click="chooseAction('clear_labels', {}, hide)"
+        >
+          <i class="i-lucide-tags size-4" />
+          {{ t('KANBAN.BULK.REMOVE_ALL_LABELS') }}
+        </button>
       </template>
     </KanbanBulkActionMenu>
 
