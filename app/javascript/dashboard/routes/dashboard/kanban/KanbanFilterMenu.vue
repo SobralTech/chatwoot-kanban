@@ -206,10 +206,12 @@ const updateMatchMode = matchMode => {
                 "
               />
               <WootLabel
-                v-if="group.key === 'labels' && option.value !== 'none'"
+                v-if="option.color"
                 :title="option.label"
                 :bg-color="option.color"
-                class="!m-0 !min-w-0 !flex-1 !text-sm"
+                small
+                class="!m-0 !max-w-full !flex-1"
+                :class="{ '!min-w-0': group.truncateOption }"
               />
               <span
                 v-else

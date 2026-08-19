@@ -1,7 +1,7 @@
 class KanbanCards::BulkActionService
   Result = Struct.new(:succeeded, :failed, keyword_init: true)
 
-  delegate :operation, :card_ids, :move_stage, :lost_stage, :assignee_ids, :labels, :priority, :reason_id, to: :request
+  delegate :operation, :card_ids, :target_stage, :assignee_ids, :labels, :priority, :reason_id, to: :request
 
   def initialize(user:, kanban_board:, operation:, card_ids:, payload: {})
     @user = user
@@ -58,22 +58,16 @@ class KanbanCards::BulkActionService
 
   def apply_operation(card)
     case operation
-    when 'move' then move_to_stage(card, move_stage)
-    when 'lose' then move_to_stage(card, lost_stage)
+    when 'move', 'lose' then move_card(card)
     when 'assign' then assign_card(card)
-    when 'label', 'clear_labels' then labels_operation(card)
+    when 'label' then label_card(card)
+    when 'clear_labels' then clear_labels(card)
     when 'priority' then priority_card(card)
     when 'delete' then delete_card(card)
     end
   end
 
-  def labels_operation(card)
-    return clear_labels(card) if operation == 'clear_labels'
-
-    label_card(card)
-  end
-
-  def move_to_stage(card, target_stage)
+  def move_card(card)
     stage_transition = KanbanCards::StageTransition.new(
       kanban_board: kanban_board,
       kanban_card: card,
@@ -101,18 +95,18 @@ class KanbanCards::BulkActionService
 
   # Bulk labelling is additive: it appends to whatever each card already carries.
   def label_card(card)
-    previous_labels = card.label_list.to_a
-    next_labels = (previous_labels + labels).uniq
-    card.update_labels(next_labels)
-    KanbanCards::RecordEventService.labels_changed(card: card, from: previous_labels, to: next_labels, user: user)
-
-    [card.kanban_stage_id]
+    replace_labels(card) { |previous_labels| (previous_labels + labels).uniq }
   end
 
   def clear_labels(card)
+    replace_labels(card) { [] }
+  end
+
+  def replace_labels(card)
     previous_labels = card.label_list.to_a
-    card.update_labels([])
-    KanbanCards::RecordEventService.labels_changed(card: card, from: previous_labels, to: [], user: user)
+    next_labels = yield(previous_labels)
+    card.update_labels(next_labels)
+    KanbanCards::RecordEventService.labels_changed(card: card, from: previous_labels, to: next_labels, user: user)
 
     [card.kanban_stage_id]
   end

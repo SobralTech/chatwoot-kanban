@@ -189,26 +189,20 @@ const {
   clearCardSelection,
   isSelectionMode,
   selectedCardIds,
+  selectedCards,
   toggleCardSelection,
 } = useKanbanCardSelection({
   findCardStage,
   selectionLimit,
+  stages,
   t,
   useAlert,
 });
 const hasAssignedSelectedCards = computed(() =>
-  stages.value.some(stage =>
-    stage.cards.some(
-      card => selectedCardIds.value.has(card.id) && card.assignees?.length
-    )
-  )
+  selectedCards.value.some(card => card.assignees?.length)
 );
 const hasLabeledSelectedCards = computed(() =>
-  stages.value.some(stage =>
-    stage.cards.some(
-      card => selectedCardIds.value.has(card.id) && card.labels?.length
-    )
-  )
+  selectedCards.value.some(card => card.labels?.length)
 );
 const hasBoards = computed(() => boards.value.length > 0);
 const activeAddItemStage = computed(() =>

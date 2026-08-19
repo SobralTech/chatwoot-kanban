@@ -39,14 +39,18 @@ class KanbanCards::BulkActionRequest
     @lost_stage ||= kanban_board.lost_stage
   end
 
+  # `move` and `lose` are the same transition; only the destination differs, and which
+  # destination applies is a property of the operation rather than of the caller.
+  def target_stage
+    operation == 'lose' ? lost_stage : move_stage
+  end
+
   def assignee_ids
     @assignee_ids ||= Array(payload[:assignee_ids]).filter_map(&:presence).map(&:to_i).uniq
   end
 
   def labels
-    @labels ||= Array(payload[:labels].presence || payload[:label])
-                .filter_map { |value| value.to_s.strip.presence }
-                .uniq
+    @labels ||= Array(payload[:labels]).filter_map { |value| value.to_s.strip.presence }.uniq
   end
 
   def priority

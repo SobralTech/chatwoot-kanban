@@ -64,8 +64,6 @@ const props = defineProps({
 const emit = defineEmits(['action', 'clear', 'delete']);
 const { t } = useI18n();
 const selectedReasonId = ref('');
-const selectedAssigneeIds = ref([]);
-const selectedLabelTitles = ref([]);
 
 const stageOptions = computed(() =>
   props.stages
@@ -133,57 +131,6 @@ const chooseReason = hide => {
   selectedReasonId.value = '';
 };
 
-const toggleAssignee = userId => {
-  const numericUserId = Number(userId);
-  const nextSelectedAssigneeIds = new Set(selectedAssigneeIds.value);
-
-  if (nextSelectedAssigneeIds.has(numericUserId)) {
-    nextSelectedAssigneeIds.delete(numericUserId);
-  } else {
-    nextSelectedAssigneeIds.add(numericUserId);
-  }
-
-  selectedAssigneeIds.value = [...nextSelectedAssigneeIds];
-};
-
-const isAssigneeSelected = userId =>
-  selectedAssigneeIds.value.includes(Number(userId));
-
-const assignSelected = hide => {
-  if (!selectedAssigneeIds.value.length) return;
-
-  chooseAction('assign', { assignee_ids: selectedAssigneeIds.value }, hide);
-};
-
-const toggleLabel = labelTitle => {
-  const nextSelectedLabelTitles = new Set(selectedLabelTitles.value);
-
-  if (nextSelectedLabelTitles.has(labelTitle)) {
-    nextSelectedLabelTitles.delete(labelTitle);
-  } else {
-    nextSelectedLabelTitles.add(labelTitle);
-  }
-
-  selectedLabelTitles.value = [...nextSelectedLabelTitles];
-};
-
-const isLabelSelected = labelTitle =>
-  selectedLabelTitles.value.includes(labelTitle);
-
-const applySelectedLabels = hide => {
-  if (!selectedLabelTitles.value.length) return;
-
-  chooseAction('label', { labels: selectedLabelTitles.value }, hide);
-};
-
-const resetAssigneeSelection = () => {
-  selectedAssigneeIds.value = [];
-};
-
-const resetLabelSelection = () => {
-  selectedLabelTitles.value = [];
-};
-
 const resetReason = () => {
   selectedReasonId.value = '';
 };
@@ -242,18 +189,14 @@ const resetReason = () => {
       :empty-text="t('KANBAN.CARD.NO_ASSIGNABLE_USERS')"
       trigger-testid="kanban-bulk-action-assign"
       option-testid="kanban-bulk-assign-agent"
-      :close-on-select="false"
+      multiple
+      :apply-label="t('KANBAN.BULK.APPLY')"
+      apply-icon="i-lucide-user-round-plus"
+      apply-testid="kanban-bulk-assign-submit"
       :is-busy="isBusy"
-      @select="toggleAssignee"
-      @hide="resetAssigneeSelection"
+      @apply="chooseAction('assign', { assignee_ids: $event })"
     >
       <template #optionContent="{ option }">
-        <input
-          type="checkbox"
-          class="pointer-events-none"
-          :checked="isAssigneeSelected(option.value)"
-          tabindex="-1"
-        />
         <Avatar
           :name="option.label"
           :src="option.avatarUrl"
@@ -263,17 +206,6 @@ const resetReason = () => {
         <span class="min-w-0 flex-1 truncate">{{ option.label }}</span>
       </template>
       <template #footer="{ hide }">
-        <button
-          v-if="selectedAssigneeIds.length"
-          type="button"
-          data-testid="kanban-bulk-assign-submit"
-          class="mt-1 flex w-full items-center justify-center gap-2 rounded-md bg-n-brand px-2 py-1.5 text-sm font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isBusy"
-          @click="assignSelected(hide)"
-        >
-          <i class="i-lucide-user-round-plus size-4" />
-          {{ t('KANBAN.BULK.APPLY') }}
-        </button>
         <button
           v-if="hasAssignedSelectedCards"
           type="button"
@@ -296,18 +228,14 @@ const resetReason = () => {
       trigger-testid="kanban-bulk-action-label"
       option-testid="kanban-bulk-label-option"
       menu-class="!w-fit"
-      :close-on-select="false"
+      multiple
+      :apply-label="t('KANBAN.BULK.APPLY')"
+      apply-icon="i-lucide-tags"
+      apply-testid="kanban-bulk-label-submit"
       :is-busy="isBusy"
-      @select="toggleLabel"
-      @hide="resetLabelSelection"
+      @apply="chooseAction('label', { labels: $event })"
     >
       <template #optionContent="{ option }">
-        <input
-          type="checkbox"
-          class="pointer-events-none"
-          :checked="isLabelSelected(option.value)"
-          tabindex="-1"
-        />
         <WootLabel
           :title="option.label"
           :bg-color="option.color"
@@ -316,17 +244,6 @@ const resetReason = () => {
         />
       </template>
       <template #footer="{ hide }">
-        <button
-          v-if="selectedLabelTitles.length"
-          type="button"
-          data-testid="kanban-bulk-label-submit"
-          class="mt-1 flex w-full items-center justify-center gap-2 rounded-md bg-n-brand px-2 py-1.5 text-sm font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isBusy"
-          @click="applySelectedLabels(hide)"
-        >
-          <i class="i-lucide-tags size-4" />
-          {{ t('KANBAN.BULK.APPLY') }}
-        </button>
         <button
           v-if="hasLabeledSelectedCards"
           type="button"

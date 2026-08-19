@@ -5,6 +5,7 @@ import { computed, ref } from 'vue';
 export function useKanbanCardSelection({
   findCardStage,
   selectionLimit,
+  stages,
   t,
   useAlert,
 }) {
@@ -12,6 +13,12 @@ export function useKanbanCardSelection({
   const selectionAnchor = ref(null);
 
   const isSelectionMode = computed(() => selectedCardIds.value.size > 0);
+
+  const selectedCards = computed(() =>
+    stages.value.flatMap(stage =>
+      stage.cards.filter(card => selectedCardIds.value.has(card.id))
+    )
+  );
 
   const clearCardSelection = () => {
     selectedCardIds.value = new Set();
@@ -70,6 +77,7 @@ export function useKanbanCardSelection({
     clearCardSelection,
     isSelectionMode,
     selectedCardIds,
+    selectedCards,
     toggleCardSelection,
   };
 }
