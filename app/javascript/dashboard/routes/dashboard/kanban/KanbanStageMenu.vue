@@ -405,14 +405,19 @@ watch(targetBoardId, () => {
             v-for="targetStage in cardMoveTargets"
             :key="targetStage.id"
             type="button"
-            class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isBusy"
             @click="
               emitAction('moveCards', { targetStageId: targetStage.id }, hide)
             "
           >
-            <span class="truncate">{{ targetStage.name }}</span>
-            <span class="text-xs text-n-slate-10">
+            <span
+              class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9"
+              :style="{ backgroundColor: targetStage.color }"
+              aria-hidden="true"
+            />
+            <span class="min-w-0 flex-1 truncate">{{ targetStage.name }}</span>
+            <span class="flex-shrink-0 text-xs text-n-slate-10">
               {{ t('KANBAN.STAGE_MENU.MOVE_CARDS.TARGET') }}
             </span>
           </button>
