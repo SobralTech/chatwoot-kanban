@@ -208,13 +208,11 @@ export function useKanbanBoardData({
     );
   };
 
-  const findCardStageId = card => {
-    if (card?.kanbanStageId) return card.kanbanStageId;
+  const findCardStage = card =>
+    stages.value.find(stage => stage.cards.some(item => item.id === card?.id));
 
-    return stages.value.find(stage =>
-      stage.cards.some(item => item.id === card?.id)
-    )?.id;
-  };
+  const findCardStageId = card =>
+    card?.kanbanStageId || findCardStage(card)?.id;
 
   const patchVisibleCard = card => {
     const updatedCard = normalizePayload(card);
@@ -327,6 +325,7 @@ export function useKanbanBoardData({
   return {
     applyStageFirstPage,
     fetchStageCardsPage,
+    findCardStage,
     findCardStageId,
     getStageCardsError,
     isStageCardsLoading,

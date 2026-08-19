@@ -8,6 +8,7 @@ json.auto_create_cards_from_conversations kanban_board.auto_create_cards_from_co
 json.won_stage_id kanban_board.won_stage_id
 json.lost_stage_id kanban_board.lost_stage_id
 json.lost_reason_required kanban_board.lost_reason_required
+json.bulk_action_limit KanbanCards::BulkActionRequest::MAX_CARDS
 json.custom_fields kanban_board.kanban_custom_fields.active.ordered do |field|
   json.id field.id
   json.key field.key

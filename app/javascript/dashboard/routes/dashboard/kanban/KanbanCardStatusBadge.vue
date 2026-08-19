@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Popover from 'dashboard/components-next/popover/Popover.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
+import KanbanReasonPicker from './KanbanReasonPicker.vue';
 
 const props = defineProps({
   kanbanStageId: {
@@ -39,8 +39,6 @@ const { t } = useI18n();
 const chosenType = ref(null);
 const selectedReasonId = ref('');
 
-const getReasonType = reason => reason.reason_type ?? reason.reasonType;
-
 const status = computed(() => {
   if (props.wonStageId && props.kanbanStageId === props.wonStageId) {
     return 'won';
@@ -74,19 +72,6 @@ const statusMeta = computed(() => statusMetaByStatus.value[status.value]);
 const isReasonRequired = computed(
   () => chosenType.value === 'lost' && props.lostReasonRequired
 );
-
-const reasonOptions = computed(() => {
-  const options = props.reasons
-    .filter(reason => getReasonType(reason) === chosenType.value)
-    .map(reason => ({ value: reason.id, label: reason.title }));
-
-  if (isReasonRequired.value) return options;
-
-  return [
-    { value: '', label: t('KANBAN.CARD.STATUS.REASON_PLACEHOLDER') },
-    ...options,
-  ];
-});
 
 const canConfirm = computed(
   () => !isReasonRequired.value || !!selectedReasonId.value
@@ -216,21 +201,13 @@ const confirm = hide => {
         </div>
 
         <div v-else class="grid gap-2">
-          <label class="grid gap-1 text-xs font-medium text-n-slate-12">
-            {{ t('KANBAN.CARD.STATUS.REASON_LABEL') }}
-            <Select
-              v-model="selectedReasonId"
-              data-testid="kanban-card-status-reason-select"
-              :options="reasonOptions"
-            />
-          </label>
-
-          <p
-            v-if="isReasonRequired && !selectedReasonId"
-            class="mb-0 text-xs text-n-ruby-11"
-          >
-            {{ t('KANBAN.CARD.STATUS.REASON_REQUIRED') }}
-          </p>
+          <KanbanReasonPicker
+            v-model="selectedReasonId"
+            :reasons="reasons"
+            :reason-type="chosenType"
+            :required="isReasonRequired"
+            testid="kanban-card-status-reason-select"
+          />
 
           <div class="flex items-center justify-between gap-2 pt-1">
             <button

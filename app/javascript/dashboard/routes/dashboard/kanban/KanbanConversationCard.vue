@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, toRef } from 'vue';
+import { computed, nextTick, ref, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
@@ -274,8 +274,14 @@ const openCard = event => {
   emit('openDetails', props.card);
 };
 
-const toggleSelection = event => {
+const toggleSelection = async event => {
+  const checkbox = event.target;
   emit('toggleSelect', props.card, event);
+
+  // The board can refuse the toggle once the selection cap is reached, and the browser
+  // has already flipped the box by then, so re-assert whatever the board decided.
+  await nextTick();
+  checkbox.checked = props.isSelected;
 };
 </script>
 

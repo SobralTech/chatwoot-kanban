@@ -44,8 +44,6 @@ class KanbanCards::StageTransition
     [source_stage.id, target_stage.id].uniq
   end
 
-  # Where the card lands when the caller has no explicit position: the bottom of the
-  # target stage, or wherever it already sits when the stage is not actually changing.
   def default_position
     return kanban_card.position if same_stage?
 
