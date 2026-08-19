@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useKanbanMoveTarget } from 'dashboard/composables/useKanbanMoveTarget';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
@@ -73,7 +74,6 @@ const props = defineProps({
 const emit = defineEmits(['action', 'clear', 'delete']);
 const { t } = useI18n();
 const selectedReasonId = ref('');
-const moveBoardId = ref(null);
 
 const chooseAction = (action, payload, hide) => {
   emit('action', { action, payload });
@@ -83,60 +83,19 @@ const chooseAction = (action, payload, hide) => {
 const currentBoardId = computed(() =>
   props.board?.id ? Number(props.board.id) : null
 );
-const sourceBoard = computed(() =>
-  props.board?.id
-    ? props.board
-    : props.boards.find(board => Number(board.id) === currentBoardId.value) ||
-      {}
-);
-const moveBoards = computed(() => {
-  let boards = props.boards;
-  if (!boards.length && props.board?.id) boards = [sourceBoard.value];
-
-  return boards.filter(board => board?.active !== false);
-});
-const moveBoardOptions = computed(() =>
-  moveBoards.value.map(board => ({
-    value: board.id,
-    label:
-      Number(board.id) === currentBoardId.value
-        ? t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: board.name })
-        : board.name,
-  }))
-);
-// The menu always opens on the board the cards already sit on, so the funnel select
-// reads its default from there instead of being primed when the popover opens.
-const selectedMoveBoardId = computed({
-  get: () => moveBoardId.value ?? currentBoardId.value,
-  set: value => {
-    moveBoardId.value = value;
-  },
-});
-const selectedMoveBoard = computed(
-  () =>
-    moveBoards.value.find(
-      board => Number(board.id) === Number(selectedMoveBoardId.value)
-    ) || sourceBoard.value
-);
-const isCurrentMoveBoard = computed(
-  () => Number(selectedMoveBoardId.value) === Number(currentBoardId.value)
-);
-const moveStages = computed(() => {
-  const board = selectedMoveBoard.value;
-  const stages = isCurrentMoveBoard.value
-    ? props.stages
-    : board?.stagesSummary || [];
-  const terminalStageIds = [
-    isCurrentMoveBoard.value ? props.wonStageId : board?.wonStageId,
-    isCurrentMoveBoard.value ? props.lostStageId : board?.lostStageId,
-  ]
-    .filter(Boolean)
-    .map(Number);
-
-  return stages.filter(
-    stage =>
-      stage.active !== false && !terminalStageIds.includes(Number(stage.id))
-  );
+const {
+  boardId: moveBoardId,
+  boardOptions: moveBoardOptions,
+  isCurrentBoard: isCurrentMoveBoard,
+  reset: resetMove,
+  targetStages: moveStages,
+} = useKanbanMoveTarget({
+  board: toRef(props, 'board'),
+  boards: toRef(props, 'boards'),
+  currentBoardId,
+  lostStageId: toRef(props, 'lostStageId'),
+  stages: toRef(props, 'stages'),
+  wonStageId: toRef(props, 'wonStageId'),
 });
 const moveStageOptions = computed(() =>
   moveStages.value.map(stage => ({
@@ -149,14 +108,10 @@ const moveStageOptions = computed(() =>
 const chooseMoveStage = stageId => {
   const payload = { kanban_stage_id: stageId };
   if (!isCurrentMoveBoard.value) {
-    payload.target_kanban_board_id = Number(selectedMoveBoardId.value);
+    payload.target_kanban_board_id = Number(moveBoardId.value);
   }
 
   chooseAction('move', payload);
-};
-
-const resetMove = () => {
-  moveBoardId.value = null;
 };
 
 const assigneeOptions = computed(() =>
@@ -254,7 +209,7 @@ const resetReason = () => {
         <label class="block text-xs font-medium text-n-slate-11">
           {{ t('KANBAN.CARD.MOVE_BOARD_LABEL') }}
           <Select
-            v-model="selectedMoveBoardId"
+            v-model="moveBoardId"
             data-testid="kanban-bulk-move-board"
             :options="moveBoardOptions"
             full-width

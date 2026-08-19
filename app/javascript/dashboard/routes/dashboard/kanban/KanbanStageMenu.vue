@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useKanbanMoveTarget } from 'dashboard/composables/useKanbanMoveTarget';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
@@ -55,7 +56,6 @@ const copyName = ref('');
 const copyNameInput = ref(null);
 const targetBoardId = ref(null);
 const targetPosition = ref(1);
-const moveCardsBoardId = ref(null);
 
 const currentBoardId = computed(() => Number(props.stage.kanbanBoardId));
 const targetBoard = computed(() =>
@@ -81,51 +81,20 @@ const { isTerminalStage } = useKanbanStageOrder({
   lostStageId: toRef(props, 'lostStageId'),
 });
 const isCurrentStageTerminal = computed(() => isTerminalStage(props.stage));
-const moveCardsTargetBoards = computed(() =>
-  props.boards.filter(board => board.active !== false)
-);
-const moveCardsTargetBoardOptions = computed(() =>
-  moveCardsTargetBoards.value.map(board => ({
-    value: board.id,
-    label:
-      Number(board.id) === currentBoardId.value
-        ? t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: board.name })
-        : board.name,
-  }))
-);
-const moveCardsTargetBoard = computed(
-  () =>
-    moveCardsTargetBoards.value.find(
-      board => Number(board.id) === Number(moveCardsBoardId.value)
-    ) || props.boards.find(board => Number(board.id) === currentBoardId.value)
-);
-const isCurrentMoveCardsBoard = computed(
-  () => Number(moveCardsBoardId.value) === currentBoardId.value
-);
-const moveCardsStages = computed(() => {
-  const board = moveCardsTargetBoard.value;
-  const stages = isCurrentMoveCardsBoard.value
-    ? props.stages
-    : board?.stagesSummary || [];
-  const terminalStageIds = [
-    isCurrentMoveCardsBoard.value ? props.wonStageId : board?.wonStageId,
-    isCurrentMoveCardsBoard.value ? props.lostStageId : board?.lostStageId,
-  ]
-    .filter(Boolean)
-    .map(Number);
-
-  return stages.filter(
-    stage =>
-      stage.active !== false && !terminalStageIds.includes(Number(stage.id))
-  );
+const {
+  boardId: moveCardsBoardId,
+  boardOptions: moveCardsTargetBoardOptions,
+  isCurrentBoard: isCurrentMoveCardsBoard,
+  reset: resetMoveCardsTarget,
+  targetStages: cardMoveTargets,
+} = useKanbanMoveTarget({
+  boards: toRef(props, 'boards'),
+  currentBoardId,
+  excludeStageId: computed(() => props.stage.id),
+  lostStageId: toRef(props, 'lostStageId'),
+  stages: toRef(props, 'stages'),
+  wonStageId: toRef(props, 'wonStageId'),
 });
-const cardMoveTargets = computed(() =>
-  moveCardsStages.value.filter(
-    stage =>
-      !isCurrentMoveCardsBoard.value ||
-      Number(stage.id) !== Number(props.stage.id)
-  )
-);
 const targetBoardStageCount = computed(() => {
   if (Number(targetBoardId.value) === currentBoardId.value) {
     return props.stages.length;
@@ -184,7 +153,7 @@ const resetView = () => {
   copyName.value = '';
   targetBoardId.value = null;
   targetPosition.value = 1;
-  moveCardsBoardId.value = null;
+  resetMoveCardsTarget();
 };
 
 const openView = nextView => {
@@ -200,9 +169,7 @@ const openView = nextView => {
     targetPosition.value = 1;
   }
 
-  if (nextView === 'moveCards') {
-    moveCardsBoardId.value = currentBoardId.value;
-  }
+  if (nextView === 'moveCards') resetMoveCardsTarget();
 };
 
 const closeMenu = hide => {

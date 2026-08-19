@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
+import { useKanbanMoveTarget } from 'dashboard/composables/useKanbanMoveTarget';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
@@ -154,103 +155,39 @@ const extraAssigneeCount = computed(() =>
   Math.max(assignees.value.length - 1, 0)
 );
 const extraAssigneeLabel = computed(() => `+${extraAssigneeCount.value}`);
-const moveBoardId = ref(null);
 const moveTargetStage = ref(null);
 const currentBoardId = computed(() => {
   const boardId = props.board?.id ?? props.card.kanbanBoardId;
   return boardId ? Number(boardId) : null;
-});
-const sourceBoard = computed(() => {
-  if (props.board?.id) return props.board;
-
-  return (
-    props.boards.find(board => Number(board.id) === currentBoardId.value) || {}
-  );
 });
 const cardInboxId = computed(() => {
   const inboxId =
     props.card.inboxId ?? props.card.inbox?.id ?? conversation.value.inboxId;
   return inboxId ? Number(inboxId) : null;
 });
-// The board the card sits on comes from the show endpoint, which sends
-// allowedInboxIds; every other board comes from the index, which sends the
-// inboxes themselves.
-const boardAllowedInboxIds = board =>
-  (
-    board.allowedInboxIds ??
-    board.allowedInboxes?.map(allowedInbox => allowedInbox.id) ??
-    []
-  ).map(Number);
-const boardAcceptsCardInbox = board =>
-  board.inboxScopeMode !== 'selected_inboxes' ||
-  boardAllowedInboxIds(board).includes(cardInboxId.value);
-const movableBoards = computed(() => {
-  let availableBoards = props.boards;
-  if (!availableBoards.length && props.board?.id) {
-    availableBoards = [props.board];
-  }
-  return availableBoards
-    .filter(board => board.active !== false && boardAcceptsCardInbox(board))
-    .slice()
-    .sort((firstBoard, secondBoard) => {
-      const firstIsCurrent = Number(firstBoard.id) === currentBoardId.value;
-      const secondIsCurrent = Number(secondBoard.id) === currentBoardId.value;
-      if (firstIsCurrent !== secondIsCurrent) return firstIsCurrent ? -1 : 1;
-
-      return (
-        Number(firstBoard.position ?? 0) - Number(secondBoard.position ?? 0)
-      );
-    });
+const {
+  boardId: moveBoardId,
+  boardOptions: moveBoardOptions,
+  isCurrentBoard: isCurrentMoveBoard,
+  reset: resetMoveTarget,
+  selectedBoard: selectedMoveBoard,
+  sourceBoard,
+  targetStages: moveStages,
+} = useKanbanMoveTarget({
+  board: toRef(props, 'board'),
+  boards: toRef(props, 'boards'),
+  currentBoardId,
+  excludeStageId: computed(() => props.card.kanbanStageId),
+  inboxId: cardInboxId,
+  lostStageId: toRef(props, 'lostStageId'),
+  stages: toRef(props, 'stages'),
+  wonStageId: toRef(props, 'wonStageId'),
 });
-const selectedMoveBoard = computed(
-  () =>
-    movableBoards.value.find(
-      board => Number(board.id) === Number(moveBoardId.value)
-    ) || sourceBoard.value
-);
 const moveBoardName = computed(
   () =>
     selectedMoveBoard.value?.name ||
     t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: '' })
 );
-const moveBoardOptions = computed(() =>
-  movableBoards.value.map(board => ({
-    value: board.id,
-    label:
-      Number(board.id) === currentBoardId.value
-        ? t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: board.name })
-        : board.name,
-  }))
-);
-const isCurrentMoveBoard = computed(() => {
-  if (!currentBoardId.value) return moveBoardId.value === null;
-
-  return Number(moveBoardId.value) === currentBoardId.value;
-});
-const moveStages = computed(() => {
-  const board = selectedMoveBoard.value;
-  const stages = isCurrentMoveBoard.value
-    ? props.stages
-    : board.stagesSummary || [];
-  const wonStageId = isCurrentMoveBoard.value
-    ? props.wonStageId
-    : board.wonStageId;
-  const lostStageId = isCurrentMoveBoard.value
-    ? props.lostStageId
-    : board.lostStageId;
-  const terminalStageIds = [wonStageId, lostStageId]
-    .filter(Boolean)
-    .map(Number);
-
-  return stages.filter(stage => {
-    if (stage.active === false) return false;
-    if (terminalStageIds.includes(Number(stage.id))) return false;
-    return (
-      !isCurrentMoveBoard.value ||
-      Number(stage.id) !== Number(props.card.kanbanStageId)
-    );
-  });
-});
 const sourceCustomFields = computed(() => sourceBoard.value.customFields || []);
 const targetCustomFields = computed(
   () => selectedMoveBoard.value.customFields || []
@@ -420,7 +357,7 @@ const openDetails = () => {
 
 const resetView = () => {
   view.value = 'root';
-  moveBoardId.value = null;
+  resetMoveTarget();
   moveTargetStage.value = null;
 };
 
@@ -432,7 +369,7 @@ const closeMenu = hide => {
 const openView = nextView => {
   if (nextView === 'due') dueDateInput.value = formatDateInput(dueAt.value);
   if (nextView === 'move') {
-    moveBoardId.value = currentBoardId.value;
+    resetMoveTarget();
     moveTargetStage.value = null;
   }
   view.value = nextView;
