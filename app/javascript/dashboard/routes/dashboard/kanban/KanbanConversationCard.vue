@@ -902,11 +902,7 @@ const toggleSelection = async event => {
         data-testid="kanban-card-meta"
         class="mt-1 flex items-center justify-between gap-1.5 text-xs leading-4 text-n-slate-10"
       >
-        <span
-          class="no-drag inline-flex flex-shrink-0"
-          :title="t('KANBAN.CARD.CHANGE_PRIORITY')"
-          @click.stop
-        >
+        <span class="inline-flex flex-shrink-0">
           <CardPriorityIcon :priority="priority" show-empty class="!size-3.5" />
         </span>
 
