@@ -145,6 +145,7 @@ const emit = defineEmits([
   'moveCardToStage',
   'assignAgent',
   'updateDueDate',
+  'updateLabels',
   'toggleSelect',
   'loadMore',
   'dragStart',
@@ -251,6 +252,7 @@ const { t } = useI18n();
             :is-busy="isCardBusy(card, stage)"
             :is-selected="selectedCardIds.has(card.id)"
             :is-selection-mode="isSelectionMode"
+            :is-admin="isAdmin"
             :stages="stages"
             :assignable-users="assignableUsers"
             :won-stage-id="board?.wonStageId"
@@ -269,6 +271,10 @@ const { t } = useI18n();
             "
             @update-due-date="
               (cardValue, dueDate) => emit('updateDueDate', cardValue, dueDate)
+            "
+            @update-labels="
+              (cardValue, labelTitles) =>
+                emit('updateLabels', cardValue, labelTitles)
             "
             @open-details="emit('openCard', card)"
             @open-conversation="

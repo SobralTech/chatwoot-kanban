@@ -277,6 +277,30 @@ export function useKanbanCardActions({
     }
   };
 
+  const updateCardLabels = async (card, labelTitles) => {
+    const actionKey = cardActionKey(card);
+    if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
+
+    startAction(actionKey);
+
+    try {
+      const response = await KanbanBoardsAPI.updateCardLabels(
+        selectedBoard.value.id,
+        card.id,
+        labelTitles
+      );
+      patchVisibleCard({
+        id: card.id,
+        kanbanStageId: card.kanbanStageId,
+        labels: normalizePayload(response.data.payload),
+      });
+    } catch (error) {
+      showActionError(error, t('CONTACT_PANEL.LABELS.CONVERSATION.ERROR'));
+    } finally {
+      endAction(actionKey);
+    }
+  };
+
   const onChangeCardStatus = async (
     card,
     { targetStageId, reasonId, reopen }
@@ -330,6 +354,7 @@ export function useKanbanCardActions({
     openRemoveCardConfirmation,
     removeCard,
     updateCardDueDate,
+    updateCardLabels,
     updateCardPriority,
   };
 }

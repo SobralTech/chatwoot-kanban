@@ -15,6 +15,7 @@ import InboxName from 'dashboard/components/widgets/InboxName.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import WootLabel from 'dashboard/components/ui/Label.vue';
+import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
 import KanbanMenuHeader from './KanbanMenuHeader.vue';
@@ -33,6 +34,10 @@ const props = defineProps({
     default: false,
   },
   isSelectionMode: {
+    type: Boolean,
+    default: false,
+  },
+  isAdmin: {
     type: Boolean,
     default: false,
   },
@@ -72,6 +77,7 @@ const emit = defineEmits([
   'moveToStage',
   'assignAgent',
   'updateDueDate',
+  'updateLabels',
   'toggleSelect',
 ]);
 
@@ -95,6 +101,8 @@ const viewTitle = computed(() => {
       return t('KANBAN.CARD.CHANGE_PRIORITY');
     case 'due':
       return t('KANBAN.CARD.DUE_DATE');
+    case 'labels':
+      return t('CONTACT_PANEL.LABELS.LABEL_SELECT.TITLE');
     default:
       return t('KANBAN.CARD.ACTIONS_MENU');
   }
@@ -175,6 +183,9 @@ const labels = computed(() => {
     );
   });
 });
+const cardLabelTitles = computed(() =>
+  labels.value.map(label => label.title).filter(Boolean)
+);
 
 const toUnixTimestamp = value => {
   if (!value) return null;
@@ -260,6 +271,21 @@ const onMoveToStage = (stage, hide) => {
 const onAssignAgent = (user, hide) => {
   emit('assignAgent', props.card, user.id);
   closeMenu(hide);
+};
+
+const onAddLabel = label => {
+  const title = label?.title || label;
+  if (!title || cardLabelTitles.value.includes(title)) return;
+
+  emit('updateLabels', props.card, [...cardLabelTitles.value, title]);
+};
+
+const onRemoveLabel = title => {
+  emit(
+    'updateLabels',
+    props.card,
+    cardLabelTitles.value.filter(labelTitle => labelTitle !== title)
+  );
 };
 
 const openConversationFromMenu = hide => {
@@ -401,6 +427,29 @@ const toggleSelection = async event => {
                   <span class="truncate">{{ t('KANBAN.CARD.MOVE_TO') }}</span>
                 </span>
                 <i class="i-lucide-chevron-right size-4 flex-shrink-0" />
+              </button>
+              <button
+                type="button"
+                data-testid="kanban-card-labels"
+                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="isBusy"
+                @click="openView('labels')"
+              >
+                <span class="flex min-w-0 items-center gap-2">
+                  <i class="i-lucide-tags size-4" />
+                  <span class="truncate">
+                    {{ t('CONTACT_PANEL.LABELS.LABEL_SELECT.TITLE') }}
+                  </span>
+                </span>
+                <span class="flex flex-shrink-0 items-center gap-1">
+                  <span
+                    v-if="cardLabelTitles.length"
+                    class="text-xs text-n-slate-11"
+                  >
+                    {{ cardLabelTitles.length }}
+                  </span>
+                  <i class="i-lucide-chevron-right size-4" />
+                </span>
               </button>
               <button
                 type="button"
@@ -548,6 +597,16 @@ const toggleSelection = async event => {
                 :placeholder="t('KANBAN.OPPORTUNITY_DETAILS.CHOOSE_DATE')"
                 :clear-label="t('KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE')"
                 @change="onSelectDueDate($event, hide)"
+              />
+            </div>
+
+            <div v-else-if="view === 'labels'" class="p-2">
+              <LabelDropdown
+                :account-labels="accountLabels"
+                :selected-labels="cardLabelTitles"
+                :allow-creation="isAdmin"
+                @add="onAddLabel"
+                @remove="onRemoveLabel"
               />
             </div>
           </div>
