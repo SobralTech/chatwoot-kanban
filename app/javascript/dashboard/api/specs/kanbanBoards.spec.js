@@ -242,7 +242,7 @@ describe('#KanbanBoardsAPI', () => {
 
     it('#bulkAction', () => {
       const payload = {
-        action: 'assign',
+        operation: 'assign',
         card_ids: [501, 502],
         payload: { assignee_ids: [9] },
       };

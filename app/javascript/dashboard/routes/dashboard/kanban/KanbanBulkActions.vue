@@ -79,17 +79,12 @@ const priorityOptions = computed(() => [
 ]);
 
 const labelOptions = computed(() =>
-  props.labels
-    .map(label => ({
-      value: label.title || label.name,
-      label: label.title || label.name,
-    }))
-    .filter(option => option.value)
+  props.labels.map(label => ({ value: label.title, label: label.title }))
 );
 
 const reasonOptions = computed(() => {
   const options = props.reasons
-    .filter(reason => (reason.reasonType || reason.reason_type) === 'lost')
+    .filter(reason => reason.reasonType === 'lost')
     .map(reason => ({ value: reason.id, label: reason.title }));
 
   if (props.lostReasonRequired) return options;

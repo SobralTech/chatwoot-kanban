@@ -4,18 +4,15 @@ class Api::V1::Accounts::KanbanBoards::Cards::BulkActionsController < Api::V1::A
 
   def create
     result = KanbanCards::BulkActionService.new(
-      account: Current.account,
       user: Current.user,
       kanban_board: @kanban_board,
-      action: bulk_action_params[:action],
+      operation: bulk_action_params[:operation],
       card_ids: bulk_action_params[:card_ids],
       payload: bulk_action_params[:payload] || {}
     ).perform!
 
     render json: { succeeded: result.succeeded, failed: result.failed }
-  rescue KanbanCards::BulkActionService::ReasonRequiredError,
-         KanbanCards::BulkActionService::LimitExceededError,
-         KanbanCards::BulkActionService::RequestError => e
+  rescue KanbanCards::BulkActionRequest::Error => e
     render json: { error: e.code }, status: :unprocessable_content
   end
 
@@ -29,7 +26,9 @@ class Api::V1::Accounts::KanbanBoards::Cards::BulkActionsController < Api::V1::A
     authorize @kanban_board, :show?
   end
 
+  # `action` is reserved: Rails merges the routing action over any body param of the
+  # same name, so the requested operation has to travel under its own key.
   def bulk_action_params
-    @bulk_action_params ||= params.permit(:action, card_ids: [], payload: {})
+    @bulk_action_params ||= params.permit(:operation, card_ids: [], payload: {})
   end
 end

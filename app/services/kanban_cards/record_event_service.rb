@@ -37,6 +37,19 @@ class KanbanCards::RecordEventService
     diff_event(card, 'assignees_changed', { added_ids: to - from, removed_ids: from - to }, user)
   end
 
+  def self.attribute_changed(card:, event_type:, from:, to:, user: nil)
+    return if from == to
+
+    call(card: card, event_type: event_type, user: user, metadata: { from: serialize(from), to: serialize(to) })
+  end
+
+  # Timestamps go into the metadata as ISO8601 so the timeline renders them without
+  # having to know which attribute it is looking at.
+  def self.serialize(value)
+    value.respond_to?(:iso8601) ? value.iso8601 : value
+  end
+  private_class_method :serialize
+
   # The card row is already gone when this runs, so the event is board scoped and
   # keeps the card id in the metadata.
   def self.card_deleted(card:, user: nil, metadata: {})

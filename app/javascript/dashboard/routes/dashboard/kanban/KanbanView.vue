@@ -128,6 +128,8 @@ const boardRefreshEvents = new Set([
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
+// Mirrors KanbanCards::BulkActionRequest::MAX_CARDS, which is the real cap.
+const MAX_BULK_SELECTION = 100;
 const isSelectionMode = computed(() => selectedCardIds.value.size > 0);
 
 const clearCardSelection = () => {
@@ -147,8 +149,8 @@ const toggleCardSelection = (card, event = {}) => {
   const nextSelectedCardIds = new Set(selectedCardIds.value);
   const isSelected = nextSelectedCardIds.has(card.id);
 
-  if (!isSelected && nextSelectedCardIds.size >= 100) {
-    useAlert(t('KANBAN.BULK.LIMIT'));
+  if (!isSelected && nextSelectedCardIds.size >= MAX_BULK_SELECTION) {
+    useAlert(t('KANBAN.BULK.LIMIT', { count: MAX_BULK_SELECTION }));
     return;
   }
 
@@ -165,8 +167,8 @@ const toggleCardSelection = (card, event = {}) => {
       item => !nextSelectedCardIds.has(item.id)
     ).length;
 
-    if (nextSelectedCardIds.size + newCardCount > 100) {
-      useAlert(t('KANBAN.BULK.LIMIT'));
+    if (nextSelectedCardIds.size + newCardCount > MAX_BULK_SELECTION) {
+      useAlert(t('KANBAN.BULK.LIMIT', { count: MAX_BULK_SELECTION }));
       return;
     }
 
@@ -1261,7 +1263,7 @@ const bulkActionErrorMessage = error => {
     case 'lost_reason_required':
       return t('KANBAN.BULK.REASON_REQUIRED');
     case 'bulk_action_limit_exceeded':
-      return t('KANBAN.BULK.LIMIT');
+      return t('KANBAN.BULK.LIMIT', { count: MAX_BULK_SELECTION });
     default:
       return null;
   }
@@ -1271,8 +1273,7 @@ const bulkActionStageIds = (action, payload = {}) => {
   const selectedStageIds = [...selectedCardIds.value].map(cardId =>
     findCardStageId({ id: cardId })
   );
-  const targetStageId =
-    payload.kanban_stage_id || payload.target_stage_id || payload.stage_id;
+  const targetStageId = payload.kanban_stage_id;
   const terminalStageId =
     action === 'lose' ? selectedBoard.value?.lostStageId : null;
 
@@ -1290,7 +1291,7 @@ const applyBulkAction = async ({ action, payload = {} } = {}) => {
 
   try {
     const response = await KanbanBoardsAPI.bulkAction(selectedBoard.value.id, {
-      action,
+      operation: action,
       card_ids: cardIds,
       payload,
     });
@@ -1607,7 +1608,7 @@ watch(searchInput, () => {
       :selected-count="selectedCardIds.size"
       :stages="stages"
       :assignable-users="assignableUsers"
-      :labels="labels || []"
+      :labels="labels"
       :reasons="selectedBoard.reasons || []"
       :won-stage-id="selectedBoard.wonStageId"
       :lost-stage-id="selectedBoard.lostStageId"

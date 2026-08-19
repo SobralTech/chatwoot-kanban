@@ -22,7 +22,7 @@ RSpec.describe KanbanCards::BulkActionService do
       regular_card = create_card(stage: regular_stage, subject: 'Regular card')
 
       result = service(
-        action: :lose,
+        operation: :lose,
         card_ids: [won_card.id, regular_card.id],
         payload: { kanban_reason_id: reason.id }
       ).perform!
@@ -39,7 +39,7 @@ RSpec.describe KanbanCards::BulkActionService do
       hidden_card = create_card(stage: regular_stage, subject: 'Hidden card', inbox: hidden_inbox)
 
       result = service(
-        action: :priority,
+        operation: :priority,
         card_ids: [visible_card.id, hidden_card.id],
         payload: { priority: 'high' }
       ).perform!
@@ -51,18 +51,29 @@ RSpec.describe KanbanCards::BulkActionService do
     end
 
     it 'rejects more than the maximum number of cards' do
+      card_ids = (1..(KanbanCards::BulkActionRequest::MAX_CARDS + 1)).to_a
+
       expect do
-        service(action: :priority, card_ids: (1..101).to_a, payload: { priority: 'high' }).perform!
-      end.to raise_error(described_class::LimitExceededError)
+        service(operation: :priority, card_ids: card_ids, payload: { priority: 'high' }).perform!
+      end.to raise_error(KanbanCards::BulkActionRequest::Error, 'bulk_action_limit_exceeded')
+    end
+
+    it 'fails the whole request instead of every card when the payload is invalid' do
+      cards = Array.new(2) { create_card(stage: regular_stage, subject: 'Opportunity') }
+
+      expect do
+        service(operation: :assign, card_ids: cards.map(&:id), payload: { assignee_ids: [0] }).perform!
+      end.to raise_error(KanbanCards::BulkActionRequest::Error, 'unknown_assignees')
+
+      expect(cards.map { |card| card.reload.kanban_card_assignees.count }).to all(be_zero)
     end
   end
 
-  def service(action:, card_ids:, payload: {})
+  def service(operation:, card_ids:, payload: {})
     described_class.new(
-      account: account,
       user: agent,
       kanban_board: kanban_board,
-      action: action,
+      operation: operation,
       card_ids: card_ids,
       payload: payload
     )

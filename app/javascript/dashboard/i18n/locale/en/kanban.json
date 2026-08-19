@@ -300,7 +300,7 @@
       "PARTIAL": "{succeeded} of {total} updated. {failed} failed.",
       "ERROR": "Could not apply the action.",
       "REASON_REQUIRED": "This funnel requires a loss reason.",
-      "LIMIT": "Select up to 100 opportunities at a time.",
+      "LIMIT": "Select up to {count} opportunities at a time.",
       "SELECTION_VOLATILE": "Selection clears when the board reloads.",
       "SELECT_CARD": "Select opportunity",
       "NO_LABELS": "No labels available."
