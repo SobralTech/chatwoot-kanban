@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 
-// Shift-click extends the range within a single stage, so the anchor tracks the stage
+// Shift-click toggles the range within a single stage, so the anchor tracks the stage
 // it was set in and a shift-click anywhere else falls back to a plain toggle.
 export function useKanbanCardSelection({
   findCardStage,
@@ -51,22 +51,18 @@ export function useKanbanCardSelection({
     if (!stage) return;
 
     const nextSelectedCardIds = new Set(selectedCardIds.value);
-    const isSelected = nextSelectedCardIds.has(card.id);
     const rangeCards = event.shiftKey ? rangeToAnchor(stage, card) : null;
+    const targetCards = rangeCards ?? [card];
 
-    if (rangeCards) {
-      const addedCount = rangeCards.filter(
-        item => !nextSelectedCardIds.has(item.id)
-      ).length;
-      if (exceedsLimit(nextSelectedCardIds.size + addedCount)) return;
-
-      rangeCards.forEach(item => nextSelectedCardIds.add(item.id));
-    } else if (isSelected) {
-      nextSelectedCardIds.delete(card.id);
+    if (nextSelectedCardIds.has(card.id)) {
+      targetCards.forEach(item => nextSelectedCardIds.delete(item.id));
     } else {
-      if (exceedsLimit(nextSelectedCardIds.size + 1)) return;
+      const addedCards = targetCards.filter(
+        item => !nextSelectedCardIds.has(item.id)
+      );
+      if (exceedsLimit(nextSelectedCardIds.size + addedCards.length)) return;
 
-      nextSelectedCardIds.add(card.id);
+      addedCards.forEach(item => nextSelectedCardIds.add(item.id));
     }
 
     selectionAnchor.value = { id: card.id, stageId: stage.id };
