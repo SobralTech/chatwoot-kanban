@@ -72,8 +72,10 @@ const choose = (value, hide) => {
           :class="BULK_ACTION_OPTION_CLASSES"
           @click="choose(option.value, hide)"
         >
-          <slot name="optionIcon" :option="option" />
-          <span class="truncate">{{ option.label }}</span>
+          <slot name="optionContent" :option="option">
+            <slot name="optionIcon" :option="option" />
+            <span class="truncate">{{ option.label }}</span>
+          </slot>
         </button>
         <slot name="footer" :hide="hide" />
       </div>

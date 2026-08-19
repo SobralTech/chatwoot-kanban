@@ -14,6 +14,7 @@ import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import InboxName from 'dashboard/components/widgets/InboxName.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
+import WootLabel from 'dashboard/components/ui/Label.vue';
 import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
 import KanbanMenuHeader from './KanbanMenuHeader.vue';
@@ -76,6 +77,7 @@ const emit = defineEmits([
 
 const { t } = useI18n();
 const store = useStore();
+const accountLabels = computed(() => store.getters['labels/getLabels'] || []);
 const view = ref('root');
 const dueDateInput = ref('');
 const { isTerminalStage } = useKanbanStageOrder({
@@ -149,6 +151,7 @@ const primaryAssignee = computed(() => assignees.value[0] || null);
 const extraAssigneeCount = computed(() =>
   Math.max(assignees.value.length - 1, 0)
 );
+const extraAssigneeLabel = computed(() => `+${extraAssigneeCount.value}`);
 const moveTargets = computed(() =>
   props.stages.filter(
     stage =>
@@ -157,7 +160,21 @@ const moveTargets = computed(() =>
   )
 );
 const subject = computed(() => props.card.subject || '');
-const labels = computed(() => props.card.labels || props.card.label_list || []);
+const labels = computed(() => {
+  const cardLabels = props.card.labels || props.card.label_list || [];
+
+  return cardLabels.map(label => {
+    if (typeof label !== 'string') return label;
+
+    return (
+      accountLabels.value.find(
+        accountLabel => accountLabel.title === label
+      ) || {
+        title: label,
+      }
+    );
+  });
+});
 
 const toUnixTimestamp = value => {
   if (!value) return null;
@@ -295,7 +312,7 @@ const toggleSelection = async event => {
     @click="openCard"
   >
     <label
-      class="no-drag absolute top-1.5 z-10 flex size-7 items-center justify-center rounded-md bg-n-surface-1 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 ltr:left-1.5 rtl:right-1.5"
+      class="no-drag absolute top-1.5 z-10 flex size-7 items-center justify-center rounded-md bg-n-surface-1 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 ltr:right-11 rtl:left-11"
       :class="{ 'opacity-100': isSelectionMode || isSelected }"
       @click.stop
     >
@@ -547,6 +564,17 @@ const toggleSelection = async event => {
         {{ subject }}
       </p>
 
+      <div v-if="labels.length" class="mt-1 flex flex-wrap gap-1">
+        <WootLabel
+          v-for="label in labels"
+          :key="label.title"
+          :title="label.title"
+          :bg-color="label.color"
+          small
+          class="!m-0 max-w-full"
+        />
+      </div>
+
       <div class="mt-1 flex items-center gap-1.5">
         <span
           data-testid="kanban-card-contact-avatar"
@@ -587,7 +615,7 @@ const toggleSelection = async event => {
             v-if="extraAssigneeCount"
             class="absolute -bottom-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-n-slate-9 px-0.5 text-[9px] font-medium leading-none text-white"
           >
-            +{{ extraAssigneeCount }}
+            {{ extraAssigneeLabel }}
           </span>
         </span>
       </div>
@@ -602,16 +630,6 @@ const toggleSelection = async event => {
             class="max-w-full"
           />
         </div>
-      </div>
-
-      <div v-if="labels.length" class="mt-1 flex flex-wrap gap-1">
-        <span
-          v-for="label in labels"
-          :key="label"
-          class="max-w-full truncate rounded-full bg-n-slate-3 px-1.5 py-0.5 text-[11px] font-medium leading-4 text-n-slate-11"
-        >
-          {{ label }}
-        </span>
       </div>
 
       <div

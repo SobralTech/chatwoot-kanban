@@ -5,6 +5,7 @@ import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
+import WootLabel from 'dashboard/components/ui/Label.vue';
 import KanbanBulkActionMenu from './KanbanBulkActionMenu.vue';
 import KanbanReasonPicker from './KanbanReasonPicker.vue';
 import {
@@ -73,7 +74,11 @@ const assigneeOptions = computed(() =>
 );
 
 const labelOptions = computed(() =>
-  props.labels.map(label => ({ value: label.title, label: label.title }))
+  props.labels.map(label => ({
+    value: label.title,
+    label: label.title,
+    color: label.color,
+  }))
 );
 
 const priorityOptions = computed(() => [
@@ -121,14 +126,29 @@ const resetReason = () => {
   <div
     v-show="selectedCount"
     data-testid="kanban-bulk-actions"
-    class="fixed bottom-4 left-1/2 z-30 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur"
+    class="fixed bottom-4 left-1/2 z-30 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur [&::-webkit-scrollbar]:hidden"
   >
-    <span
-      data-testid="kanban-bulk-selected-count"
-      class="px-2 text-xs font-semibold text-n-slate-12"
+    <div
+      class="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-n-alpha-2 px-2.5 py-1.5"
     >
-      {{ t('KANBAN.BULK.SELECTED', { count: selectedCount }) }}
-    </span>
+      <span
+        data-testid="kanban-bulk-selected-count"
+        class="text-xs font-semibold text-n-slate-12"
+      >
+        {{ t('KANBAN.BULK.SELECTED', { count: selectedCount }) }}
+      </span>
+
+      <button
+        type="button"
+        data-testid="kanban-bulk-clear"
+        class="rounded-full text-n-slate-11 hover:text-n-slate-12"
+        :aria-label="t('KANBAN.BULK.CLEAR')"
+        :title="t('KANBAN.BULK.CLEAR')"
+        @click="emit('clear')"
+      >
+        <i class="i-lucide-x size-3.5" />
+      </button>
+    </div>
 
     <KanbanBulkActionMenu
       :label="t('KANBAN.BULK.MOVE')"
@@ -178,8 +198,13 @@ const resetReason = () => {
       :is-busy="isBusy"
       @select="chooseAction('label', { label: $event })"
     >
-      <template #optionIcon>
-        <i class="i-lucide-tag size-4" />
+      <template #optionContent="{ option }">
+        <WootLabel
+          :title="option.label"
+          :bg-color="option.color"
+          small
+          class="!m-0 max-w-full"
+        />
       </template>
     </KanbanBulkActionMenu>
 
@@ -240,20 +265,5 @@ const resetReason = () => {
       <i class="i-lucide-trash size-4" />
       {{ t('KANBAN.BULK.DELETE') }}
     </button>
-
-    <button
-      type="button"
-      data-testid="kanban-bulk-clear"
-      class="rounded-md p-1.5 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
-      :aria-label="t('KANBAN.BULK.CLEAR')"
-      :title="t('KANBAN.BULK.CLEAR')"
-      @click="emit('clear')"
-    >
-      <i class="i-lucide-x size-4" />
-    </button>
-
-    <p class="basis-full text-center text-[11px] text-n-slate-10">
-      {{ t('KANBAN.BULK.SELECTION_VOLATILE') }}
-    </p>
   </div>
 </template>
