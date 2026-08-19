@@ -31,6 +31,10 @@ defineProps({
     type: String,
     default: undefined,
   },
+  menuClass: {
+    type: String,
+    default: '',
+  },
   isBusy: {
     type: Boolean,
     default: false,
@@ -57,7 +61,7 @@ const choose = (value, hide) => {
       {{ label }}
     </button>
     <template #content="{ hide }">
-      <div :class="BULK_ACTION_MENU_CLASSES">
+      <div :class="[BULK_ACTION_MENU_CLASSES, menuClass]">
         <p
           v-if="emptyText && !options.length"
           class="px-2 py-1 text-xs text-n-slate-10"

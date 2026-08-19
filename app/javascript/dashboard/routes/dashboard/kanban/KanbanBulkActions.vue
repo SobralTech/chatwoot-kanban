@@ -141,12 +141,12 @@ const resetReason = () => {
       <button
         type="button"
         data-testid="kanban-bulk-clear"
-        class="rounded-full text-n-slate-11 hover:text-n-slate-12"
+        class="flex size-5 items-center justify-center rounded-full bg-n-alpha-3 p-0 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
         :aria-label="t('KANBAN.BULK.CLEAR')"
         :title="t('KANBAN.BULK.CLEAR')"
         @click="emit('clear')"
       >
-        <i class="i-lucide-x size-3.5" />
+        <i class="i-lucide-x size-3.5 leading-none" />
       </button>
     </div>
 
@@ -195,6 +195,7 @@ const resetReason = () => {
       :empty-text="t('KANBAN.BULK.NO_LABELS')"
       trigger-testid="kanban-bulk-action-label"
       option-testid="kanban-bulk-label-option"
+      menu-class="!w-fit"
       :is-busy="isBusy"
       @select="chooseAction('label', { label: $event })"
     >

@@ -234,7 +234,7 @@ const toggleCollapseOnDoubleClick = () => {
           ghost
           xs
           slate
-          class="no-drag"
+          class="no-drag !size-8 !rounded-md"
           :aria-label="t('KANBAN.STAGE.COLLAPSE')"
           :title="t('KANBAN.STAGE.COLLAPSE')"
           @click.stop="emit('toggleCollapse')"
