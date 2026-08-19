@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import { bulkPartialMessage } from 'dashboard/helper/kanbanBulkResult';
 
 const BULK_ACTION_KEY = 'bulk-kanban-action';
 
@@ -33,6 +34,11 @@ export function useKanbanBulkActions({
     }
   };
 
+  const isCrossBoardMove = (action, payload) =>
+    action === 'move' &&
+    Boolean(payload.target_kanban_board_id) &&
+    Number(payload.target_kanban_board_id) !== Number(selectedBoard.value.id);
+
   // A cross-board move refreshes the source stages here; the target board is refreshed
   // through its summary because it is not mounted in this view.
   const affectedStageIds = (action, payload) => {
@@ -40,13 +46,10 @@ export function useKanbanBulkActions({
       findCardStageId({ id: cardId })
     );
     const terminalStageId =
-      action === 'lose' ? selectedBoard.value?.lostStageId : null;
-    const isCrossBoardMove =
-      action === 'move' &&
-      payload.target_kanban_board_id &&
-      Number(payload.target_kanban_board_id) !==
-        Number(selectedBoard.value?.id);
-    const targetStageId = isCrossBoardMove ? null : payload.kanban_stage_id;
+      action === 'lose' ? selectedBoard.value.lostStageId : null;
+    const targetStageId = isCrossBoardMove(action, payload)
+      ? null
+      : payload.kanban_stage_id;
 
     return [...sourceStageIds, targetStageId, terminalStageId].filter(Boolean);
   };
@@ -69,30 +72,17 @@ export function useKanbanBulkActions({
         }
       );
       const succeeded = response.data?.succeeded || [];
-      const failed = response.data?.failed || [];
 
       await refreshStageFirstPages(stageIds);
-      if (
-        action === 'move' &&
-        payload.target_kanban_board_id &&
-        Number(payload.target_kanban_board_id) !==
-          Number(selectedBoard.value.id)
-      ) {
-        await store?.dispatch('kanbanBoards/fetchBoards');
+      if (isCrossBoardMove(action, payload)) {
+        await store.dispatch('kanbanBoards/fetchBoards');
       }
       clearCardSelection();
 
-      if (failed.length) {
-        useAlert(
-          t('KANBAN.BULK.PARTIAL', {
-            succeeded: succeeded.length,
-            total: cardIds.length,
-            failed: failed.length,
-          })
-        );
-      } else {
-        useAlert(t('KANBAN.BULK.SUCCESS', { count: succeeded.length }));
-      }
+      useAlert(
+        bulkPartialMessage(response.data, t) ||
+          t('KANBAN.BULK.SUCCESS', { count: succeeded.length })
+      );
     } catch (error) {
       useAlert(errorMessage(error));
     } finally {

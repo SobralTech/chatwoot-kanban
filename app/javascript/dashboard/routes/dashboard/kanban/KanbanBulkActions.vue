@@ -23,7 +23,7 @@ const props = defineProps({
   },
   board: {
     type: Object,
-    default: () => ({}),
+    required: true,
   },
   boards: {
     type: Array,
@@ -80,9 +80,7 @@ const chooseAction = (action, payload, hide) => {
   hide?.();
 };
 
-const currentBoardId = computed(() =>
-  props.board?.id ? Number(props.board.id) : null
-);
+const currentBoardId = computed(() => Number(props.board.id));
 const {
   boardId: moveBoardId,
   boardOptions: moveBoardOptions,

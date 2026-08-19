@@ -1,6 +1,7 @@
 import { nextTick } from 'vue';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import { bulkPartialMessage } from 'dashboard/helper/kanbanBulkResult';
 
 export function useKanbanStageActions({
   boardScrollContainer,
@@ -296,26 +297,17 @@ export function useKanbanStageActions({
         payload
       );
 
-      if (isCrossBoardMove) {
-        const succeeded = response.data?.succeeded || [];
-        const failed = response.data?.failed || [];
-        await refreshStageFirstPages([stage.id]);
-        await store.dispatch('kanbanBoards/fetchBoards');
+      // The target funnel is not mounted in this view, so it refreshes through its
+      // summary instead of a stage page.
+      await refreshStageFirstPages(
+        isCrossBoardMove ? [stage.id] : [stage.id, targetStageId]
+      );
+      if (isCrossBoardMove) await store.dispatch('kanbanBoards/fetchBoards');
 
-        if (failed.length) {
-          useAlert(
-            t('KANBAN.BULK.PARTIAL', {
-              succeeded: succeeded.length,
-              total: succeeded.length + failed.length,
-              failed: failed.length,
-            })
-          );
-          return;
-        }
-      } else {
-        await refreshStageFirstPages([stage.id, targetStageId]);
-      }
-      useAlert(t('KANBAN.STAGE_MENU.SUCCESS.MOVE_CARDS'));
+      useAlert(
+        bulkPartialMessage(response.data, t) ||
+          t('KANBAN.STAGE_MENU.SUCCESS.MOVE_CARDS')
+      );
     } catch (error) {
       showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
     } finally {

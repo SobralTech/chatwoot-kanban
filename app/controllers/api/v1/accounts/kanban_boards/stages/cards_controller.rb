@@ -39,7 +39,7 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     target_board = target_kanban_board
     target_stage = target_board.kanban_stages.active.find_by(id: params[:target_stage_id])
     return render_terminal_stage_not_allowed if target_stage.blank? || terminal_stage?(target_stage, target_board)
-    return render json: move_all_cards_to_board(target_board, target_stage) if target_board != @kanban_board
+    return move_all_cards_to_board(target_board, target_stage) if target_board != @kanban_board
     return head :no_content if target_stage == @kanban_stage
 
     KanbanCard.move_active_cards_to_stage!(
@@ -92,18 +92,24 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
 
   # Emptying a stage into another board is a bulk move of every card it holds, so it runs
   # through the same service the bulk bar uses and inherits its cap, per-card
-  # authorization and events.
+  # authorization and events. Like the same-board move it answers with no content when
+  # every card made it, and only spells out the cards when some of them did not.
   def move_all_cards_to_board(target_board, target_stage)
+    card_ids = @kanban_stage.kanban_cards.active.order(:position, :id).pluck(:id)
+    # An empty stage is nothing to move, not the missing-ids mistake the bulk bar makes.
+    return head :no_content if card_ids.empty?
+
     result = KanbanCards::BulkActionService.new(
       user: Current.user,
       kanban_board: @kanban_board,
       target_kanban_board: target_board,
       operation: 'move',
-      card_ids: @kanban_stage.kanban_cards.active.order(:position, :id).pluck(:id),
+      card_ids: card_ids,
       payload: { kanban_stage_id: target_stage.id }
     ).perform!
+    return head :no_content if result.failed.empty?
 
-    { succeeded: result.succeeded, failed: result.failed }
+    render json: { succeeded: result.succeeded, failed: result.failed }
   end
 
   # Collapsed columns still need fresh counters, so they refresh through the same
