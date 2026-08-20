@@ -17,7 +17,8 @@ class Api::V1::Accounts::KanbanBoards::Cards::ProductsController < Api::V1::Acco
   end
 
   def update
-    return render_forbidden unless Current.account_user&.administrator?
+    authorize @kanban_card, :update?
+    return render_forbidden if catalog_price_update_by_non_admin?
 
     previous_unit_price = @kanban_card_product.unit_price
     previous_quantity = @kanban_card_product.quantity
@@ -56,17 +57,25 @@ class Api::V1::Accounts::KanbanBoards::Cards::ProductsController < Api::V1::Acco
   end
 
   def product_params
-    params.permit(:sku, :name, :brand, :image_url, :quantity, :unit_price, :price_type, :price_list)
+    params.permit(:sku, :name, :brand, :image_url, :quantity, :unit_price, :price_type, :price_list, :item_type)
   end
 
   def update_product_params
-    params.permit(:unit_price, :quantity)
+    permitted = params.permit(:unit_price, :quantity)
+    return permitted if Current.account_user&.administrator? || !@kanban_card_product.catalog?
+
+    permitted.slice(:quantity)
+  end
+
+  def catalog_price_update_by_non_admin?
+    @kanban_card_product.catalog? && !Current.account_user&.administrator? && params[:unit_price].present?
   end
 
   def product_metadata(product)
     {
       sku: product.sku,
       name: product.name,
+      item_type: product.item_type,
       quantity: product.quantity,
       unit_price: product.unit_price
     }

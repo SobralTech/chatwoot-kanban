@@ -16,11 +16,17 @@ json.products card.kanban_card_products.ordered do |product|
   json.name product.name
   json.brand product.brand
   json.image_url product.image_url
+  json.item_type product.item_type
   json.quantity product.quantity
   json.unit_price product.unit_price
   json.price_type product.price_type
+  json.price_list product.price_list
   json.subtotal product.subtotal
 end
+json.items_total card.items_total
+json.discount_cents card.discount_cents
+json.discount_percent card.discount_percent
+json.discount_value card.discount_value
 json.value card.total_value
 json.due_at card.due_at&.iso8601
 json.labels card.labels.map(&:name)

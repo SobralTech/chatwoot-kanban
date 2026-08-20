@@ -3,6 +3,7 @@ json.sku product.sku
 json.name product.name
 json.brand product.brand
 json.image_url product.image_url
+json.item_type product.item_type
 json.quantity product.quantity
 json.unit_price product.unit_price
 json.price_type product.price_type

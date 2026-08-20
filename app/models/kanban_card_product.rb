@@ -5,12 +5,13 @@
 #  id             :bigint           not null, primary key
 #  brand          :string
 #  image_url      :string
+#  item_type      :integer          default("catalog"), not null
 #  name           :string           not null
 #  position       :integer          default(0), not null
 #  price_list     :string
 #  price_type     :integer          default("pix"), not null
 #  quantity       :integer          default(1), not null
-#  sku            :string           not null
+#  sku            :string
 #  unit_price     :decimal(12, 2)   not null
 #  created_at     :datetime         not null
 #  updated_at     :datetime         not null
@@ -32,8 +33,9 @@ class KanbanCardProduct < ApplicationRecord
   belongs_to :kanban_card
 
   enum :price_type, { pix: 0, base: 1 }
+  enum :item_type, { catalog: 0, service: 1, custom: 2 }
 
-  validates :sku, presence: true
+  validates :sku, presence: true, if: :catalog?
   validates :name, presence: true
   validates :unit_price, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :quantity, presence: true, numericality: { only_integer: true, greater_than: 0 }

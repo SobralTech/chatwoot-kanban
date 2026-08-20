@@ -273,12 +273,23 @@ export function useKanbanBoardData({
       return false;
     }
 
+    const cardInStage = visibleStage.cards.find(
+      stageCard => stageCard.id === updatedCard.id
+    );
+    const previousValue = Number(cardInStage?.value || 0);
+    const nextValue = Number(updatedCard.value);
+    const valueChanged =
+      Number.isFinite(nextValue) && Number.isFinite(previousValue);
+
     updateStageCards(visibleStage.id, stage => ({
       ...stage,
-      cards: stage.cards.map(existingCard =>
-        existingCard.id === updatedCard.id
-          ? { ...existingCard, ...updatedCard }
-          : existingCard
+      totalValue: valueChanged
+        ? Number(stage.totalValue || 0) + nextValue - previousValue
+        : stage.totalValue,
+      cards: stage.cards.map(stageCard =>
+        stageCard.id === updatedCard.id
+          ? { ...stageCard, ...updatedCard }
+          : stageCard
       ),
     }));
 

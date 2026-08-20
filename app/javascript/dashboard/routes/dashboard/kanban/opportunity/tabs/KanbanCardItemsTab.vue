@@ -22,14 +22,31 @@ const props = defineProps({
     type: [Number, String],
     required: true,
   },
+  discountCents: {
+    type: [Number, String],
+    default: null,
+  },
+  discountPercent: {
+    type: [Number, String],
+    default: null,
+  },
 });
 
-const emit = defineEmits(['totalChanged']);
+const emit = defineEmits(['totalChanged', 'cardChanged']);
 const { t } = useI18n();
 const { isAdmin } = useAdmin();
 
-const getErrorMessage = (error, fallback) =>
-  error?.response?.data?.message || error?.message || fallback;
+const getErrorMessage = (error, fallback) => {
+  const errors = error?.response?.data?.errors;
+
+  if (Array.isArray(errors)) return errors.join(', ');
+  if (typeof errors === 'string') return errors;
+  if (errors && typeof errors === 'object') {
+    return Object.values(errors).flat().join(', ');
+  }
+
+  return error?.response?.data?.message || error?.message || fallback;
+};
 const normalizePayload = payload =>
   camelcaseKeys(payload || {}, { deep: true });
 // --- Products tab ---
@@ -67,10 +84,57 @@ const isLoadingProducts = ref(false);
 const productsLoadError = ref('');
 const editingUnitPriceId = ref(null);
 const editingUnitPriceValue = ref('');
+const editingQuantityId = ref(null);
+const editingQuantityValue = ref('');
 const isUpdatingProductId = ref(null);
 const isRemovingProductId = ref(null);
+const isUpdatingDiscount = ref(false);
+const discountError = ref('');
+const discountMode = ref(
+  props.discountPercent != null || props.discountCents == null
+    ? 'percent'
+    : 'amount'
+);
+const initialDiscountInput = () => {
+  if (props.discountPercent != null) return props.discountPercent;
+  if (props.discountCents != null) return Number(props.discountCents) / 100;
 
-const totalValue = computed(() =>
+  return '';
+};
+const discountInput = ref(initialDiscountInput());
+const customItemForm = ref({
+  open: false,
+  name: '',
+  quantity: 1,
+  unitPrice: '',
+  itemType: 'service',
+  isSaving: false,
+  error: '',
+});
+
+const ITEM_TYPE_OPTIONS = [
+  {
+    value: 'service',
+    label: t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_SERVICE'),
+  },
+  {
+    value: 'custom',
+    label: t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_CUSTOM'),
+  },
+];
+
+const DISCOUNT_TYPE_OPTIONS = [
+  {
+    value: 'percent',
+    label: t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_PERCENT'),
+  },
+  {
+    value: 'amount',
+    label: t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_AMOUNT'),
+  },
+];
+
+const subtotal = computed(() =>
   cardProducts.value.reduce(
     (sum, product) =>
       sum + Number(product.subtotal ?? product.unitPrice * product.quantity),
@@ -78,7 +142,34 @@ const totalValue = computed(() =>
   )
 );
 
+const parsedDiscountInput = computed(() => {
+  const value = Number(discountInput.value);
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+});
+
+const discountValue = computed(() => {
+  if (discountMode.value === 'percent') {
+    return subtotal.value * (parsedDiscountInput.value / 100);
+  }
+
+  return parsedDiscountInput.value;
+});
+
+const totalValue = computed(() =>
+  Math.max(subtotal.value - discountValue.value, 0)
+);
+
+const formattedSubtotal = computed(() => formatCurrency(subtotal.value));
 const formattedTotalValue = computed(() => formatCurrency(totalValue.value));
+
+const emitCardTotal = () => emit('totalChanged', totalValue.value);
+
+const emitCardChange = card => {
+  emit('cardChanged', {
+    ...(card || {}),
+    value: Number(card?.value ?? totalValue.value),
+  });
+};
 
 const loadCardProducts = async () => {
   isLoadingProducts.value = true;
@@ -90,7 +181,7 @@ const loadCardProducts = async () => {
       props.cardId
     );
     cardProducts.value = normalizePayload(response?.data || []);
-    emit('totalChanged', totalValue.value);
+    emitCardTotal();
   } catch (error) {
     productsLoadError.value = getErrorMessage(
       error,
@@ -189,6 +280,7 @@ const confirmAddProduct = async product => {
     });
     draft.open = false;
     await loadCardProducts();
+    emitCardChange();
     useAlert(t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_SUCCESS'));
   } catch (error) {
     draft.error = getErrorMessage(
@@ -201,8 +293,11 @@ const confirmAddProduct = async product => {
   }
 };
 
+const canEditUnitPrice = product =>
+  isAdmin.value || ['service', 'custom'].includes(product.itemType);
+
 const startEditUnitPrice = product => {
-  if (!isAdmin.value) return;
+  if (!canEditUnitPrice(product)) return;
 
   editingUnitPriceId.value = product.id;
   editingUnitPriceValue.value = product.unitPrice;
@@ -211,6 +306,16 @@ const startEditUnitPrice = product => {
 const cancelEditUnitPrice = () => {
   editingUnitPriceId.value = null;
   editingUnitPriceValue.value = '';
+};
+
+const startEditQuantity = product => {
+  editingQuantityId.value = product.id;
+  editingQuantityValue.value = product.quantity;
+};
+
+const cancelEditQuantity = () => {
+  editingQuantityId.value = null;
+  editingQuantityValue.value = '';
 };
 
 const saveUnitPrice = async product => {
@@ -230,6 +335,34 @@ const saveUnitPrice = async product => {
     );
     cancelEditUnitPrice();
     await loadCardProducts();
+    emitCardChange();
+  } catch (error) {
+    useAlert(
+      getErrorMessage(
+        error,
+        t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.UPDATE_ERROR')
+      )
+    );
+  } finally {
+    isUpdatingProductId.value = null;
+  }
+};
+
+const saveQuantity = async product => {
+  if (isUpdatingProductId.value) return;
+
+  isUpdatingProductId.value = product.id;
+
+  try {
+    await KanbanBoardsAPI.updateCardProduct(
+      props.boardId,
+      props.cardId,
+      product.id,
+      { quantity: Number(editingQuantityValue.value) }
+    );
+    cancelEditQuantity();
+    await loadCardProducts();
+    emitCardChange();
   } catch (error) {
     useAlert(
       getErrorMessage(
@@ -254,6 +387,7 @@ const removeCardProduct = async product => {
       product.id
     );
     await loadCardProducts();
+    emitCardChange();
     useAlert(t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.REMOVE_SUCCESS'));
   } catch (error) {
     useAlert(
@@ -265,6 +399,136 @@ const removeCardProduct = async product => {
   } finally {
     isRemovingProductId.value = null;
   }
+};
+
+const toggleCustomItemForm = () => {
+  customItemForm.value.open = !customItemForm.value.open;
+  customItemForm.value.error = '';
+};
+
+const confirmAddCustomItem = async () => {
+  const form = customItemForm.value;
+  const quantity = Number(form.quantity);
+  const unitPrice = Number(form.unitPrice);
+
+  if (
+    !form.name.trim() ||
+    !Number.isInteger(quantity) ||
+    quantity < 1 ||
+    !Number.isFinite(unitPrice) ||
+    unitPrice < 0
+  ) {
+    form.error = t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_ERROR');
+    return;
+  }
+
+  if (form.isSaving) return;
+
+  form.isSaving = true;
+  form.error = '';
+
+  try {
+    await KanbanBoardsAPI.createCardProduct(props.boardId, props.cardId, {
+      name: form.name.trim(),
+      quantity,
+      unit_price: unitPrice,
+      item_type: form.itemType,
+    });
+    form.open = false;
+    form.name = '';
+    form.quantity = 1;
+    form.unitPrice = '';
+    await loadCardProducts();
+    emitCardChange();
+    useAlert(t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_SUCCESS'));
+  } catch (error) {
+    form.error = getErrorMessage(
+      error,
+      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_ERROR')
+    );
+    useAlert(form.error);
+  } finally {
+    form.isSaving = false;
+  }
+};
+
+const discountPayload = () => {
+  const rawValue = String(discountInput.value ?? '').trim();
+  const value = Number(rawValue);
+
+  if (!rawValue) {
+    return { discount_cents: null, discount_percent: null };
+  }
+
+  if (!Number.isFinite(value) || value < 0) return null;
+
+  return discountMode.value === 'percent'
+    ? { discount_cents: null, discount_percent: value }
+    : { discount_cents: Math.round(value * 100), discount_percent: null };
+};
+
+const applyDiscountCard = card => {
+  if (card?.discountPercent != null) {
+    discountMode.value = 'percent';
+    discountInput.value = card.discountPercent;
+  } else if (card?.discountCents != null) {
+    discountMode.value = 'amount';
+    discountInput.value = Number(card.discountCents) / 100;
+  } else {
+    discountInput.value = '';
+  }
+};
+
+const saveDiscount = async () => {
+  if (isUpdatingDiscount.value) return;
+
+  const payload = discountPayload();
+  if (!payload) return;
+
+  const previousMode = discountMode.value;
+  const previousInput = discountInput.value;
+  isUpdatingDiscount.value = true;
+  discountError.value = '';
+
+  try {
+    const response = await KanbanBoardsAPI.updateCardDetailsById(
+      props.boardId,
+      props.cardId,
+      payload
+    );
+    const updatedCard = normalizePayload(response?.data || {});
+    applyDiscountCard(updatedCard);
+    emitCardTotal();
+    emitCardChange(updatedCard);
+  } catch (error) {
+    discountMode.value = previousMode;
+    discountInput.value = previousInput;
+    discountError.value = getErrorMessage(
+      error,
+      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_INVALID')
+    );
+    useAlert(discountError.value);
+  } finally {
+    isUpdatingDiscount.value = false;
+  }
+};
+
+const changeDiscountMode = mode => {
+  const currentValue = String(discountInput.value ?? '').trim();
+  const currentAmount = discountValue.value;
+
+  discountMode.value = mode;
+  if (!currentValue) {
+    discountInput.value = '';
+  } else if (mode === 'percent') {
+    discountInput.value = subtotal.value
+      ? (currentAmount / subtotal.value) * 100
+      : 0;
+  } else {
+    discountInput.value = currentAmount;
+  }
+
+  saveDiscount();
 };
 
 onMounted(loadCardProducts);
@@ -467,9 +731,91 @@ defineExpose({ reload: loadCardProducts });
     </section>
 
     <section class="grid gap-3 rounded-lg border border-n-weak p-3">
-      <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-        {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.LINKED_TITLE') }}
-      </h3>
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.LINKED_TITLE') }}
+        </h3>
+        <NextButton
+          type="button"
+          outline
+          slate
+          xs
+          data-testid="kanban-opportunity-add-custom-item"
+          :label="t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_CUSTOM_ITEM')"
+          @click="toggleCustomItemForm"
+        />
+      </div>
+
+      <form
+        v-if="customItemForm.open"
+        data-testid="kanban-opportunity-custom-item-form"
+        class="grid gap-3 rounded-md border border-n-weak bg-n-surface-2 p-3 sm:grid-cols-[minmax(0,1fr)_8rem_10rem]"
+        @submit.prevent="confirmAddCustomItem"
+      >
+        <label class="grid gap-1 text-xs font-medium text-n-slate-12">
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_NAME') }}
+          <input
+            v-model="customItemForm.name"
+            type="text"
+            data-testid="kanban-opportunity-custom-item-name"
+            class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+          />
+        </label>
+        <label class="grid gap-1 text-xs font-medium text-n-slate-12">
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_QUANTITY') }}
+          <input
+            v-model.number="customItemForm.quantity"
+            type="number"
+            min="1"
+            data-testid="kanban-opportunity-custom-item-quantity"
+            class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+          />
+        </label>
+        <label class="grid gap-1 text-xs font-medium text-n-slate-12">
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_UNIT_PRICE') }}
+          <input
+            v-model.number="customItemForm.unitPrice"
+            type="number"
+            min="0"
+            step="0.01"
+            data-testid="kanban-opportunity-custom-item-unit-price"
+            class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+          />
+        </label>
+        <div
+          class="grid gap-1 text-xs font-medium text-n-slate-12 sm:col-span-2"
+        >
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_LABEL') }}
+          <Select
+            v-model="customItemForm.itemType"
+            data-testid="kanban-opportunity-custom-item-type"
+            :options="ITEM_TYPE_OPTIONS"
+          />
+        </div>
+        <p
+          v-if="customItemForm.error"
+          class="mb-0 text-xs text-n-ruby-11 sm:col-span-3"
+        >
+          {{ customItemForm.error }}
+        </p>
+        <div class="flex items-center gap-2 sm:col-span-3">
+          <NextButton
+            type="submit"
+            sm
+            data-testid="kanban-opportunity-custom-item-submit"
+            :label="t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_CONFIRM')"
+            :is-loading="customItemForm.isSaving"
+          />
+          <NextButton
+            type="button"
+            outline
+            slate
+            sm
+            :label="t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_CANCEL')"
+            @click="toggleCustomItemForm"
+          />
+        </div>
+      </form>
 
       <p
         v-if="isLoadingProducts"
@@ -535,15 +881,86 @@ defineExpose({ reload: loadCardProducts });
               class="border-t border-n-weak"
             >
               <td class="py-2 pr-2 text-n-slate-12">
-                {{ product.name }}
+                <div class="grid gap-0.5">
+                  <span>{{ product.name }}</span>
+                  <span
+                    v-if="product.itemType !== 'catalog'"
+                    class="text-xs text-n-slate-10"
+                  >
+                    {{
+                      product.itemType === 'service'
+                        ? t(
+                            'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_SERVICE'
+                          )
+                        : t(
+                            'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_CUSTOM'
+                          )
+                    }}
+                  </span>
+                </div>
               </td>
-              <td class="py-2 pr-2 text-n-slate-11">{{ product.sku }}</td>
               <td class="py-2 pr-2 text-n-slate-11">
-                {{ product.quantity }}
+                {{
+                  product.sku ||
+                  t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.NO_SKU')
+                }}
               </td>
               <td class="py-2 pr-2 text-n-slate-11">
                 <span
-                  v-if="isAdmin && editingUnitPriceId === product.id"
+                  v-if="editingQuantityId === product.id"
+                  class="flex items-center gap-1"
+                >
+                  <input
+                    v-model.number="editingQuantityValue"
+                    type="number"
+                    min="1"
+                    data-testid="kanban-opportunity-product-quantity-input"
+                    class="w-16 rounded-md border border-n-weak bg-n-surface-1 px-2 py-1 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                  />
+                  <button
+                    type="button"
+                    data-testid="kanban-opportunity-product-quantity-save"
+                    class="text-n-teal-11"
+                    :aria-label="
+                      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SAVE_QUANTITY')
+                    "
+                    @click="saveQuantity(product)"
+                  >
+                    <i class="i-lucide-check size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="kanban-opportunity-product-quantity-cancel"
+                    class="text-n-slate-11"
+                    :aria-label="
+                      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.CANCEL_EDIT')
+                    "
+                    @click="cancelEditQuantity"
+                  >
+                    <i class="i-lucide-x size-4" />
+                  </button>
+                </span>
+                <span v-else class="flex items-center gap-1">
+                  {{ product.quantity }}
+                  <button
+                    type="button"
+                    data-testid="kanban-opportunity-product-quantity-edit"
+                    class="text-n-slate-10 hover:text-n-slate-12"
+                    :aria-label="
+                      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.EDIT_QUANTITY')
+                    "
+                    @click="startEditQuantity(product)"
+                  >
+                    <i class="i-lucide-pencil size-3.5" />
+                  </button>
+                </span>
+              </td>
+              <td class="py-2 pr-2 text-n-slate-11">
+                <span
+                  v-if="
+                    canEditUnitPrice(product) &&
+                    editingUnitPriceId === product.id
+                  "
                   class="flex items-center gap-1"
                 >
                   <input
@@ -582,7 +999,7 @@ defineExpose({ reload: loadCardProducts });
                 <span v-else class="flex items-center gap-1">
                   {{ formatCurrency(product.unitPrice) }}
                   <button
-                    v-if="isAdmin"
+                    v-if="canEditUnitPrice(product)"
                     type="button"
                     data-testid="kanban-opportunity-product-unit-price-edit"
                     class="text-n-slate-10 hover:text-n-slate-12"
@@ -618,15 +1035,57 @@ defineExpose({ reload: loadCardProducts });
         </table>
       </div>
 
-      <div
-        class="flex items-center justify-end gap-2 border-t border-n-weak pt-3 text-sm font-medium text-n-slate-12"
-      >
-        <span>{{
-          t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.TOTAL_VALUE')
-        }}</span>
-        <span data-testid="kanban-opportunity-products-total">
-          {{ formattedTotalValue }}
-        </span>
+      <div class="grid gap-2 border-t border-n-weak pt-3 text-sm">
+        <div class="flex items-center justify-between gap-2 text-n-slate-11">
+          <span>{{
+            t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SUBTOTAL_LABEL')
+          }}</span>
+          <span data-testid="kanban-opportunity-products-subtotal">
+            {{ formattedSubtotal }}
+          </span>
+        </div>
+        <div
+          class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem] sm:items-end"
+        >
+          <span class="font-medium text-n-slate-12">
+            {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_LABEL') }}
+          </span>
+          <Select
+            :model-value="discountMode"
+            data-testid="kanban-opportunity-discount-type"
+            :options="DISCOUNT_TYPE_OPTIONS"
+            @update:model-value="changeDiscountMode"
+          />
+          <input
+            v-model="discountInput"
+            type="number"
+            min="0"
+            :max="discountMode === 'percent' ? 100 : undefined"
+            step="0.01"
+            data-testid="kanban-opportunity-discount-input"
+            class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+            :disabled="isUpdatingDiscount"
+            @blur="saveDiscount"
+            @keyup.enter.prevent="saveDiscount"
+          />
+        </div>
+        <p
+          v-if="discountError"
+          data-testid="kanban-opportunity-discount-error"
+          class="mb-0 text-xs text-n-ruby-11"
+        >
+          {{ discountError }}
+        </p>
+        <div
+          class="flex items-center justify-between gap-2 font-medium text-n-slate-12"
+        >
+          <span>{{
+            t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.TOTAL_LABEL')
+          }}</span>
+          <span data-testid="kanban-opportunity-products-total">
+            {{ formattedTotalValue }}
+          </span>
+        </div>
       </div>
     </section>
   </section>

@@ -105,10 +105,9 @@ class KanbanStage < ApplicationRecord
   end
 
   def total_value
-    KanbanCardProduct.joins(:kanban_card)
-                     .merge(KanbanCard.active)
-                     .where(kanban_cards: { kanban_stage_id: id })
-                     .sum('kanban_card_products.unit_price * kanban_card_products.quantity')
+    totals = KanbanCards::Totals.metric(kanban_cards.active)
+
+    BigDecimal(totals.value)
   end
 
   private

@@ -11,6 +11,47 @@ RSpec.describe KanbanCard do
     end
   end
 
+  describe '#total_value' do
+    let(:card) { create(:kanban_card) }
+
+    it 'sums catalog and manual items without a discount' do
+      create_card_product(card, unit_price: 100, quantity: 1)
+      create_card_product(card, item_type: :service, sku: nil, unit_price: 50, quantity: 2)
+
+      expect(card.total_value).to eq(BigDecimal(200))
+    end
+
+    it 'applies a percentage discount' do
+      create_card_product(card, unit_price: 100, quantity: 2)
+      card.update!(discount_percent: 10)
+
+      expect(card.total_value).to eq(BigDecimal(180))
+    end
+
+    it 'applies an absolute discount' do
+      create_card_product(card, unit_price: 100, quantity: 2)
+      card.update!(discount_cents: 3000)
+
+      expect(card.total_value).to eq(BigDecimal(170))
+    end
+
+    it 'floors the total at zero when the discount exceeds the subtotal' do
+      create_card_product(card, unit_price: 100, quantity: 2)
+      card.update!(discount_cents: 25_000)
+
+      expect(card.total_value).to eq(BigDecimal(0))
+    end
+  end
+
+  describe 'discount validations' do
+    it 'rejects a percentage and an amount together' do
+      card = build(:kanban_card, discount_percent: 10, discount_cents: 100)
+
+      expect(card).not_to be_valid
+      expect(card.errors[:base]).to include(KanbanCard::DISCOUNT_EXCLUSIVITY_ERROR)
+    end
+  end
+
   describe 'validations' do
     it 'allows a valid manual card' do
       card = build(:kanban_card)
@@ -631,5 +672,18 @@ RSpec.describe KanbanCard do
     sql_queries.count do |sql|
       sql.match?(/FROM "labels"|JOIN "labels"|FROM "tags"|JOIN "tags"|FROM "taggings"|JOIN "taggings"/)
     end
+  end
+
+  def create_card_product(card, attributes = {})
+    KanbanCardProduct.create!(
+      {
+        account: card.account,
+        kanban_card: card,
+        sku: SecureRandom.hex(4),
+        name: 'Product',
+        unit_price: 10,
+        quantity: 1
+      }.merge(attributes)
+    )
   end
 end

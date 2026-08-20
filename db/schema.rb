@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_18_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_20_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1157,7 +1157,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_130000) do
   create_table "kanban_card_products", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "kanban_card_id", null: false
-    t.string "sku", null: false
+    t.string "sku"
     t.string "name", null: false
     t.string "brand"
     t.string "image_url"
@@ -1168,6 +1168,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_130000) do
     t.integer "position", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "item_type", default: 0, null: false
     t.index ["account_id"], name: "index_kanban_card_products_on_account_id"
     t.index ["kanban_card_id"], name: "index_kanban_card_products_on_kanban_card_id"
   end
@@ -1194,6 +1195,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_18_130000) do
     t.bigint "kanban_reason_id"
     t.bigint "previous_stage_id"
     t.bigint "recreated_from_card_id"
+    t.integer "discount_cents"
+    t.decimal "discount_percent", precision: 5, scale: 2
     t.index "immutable_unaccent(lower((subject)::text)) gin_trgm_ops", name: "index_kanban_cards_on_subject_trgm", where: "(active = true)", using: :gin
     t.index ["account_id", "active"], name: "index_kanban_cards_on_account_id_and_active"
     t.index ["account_id", "contact_id"], name: "index_kanban_cards_on_account_id_and_contact_id"

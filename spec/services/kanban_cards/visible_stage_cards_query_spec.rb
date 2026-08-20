@@ -23,6 +23,20 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.total_count).to eq(3)
     end
 
+    it 'sums discounted totals by card' do
+      percentage_card = create_visible_card(position: 1)
+      create_card_product(percentage_card, unit_price: 100, quantity: 2)
+      percentage_card.update!(discount_percent: 10)
+
+      amount_card = create_visible_card(position: 2)
+      create_card_product(amount_card, unit_price: 300, quantity: 1)
+      amount_card.update!(discount_cents: 5000)
+
+      result = query.call
+
+      expect(result.total_value).to eq('430.0')
+    end
+
     it 'uses a default limit of 20' do
       cards = create_visible_cards(21)
 
@@ -598,6 +612,19 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
     conversation = create(:conversation, account: account, inbox: card_inbox, contact: contact, assignee: assignee)
 
     create_visible_card(attributes.merge(conversation: conversation, contact: contact, inbox: card_inbox, origin: 'conversation', subject: nil))
+  end
+
+  def create_card_product(card, attributes = {})
+    KanbanCardProduct.create!(
+      {
+        account: account,
+        kanban_card: card,
+        sku: SecureRandom.hex(4),
+        name: 'Product',
+        unit_price: 10,
+        quantity: 1
+      }.merge(attributes)
+    )
   end
 
   def avatar_fixture
