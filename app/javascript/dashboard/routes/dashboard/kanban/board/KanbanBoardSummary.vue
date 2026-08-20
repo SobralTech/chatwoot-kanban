@@ -94,6 +94,16 @@ const metrics = computed(() => {
     </div>
 
     <template v-else>
+      <button
+        type="button"
+        class="inline-flex flex-shrink-0 items-center justify-center rounded-md p-1.5 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+        data-testid="kanban-summary-hide"
+        :aria-label="t('KANBAN.SUMMARY.HIDE')"
+        :title="t('KANBAN.SUMMARY.HIDE')"
+        @click="emit('toggle')"
+      >
+        <i class="i-lucide-chevron-up size-4" />
+      </button>
       <div
         class="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-2"
         :class="{ 'opacity-50': isLoading }"
@@ -117,16 +127,6 @@ const metrics = computed(() => {
       <span v-if="error" class="max-w-56 truncate text-xs text-n-ruby-11">
         {{ t('KANBAN.SUMMARY.ERROR') }}
       </span>
-      <button
-        type="button"
-        class="inline-flex flex-shrink-0 items-center justify-center rounded-md p-1.5 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
-        data-testid="kanban-summary-hide"
-        :aria-label="t('KANBAN.SUMMARY.HIDE')"
-        :title="t('KANBAN.SUMMARY.HIDE')"
-        @click="emit('toggle')"
-      >
-        <i class="i-lucide-chevron-up size-4" />
-      </button>
     </template>
   </section>
 </template>
