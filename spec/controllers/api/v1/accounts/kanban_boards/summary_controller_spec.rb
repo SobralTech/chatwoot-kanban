@@ -3,6 +3,7 @@ require 'rails_helper'
 RSpec.describe 'Kanban board summary API', type: :request do
   let(:account) { create(:account) }
   let(:administrator) { create(:user, account: account, role: :administrator) }
+  let(:agent) { create(:user, account: account, role: :agent) }
   let(:board) { create(:kanban_board, account: account) }
   let!(:regular_stage) { create(:kanban_stage, account: account, kanban_board: board, position: 1) }
   let!(:won_stage) { create(:kanban_stage, account: account, kanban_board: board, position: 2) }
@@ -27,6 +28,20 @@ RSpec.describe 'Kanban board summary API', type: :request do
       'lost_this_month' => { 'count' => 1, 'value' => '10.0' },
       'average_ticket' => '10.00'
     )
+  end
+
+  it 'returns unauthorized for unauthenticated users' do
+    get summary_url, as: :json
+
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it 'returns 404 for agent without membership on selected_agents board' do
+    board.update!(visibility_mode: 'selected_agents')
+
+    get summary_url, headers: agent.create_new_auth_token, as: :json
+
+    expect(response).to have_http_status(:not_found)
   end
 
   def summary_url

@@ -41,6 +41,40 @@ RSpec.describe KanbanBoards::SummaryQuery do
       expect(result.open).to have_attributes(count: 1, value: '10.0')
     end
 
+    it 'keeps won and lost cards out of the open metric' do
+      create_card(stage: regular_stage, inbox: inbox)
+      create_card(stage: won_stage, inbox: inbox)
+      create_card(stage: lost_stage, inbox: inbox)
+
+      result = query.call
+
+      expect(result.open).to have_attributes(count: 1, value: '10.0')
+    end
+
+    it 'counts only the lost cards that entered the stage this month' do
+      travel_to(Time.utc(2026, 3, 15, 12)) do
+        create_card(stage: lost_stage, inbox: inbox, stage_entered_at: Time.utc(2026, 3, 2))
+        create_card(stage: lost_stage, inbox: inbox, stage_entered_at: Time.utc(2026, 2, 27))
+
+        result = query.call
+
+        expect(result.lost_this_month).to have_attributes(count: 1, value: '10.0')
+      end
+    end
+
+    it 'counts every card as open when the board has no won and lost stages' do
+      kanban_board.update!(won_stage: nil, lost_stage: nil)
+      create_card(stage: regular_stage, inbox: inbox)
+      create_card(stage: won_stage, inbox: inbox)
+
+      result = query.call
+
+      expect(result.open).to have_attributes(count: 2, value: '20.0')
+      expect(result.won_this_month).to have_attributes(count: 0, value: '0.0')
+      expect(result.lost_this_month).to have_attributes(count: 0, value: '0.0')
+      expect(result.average_ticket).to be_nil
+    end
+
     it 'uses the account timezone for the current month boundary' do
       account.update!(reporting_timezone: 'America/Sao_Paulo')
 
