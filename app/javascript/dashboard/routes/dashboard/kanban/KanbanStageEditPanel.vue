@@ -42,7 +42,7 @@ const { t } = useI18n();
     class="grid gap-3 rounded-md border p-3"
     :class="panelClass"
   >
-    <div class="flex min-w-0 flex-wrap items-end gap-3">
+    <div class="flex w-full min-w-0 flex-wrap items-end gap-3">
       <ColorPicker
         v-if="showColorPicker"
         v-model="color"
@@ -53,12 +53,12 @@ const { t } = useI18n();
         v-model="name"
         data-testid="kanban-board-form-edit-stage-name"
         type="text"
-        class="reset-base !mb-0 h-10 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+        class="reset-base !mb-0 h-10 w-0 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
         :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
       />
       <label
         v-if="showSlaHours"
-        class="grid w-32 flex-none gap-1 text-xs font-medium text-n-slate-11"
+        class="grid w-32 max-w-full min-w-0 flex-none gap-1 text-xs font-medium text-n-slate-11"
       >
         {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS') }}
         <input
@@ -67,7 +67,7 @@ const { t } = useI18n();
           type="number"
           min="1"
           step="1"
-          class="reset-base !mb-0 h-10 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+          class="reset-base !mb-0 h-10 w-full min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
           :placeholder="t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS_PLACEHOLDER')"
         />
       </label>
