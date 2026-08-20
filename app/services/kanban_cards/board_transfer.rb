@@ -64,11 +64,17 @@ class KanbanCards::BoardTransfer
     signed.select { |card| taken.include?(card_signature(card)) }.to_set(&:id)
   end
 
+  # Archived cards are not symmetrical here, and the check has to follow the indexes rather
+  # than the other way round: index_kanban_cards_on_conversation_subject_unique covers a
+  # conversation card whether or not it is still active, while the manual one is scoped to
+  # active rows. Checking only active cards would let an archived conversation card through
+  # the check and into a constraint violation on the way in.
   def taken_signatures(signed)
-    @target_board.kanban_cards.active
-                 .where(inbox_id: signed.map(&:inbox_id).uniq, normalized_subject: signed.map(&:normalized_subject).uniq)
-                 .select(*SIGNATURE_COLUMNS)
-                 .to_set { |card| card_signature(card) }
+    scope = @target_board.kanban_cards
+                         .where(inbox_id: signed.map(&:inbox_id).uniq, normalized_subject: signed.map(&:normalized_subject).uniq)
+                         .select(*SIGNATURE_COLUMNS)
+
+    scope.where(origin: :conversation).or(scope.where(active: true)).to_set { |card| card_signature(card) }
   end
 
   # A card without a normalized subject has no signature at all and cannot collide.

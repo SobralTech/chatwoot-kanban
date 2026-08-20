@@ -17,8 +17,8 @@ class KanbanStages::MoveToBoardService
     return failure('stage_name_taken') if stage_name_taken?
 
     move_stage!
-  rescue ActiveRecord::RecordNotUnique
-    failure('stage_cards_blocked', blocked: { KanbanCards::BoardTransfer::DUPLICATE => 1 })
+  rescue ActiveRecord::RecordNotUnique => e
+    blocked_after_rollback(e)
   end
 
   private
@@ -57,6 +57,17 @@ class KanbanStages::MoveToBoardService
     return failure('stage_cards_blocked', blocked: blocked) if blocked.present?
 
     success(moved_card_ids.length)
+  end
+
+  # The pre-check follows the same unique indexes the write does, so reaching here means the
+  # destination gained a colliding card while the move was running. The transaction is rolled
+  # back by now, so re-running the check reports what actually collided rather than guessing
+  # at a count; a violation the check cannot explain is not this service's to relabel.
+  def blocked_after_rollback(error)
+    blocked = transfer.blocked_reasons(@stage.kanban_cards.active).values.tally
+    raise error if blocked.empty?
+
+    failure('stage_cards_blocked', blocked: blocked)
   end
 
   # The locked rows are the moved set: from here on no card can join or leave the stage.
