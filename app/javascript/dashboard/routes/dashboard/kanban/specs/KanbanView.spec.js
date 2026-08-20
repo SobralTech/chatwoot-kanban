@@ -56,6 +56,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     get: vi.fn(),
     show: vi.fn(),
     showBoard: vi.fn(),
+    getSummary: vi.fn(),
     reorderStage: vi.fn(),
     reorderCardById: vi.fn(),
     create: vi.fn(),
@@ -237,6 +238,15 @@ const mountView = async (
   });
   KanbanBoardsAPI.show.mockResolvedValue({
     data: boardResponse,
+  });
+  KanbanBoardsAPI.getSummary.mockResolvedValue({
+    data: {
+      open: { count: 1, value: '10.0' },
+      won_this_month: { count: 1, value: '10.0' },
+      lost_this_month: { count: 1, value: '10.0' },
+      average_ticket: '10.00',
+      currency: 'BRL',
+    },
   });
   KanbanBoardsAPI.reorderStage.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.reorderCardById.mockResolvedValue({ data: {} });

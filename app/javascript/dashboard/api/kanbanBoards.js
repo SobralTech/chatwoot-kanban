@@ -70,6 +70,10 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.get(`${this.url}/${boardId}`, config);
   }
 
+  getSummary(boardId, config = {}) {
+    return axios.get(`${this.url}/${boardId}/summary`, config);
+  }
+
   getSettings(boardId) {
     return axios.get(`${this.url}/${boardId}/settings`);
   }

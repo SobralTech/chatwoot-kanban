@@ -20,6 +20,7 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import KanbanStageColumn from './board/KanbanStageColumn.vue';
 import KanbanBoardHeader from './board/KanbanBoardHeader.vue';
+import KanbanBoardSummary from './board/KanbanBoardSummary.vue';
 import KanbanStageDraft from './board/KanbanStageDraft.vue';
 import KanbanBulkActions from './KanbanBulkActions.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
@@ -56,6 +57,10 @@ const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
 const collapsedStageIds = ref(new Set());
+const isSummaryCollapsed = ref(false);
+const boardSummary = ref({});
+const isFetchingSummary = ref(false);
+const summaryError = ref(false);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
 const isCreatingStageDraft = ref(false);
@@ -380,6 +385,7 @@ const loadBoardPrefs = boardId => {
 
   collapsedStageIds.value = new Set(storedStageIds);
   terminalPeriod.value = normalizeTerminalPeriod(prefs?.terminalPeriod);
+  isSummaryCollapsed.value = prefs?.summaryCollapsed === true;
 
   return prefs;
 };
@@ -480,6 +486,39 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
   });
 };
 
+const fetchBoardSummary = async (
+  boardId,
+  generation = requestGeneration.value
+) => {
+  if (!boardId) return;
+
+  isFetchingSummary.value = true;
+  summaryError.value = false;
+  boardSummary.value = {};
+
+  try {
+    const response = await KanbanBoardsAPI.getSummary(boardId, {
+      params: currentFilterParams(),
+    });
+    if (generation !== requestGeneration.value) return;
+
+    boardSummary.value = normalizePayload(response.data);
+  } catch {
+    if (generation !== requestGeneration.value) return;
+
+    summaryError.value = true;
+  } finally {
+    if (generation === requestGeneration.value) {
+      isFetchingSummary.value = false;
+    }
+  }
+};
+
+const loadBoardData = (boardId, generation) => {
+  fetchBoardSummary(boardId, generation);
+  return showBoard(boardId, generation);
+};
+
 const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   const generation = requestGeneration.value;
   const prefs = loadBoardPrefs(boardId);
@@ -511,7 +550,7 @@ const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
       }
       boardFilters.value = normalizeBoardFilters(initialFilters);
     }
-    await showBoard(boardId, generation);
+    await loadBoardData(boardId, generation);
     return;
   }
 
@@ -525,7 +564,7 @@ const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   activeSearchTerm.value = snapshot.filters?.searchTerm || '';
 
   if (generation !== requestGeneration.value) return;
-  await showBoard(boardId, generation);
+  await loadBoardData(boardId, generation);
   if (
     generation !== requestGeneration.value ||
     selectedBoard.value?.id !== boardId
@@ -554,7 +593,7 @@ const refreshSelectedBoard = async () => {
   const targetStageId = pendingScrollToStageId.value;
 
   const generation = requestGeneration.value;
-  await showBoard(selectedBoard.value.id, generation);
+  await loadBoardData(selectedBoard.value.id, generation);
   if (generation !== requestGeneration.value) return;
   await nextTick();
 
@@ -630,6 +669,7 @@ const persistBoardPrefs = () => {
     prefs: {
       collapsedStageIds: [...collapsedStageIds.value],
       terminalPeriod: terminalPeriod.value,
+      summaryCollapsed: isSummaryCollapsed.value,
       mine: isMineActive.value,
       today: isTodayActive.value,
     },
@@ -665,6 +705,11 @@ const updateBoardFilters = async filters => {
   persistBoardPrefs();
   requestGeneration.value += 1;
   await refreshSelectedBoard();
+};
+
+const toggleSummary = () => {
+  isSummaryCollapsed.value = !isSummaryCollapsed.value;
+  persistBoardPrefs();
 };
 
 const clearBoardFilters = () => {
@@ -1412,6 +1457,15 @@ watch(searchInput, () => {
         @clear-board-filters="clearBoardFilters"
         @open-board-settings="openBoardSettings"
         @open-stage-draft="openStageDraft"
+      />
+
+      <KanbanBoardSummary
+        v-if="selectedBoard"
+        :summary="boardSummary"
+        :is-loading="isFetchingSummary"
+        :error="summaryError"
+        :is-collapsed="isSummaryCollapsed"
+        @toggle="toggleSummary"
       />
 
       <div

@@ -10,6 +10,16 @@
     "EMPTY_CARDS": "No cards in this stage.",
     "EMPTY_CARDS_FILTERED": "No cards match the current filters.",
     "NO_BOARD_SELECTED": "Select a board",
+    "SUMMARY": {
+      "OPEN": "Open",
+      "WON_MONTH": "Won this month",
+      "LOST_MONTH": "Lost this month",
+      "AVERAGE_TICKET": "Average ticket",
+      "COUNT_VALUE": "{count} · {value}",
+      "HIDE": "Hide summary",
+      "SHOW": "Show summary",
+      "ERROR": "Could not load the summary."
+    },
     "STAGE": {
       "COLLAPSE": "Collapse column",
       "EXPAND": "Expand column",
