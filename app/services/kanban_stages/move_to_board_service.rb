@@ -73,7 +73,7 @@ class KanbanStages::MoveToBoardService
   # The locked rows are the moved set: from here on no card can join or leave the stage.
   def lock_move_records!
     KanbanStage.lock_reorder_stages_for_board!([@source_board, @target_board])
-    KanbanCard.lock_active_cards_for_stages!(@source_board, [@stage.id]).map(&:id)
+    KanbanCard.lock_active_cards_for_stages!(@source_board, [@stage.id])
   end
 
   def move_stage_record!

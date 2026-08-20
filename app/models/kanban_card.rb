@@ -173,8 +173,10 @@ class KanbanCard < ApplicationRecord
     KanbanStage.where(id: stage_ids).order(:id).lock.each(&:id)
   end
 
+  # A stage has no size limit, so the lock plucks ids rather than instantiating a record per
+  # card. The ordering is what keeps concurrent callers from deadlocking, not the rows.
   def self.lock_active_cards_for_stages!(kanban_board, stage_ids)
-    where(kanban_board: kanban_board, kanban_stage_id: stage_ids).active.order(:kanban_stage_id, :position, :created_at, :id).lock.each(&:id)
+    where(kanban_board: kanban_board, kanban_stage_id: stage_ids).active.order(:kanban_stage_id, :position, :created_at, :id).lock.pluck(:id)
   end
 
   def self.bulk_normalize_positions_for_stage!(kanban_board, kanban_stage)
