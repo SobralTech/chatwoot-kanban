@@ -523,6 +523,9 @@
           "PRODUCT_REMOVED": "removed {name}",
           "PRODUCT_PRICE_CHANGED": "changed the price of {name}",
           "PRODUCT_QUANTITY_CHANGED": "changed the quantity of {name}",
+          "AUTOMATION_ACTION": "ran automation action {action}",
+          "AUTOMATION_ACTION_SKIPPED": "skipped automation action {action}",
+          "AUTOMATION_ACTION_FAILED": "failed automation action {action}",
           "CARD_DELETED": "deleted this opportunity",
           "UNKNOWN": "updated this opportunity"
         }

@@ -2,10 +2,11 @@ class KanbanCards::ImportExistingConversationsService
   BATCH_SIZE = 1000
   GROUP_IDENTIFIER_PATTERN = '%@g.us%'.freeze
 
-  def initialize(account:, kanban_board:, ignore_groups: false)
+  def initialize(account:, kanban_board:, ignore_groups: false, context: {})
     @account = account
     @kanban_board = kanban_board
     @ignore_groups = ActiveModel::Type::Boolean.new.cast(ignore_groups)
+    @context = context.to_h.with_indifferent_access
     @summary = summary_hash
   end
 
@@ -27,7 +28,7 @@ class KanbanCards::ImportExistingConversationsService
 
   private
 
-  attr_reader :account, :kanban_board, :ignore_groups, :summary
+  attr_reader :account, :kanban_board, :ignore_groups, :summary, :context
 
   def import_batch(batch)
     inserted_rows = KanbanCard.transaction do
@@ -37,6 +38,7 @@ class KanbanCards::ImportExistingConversationsService
     end
 
     summary[:created] += inserted_rows.length
+    trigger_automation(inserted_rows)
   end
 
   # Stays bulk: the events are built from the INSERT ... RETURNING rows, so an
@@ -53,7 +55,7 @@ class KanbanCards::ImportExistingConversationsService
           kanban_card_id: row['id'],
           kanban_board_id: row['kanban_board_id'],
           event_type: 'card_created',
-          metadata: KanbanCards::RecordEventService.card_created_metadata(row),
+          metadata: KanbanCards::RecordEventService.card_created_metadata(row).merge(automation_metadata),
           created_at: recorded_at
         }
       end
@@ -182,5 +184,17 @@ class KanbanCards::ImportExistingConversationsService
 
   def summary_hash
     { created: 0 }
+  end
+
+  def automation_metadata
+    return {} if context[:triggered_by_rule_id].blank?
+
+    { automation_rule_id: context[:triggered_by_rule_id] }
+  end
+
+  def trigger_automation(rows)
+    KanbanCard.where(id: rows.map { |row| row['id'] }).find_each do |card|
+      KanbanAutomations::TriggerService.call(card: card, event_name: 'card_created', user: nil, context: context)
+    end
   end
 end

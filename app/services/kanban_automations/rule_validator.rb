@@ -1,3 +1,4 @@
+# rubocop:disable Metrics/ClassLength
 class KanbanAutomations::RuleValidator
   MAX_CONDITIONS = 10
   MAX_ACTIONS = 10
@@ -12,6 +13,7 @@ class KanbanAutomations::RuleValidator
     validate_event_name
     validate_conditions
     validate_actions
+    validate_time_based_event
   end
 
   private
@@ -69,6 +71,24 @@ class KanbanAutomations::RuleValidator
 
       validate_action(action, index)
     end
+  end
+
+  def validate_time_based_event
+    return unless %w[card_stalled due_soon no_reply].include?(@rule.event_name.to_s)
+
+    return if positive_time_threshold?
+
+    @errors.add(:conditions, 'must include a positive hours_in_stage value for time-based events')
+  end
+
+  def positive_time_threshold?
+    condition = Array(@rule.conditions).find do |raw_condition|
+      normalized_hash(raw_condition)&.[](:attribute_key).to_s == 'hours_in_stage'
+    end
+    values = Array(normalized_hash(condition)&.[](:values))
+    values.present? && Float(values.first).positive?
+  rescue ArgumentError, TypeError
+    false
   end
 
   def validate_action(action, index)
@@ -219,3 +239,4 @@ class KanbanAutomations::RuleValidator
     @errors.add(attribute, "#{attribute}[#{index}] #{message}")
   end
 end
+# rubocop:enable Metrics/ClassLength

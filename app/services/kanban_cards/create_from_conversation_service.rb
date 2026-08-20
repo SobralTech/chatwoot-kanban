@@ -2,7 +2,8 @@ class KanbanCards::CreateFromConversationService
   DUPLICATE_CONVERSATION_ERROR = 'Conversation already has an opportunity with this subject on this board'.freeze
 
   # rubocop:disable Metrics/ParameterLists
-  def initialize(account:, user:, conversation:, kanban_board:, kanban_stage:, subject:, due_at: nil, labels: [], priority: nil, assignee_ids: [])
+  def initialize(account:, user:, conversation:, kanban_board:, kanban_stage:, subject:, due_at: nil, labels: [], priority: nil,
+                 assignee_ids: [], context: {})
     @account = account
     @user = user
     @conversation = conversation
@@ -13,6 +14,7 @@ class KanbanCards::CreateFromConversationService
     @labels = labels
     @priority = priority
     @assignee_ids = assignee_ids
+    @context = context.to_h.with_indifferent_access
   end
   # rubocop:enable Metrics/ParameterLists
 
@@ -26,10 +28,11 @@ class KanbanCards::CreateFromConversationService
       create_card!.tap do |created_card|
         created_card.update_labels(label_titles)
         created_card.update_assignees!(assignee_ids)
-        KanbanCards::RecordEventService.card_created(created_card, user: user)
+        KanbanCards::RecordEventService.card_created(created_card, user: user, metadata: automation_metadata)
       end
     end
     dispatch_card_created_event(card)
+    trigger_automation(card)
     card
   rescue ActiveRecord::RecordNotUnique
     raise_validation_error(DUPLICATE_CONVERSATION_ERROR, :conversation)
@@ -37,7 +40,8 @@ class KanbanCards::CreateFromConversationService
 
   private
 
-  attr_reader :account, :user, :conversation, :kanban_board, :kanban_stage, :subject, :due_at, :labels, :priority, :assignee_ids
+  attr_reader :account, :user, :conversation, :kanban_board, :kanban_stage, :subject, :due_at, :labels, :priority,
+              :assignee_ids, :context
 
   def validate_scope!
     validate_conversation!
@@ -178,6 +182,21 @@ class KanbanCards::CreateFromConversationService
 
   def account_user
     @account_user ||= user.account_users.find_by(account: account)
+  end
+
+  def automation_metadata
+    return {} if context[:triggered_by_rule_id].blank?
+
+    { automation_rule_id: context[:triggered_by_rule_id] }
+  end
+
+  def trigger_automation(card)
+    KanbanAutomations::TriggerService.call(
+      card: card,
+      event_name: 'card_created',
+      user: user,
+      context: context
+    )
   end
 
   def raise_validation_error(message, attribute = :base)

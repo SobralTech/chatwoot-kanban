@@ -43,6 +43,7 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     return move_all_cards_to_board(target_board, target_stage) if target_board != @kanban_board
     return head :no_content if target_stage == @kanban_stage
 
+    card_ids = @kanban_stage.kanban_cards.active.pluck(:id)
     KanbanCard.move_active_cards_to_stage!(
       kanban_board: @kanban_board,
       source_stage: @kanban_stage,
@@ -50,6 +51,7 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     )
 
     dispatch_kanban_card_reordered_event(@kanban_stage.id, target_stage.id)
+    record_and_trigger_stage_changes(card_ids, @kanban_stage, target_stage)
     head :no_content
   rescue KanbanCards::BulkActionRequest::Error => e
     render json: { error: e.code }, status: :unprocessable_content
@@ -157,5 +159,22 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       board_id: @kanban_board.id,
       stage_id: @kanban_stage.id
     )
+  end
+
+  def record_and_trigger_stage_changes(card_ids, source_stage, target_stage)
+    KanbanCard.where(id: card_ids).find_each do |card|
+      KanbanCards::RecordEventService.call(
+        card: card,
+        event_type: 'stage_changed',
+        user: Current.user,
+        metadata: {
+          from_stage_id: source_stage.id,
+          to_stage_id: target_stage.id,
+          from_stage_name: source_stage.name,
+          to_stage_name: target_stage.name
+        }
+      )
+      KanbanAutomations::TriggerService.call(card: card, event_name: 'stage_changed', user: Current.user)
+    end
   end
 end

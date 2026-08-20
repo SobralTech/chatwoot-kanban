@@ -22,6 +22,13 @@ const dueDateLabel = dueAt => format(new Date(dueAt), 'dd/MM/yyyy');
 
 const productLabel = metadata => orUnknown(metadata.name || metadata.sku);
 
+const automationActionMessage = status => {
+  if (status === 'skipped') return 'AUTOMATION_ACTION_SKIPPED';
+  if (status === 'failed') return 'AUTOMATION_ACTION_FAILED';
+
+  return 'AUTOMATION_ACTION';
+};
+
 // Each entry turns the event metadata into an i18n key plus its interpolation params.
 const EVENT_MESSAGES = {
   card_created: () => ['CARD_CREATED'],
@@ -76,6 +83,10 @@ const EVENT_MESSAGES = {
   product_quantity_changed: metadata => [
     'PRODUCT_QUANTITY_CHANGED',
     { name: productLabel(metadata) },
+  ],
+  automation_action: metadata => [
+    automationActionMessage(metadata.status),
+    { action: metadata.actionName || metadata.action_name || 'unknown' },
   ],
 };
 

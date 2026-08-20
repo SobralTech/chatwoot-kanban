@@ -3,16 +3,25 @@
 # Callers own the surrounding transaction and decide when to flush the timeline event,
 # so an update that also touches priority/labels keeps its event ordering.
 class KanbanCards::StageTransition
-  def initialize(kanban_board:, kanban_card:, target_stage:, kanban_reason_id: nil, user: nil)
+  def initialize(kanban_board:, kanban_card:, target_stage:, kanban_reason_id: nil, user: nil, event_metadata: {}) # rubocop:disable Metrics/ParameterLists
     @kanban_board = kanban_board
     @kanban_card = kanban_card
     @target_stage = target_stage
     @kanban_reason_id = kanban_reason_id
     @user = user
+    @event_metadata = event_metadata
     @source_stage = kanban_card.kanban_stage
   end
 
   attr_reader :source_stage, :target_stage
+
+  def automation_event_name
+    return if same_stage?
+    return 'card_won' if target_stage.id == kanban_board.won_stage_id
+    return 'card_lost' if target_stage.id == kanban_board.lost_stage_id
+
+    'stage_changed'
+  end
 
   def error
     return { error: 'direct_won_lost_transition_not_allowed' } if direct_won_lost_transition?
@@ -36,7 +45,7 @@ class KanbanCards::StageTransition
       card: kanban_card,
       event_type: terminal_event_type || 'stage_changed',
       user: user,
-      metadata: terminal_event_type ? terminal_event_metadata : stage_event_metadata
+      metadata: (terminal_event_type ? terminal_event_metadata : stage_event_metadata).merge(event_metadata)
     )
   end
 
@@ -56,7 +65,7 @@ class KanbanCards::StageTransition
 
   private
 
-  attr_reader :kanban_board, :kanban_card, :kanban_reason_id, :user
+  attr_reader :kanban_board, :kanban_card, :kanban_reason_id, :user, :event_metadata
 
   def same_stage?
     source_stage.id == target_stage.id

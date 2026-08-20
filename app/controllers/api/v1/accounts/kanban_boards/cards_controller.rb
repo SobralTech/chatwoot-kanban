@@ -73,6 +73,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     end
 
     dispatch_kanban_card_reordered_event(source_stage_id)
+    trigger_automation('card_reopened')
     render_card
   end
 
@@ -145,6 +146,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   def update_kanban_card
     card_before_update = card_update_snapshot
     stage_transition = card_stage_transition(@kanban_stage)
+    automation_event_name = stage_transition.automation_event_name
     transition_error = stable_card_move_params? && stage_transition.error
     return render json: transition_error, status: :unprocessable_content if transition_error
 
@@ -152,6 +154,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     return render_unknown_labels(invalid_label_titles) if invalid_label_titles.present?
 
     dispatch_kanban_card_event(Events::Types::KANBAN_CARD_UPDATED)
+    trigger_automation(automation_event_name)
     render_card
   end
 
@@ -176,6 +179,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def reorder_kanban_card
     stage_transition = card_stage_transition(target_card_stage_for_reorder)
+    automation_event_name = stage_transition.automation_event_name
     transition_error = stage_transition.error
     return render json: transition_error, status: :unprocessable_content if transition_error
 
@@ -186,6 +190,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     end
 
     dispatch_kanban_card_reordered_event(source_stage_id)
+    trigger_automation(automation_event_name)
     render_card
   end
 
@@ -353,6 +358,17 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       conversation_id: @kanban_card.conversation_id,
       source_stage_id: source_stage_id,
       target_stage_id: @kanban_card.kanban_stage_id
+    )
+  end
+
+  def trigger_automation(event_name, context: {})
+    return if event_name.blank?
+
+    KanbanAutomations::TriggerService.call(
+      card: @kanban_card.reload,
+      event_name: event_name,
+      user: Current.user,
+      context: context
     )
   end
 

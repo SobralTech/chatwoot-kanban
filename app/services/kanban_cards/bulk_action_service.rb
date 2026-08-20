@@ -4,7 +4,7 @@ class KanbanCards::BulkActionService
   delegate :operation, :card_ids, :target_stage, :target_kanban_board, :assignee_ids, :labels, :priority, :reason_id,
            to: :request
 
-  def initialize(user:, kanban_board:, operation:, card_ids:, payload: {}, target_kanban_board: nil) # rubocop:disable Metrics/ParameterLists
+  def initialize(user:, kanban_board:, operation:, card_ids:, payload: {}, target_kanban_board: nil, context: {}) # rubocop:disable Metrics/ParameterLists
     @user = user
     @kanban_board = kanban_board
     @request = KanbanCards::BulkActionRequest.new(
@@ -14,6 +14,7 @@ class KanbanCards::BulkActionService
       payload: payload,
       target_kanban_board: target_kanban_board
     )
+    @context = context.to_h.with_indifferent_access
     @affected_stage_refs = []
   end
 
@@ -28,7 +29,7 @@ class KanbanCards::BulkActionService
 
   private
 
-  attr_reader :user, :kanban_board, :request, :affected_stage_refs
+  attr_reader :user, :kanban_board, :request, :affected_stage_refs, :context
 
   def account
     kanban_board.account
@@ -41,9 +42,11 @@ class KanbanCards::BulkActionService
     return add_failure(result, card_id, 'card_not_found') unless card
     return add_failure(result, card_id, 'not_authorized') unless authorized_card?(card)
 
+    source_stage_id = card.kanban_stage_id
     stage_ids = KanbanCard.transaction { apply_operation(card) }
     stage_ids.each { |stage_id| affected_stage_refs << [kanban_board.id, stage_id] }
     result.succeeded << card.id
+    trigger_automation(card, automation_event_name(card, source_stage_id))
   rescue StandardError => e
     add_failure(result, card_id, error_code(e))
   end
@@ -167,6 +170,26 @@ class KanbanCards::BulkActionService
 
   def cross_board_move?
     operation == 'move' && target_kanban_board.id != kanban_board.id
+  end
+
+  def automation_event_name(card, source_stage_id)
+    return unless %w[move lose].include?(operation)
+    return if cross_board_move? || source_stage_id == card.kanban_stage_id
+    return 'card_won' if card.kanban_stage_id == kanban_board.won_stage_id
+    return 'card_lost' if card.kanban_stage_id == kanban_board.lost_stage_id
+
+    'stage_changed'
+  end
+
+  def trigger_automation(card, event_name)
+    return if event_name.blank? || !card.persisted? || !card.active?
+
+    KanbanAutomations::TriggerService.call(
+      card: card.reload,
+      event_name: event_name,
+      user: user,
+      context: context
+    )
   end
 
   def dispatch_affected_stage_events

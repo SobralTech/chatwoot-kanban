@@ -1,5 +1,7 @@
 class CreateKanbanAutomationRules < ActiveRecord::Migration[7.1]
   def change
+    return if table_exists?(:kanban_automation_rules)
+
     create_table :kanban_automation_rules do |t|
       t.references :account, null: false, foreign_key: true, index: true
       t.references :kanban_board, null: false, foreign_key: true, index: true
