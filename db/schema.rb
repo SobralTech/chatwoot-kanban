@@ -1073,6 +1073,27 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_20_140000) do
     t.index ["kanban_board_id", "user_id"], name: "index_kanban_board_members_on_kanban_board_id_and_user_id", unique: true
   end
 
+  create_table "kanban_automation_rules", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_board_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.string "event_name", null: false
+    t.jsonb "conditions", default: [], null: false
+    t.jsonb "actions", default: [], null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "active", default: false, null: false
+    t.boolean "dry_run", default: true, null: false
+    t.boolean "stop_after_match", default: false, null: false
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_kanban_automation_rules_on_account_id"
+    t.index ["created_by_id"], name: "index_kanban_automation_rules_on_created_by_id"
+    t.index ["kanban_board_id", "event_name", "active"], name: "index_kanban_automation_rules_on_board_event_active"
+    t.index ["kanban_board_id"], name: "index_kanban_automation_rules_on_kanban_board_id"
+  end
+
   create_table "kanban_boards", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1676,6 +1697,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_20_140000) do
   add_foreign_key "conversation_pins", "conversations"
   add_foreign_key "conversation_pins", "users"
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "kanban_automation_rules", "accounts"
+  add_foreign_key "kanban_automation_rules", "kanban_boards"
+  add_foreign_key "kanban_automation_rules", "users", column: "created_by_id"
   add_foreign_key "kanban_board_inboxes", "accounts"
   add_foreign_key "kanban_board_inboxes", "inboxes"
   add_foreign_key "kanban_board_inboxes", "kanban_boards"

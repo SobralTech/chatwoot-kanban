@@ -46,6 +46,7 @@ class KanbanBoard < ApplicationRecord
   has_many :allowed_inboxes, through: :kanban_board_inboxes, source: :inbox
   has_many :kanban_custom_fields, dependent: :destroy_async
   has_many :kanban_reasons, dependent: :destroy_async
+  has_many :kanban_automation_rules, dependent: :destroy_async
 
   belongs_to :won_stage, class_name: 'KanbanStage', optional: true, inverse_of: false
   belongs_to :lost_stage, class_name: 'KanbanStage', optional: true, inverse_of: false

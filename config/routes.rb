@@ -148,6 +148,9 @@ Rails.application.routes.draw do
                 resources :cards, only: [:index], module: :stages
               end
               resources :custom_fields, only: [:index, :create, :update, :destroy]
+              resources :automation_rules, only: [:index, :create, :update, :destroy] do
+                patch :toggle, on: :member
+              end
               get 'cards/lookup', to: 'cards#lookup'
               post 'cards/manual', to: 'cards#create_manual'
               post 'cards/bulk_actions', to: 'cards/bulk_actions#create'
