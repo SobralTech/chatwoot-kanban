@@ -54,16 +54,9 @@ const { t } = useI18n();
 const view = ref('root');
 const copyName = ref('');
 const copyNameInput = ref(null);
-const targetBoardId = ref(null);
 const targetPosition = ref(1);
 
 const currentBoardId = computed(() => Number(props.stage.kanbanBoardId));
-const currentBoard = computed(() =>
-  props.boards.find(board => Number(board.id) === currentBoardId.value)
-);
-const targetBoard = computed(() =>
-  props.boards.find(board => Number(board.id) === Number(targetBoardId.value))
-);
 const viewTitle = computed(() => {
   switch (view.value) {
     case 'copy':
@@ -84,47 +77,38 @@ const { isTerminalStage } = useKanbanStageOrder({
   lostStageId: toRef(props, 'lostStageId'),
 });
 const isCurrentStageTerminal = computed(() => isTerminalStage(props.stage));
-const {
-  boardId: moveCardsBoardId,
-  boardOptions: moveCardsTargetBoardOptions,
-  isCurrentBoard: isCurrentMoveCardsBoard,
-  reset: resetMoveCardsTarget,
-  targetStages: cardMoveTargets,
-} = useKanbanMoveTarget({
+// Sending this stage's cards somewhere and sending the stage itself both pick a funnel and
+// then a slot among its regular stages, so they read the same way from one set of inputs and
+// only keep their own selection apart.
+const moveTargetInputs = {
   boards: toRef(props, 'boards'),
   currentBoardId,
   excludeStageId: computed(() => props.stage.id),
   lostStageId: toRef(props, 'lostStageId'),
   stages: toRef(props, 'stages'),
   wonStageId: toRef(props, 'wonStageId'),
-});
-const targetBoardStageCount = computed(() => {
-  if (Number(targetBoardId.value) === currentBoardId.value) {
-    return props.stages.filter(stage => !isTerminalStage(stage)).length;
-  }
-
-  const terminalIds = [
-    targetBoard.value?.wonStageId,
-    targetBoard.value?.lostStageId,
-  ]
-    .filter(Boolean)
-    .map(Number);
-
-  return (
-    targetBoard.value?.stagesSummary?.filter(
-      stage => !terminalIds.includes(Number(stage.id))
-    ).length || 0
-  );
-});
-const positionOptions = computed(() => {
-  // Moving within the same board reuses the slot the stage already occupies.
-  const isSameBoard = Number(targetBoardId.value) === currentBoardId.value;
-  const slots = isSameBoard
-    ? targetBoardStageCount.value
-    : targetBoardStageCount.value + 1;
-
-  return Array.from({ length: slots }, (_, index) => index + 1);
-});
+};
+const {
+  boardId: moveCardsBoardId,
+  boardOptions: moveCardsTargetBoardOptions,
+  isCurrentBoard: isCurrentMoveCardsBoard,
+  reset: resetMoveCardsTarget,
+  targetStages: cardMoveTargets,
+} = useKanbanMoveTarget(moveTargetInputs);
+const {
+  boardId: stageMoveBoardId,
+  reset: resetStageMoveTarget,
+  sourceBoard: currentBoard,
+  targetStages: stageMoveTargets,
+} = useKanbanMoveTarget(moveTargetInputs);
+// The picker leaves this stage out of its own board's list, so either way the destination
+// offers one more slot than the regular stages it already shows.
+const positionOptions = computed(() =>
+  Array.from(
+    { length: stageMoveTargets.value.length + 1 },
+    (_, index) => index + 1
+  )
+);
 const positionSelectOptions = computed(() =>
   positionOptions.value.map(position => ({
     value: position,
@@ -140,11 +124,15 @@ const cardCount = computed(() => {
 });
 const hasCards = computed(() => cardCount.value > 0);
 const canMoveToAnotherBoard = computed(() => !isCurrentStageTerminal.value);
-const moveDestinationBoards = computed(() =>
-  canMoveToAnotherBoard.value
-    ? props.boards
-    : props.boards.filter(board => Number(board.id) === currentBoardId.value)
-);
+// Archived funnels are not somewhere a stage can be sent, and the slot count below is read
+// from the same list the picker offers.
+const moveDestinationBoards = computed(() => {
+  const boards = props.boards.filter(board => board.active !== false);
+
+  return canMoveToAnotherBoard.value
+    ? boards
+    : boards.filter(board => Number(board.id) === currentBoardId.value);
+});
 const moveDestinationBoardOptions = computed(() =>
   moveDestinationBoards.value.map(board => ({
     value: board.id,
@@ -169,8 +157,8 @@ const sortOptions = computed(() => [
 const resetView = () => {
   view.value = 'root';
   copyName.value = '';
-  targetBoardId.value = null;
   targetPosition.value = 1;
+  resetStageMoveTarget();
   resetMoveCardsTarget();
 };
 
@@ -183,7 +171,7 @@ const openView = nextView => {
   }
 
   if (nextView === 'move') {
-    targetBoardId.value = currentBoardId.value;
+    resetStageMoveTarget();
     targetPosition.value = 1;
   }
 
@@ -239,7 +227,7 @@ const submitMove = hide => {
   emitAction(
     'move',
     {
-      kanbanBoardId: Number(targetBoardId.value),
+      kanbanBoardId: Number(stageMoveBoardId.value),
       position: Number(targetPosition.value),
     },
     hide
@@ -255,7 +243,7 @@ const submitMoveCards = (targetStage, hide) => {
   emitAction('moveCards', payload, hide);
 };
 
-watch(targetBoardId, () => {
+watch(stageMoveBoardId, () => {
   targetPosition.value = 1;
 });
 </script>
@@ -399,7 +387,7 @@ watch(targetBoardId, () => {
           <label class="block text-xs font-medium text-n-slate-11">
             {{ t('KANBAN.STAGE_MENU.MOVE.BOARD') }}
             <Select
-              v-model="targetBoardId"
+              v-model="stageMoveBoardId"
               :options="moveDestinationBoardOptions"
               full-width
               class="mt-1 font-normal"
@@ -417,7 +405,7 @@ watch(targetBoardId, () => {
           <button
             type="submit"
             class="w-full rounded-md bg-n-brand px-3 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!targetBoardId || isBusy"
+            :disabled="!stageMoveBoardId || isBusy"
           >
             {{ t('KANBAN.STAGE_MENU.MOVE.SUBMIT') }}
           </button>
