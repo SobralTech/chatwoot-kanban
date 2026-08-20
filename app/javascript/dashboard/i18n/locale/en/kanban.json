@@ -180,7 +180,11 @@
         "POSITION": "Position",
         "POSITION_VALUE": "Position {position}",
         "SUBMIT": "Move list",
-        "NONEMPTY_HINT": "Move all cards before moving this list to another board."
+        "CONFIRM_TITLE": "Move list to another board",
+        "CONFIRM_MESSAGE": "{count} cards move with this list.",
+        "CONFIRM_DROPPED_FIELDS": "Custom fields missing on the destination board will be discarded: {fields}",
+        "CONFIRM_SUBMIT": "Move list",
+        "CONFIRM_CANCEL": "Cancel"
       },
       "MOVE_CARDS": {
         "LABEL": "Move all cards in this list",
@@ -216,6 +220,11 @@
       },
       "ERRORS": {
         "STAGE_NOT_EMPTY": "Move all cards before moving this list to another board.",
+        "STAGE_CARDS_BLOCKED": "{count} cards can't move to this board.",
+        "STAGE_CARDS_BLOCKED_DUPLICATE": "{count} already exist there.",
+        "STAGE_CARDS_BLOCKED_INBOX": "{count} belong to an inbox this board doesn't accept.",
+        "STAGE_NAME_TAKEN": "A list with this name already exists on the destination board.",
+        "LAST_STAGE_CANNOT_MOVE_BOARD": "This is the only regular list on this board. Create another one before moving it.",
         "SPECIAL_STAGE_CANNOT_MOVE_BOARD": "Won and lost lists cannot be moved to another board.",
         "TERMINAL_STAGE_NOT_ALLOWED": "Cards can only be moved to a regular list.",
         "MOVE_CARDS_LIMIT": "This list holds more than {count} opportunities. Move them to another funnel in smaller batches from the board."

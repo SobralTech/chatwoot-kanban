@@ -89,9 +89,11 @@ let createdCardHighlightTimer = null;
 const cardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
 const stageCardsPendingRemoval = ref(null);
+const stagePendingMove = ref(null);
 const showRemoveCardConfirmation = ref(false);
 const showRemoveStageConfirmation = ref(false);
 const showRemoveStageCardsConfirmation = ref(false);
+const showMoveStageConfirmation = ref(false);
 const isCardDragging = ref(false);
 const pendingRealtimeKanbanEvents = ref([]);
 const hasCardDragChanged = ref(false);
@@ -301,10 +303,40 @@ const isNameTakenError = error => {
 const isSpecialStageOrderError = error =>
   error?.response?.data?.error === 'special_stages_must_be_last';
 
+const stageCardsBlockedMessage = error => {
+  const blocked = error?.response?.data?.blocked || {};
+  const duplicateCount = Number(blocked.card_already_in_target_board || 0);
+  const inboxCount = Number(blocked.inbox_not_allowed || 0);
+  const count = duplicateCount + inboxCount;
+  const details = [
+    duplicateCount
+      ? t('KANBAN.STAGE_MENU.ERRORS.STAGE_CARDS_BLOCKED_DUPLICATE', {
+          count: duplicateCount,
+        })
+      : null,
+    inboxCount
+      ? t('KANBAN.STAGE_MENU.ERRORS.STAGE_CARDS_BLOCKED_INBOX', {
+          count: inboxCount,
+        })
+      : null,
+  ].filter(Boolean);
+
+  return [
+    t('KANBAN.STAGE_MENU.ERRORS.STAGE_CARDS_BLOCKED', { count }),
+    ...details,
+  ].join(' ');
+};
+
 const stageActionErrorMessage = error => {
   switch (error?.response?.data?.error) {
     case 'stage_not_empty':
       return t('KANBAN.STAGE_MENU.ERRORS.STAGE_NOT_EMPTY');
+    case 'stage_cards_blocked':
+      return stageCardsBlockedMessage(error);
+    case 'stage_name_taken':
+      return t('KANBAN.STAGE_MENU.ERRORS.STAGE_NAME_TAKEN');
+    case 'last_stage_cannot_move_board':
+      return t('KANBAN.STAGE_MENU.ERRORS.LAST_STAGE_CANNOT_MOVE_BOARD');
     case 'special_stage_cannot_move_board':
       return t('KANBAN.STAGE_MENU.ERRORS.SPECIAL_STAGE_CANNOT_MOVE_BOARD');
     case 'special_stage_cannot_be_deleted':
@@ -707,8 +739,10 @@ const openBoardSettings = () => {
 const {
   cancelEditingStage,
   cancelStageDraft,
+  closeMoveStageConfirmation,
   closeRemoveStageCardsConfirmation,
   closeRemoveStageConfirmation,
+  confirmMoveStage,
   confirmRemoveStage,
   confirmRemoveStageCards,
   copyStage,
@@ -728,6 +762,7 @@ const {
   updateStageNameDraft,
 } = useKanbanStageActions({
   boardScrollContainer,
+  boards,
   defaultStageColor,
   editingStageId,
   endAction,
@@ -743,11 +778,13 @@ const {
   refreshSelectedBoard,
   refreshStageFirstPages,
   selectedBoard,
+  showMoveStageConfirmation,
   showActionError,
   showRemoveStageCardsConfirmation,
   showRemoveStageConfirmation,
   stageActionKey,
   stageCardsPendingRemoval,
+  stagePendingMove,
   stageColors,
   stageNames,
   stageNameInputs,
@@ -1111,6 +1148,44 @@ const removeStageCardsMessageValue = computed(() => {
     'KANBAN.STAGE_MENU.CARD_COUNT',
     { count: stageCardCount(stageCardsPendingRemoval.value) }
   )})`;
+});
+const moveStageTargetBoard = computed(() => {
+  const targetBoardId = stagePendingMove.value?.kanbanBoardId;
+  return boards.value.find(board => Number(board.id) === Number(targetBoardId));
+});
+const moveStageDroppedFieldKeys = computed(() => {
+  if (!stagePendingMove.value) return [];
+
+  const sourceFields = selectedBoard.value?.customFields || [];
+  const targetFields = moveStageTargetBoard.value?.customFields || [];
+
+  return sourceFields
+    .filter(
+      sourceField =>
+        !targetFields.some(
+          targetField =>
+            targetField.key === sourceField.key &&
+            targetField.fieldType === sourceField.fieldType &&
+            Boolean(targetField.multiple) === Boolean(sourceField.multiple)
+        )
+    )
+    .map(field => field.key)
+    .filter(Boolean);
+});
+const moveStageConfirmationMessage = computed(() => {
+  const pendingMove = stagePendingMove.value;
+  if (!pendingMove) return '';
+
+  return t('KANBAN.STAGE_MENU.MOVE.CONFIRM_MESSAGE', {
+    count: stageCardCount(pendingMove.stage),
+  });
+});
+const moveStageConfirmationDroppedFields = computed(() => {
+  if (!moveStageDroppedFieldKeys.value.length) return '';
+
+  return ` ${t('KANBAN.STAGE_MENU.MOVE.CONFIRM_DROPPED_FIELDS', {
+    fields: moveStageDroppedFieldKeys.value.join(', '),
+  })}`;
 });
 
 const openConversationInNewTab = card => {
@@ -1540,6 +1615,18 @@ watch(searchInput, () => {
       @action="applyBulkAction"
       @delete="openBulkDeleteConfirmation"
       @clear="clearCardSelection"
+    />
+
+    <woot-delete-modal
+      v-model:show="showMoveStageConfirmation"
+      :on-close="closeMoveStageConfirmation"
+      :on-confirm="confirmMoveStage"
+      :is-loading="isBoardBusy"
+      :title="t('KANBAN.STAGE_MENU.MOVE.CONFIRM_TITLE')"
+      :message="moveStageConfirmationMessage"
+      :message-value="moveStageConfirmationDroppedFields"
+      :confirm-text="t('KANBAN.STAGE_MENU.MOVE.CONFIRM_SUBMIT')"
+      :reject-text="t('KANBAN.STAGE_MENU.MOVE.CONFIRM_CANCEL')"
     />
 
     <woot-delete-modal

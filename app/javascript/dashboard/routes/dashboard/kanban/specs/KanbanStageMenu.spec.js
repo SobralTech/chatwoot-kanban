@@ -59,7 +59,7 @@ describe('KanbanStageMenu', () => {
     );
   });
 
-  it('only offers valid boards for a non-empty list', async () => {
+  it('offers every board for a non-empty list', async () => {
     const stage = buildStage({ cardsCount: 2 });
     const wrapper = mountMenu({ stage });
 
@@ -70,9 +70,14 @@ describe('KanbanStageMenu', () => {
       .at(0)
       .props('options');
 
-    expect(boardOptions).toHaveLength(1);
-    expect(boardOptions[0].label).toBe('Sales');
-    expect(wrapper.text()).toContain('KANBAN.STAGE_MENU.MOVE.NONEMPTY_HINT');
+    expect(boardOptions).toHaveLength(2);
+    expect(boardOptions.map(option => option.label)).toEqual([
+      'Sales',
+      'Renewals',
+    ]);
+    expect(wrapper.text()).not.toContain(
+      'KANBAN.STAGE_MENU.MOVE.NONEMPTY_HINT'
+    );
   });
 
   it('excludes the source and terminal lists from bulk move destinations', async () => {

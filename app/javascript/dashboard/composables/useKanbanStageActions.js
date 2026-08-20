@@ -5,6 +5,7 @@ import { bulkPartialMessage } from 'dashboard/helper/kanbanBulkResult';
 
 export function useKanbanStageActions({
   boardScrollContainer,
+  boards,
   defaultStageColor,
   editingStageId,
   endAction,
@@ -20,9 +21,11 @@ export function useKanbanStageActions({
   refreshSelectedBoard,
   refreshStageFirstPages,
   selectedBoard,
+  showMoveStageConfirmation,
   showRemoveStageCardsConfirmation,
   showRemoveStageConfirmation,
   stageCardsPendingRemoval,
+  stagePendingMove,
   stagePendingRemoval,
   showActionError,
   stageActionKey,
@@ -164,7 +167,14 @@ export function useKanbanStageActions({
   };
 
   const stageCardCount = stage =>
-    stage?.cardsCount ?? stage?.cards_count ?? stage?.cards?.length ?? 0;
+    boards.value
+      .find(board => Number(board.id) === Number(stage?.kanbanBoardId))
+      ?.stagesSummary?.find(summary => Number(summary.id) === Number(stage?.id))
+      ?.cardsCount ??
+    stage?.cardsCount ??
+    stage?.cards_count ??
+    stage?.cards?.length ??
+    0;
 
   const openRemoveStageConfirmation = stage => {
     stagePendingRemoval.value = stage;
@@ -230,7 +240,7 @@ export function useKanbanStageActions({
     }
   };
 
-  const moveStage = async (stage, { kanbanBoardId, position }) => {
+  const executeMoveStage = async (stage, { kanbanBoardId, position }) => {
     const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
@@ -253,6 +263,33 @@ export function useKanbanStageActions({
     } finally {
       endAction(actionKey);
     }
+  };
+
+  const moveStage = async (stage, { kanbanBoardId, position }) => {
+    const isCrossBoardMove =
+      Number(kanbanBoardId) !== Number(selectedBoard.value?.id);
+
+    if (isCrossBoardMove && stageCardCount(stage) > 0) {
+      stagePendingMove.value = { stage, kanbanBoardId, position };
+      showMoveStageConfirmation.value = true;
+      return;
+    }
+
+    await executeMoveStage(stage, { kanbanBoardId, position });
+  };
+
+  const closeMoveStageConfirmation = () => {
+    showMoveStageConfirmation.value = false;
+    stagePendingMove.value = null;
+  };
+
+  const confirmMoveStage = async () => {
+    const pendingMove = stagePendingMove.value;
+    closeMoveStageConfirmation();
+
+    if (!pendingMove) return;
+
+    await executeMoveStage(pendingMove.stage, pendingMove);
   };
 
   const sortStageCards = async (stage, { sortBy }) => {
@@ -393,10 +430,12 @@ export function useKanbanStageActions({
   return {
     cancelEditingStage,
     cancelStageDraft,
+    closeMoveStageConfirmation,
     closeRemoveStageCardsConfirmation,
     closeRemoveStageConfirmation,
     confirmRemoveStage,
     confirmRemoveStageCards,
+    confirmMoveStage,
     copyStage,
     createStage,
     moveAllStageCards,

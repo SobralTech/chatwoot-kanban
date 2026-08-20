@@ -58,6 +58,9 @@ const targetBoardId = ref(null);
 const targetPosition = ref(1);
 
 const currentBoardId = computed(() => Number(props.stage.kanbanBoardId));
+const currentBoard = computed(() =>
+  props.boards.find(board => Number(board.id) === currentBoardId.value)
+);
 const targetBoard = computed(() =>
   props.boards.find(board => Number(board.id) === Number(targetBoardId.value))
 );
@@ -97,10 +100,21 @@ const {
 });
 const targetBoardStageCount = computed(() => {
   if (Number(targetBoardId.value) === currentBoardId.value) {
-    return props.stages.length;
+    return props.stages.filter(stage => !isTerminalStage(stage)).length;
   }
 
-  return targetBoard.value?.stagesSummary?.length || 0;
+  const terminalIds = [
+    targetBoard.value?.wonStageId,
+    targetBoard.value?.lostStageId,
+  ]
+    .filter(Boolean)
+    .map(Number);
+
+  return (
+    targetBoard.value?.stagesSummary?.filter(
+      stage => !terminalIds.includes(Number(stage.id))
+    ).length || 0
+  );
 });
 const positionOptions = computed(() => {
   // Moving within the same board reuses the slot the stage already occupies.
@@ -117,11 +131,15 @@ const positionSelectOptions = computed(() =>
     label: t('KANBAN.STAGE_MENU.MOVE.POSITION_VALUE', { position }),
   }))
 );
-const cardCount = computed(() => props.stage.cardsCount ?? 0);
+const cardCount = computed(() => {
+  const summary = currentBoard.value?.stagesSummary?.find(
+    stage => Number(stage.id) === Number(props.stage.id)
+  );
+
+  return summary?.cardsCount ?? props.stage.cardsCount ?? 0;
+});
 const hasCards = computed(() => cardCount.value > 0);
-const canMoveToAnotherBoard = computed(
-  () => !isCurrentStageTerminal.value && cardCount.value === 0
-);
+const canMoveToAnotherBoard = computed(() => !isCurrentStageTerminal.value);
 const moveDestinationBoards = computed(() =>
   canMoveToAnotherBoard.value
     ? props.boards
@@ -387,9 +405,6 @@ watch(targetBoardId, () => {
               class="mt-1 font-normal"
             />
           </label>
-          <p v-if="!canMoveToAnotherBoard" class="text-xs text-n-slate-10">
-            {{ t('KANBAN.STAGE_MENU.MOVE.NONEMPTY_HINT') }}
-          </p>
           <label class="block text-xs font-medium text-n-slate-11">
             {{ t('KANBAN.STAGE_MENU.MOVE.POSITION') }}
             <Select
