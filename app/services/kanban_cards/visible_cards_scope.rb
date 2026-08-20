@@ -1,4 +1,3 @@
-# rubocop:disable Metrics/ClassLength
 class KanbanCards::VisibleCardsScope
   MATCH_MODES = %w[all any].freeze
   # The controllers fall back to this when the request omits match_mode; a nil match_mode
@@ -41,6 +40,14 @@ class KanbanCards::VisibleCardsScope
   attr_reader :account, :user, :kanban_board,
               :filtered_inbox_ids, :filtered_assignee_ids, :filtered_card_statuses,
               :filtered_priorities, :filtered_due_dates, :filtered_labels, :match_mode, :search_query
+
+  def visibility_condition
+    KanbanCards::VisibilityCondition.new(account: account, user: user, account_user: @account_user).call
+  end
+
+  def search_condition
+    KanbanCards::SearchCondition.new(search_query: search_query).call
+  end
 
   def normalized_filter(values)
     values.nil? ? nil : Array(values).uniq
@@ -158,161 +165,11 @@ class KanbanCards::VisibleCardsScope
     match_mode == 'any'
   end
 
-  def search_condition
-    search_tokens
-      .map { |token| token_condition(token) }
-      .reduce(:and)
-  end
-
-  def search_tokens
-    search_query.to_s.split(/\s+/).first(5).map do |token|
-      ActiveSupport::Inflector.transliterate(token).downcase
-    end
-  end
-
-  def token_condition(token)
-    conditions = [
-      card_table[:id].in(subject_ids_matching(token)),
-      contact_id_matching(token)
-    ]
-    conditions.reduce(:or)
-  end
-
-  def subject_ids_matching(token)
-    KanbanCard
-      .active
-      .where(unaccented_like(KanbanCard.arel_table[:subject], token))
-      .select(:id)
-      .arel
-  end
-
-  def contact_id_matching(token)
-    card_table[:contact_id].in(contact_ids_matching(token))
-  end
-
-  def contact_ids_matching(token)
-    Contact
-      .where(contact_token_condition(token))
-      .select(:id)
-      .arel
-  end
-
-  def contact_token_condition(token)
-    conditions = [
-      unaccented_like(contact_table[:name], token),
-      plain_like(contact_table[:email], token)
-    ]
-    conditions << phone_like(token) if token.match?(/\d/)
-    conditions.reduce(:or)
-  end
-
-  def unaccented_like(column, token)
-    named_function('immutable_unaccent', named_function('lower', column)).matches(bind_param(like_pattern(token)))
-  end
-
-  def plain_like(column, token)
-    named_function('lower', column).matches(bind_param(like_pattern(token)))
-  end
-
-  def phone_like(token)
-    named_function(
-      'regexp_replace',
-      contact_table[:phone_number],
-      Arel::Nodes.build_quoted('\\D'),
-      Arel::Nodes.build_quoted(''),
-      Arel::Nodes.build_quoted('g')
-    ).matches(bind_param(like_pattern(token.gsub(/\D/, ''))))
-  end
-
-  def like_pattern(token)
-    "%#{ActiveRecord::Base.sanitize_sql_like(token)}%"
-  end
-
-  def named_function(name, *expressions)
-    Arel::Nodes::NamedFunction.new(name, expressions)
-  end
-
-  def bind_param(value)
-    Arel::Nodes::BindParam.new(value)
-  end
-
-  def visibility_condition
-    return manual_card_condition.or(valid_conversation_card_condition) if administrator?
-    return valid_conversation_card_condition if user.is_a?(AgentBot)
-
-    agent_visibility_condition
-  end
-
-  def agent_visibility_condition
-    conditions = []
-    conditions << accessible_manual_card_condition if visible_inbox_ids.present?
-    conditions << accessible_conversation_card_condition if conversation_access_condition
-
-    or_condition(conditions) || card_table[:id].eq(nil)
-  end
-
-  def accessible_manual_card_condition
-    manual_card_condition.and(card_table[:inbox_id].in(visible_inbox_ids))
-  end
-
-  def accessible_conversation_card_condition
-    valid_conversation_card_condition.and(conversation_access_condition)
-  end
-
-  def conversation_access_condition
-    @conversation_access_condition ||= or_condition(conversation_access_conditions)
-  end
-
-  def conversation_access_conditions
-    conditions = []
-    conditions << conversation_table[:inbox_id].in(visible_inbox_ids) if visible_inbox_ids.present?
-    conditions << conversation_table[:team_id].in(visible_team_ids) if visible_team_ids.present?
-    conditions
-  end
-
-  def valid_conversation_card_condition
-    condition = card_table[:conversation_id].not_eq(nil)
-    condition = condition.and(conversation_table[:account_id].eq(account.id))
-    condition = condition.and(conversation_table[:contact_id].eq(card_table[:contact_id]))
-    condition.and(conversation_table[:inbox_id].eq(card_table[:inbox_id]))
-  end
-
-  def manual_card_condition
-    card_table[:conversation_id].eq(nil)
-  end
-
   def or_condition(conditions)
     conditions.reduce { |condition, next_condition| condition.or(next_condition) }
-  end
-
-  def visible_inbox_ids
-    @visible_inbox_ids ||= user.inboxes.where(account_id: account.id).pluck(:id)
-  end
-
-  def visible_team_ids
-    @visible_team_ids ||= user.teams.where(account_id: account.id).pluck(:id)
-  end
-
-  def administrator?
-    account_user&.administrator?
-  end
-
-  def account_user
-    return unless user.respond_to?(:account_users)
-
-    @account_user ||= user.account_users.find_by(account: account)
   end
 
   def card_table
     KanbanCard.arel_table
   end
-
-  def conversation_table
-    Conversation.arel_table
-  end
-
-  def contact_table
-    Contact.arel_table
-  end
 end
-# rubocop:enable Metrics/ClassLength
