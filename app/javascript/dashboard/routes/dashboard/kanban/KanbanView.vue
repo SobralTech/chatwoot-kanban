@@ -58,9 +58,6 @@ const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
 const collapsedStageIds = ref(new Set());
 const isSummaryCollapsed = ref(false);
-const boardSummary = ref({});
-const isFetchingSummary = ref(false);
-const summaryError = ref(false);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
 const isCreatingStageDraft = ref(false);
@@ -166,10 +163,12 @@ const terminalPeriodOptions = computed(() => [
 ]);
 const {
   applyStageFirstPage,
+  boardSummary,
   fetchStageCardsPage,
   findCardStage,
   findCardStageId,
   getStageCardsError,
+  isFetchingSummary,
   isStageCardsLoading,
   loadMoreStageCards,
   normalizePayload,
@@ -179,6 +178,7 @@ const {
   requestGeneration,
   showBoard,
   staleRequest,
+  summaryError,
 } = useKanbanBoardData({
   collapsedStageIds,
   currentFilterParams,
@@ -486,39 +486,6 @@ const applyBoardSnapshot = async (snapshot, boardId, generation) => {
   });
 };
 
-const fetchBoardSummary = async (
-  boardId,
-  generation = requestGeneration.value
-) => {
-  if (!boardId) return;
-
-  isFetchingSummary.value = true;
-  summaryError.value = false;
-  boardSummary.value = {};
-
-  try {
-    const response = await KanbanBoardsAPI.getSummary(boardId, {
-      params: currentFilterParams(),
-    });
-    if (generation !== requestGeneration.value) return;
-
-    boardSummary.value = normalizePayload(response.data);
-  } catch {
-    if (generation !== requestGeneration.value) return;
-
-    summaryError.value = true;
-  } finally {
-    if (generation === requestGeneration.value) {
-      isFetchingSummary.value = false;
-    }
-  }
-};
-
-const loadBoardData = (boardId, generation) => {
-  fetchBoardSummary(boardId, generation);
-  return showBoard(boardId, generation);
-};
-
 const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   const generation = requestGeneration.value;
   const prefs = loadBoardPrefs(boardId);
@@ -550,7 +517,7 @@ const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
       }
       boardFilters.value = normalizeBoardFilters(initialFilters);
     }
-    await loadBoardData(boardId, generation);
+    await showBoard(boardId, generation);
     return;
   }
 
@@ -564,7 +531,7 @@ const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
   activeSearchTerm.value = snapshot.filters?.searchTerm || '';
 
   if (generation !== requestGeneration.value) return;
-  await loadBoardData(boardId, generation);
+  await showBoard(boardId, generation);
   if (
     generation !== requestGeneration.value ||
     selectedBoard.value?.id !== boardId
@@ -593,7 +560,7 @@ const refreshSelectedBoard = async () => {
   const targetStageId = pendingScrollToStageId.value;
 
   const generation = requestGeneration.value;
-  await loadBoardData(selectedBoard.value.id, generation);
+  await showBoard(selectedBoard.value.id, generation);
   if (generation !== requestGeneration.value) return;
   await nextTick();
 

@@ -21,6 +21,9 @@ export function useKanbanBoardData({
   const stageDataVersions = new Map();
   const requestGeneration = ref(0);
   const staleRequest = Symbol('stale-kanban-request');
+  const boardSummary = ref({});
+  const isFetchingSummary = ref(false);
+  const summaryError = ref(false);
 
   // Collapsed columns are a per-user view preference rather than a filter, so
   // the board request carries them next to the shared filter params.
@@ -288,6 +291,31 @@ export function useKanbanBoardData({
     }
   };
 
+  // The summary reads the same filters as the columns, but through its own request
+  // so a slow aggregate never holds the board back.
+  const fetchBoardSummary = async (boardId, generation) => {
+    isFetchingSummary.value = true;
+    summaryError.value = false;
+    boardSummary.value = {};
+
+    try {
+      const response = await KanbanBoardsAPI.getSummary(boardId, {
+        params: currentFilterParams(),
+      });
+      if (generation !== requestGeneration.value) return;
+
+      boardSummary.value = normalizePayload(response.data);
+    } catch {
+      if (generation !== requestGeneration.value) return;
+
+      summaryError.value = true;
+    } finally {
+      if (generation === requestGeneration.value) {
+        isFetchingSummary.value = false;
+      }
+    }
+  };
+
   const showBoard = async (boardId, generation = requestGeneration.value) => {
     if (!boardId) {
       selectedBoard.value = null;
@@ -296,6 +324,7 @@ export function useKanbanBoardData({
 
     isFetchingBoard.value = true;
     hasError.value = false;
+    fetchBoardSummary(boardId, generation);
 
     try {
       const response = await KanbanBoardsAPI.showBoard(
@@ -324,10 +353,12 @@ export function useKanbanBoardData({
 
   return {
     applyStageFirstPage,
+    boardSummary,
     fetchStageCardsPage,
     findCardStage,
     findCardStageId,
     getStageCardsError,
+    isFetchingSummary,
     isStageCardsLoading,
     loadMoreStageCards,
     normalizePayload,
@@ -337,5 +368,6 @@ export function useKanbanBoardData({
     requestGeneration,
     showBoard,
     staleRequest,
+    summaryError,
   };
 }
