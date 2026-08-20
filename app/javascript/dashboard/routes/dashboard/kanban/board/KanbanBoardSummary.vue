@@ -1,9 +1,10 @@
 <script setup>
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 
-defineProps({
+const props = defineProps({
   summary: {
     type: Object,
     default: () => ({}),
@@ -30,6 +31,41 @@ const metricText = metric =>
     count: metric?.count || 0,
     value: formatCurrency(metric?.value),
   });
+
+const metrics = computed(() => {
+  const entries = [
+    {
+      key: 'open',
+      label: t('KANBAN.SUMMARY.OPEN'),
+      text: metricText(props.summary.open),
+      valueClass: 'text-n-slate-12',
+    },
+    {
+      key: 'won',
+      label: t('KANBAN.SUMMARY.WON_MONTH'),
+      text: metricText(props.summary.wonThisMonth),
+      valueClass: 'text-n-teal-11',
+    },
+    {
+      key: 'lost',
+      label: t('KANBAN.SUMMARY.LOST_MONTH'),
+      text: metricText(props.summary.lostThisMonth),
+      valueClass: 'text-n-ruby-11',
+    },
+  ];
+
+  // Nothing won this month means there is no average to show.
+  if (props.summary.averageTicket) {
+    entries.push({
+      key: 'average',
+      label: t('KANBAN.SUMMARY.AVERAGE_TICKET'),
+      text: formatCurrency(props.summary.averageTicket),
+      valueClass: 'text-n-slate-12',
+    });
+  }
+
+  return entries;
+});
 </script>
 
 <template>
@@ -62,49 +98,18 @@ const metricText = metric =>
         class="flex min-w-0 flex-1 flex-wrap items-center gap-x-6 gap-y-2"
         :class="{ 'opacity-50': isLoading }"
       >
-        <div class="flex min-w-0 flex-col" data-testid="kanban-summary-open">
-          <span class="text-xs text-n-slate-11">
-            {{ t('KANBAN.SUMMARY.OPEN') }}
-          </span>
-          <span class="text-sm font-semibold text-n-slate-12">
-            {{ metricText(summary.open) }}
-          </span>
-        </div>
-
         <div
-          class="hidden min-w-0 flex-col md:flex"
-          data-testid="kanban-summary-won"
+          v-for="(metric, index) in metrics"
+          :key="metric.key"
+          class="min-w-0 flex-col"
+          :class="index === 0 ? 'flex' : 'hidden md:flex'"
+          :data-testid="`kanban-summary-${metric.key}`"
         >
           <span class="text-xs text-n-slate-11">
-            {{ t('KANBAN.SUMMARY.WON_MONTH') }}
+            {{ metric.label }}
           </span>
-          <span class="text-sm font-semibold text-n-teal-11">
-            {{ metricText(summary.wonThisMonth) }}
-          </span>
-        </div>
-
-        <div
-          class="hidden min-w-0 flex-col md:flex"
-          data-testid="kanban-summary-lost"
-        >
-          <span class="text-xs text-n-slate-11">
-            {{ t('KANBAN.SUMMARY.LOST_MONTH') }}
-          </span>
-          <span class="text-sm font-semibold text-n-ruby-11">
-            {{ metricText(summary.lostThisMonth) }}
-          </span>
-        </div>
-
-        <div
-          v-if="summary.averageTicket"
-          class="hidden min-w-0 flex-col md:flex"
-          data-testid="kanban-summary-average"
-        >
-          <span class="text-xs text-n-slate-11">
-            {{ t('KANBAN.SUMMARY.AVERAGE_TICKET') }}
-          </span>
-          <span class="text-sm font-semibold text-n-slate-12">
-            {{ formatCurrency(summary.averageTicket) }}
+          <span class="text-sm font-semibold" :class="metric.valueClass">
+            {{ metric.text }}
           </span>
         </div>
       </div>

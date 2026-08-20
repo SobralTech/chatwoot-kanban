@@ -623,6 +623,24 @@ describe('KanbanView realtime events', () => {
     });
   });
 
+  it('refreshes the funnel summary when a card moves between stages', async () => {
+    await mountView();
+    KanbanBoardsAPI.getSummary.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.reordered',
+      data: {
+        board_id: 10,
+        card_id: 501,
+        source_stage_id: 100,
+        target_stage_id: 200,
+      },
+    });
+
+    // Two stages refreshed, but the summary they share is only fetched once.
+    expect(KanbanBoardsAPI.getSummary).toHaveBeenCalledTimes(1);
+  });
+
   it('fetches card detail and patches visible cards for card updated events', async () => {
     KanbanBoardsAPI.showCardById.mockResolvedValueOnce({
       data: {

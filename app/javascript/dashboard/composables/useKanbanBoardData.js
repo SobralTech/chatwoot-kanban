@@ -178,11 +178,52 @@ export function useKanbanBoardData({
     return true;
   };
 
+  // The summary reads the same filters as the columns, but through its own request
+  // so a slow aggregate never holds the board back. The previous numbers stay on
+  // screen while it reloads, because it now reloads on every card change.
+  const fetchBoardSummary = async (boardId, generation) => {
+    isFetchingSummary.value = true;
+    summaryError.value = false;
+
+    try {
+      const response = await KanbanBoardsAPI.getSummary(boardId, {
+        params: currentFilterParams(),
+      });
+      if (generation !== requestGeneration.value) return;
+
+      boardSummary.value = normalizePayload(response.data);
+    } catch {
+      if (generation !== requestGeneration.value) return;
+
+      summaryError.value = true;
+    } finally {
+      if (generation === requestGeneration.value) {
+        isFetchingSummary.value = false;
+      }
+    }
+  };
+
+  // The summary aggregates the same cards the columns show, so anything that
+  // changes a card changes it too. Queueing rather than fetching means a burst of
+  // stage refreshes - a drag touching two columns, a realtime flush, a bulk move -
+  // still costs a single request.
+  let queuedSummaryRefresh = null;
+  const queueBoardSummaryRefresh = () => {
+    queuedSummaryRefresh ||= Promise.resolve().then(() => {
+      queuedSummaryRefresh = null;
+      if (!selectedBoard.value?.id) return;
+
+      fetchBoardSummary(selectedBoard.value.id, requestGeneration.value);
+    });
+  };
+
   const refreshStageFirstPage = (
     stageId,
     generation = requestGeneration.value
   ) => {
     if (!selectedBoard.value?.id || !stageId) return Promise.resolve();
+
+    queueBoardSummaryRefresh();
 
     // The collapsed flag is part of the key so that toggling a column does not
     // reuse an in-flight request fetching the other shape.
@@ -241,6 +282,7 @@ export function useKanbanBoardData({
       ),
     }));
 
+    queueBoardSummaryRefresh();
     return true;
   };
 
@@ -287,31 +329,6 @@ export function useKanbanBoardData({
     } finally {
       if (generation === requestGeneration.value) {
         setStageCardsLoading(stageId, false);
-      }
-    }
-  };
-
-  // The summary reads the same filters as the columns, but through its own request
-  // so a slow aggregate never holds the board back.
-  const fetchBoardSummary = async (boardId, generation) => {
-    isFetchingSummary.value = true;
-    summaryError.value = false;
-    boardSummary.value = {};
-
-    try {
-      const response = await KanbanBoardsAPI.getSummary(boardId, {
-        params: currentFilterParams(),
-      });
-      if (generation !== requestGeneration.value) return;
-
-      boardSummary.value = normalizePayload(response.data);
-    } catch {
-      if (generation !== requestGeneration.value) return;
-
-      summaryError.value = true;
-    } finally {
-      if (generation === requestGeneration.value) {
-        isFetchingSummary.value = false;
       }
     }
   };
