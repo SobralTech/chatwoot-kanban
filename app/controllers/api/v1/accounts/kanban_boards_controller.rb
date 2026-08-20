@@ -112,17 +112,15 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def fetch_stage_card_results
     @stage_card_limit = KanbanCards::VisibleStageCardsQuery::DEFAULT_LIMIT
+    visible_cards = visible_cards_scope
     @stage_card_results = @kanban_stages.index_with do |kanban_stage|
       query = KanbanCards::VisibleStageCardsQuery.new(
         account: Current.account,
-        user: Current.user,
         kanban_board: @kanban_board,
         kanban_stage: kanban_stage,
+        visible_cards: visible_cards,
         limit: @stage_card_limit,
-        **kanban_card_filter_params,
-        visible_inbox_ids: board_list_inbox_ids,
-        visible_team_ids: board_list_team_ids,
-        account_user: Current.account_user
+        terminal_period: sanitized_terminal_period
       )
       query.call(load_cards: sanitized_collapsed_stage_ids.exclude?(kanban_stage.id))
     end
@@ -130,17 +128,5 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
 
   def dispatch_kanban_board_event(event_name)
     Rails.configuration.dispatcher.dispatch(event_name, Time.zone.now, account_id: @kanban_board.account_id, board_id: @kanban_board.id)
-  end
-
-  def board_list_inbox_ids
-    return [] if Current.user.is_a?(AgentBot)
-
-    @board_list_inbox_ids ||= Current.user.inboxes.where(account_id: Current.account.id).pluck(:id)
-  end
-
-  def board_list_team_ids
-    return [] if Current.user.is_a?(AgentBot)
-
-    @board_list_team_ids ||= Current.user.teams.where(account_id: Current.account.id).pluck(:id)
   end
 end

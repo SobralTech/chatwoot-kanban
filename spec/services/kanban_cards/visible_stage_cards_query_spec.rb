@@ -496,11 +496,20 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
   def query(**options)
     described_class.new(
       account: account,
-      user: options.fetch(:user, agent),
       kanban_board: kanban_board,
       kanban_stage: options.fetch(:kanban_stage, kanban_stage),
+      visible_cards: visible_cards_scope(**options),
       limit: options[:limit],
       cursor: options[:cursor],
+      terminal_period: options[:terminal_period]
+    )
+  end
+
+  def visible_cards_scope(**options)
+    KanbanCards::VisibleCardsScope.new(
+      account: account,
+      user: options.fetch(:user, agent),
+      kanban_board: kanban_board,
       account_user: options[:account_user],
       filtered_inbox_ids: options[:filtered_inbox_ids],
       filtered_assignee_ids: options[:filtered_assignee_ids],
@@ -509,9 +518,8 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       filtered_due_dates: options[:filtered_due_dates],
       filtered_labels: options[:filtered_labels],
       match_mode: options[:match_mode],
-      search_query: options[:search_query],
-      terminal_period: options[:terminal_period]
-    )
+      search_query: options[:search_query]
+    ).call
   end
 
   def explain_analyze_id_query

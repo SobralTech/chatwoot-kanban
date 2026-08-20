@@ -4,44 +4,22 @@ class KanbanCards::VisibleStageCardsQuery
 
   DEFAULT_LIMIT = 20
   MAX_LIMIT = 50
-  MATCH_MODES = %w[all any].freeze
-  DEFAULT_MATCH_MODE = 'any'.freeze
   TERMINAL_PERIODS = { '7d' => 7, '30d' => 30, '90d' => 90 }.freeze
   ALL_TIME_TERMINAL_PERIOD = 'all'.freeze
   TERMINAL_PERIOD_VALUES = (TERMINAL_PERIODS.keys + [ALL_TIME_TERMINAL_PERIOD]).freeze
   DEFAULT_TERMINAL_PERIOD = '30d'.freeze
 
   # rubocop:disable Metrics/ParameterLists
-  # rubocop:disable Metrics/MethodLength
-  def initialize(account:, user:, kanban_board:, kanban_stage:, limit: DEFAULT_LIMIT, cursor: nil, visible_inbox_ids: nil,
-                 visible_team_ids: nil, account_user: nil, filtered_inbox_ids: nil, filtered_assignee_ids: nil,
-                 filtered_card_statuses: nil, filtered_priorities: nil, filtered_due_dates: nil, filtered_labels: nil,
-                 match_mode: DEFAULT_MATCH_MODE, search_query: nil, terminal_period: DEFAULT_TERMINAL_PERIOD)
+  def initialize(account:, kanban_board:, kanban_stage:, visible_cards:, limit: DEFAULT_LIMIT, cursor: nil,
+                 terminal_period: DEFAULT_TERMINAL_PERIOD)
     @account = account
-    @user = user
     @kanban_board = kanban_board
     @kanban_stage = kanban_stage
+    @board_visible_cards = visible_cards
     @limit = limit
     @cursor = cursor
-    @visible_cards_scope = KanbanCards::VisibleCardsScope.new(
-      account: account,
-      user: user,
-      kanban_board: kanban_board,
-      visible_inbox_ids: visible_inbox_ids,
-      visible_team_ids: visible_team_ids,
-      account_user: account_user,
-      filtered_inbox_ids: filtered_inbox_ids,
-      filtered_assignee_ids: filtered_assignee_ids,
-      filtered_card_statuses: filtered_card_statuses,
-      filtered_priorities: filtered_priorities,
-      filtered_due_dates: filtered_due_dates,
-      filtered_labels: filtered_labels,
-      match_mode: match_mode,
-      search_query: search_query
-    )
     @terminal_period = terminal_period.presence || DEFAULT_TERMINAL_PERIOD
   end
-  # rubocop:enable Metrics/MethodLength
   # rubocop:enable Metrics/ParameterLists
 
   def call(load_cards: true)
@@ -68,7 +46,7 @@ class KanbanCards::VisibleStageCardsQuery
 
   private
 
-  attr_reader :account, :user, :kanban_board, :kanban_stage, :limit, :cursor, :terminal_period
+  attr_reader :account, :kanban_board, :kanban_stage, :limit, :cursor, :terminal_period
 
   def empty_result
     Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0, total_value: 0)
@@ -84,7 +62,7 @@ class KanbanCards::VisibleStageCardsQuery
 
   def visible_cards
     @visible_cards ||= begin
-      scope = @visible_cards_scope.call.where(kanban_stage_id: kanban_stage.id)
+      scope = @board_visible_cards.where(kanban_stage_id: kanban_stage.id)
       # The period is a column slice, not a user filter, so it stays outside match_mode.
       scope = scope.where(terminal_period_condition) if terminal_period_condition
       scope

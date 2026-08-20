@@ -12,7 +12,7 @@ module KanbanCardFilterParams
       if inbox_ids.blank?
         nil
       else
-        validate_account_inbox_ids!(inbox_ids)
+        validate_account_scoped_ids!(Inbox.where(account_id: Current.account.id, id: inbox_ids), inbox_ids)
         inbox_ids & board_filterable_inbox_ids(inbox_ids)
       end
   end
@@ -25,7 +25,7 @@ module KanbanCardFilterParams
       if assignee_ids.blank?
         nil
       else
-        validate_account_user_ids!(assignee_ids)
+        validate_account_scoped_ids!(Current.account.account_users.where(user_id: assignee_ids), assignee_ids)
         assignee_ids
       end
   end
@@ -56,10 +56,10 @@ module KanbanCardFilterParams
     return @sanitized_match_mode if defined?(@sanitized_match_mode)
 
     @sanitized_match_mode =
-      if params[:match_mode].in?(KanbanCards::VisibleStageCardsQuery::MATCH_MODES)
+      if params[:match_mode].in?(KanbanCards::VisibleCardsScope::MATCH_MODES)
         params[:match_mode]
       else
-        KanbanCards::VisibleStageCardsQuery::DEFAULT_MATCH_MODE
+        KanbanCards::VisibleCardsScope::DEFAULT_MATCH_MODE
       end
   end
 
@@ -78,6 +78,19 @@ module KanbanCardFilterParams
     @sanitized_search_query = query.length >= 2 ? query : nil
   end
 
+  # Every card query on a board reads the same visibility rules and the same request
+  # filters, so they share one relation instead of each rebuilding it from raw params.
+  # The terminal period is not part of it: only the stage columns slice by it.
+  def visible_cards_scope
+    @visible_cards_scope ||= KanbanCards::VisibleCardsScope.new(
+      account: Current.account,
+      user: Current.user,
+      kanban_board: @kanban_board,
+      account_user: Current.account_user,
+      **kanban_card_filter_params
+    ).call
+  end
+
   def kanban_card_filter_params
     {
       filtered_inbox_ids: sanitized_inbox_filter_ids,
@@ -87,8 +100,7 @@ module KanbanCardFilterParams
       filtered_due_dates: sanitized_due_dates,
       filtered_labels: sanitized_labels,
       match_mode: sanitized_match_mode,
-      search_query: sanitized_search_query,
-      terminal_period: sanitized_terminal_period
+      search_query: sanitized_search_query
     }
   end
 
@@ -104,20 +116,10 @@ module KanbanCardFilterParams
     Array(params[key]).filter_map(&:presence).map(&:to_s).uniq
   end
 
-  def validate_account_inbox_ids!(inbox_ids)
-    return if inbox_ids.blank?
-
-    valid_inbox_count = Inbox.where(account_id: Current.account.id, id: inbox_ids).count
-    return if valid_inbox_count == inbox_ids.length
-
-    raise ActiveRecord::RecordInvalid, @kanban_board
-  end
-
-  def validate_account_user_ids!(user_ids)
-    return if user_ids.blank?
-
-    valid_user_count = Current.account.account_users.where(user_id: user_ids).count
-    return if valid_user_count == user_ids.length
+  # A filter id that does not exist in the account is a malformed request, not an
+  # empty result, so both id filters reject the whole request the same way.
+  def validate_account_scoped_ids!(scope, ids)
+    return if scope.count == ids.length
 
     raise ActiveRecord::RecordInvalid, @kanban_board
   end

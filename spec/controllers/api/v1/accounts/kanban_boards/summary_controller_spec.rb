@@ -25,8 +25,7 @@ RSpec.describe 'Kanban board summary API', type: :request do
       'open' => { 'count' => 1, 'value' => '10.0' },
       'won_this_month' => { 'count' => 1, 'value' => '10.0' },
       'lost_this_month' => { 'count' => 1, 'value' => '10.0' },
-      'average_ticket' => '10.00',
-      'currency' => 'BRL'
+      'average_ticket' => '10.00'
     )
   end
 

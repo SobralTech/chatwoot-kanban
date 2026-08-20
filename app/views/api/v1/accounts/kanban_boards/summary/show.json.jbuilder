@@ -14,4 +14,3 @@ json.lost_this_month do
 end
 
 json.average_ticket @summary.average_ticket
-json.currency @summary.currency

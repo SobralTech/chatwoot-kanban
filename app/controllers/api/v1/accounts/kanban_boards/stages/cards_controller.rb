@@ -11,12 +11,12 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     @limit = cards_limit
     @result = KanbanCards::VisibleStageCardsQuery.new(
       account: Current.account,
-      user: Current.user,
       kanban_board: @kanban_board,
       kanban_stage: @kanban_stage,
+      visible_cards: visible_cards_scope,
       limit: @limit,
       cursor: params[:cursor],
-      **kanban_card_filter_params
+      terminal_period: sanitized_terminal_period
     ).call(load_cards: !metadata_only?)
   rescue KanbanCards::VisibleStageCardsQuery::RefreshRequiredError
     render json: { error: 'refresh_required' }, status: :conflict

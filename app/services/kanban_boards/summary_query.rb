@@ -1,81 +1,40 @@
 class KanbanBoards::SummaryQuery
   Metric = Data.define(:count, :value)
-  Result = Struct.new(:open, :won_this_month, :lost_this_month, :average_ticket, :currency, keyword_init: true)
+  Result = Struct.new(:open, :won_this_month, :lost_this_month, :average_ticket, keyword_init: true)
 
-  CURRENCY = 'BRL'.freeze
+  ZERO_METRIC = Metric.new(0, '0.0')
 
-  # rubocop:disable Metrics/ParameterLists
-  def initialize(account:, user:, kanban_board:, visible_inbox_ids: nil, visible_team_ids: nil, account_user: nil,
-                 filtered_inbox_ids: nil, filtered_assignee_ids: nil, filtered_card_statuses: nil,
-                 filtered_priorities: nil, filtered_due_dates: nil, filtered_labels: nil, match_mode: nil,
-                 search_query: nil)
+  def initialize(account:, kanban_board:, visible_cards:)
     @account = account
     @kanban_board = kanban_board
-    @visible_cards_scope = KanbanCards::VisibleCardsScope.new(
-      account: account,
-      user: user,
-      kanban_board: kanban_board,
-      visible_inbox_ids: visible_inbox_ids,
-      visible_team_ids: visible_team_ids,
-      account_user: account_user,
-      filtered_inbox_ids: filtered_inbox_ids,
-      filtered_assignee_ids: filtered_assignee_ids,
-      filtered_card_statuses: filtered_card_statuses,
-      filtered_priorities: filtered_priorities,
-      filtered_due_dates: filtered_due_dates,
-      filtered_labels: filtered_labels,
-      match_mode: match_mode,
-      search_query: search_query
-    )
+    @visible_cards = visible_cards
   end
-  # rubocop:enable Metrics/ParameterLists
 
   def call
-    return empty_result unless valid_board?
-
-    open_metric = aggregate(open_cards_scope)
-    won_metric = aggregate(cards_for_stage_this_month(kanban_board.won_stage_id))
-    lost_metric = aggregate(cards_for_stage_this_month(kanban_board.lost_stage_id))
+    won_metric = metric_for_stage_this_month(kanban_board.won_stage_id)
 
     Result.new(
-      open: open_metric,
+      open: aggregate(open_cards_scope),
       won_this_month: won_metric,
-      lost_this_month: lost_metric,
-      average_ticket: average_ticket_for(won_metric),
-      currency: CURRENCY
+      lost_this_month: metric_for_stage_this_month(kanban_board.lost_stage_id),
+      average_ticket: average_ticket_for(won_metric)
     )
   end
 
   private
 
-  attr_reader :account, :kanban_board
+  attr_reader :account, :kanban_board, :visible_cards
 
-  def empty_result
-    zero = Metric.new(0, '0.0')
-    Result.new(open: zero, won_this_month: zero, lost_this_month: zero, average_ticket: nil, currency: CURRENCY)
-  end
-
-  def valid_board?
-    kanban_board.account_id == account.id && kanban_board.active?
-  end
-
-  def visible_cards
-    @visible_cards ||= @visible_cards_scope.call
-  end
-
+  # An empty special-stage list compiles to `1=1`, so every card counts as open.
   def open_cards_scope
-    special_stage_ids = KanbanStage.special_stage_ids(kanban_board)
-    return visible_cards if special_stage_ids.blank?
-
-    visible_cards.where.not(kanban_stage_id: special_stage_ids)
+    visible_cards.where.not(kanban_stage_id: KanbanStage.special_stage_ids(kanban_board))
   end
 
-  def cards_for_stage_this_month(stage_id)
-    return visible_cards.where(kanban_stage_id: nil) if stage_id.blank?
+  # A board without a won/lost stage has nothing to count, so it never reaches the database.
+  def metric_for_stage_this_month(stage_id)
+    return ZERO_METRIC if stage_id.blank?
 
-    visible_cards
-      .where(kanban_stage_id: stage_id)
-      .where(stage_entered_at: current_month_range)
+    aggregate(visible_cards.where(kanban_stage_id: stage_id, stage_entered_at: current_month_range))
   end
 
   def current_month_range

@@ -1,15 +1,18 @@
 # rubocop:disable Metrics/ClassLength
 class KanbanCards::VisibleCardsScope
+  MATCH_MODES = %w[all any].freeze
+  # The controllers fall back to this when the request omits match_mode; a nil match_mode
+  # reaching this class still means "all", so every filter category has to match.
+  DEFAULT_MATCH_MODE = 'any'.freeze
+
   # rubocop:disable Metrics/ParameterLists
-  def initialize(account:, user:, kanban_board:, visible_inbox_ids: nil, visible_team_ids: nil, account_user: nil,
+  def initialize(account:, user:, kanban_board:, account_user: nil,
                  filtered_inbox_ids: nil, filtered_assignee_ids: nil, filtered_card_statuses: nil,
                  filtered_priorities: nil, filtered_due_dates: nil, filtered_labels: nil, match_mode: nil,
                  search_query: nil)
     @account = account
     @user = user
     @kanban_board = kanban_board
-    @visible_inbox_ids = visible_inbox_ids
-    @visible_team_ids = visible_team_ids
     @account_user = account_user
     @filtered_inbox_ids = normalized_filter(filtered_inbox_ids)
     @filtered_assignee_ids = normalized_filter(filtered_assignee_ids)
@@ -90,11 +93,9 @@ class KanbanCards::VisibleCardsScope
     or_condition(conditions)
   end
 
+  # An empty special-stage list compiles to `1=1`, so every card counts as open.
   def open_card_condition
-    special_stage_ids = KanbanStage.special_stage_ids(kanban_board)
-    return card_table[:id].not_eq(nil) if special_stage_ids.blank?
-
-    card_table[:kanban_stage_id].not_in(special_stage_ids)
+    card_table[:kanban_stage_id].not_in(KanbanStage.special_stage_ids(kanban_board))
   end
 
   def card_status_stage_condition(stage_id)

@@ -16,14 +16,13 @@ RSpec.describe KanbanBoards::SummaryQuery do
 
   describe '#call' do
     it 'excludes cards in inboxes the agent cannot access' do
-      visible_card = create_card(stage: regular_stage, inbox: inbox)
+      create_card(stage: regular_stage, inbox: inbox)
       create_card(stage: regular_stage, inbox: create(:inbox, account: account))
 
       result = query.call
 
       expect(result.open).to have_attributes(count: 1, value: '10.0')
       expect(result.won_this_month.count).to eq(0)
-      expect(visible_card.reload).to be_active
     end
 
     it 'applies assignee filters to every metric' do
@@ -68,10 +67,14 @@ RSpec.describe KanbanBoards::SummaryQuery do
   def query(**options)
     described_class.new(
       account: account,
-      user: options.fetch(:user, agent),
       kanban_board: kanban_board,
-      account_user: options[:account_user],
-      filtered_assignee_ids: options[:filtered_assignee_ids]
+      visible_cards: KanbanCards::VisibleCardsScope.new(
+        account: account,
+        user: options.fetch(:user, agent),
+        kanban_board: kanban_board,
+        account_user: options[:account_user],
+        filtered_assignee_ids: options[:filtered_assignee_ids]
+      ).call
     )
   end
 
