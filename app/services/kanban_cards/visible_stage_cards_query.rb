@@ -31,16 +31,16 @@ class KanbanCards::VisibleStageCardsQuery
     ids = paginated_card_ids(anchor)
     page_ids = ids.first(effective_limit)
     cards = payload_cards(page_ids)
-    totals = anchor.nil? ? visible_totals : [nil, nil]
+    # Counting on every cursor-paginated page would re-scan the whole
+    # stage on each load-more click; only the first page needs it.
+    totals = anchor.nil? ? visible_totals : nil
 
     Result.new(
       cards: cards,
       has_more: ids.length > effective_limit,
       next_cursor: next_cursor_for(page_ids, ids),
-      # Counting on every cursor-paginated page would re-scan the whole
-      # stage on each load-more click; only the first page needs it.
-      total_count: totals.first,
-      total_value: totals.last
+      total_count: totals&.count,
+      total_value: totals&.value
     )
   end
 
@@ -49,7 +49,7 @@ class KanbanCards::VisibleStageCardsQuery
   attr_reader :account, :kanban_board, :kanban_stage, :limit, :cursor, :terminal_period
 
   def empty_result
-    Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0, total_value: 0)
+    Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0, total_value: '0.0')
   end
 
   def valid_board_and_stage?
@@ -83,36 +83,17 @@ class KanbanCards::VisibleStageCardsQuery
   end
 
   def visible_totals
-    @visible_totals ||= visible_cards
-                        .left_outer_joins(:kanban_card_products)
-                        .pick(card_table[:id].count(true), total_value_expression)
+    @visible_totals ||= KanbanCards::Totals.metric(visible_cards)
   end
 
   def metadata_result
-    total_count, total_value = visible_totals
-
     Result.new(
       cards: [],
       has_more: false,
       next_cursor: nil,
-      total_count: total_count,
-      total_value: total_value
+      total_count: visible_totals.count,
+      total_value: visible_totals.value
     )
-  end
-
-  def total_value_expression
-    named_function(
-      'COALESCE',
-      named_function(
-        'SUM',
-        kanban_card_product_table[:unit_price] * kanban_card_product_table[:quantity]
-      ),
-      Arel::Nodes.build_quoted(0)
-    )
-  end
-
-  def named_function(name, *expressions)
-    Arel::Nodes::NamedFunction.new(name, expressions)
   end
 
   def paginated_card_ids(anchor)
@@ -183,9 +164,5 @@ class KanbanCards::VisibleStageCardsQuery
 
   def card_table
     KanbanCard.arel_table
-  end
-
-  def kanban_card_product_table
-    KanbanCardProduct.arel_table
   end
 end

@@ -1,8 +1,5 @@
 class KanbanBoards::SummaryQuery
-  Metric = Data.define(:count, :value)
   Result = Struct.new(:open, :won_this_month, :lost_this_month, :average_ticket, keyword_init: true)
-
-  ZERO_METRIC = Metric.new(0, '0.0')
 
   def initialize(account:, kanban_board:, visible_cards:)
     @account = account
@@ -11,30 +8,30 @@ class KanbanBoards::SummaryQuery
   end
 
   def call
-    won_metric = metric_for_stage_this_month(kanban_board.won_stage_id)
+    metrics = KanbanCards::Totals.metrics(visible_cards, metric_conditions)
 
-    Result.new(
-      open: aggregate(open_cards_scope),
-      won_this_month: won_metric,
-      lost_this_month: metric_for_stage_this_month(kanban_board.lost_stage_id),
-      average_ticket: average_ticket_for(won_metric)
-    )
+    Result.new(**metrics, average_ticket: average_ticket_for(metrics.fetch(:won_this_month)))
   end
 
   private
 
   attr_reader :account, :kanban_board, :visible_cards
 
-  # An empty special-stage list compiles to `1=1`, so every card counts as open.
-  def open_cards_scope
-    visible_cards.where.not(kanban_stage_id: KanbanStage.special_stage_ids(kanban_board))
+  # `NOT IN ()` compiles to `1=1` and `IN ()` to `1=0`, so a board with no terminal
+  # stages counts every card as open and reports won and lost at zero without a
+  # branch here - and all three still come out of a single scan.
+  def metric_conditions
+    {
+      open: card_table[:kanban_stage_id].not_in(KanbanStage.special_stage_ids(kanban_board)),
+      won_this_month: entered_stage_this_month(kanban_board.won_stage_id),
+      lost_this_month: entered_stage_this_month(kanban_board.lost_stage_id)
+    }
   end
 
-  # A board without a won/lost stage has nothing to count, so it never reaches the database.
-  def metric_for_stage_this_month(stage_id)
-    return ZERO_METRIC if stage_id.blank?
-
-    aggregate(visible_cards.where(kanban_stage_id: stage_id, stage_entered_at: current_month_range))
+  def entered_stage_this_month(stage_id)
+    card_table[:kanban_stage_id]
+      .in(Array(stage_id))
+      .and(card_table[:stage_entered_at].between(current_month_range))
   end
 
   def current_month_range
@@ -47,34 +44,13 @@ class KanbanBoards::SummaryQuery
     ActiveSupport::TimeZone[account.reporting_timezone.presence || Time.zone.name] || Time.zone
   end
 
-  def aggregate(scope)
-    count, value = scope
-                   .left_outer_joins(:kanban_card_products)
-                   .pick(KanbanCard.arel_table[:id].count(true), total_value_expression)
-
-    Metric.new(count.to_i, decimal_string(value))
-  end
-
   def average_ticket_for(metric)
     return if metric.count.zero?
 
     format('%.2f', BigDecimal(metric.value) / metric.count)
   end
 
-  def decimal_string(value)
-    BigDecimal(value.to_s).to_s('F')
-  end
-
-  def total_value_expression
-    Arel::Nodes::NamedFunction.new(
-      'COALESCE',
-      [
-        Arel::Nodes::NamedFunction.new(
-          'SUM',
-          [KanbanCardProduct.arel_table[:unit_price] * KanbanCardProduct.arel_table[:quantity]]
-        ),
-        Arel::Nodes.build_quoted(0)
-      ]
-    )
+  def card_table
+    KanbanCard.arel_table
   end
 end
