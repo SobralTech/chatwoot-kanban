@@ -32,6 +32,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
         name: copy_stage_params[:name],
         color: source_stage.color,
         description: source_stage.description,
+        sla_hours: source_stage.sla_hours,
         position: position
       )
       KanbanStage.normalize_positions_for_board!(@kanban_board)
@@ -134,7 +135,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def kanban_stage_params
-    params.require(:stage).permit(:name, :position, :active, :color, :description)
+    params.require(:stage).permit(:name, :position, :active, :color, :description, :sla_hours)
   end
 
   def copy_stage_params
@@ -168,6 +169,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
                          else
                            KanbanBoards::TemplateCatalog::LOST_COLOR
                          end
+    attributes[:sla_hours] = nil
     attributes
   end
 

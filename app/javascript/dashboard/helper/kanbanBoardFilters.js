@@ -5,6 +5,7 @@ export const SINGLE_VALUE_FILTER_KEYS = [
   'inboxIds',
   'cardStatuses',
   'priorities',
+  'stageSla',
 ];
 
 export const applyMatchModeConstraints = filters => {

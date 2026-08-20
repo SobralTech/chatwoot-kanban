@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_20_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_20_140000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1251,6 +1251,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_20_120000) do
     t.datetime "updated_at", null: false
     t.string "color", default: "#8B8D98", null: false
     t.text "description"
+    t.integer "sla_hours"
     t.index ["account_id", "active"], name: "index_kanban_stages_on_account_id_and_active"
     t.index ["account_id"], name: "index_kanban_stages_on_account_id"
     t.index ["kanban_board_id", "name"], name: "index_active_kanban_stages_on_board_id_and_name", unique: true, where: "(active = true)"

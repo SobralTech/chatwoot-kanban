@@ -63,10 +63,12 @@ const stages = ref([]);
 const newStageName = ref('');
 const newStageDescription = ref('');
 const newStageColor = ref(DEFAULT_KANBAN_STAGE_COLOR);
+const newStageSlaHours = ref(null);
 const editingStageId = ref(null);
 const editStageName = ref('');
 const editStageDescription = ref('');
 const editStageColor = ref(DEFAULT_KANBAN_STAGE_COLOR);
+const editStageSlaHours = ref(null);
 const stagePendingRemoval = ref(null);
 const ignoreGroupsForImport = ref(false);
 const stageReconcileWarning = ref('');
@@ -500,6 +502,7 @@ const closeCreateStageForm = () => {
   newStageName.value = '';
   newStageDescription.value = '';
   newStageColor.value = DEFAULT_KANBAN_STAGE_COLOR;
+  newStageSlaHours.value = null;
 };
 
 const createStage = async () => {
@@ -510,14 +513,17 @@ const createStage = async () => {
   stageError.value = '';
 
   try {
-    await KanbanBoardsAPI.createStage(boardId.value, {
-      stage: {
-        name,
-        description: newStageDescription.value.trim(),
-        color: newStageColor.value,
-        position: regularStages.value.length + 1,
-      },
-    });
+    const stagePayload = {
+      name,
+      description: newStageDescription.value.trim(),
+      color: newStageColor.value,
+      position: regularStages.value.length + 1,
+    };
+    if (newStageSlaHours.value !== '' && newStageSlaHours.value !== null) {
+      stagePayload.sla_hours = Number(newStageSlaHours.value);
+    }
+
+    await KanbanBoardsAPI.createStage(boardId.value, { stage: stagePayload });
     closeCreateStageForm();
     await refreshBoard();
     await store.dispatch('kanbanBoards/refreshBoards');
@@ -538,6 +544,7 @@ const openEditStage = stage => {
   editStageName.value = stage.name;
   editStageDescription.value = stage.description || '';
   editStageColor.value = stage.color;
+  editStageSlaHours.value = stage.slaHours ?? null;
 };
 
 const closeEditStage = () => {
@@ -545,6 +552,7 @@ const closeEditStage = () => {
   editStageName.value = '';
   editStageDescription.value = '';
   editStageColor.value = DEFAULT_KANBAN_STAGE_COLOR;
+  editStageSlaHours.value = null;
 };
 
 const updateStage = async stage => {
@@ -559,7 +567,18 @@ const updateStage = async stage => {
       name,
       description: editStageDescription.value.trim(),
     };
-    if (!isTerminalStage(stage)) stagePayload.color = editStageColor.value;
+    if (!isTerminalStage(stage)) {
+      stagePayload.color = editStageColor.value;
+      if (
+        (stage.slaHours !== null && stage.slaHours !== undefined) ||
+        (editStageSlaHours.value !== '' && editStageSlaHours.value !== null)
+      ) {
+        stagePayload.sla_hours =
+          editStageSlaHours.value === '' || editStageSlaHours.value === null
+            ? null
+            : Number(editStageSlaHours.value);
+      }
+    }
 
     await KanbanBoardsAPI.updateStage(boardId.value, stage.id, {
       stage: stagePayload,
@@ -1084,6 +1103,22 @@ onMounted(async () => {
                 class="reset-base !mb-0 h-10 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
                 :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
               />
+              <label
+                class="grid w-32 flex-none gap-1 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS') }}
+                <input
+                  v-model="newStageSlaHours"
+                  data-testid="kanban-board-form-new-stage-sla-hours"
+                  type="number"
+                  min="1"
+                  step="1"
+                  class="reset-base !mb-0 h-10 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+                  :placeholder="
+                    t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS_PLACEHOLDER')
+                  "
+                />
+              </label>
             </div>
             <textarea
               v-model="newStageDescription"
@@ -1213,7 +1248,9 @@ onMounted(async () => {
                   v-model:name="editStageName"
                   v-model:description="editStageDescription"
                   v-model:color="editStageColor"
+                  v-model:sla-hours="editStageSlaHours"
                   show-color-picker
+                  show-sla-hours
                   :is-updating="isUpdatingStage"
                   @save="updateStage(stage)"
                   @cancel="closeEditStage"

@@ -15,6 +15,7 @@ export function useKanbanBoardFiltersState({
     assigneeIds: [],
     cardStatuses: [],
     priorities: [],
+    stageSla: [],
     dueDates: [],
     labels: [],
     matchMode: 'any',
@@ -26,6 +27,7 @@ export function useKanbanBoardFiltersState({
       assigneeIds: [...new Set(filters?.assigneeIds || [])],
       cardStatuses: [...new Set(filters?.cardStatuses || [])],
       priorities: [...new Set(filters?.priorities || [])],
+      stageSla: [...new Set(filters?.stageSla || [])],
       dueDates: [...new Set(filters?.dueDates || [])],
       labels: [...new Set(filters?.labels || [])],
       matchMode: filters?.matchMode === 'all' ? 'all' : 'any',
@@ -52,6 +54,7 @@ export function useKanbanBoardFiltersState({
       boardFilters.value.assigneeIds,
       boardFilters.value.cardStatuses,
       boardFilters.value.priorities,
+      boardFilters.value.stageSla,
       boardFilters.value.dueDates,
       boardFilters.value.labels,
     ].reduce((count, values) => count + values.length, 0)
@@ -91,6 +94,7 @@ export function useKanbanBoardFiltersState({
       assigneeIds: 'assignee_ids',
       cardStatuses: 'card_statuses',
       priorities: 'priorities',
+      stageSla: 'stage_sla',
       dueDates: 'due_dates',
       labels: 'labels',
     };

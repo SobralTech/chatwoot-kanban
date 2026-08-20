@@ -287,6 +287,28 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.total_count).to eq(1)
     end
 
+    it 'filters stale cards when the stage has an SLA' do
+      kanban_stage.update!(sla_hours: 24)
+      fresh_card = create_visible_card(position: 1)
+      stale_card = create_visible_card(position: 2)
+      fresh_card.update_column(:stage_entered_at, 12.hours.ago) # rubocop:disable Rails/SkipsModelValidations
+      stale_card.update_column(:stage_entered_at, 36.hours.ago) # rubocop:disable Rails/SkipsModelValidations
+
+      result = query(filtered_stage_sla: ['stale']).call
+
+      expect(result.cards).to eq([stale_card])
+      expect(result.total_count).to eq(1)
+    end
+
+    it 'returns no cards for a stage without an SLA when filtering stale cards' do
+      create_visible_card(position: 1).update_column(:stage_entered_at, 36.hours.ago) # rubocop:disable Rails/SkipsModelValidations
+
+      result = query(filtered_stage_sla: ['stale']).call
+
+      expect(result.cards).to be_empty
+      expect(result.total_count).to eq(0)
+    end
+
     it 'filters card priorities including cards without a priority' do
       unprioritized_card = create_visible_card(position: 1)
       high_priority_card = create_visible_card(position: 2, priority: :high)
@@ -515,7 +537,8 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       visible_cards: visible_cards_scope(**options),
       limit: options[:limit],
       cursor: options[:cursor],
-      terminal_period: options[:terminal_period]
+      terminal_period: options[:terminal_period],
+      filtered_stage_sla: options[:filtered_stage_sla]
     )
   end
 

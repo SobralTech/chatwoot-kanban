@@ -7,6 +7,7 @@ import NextButton from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import ColorPicker from 'dashboard/components-next/colorpicker/ColorPicker.vue';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
+import { stageSlaStatus } from 'dashboard/helper/kanbanStageSla';
 import KanbanStageMenu from '../KanbanStageMenu.vue';
 
 const props = defineProps({
@@ -104,6 +105,17 @@ const terminalPeriodLabel = computed(
     )?.label || ''
 );
 
+const staleCardsCount = computed(
+  () =>
+    (props.stage.cards || []).filter(
+      card =>
+        stageSlaStatus({
+          stageEnteredAt: card.stageEnteredAt || card.stage_entered_at,
+          slaHours: props.stage.slaHours || props.stage.sla_hours,
+        }) === 'stale'
+    ).length
+);
+
 const toggleCollapseOnDoubleClick = () => {
   if (props.editingStageId === props.stage.id) return;
 
@@ -190,6 +202,14 @@ const toggleCollapseOnDoubleClick = () => {
         >
           {{ stage.cardsCount }}
         </span>
+        <span
+          v-if="staleCardsCount"
+          data-testid="kanban-stage-stale-count"
+          class="size-2 flex-shrink-0 rounded-full bg-n-ruby-9"
+          :title="
+            t('KANBAN.STAGE_MENU.STALE_COUNT', { count: staleCardsCount })
+          "
+        />
         <span
           v-if="isTerminalStage(stage)"
           class="hidden min-w-0 truncate text-[10px] font-normal text-n-slate-11 xl:inline"

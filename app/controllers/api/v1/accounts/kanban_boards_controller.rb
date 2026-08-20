@@ -120,7 +120,8 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
         kanban_stage: kanban_stage,
         visible_cards: visible_cards,
         limit: @stage_card_limit,
-        terminal_period: sanitized_terminal_period
+        terminal_period: sanitized_terminal_period,
+        filtered_stage_sla: sanitized_filter_values(:stage_sla, KanbanCards::VisibleStageCardsQuery::STAGE_SLA_VALUES)
       )
       query.call(load_cards: sanitized_collapsed_stage_ids.exclude?(kanban_stage.id))
     end

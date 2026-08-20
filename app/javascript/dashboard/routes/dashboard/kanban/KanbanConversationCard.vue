@@ -8,6 +8,7 @@ import { format, differenceInCalendarDays } from 'date-fns';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
 import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
+import { stageSlaStatus } from 'dashboard/helper/kanbanStageSla';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
@@ -65,6 +66,10 @@ const props = defineProps({
   },
   lostStageId: {
     type: Number,
+    default: null,
+  },
+  slaHours: {
+    type: [Number, String],
     default: null,
   },
   reasons: {
@@ -314,6 +319,21 @@ const toUnixTimestamp = value => {
 const stageEnteredAt = computed(() =>
   toUnixTimestamp(props.card.stage_entered_at || props.card.stageEnteredAt)
 );
+const stageSlaStatusValue = computed(() =>
+  stageSlaStatus({
+    stageEnteredAt: props.card.stage_entered_at || props.card.stageEnteredAt,
+    slaHours: props.slaHours,
+  })
+);
+const stageSlaClasses = computed(() => {
+  if (stageSlaStatusValue.value === 'warning') {
+    return 'rounded-full bg-n-amber-3 px-1.5 py-0.5 text-n-amber-11';
+  }
+  if (stageSlaStatusValue.value === 'stale') {
+    return 'rounded-full bg-n-ruby-3 px-1.5 py-0.5 text-n-ruby-11';
+  }
+  return '';
+});
 const stageTime = computed(() =>
   stageEnteredAt.value
     ? shortTimestamp(dynamicTime(stageEnteredAt.value), true)
@@ -336,6 +356,15 @@ const dueAtStatus = computed(() => {
   if (diffInDays <= 0) return 'today';
   if (diffInDays === 1) return 'tomorrow';
   return 'upcoming';
+});
+const stageTimeTitle = computed(() => {
+  if (!stageTime.value) return undefined;
+  if (!props.slaHours) return dynamicTime(stageEnteredAt.value);
+
+  return t('KANBAN.CARD.SLA_TOOLTIP', {
+    age: dynamicTime(stageEnteredAt.value),
+    hours: props.slaHours,
+  });
 });
 const dueAtClasses = computed(() => {
   switch (dueAtStatus.value) {
@@ -474,7 +503,10 @@ const toggleSelection = async event => {
   <article
     tabindex="0"
     class="card-drag-handle group relative cursor-pointer select-none rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-brand"
-    :class="{ 'border-n-brand ring-1 ring-n-brand': isSelected }"
+    :class="{
+      'border-n-brand ring-1 ring-n-brand': isSelected,
+      'border-l-2 border-n-ruby-9': stageSlaStatusValue === 'stale',
+    }"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openCard"
@@ -938,7 +970,13 @@ const toggleSelection = async event => {
           <span
             v-if="stageTime"
             class="inline-flex min-w-0 items-center gap-1 truncate"
-            :title="dynamicTime(stageEnteredAt)"
+            :class="stageSlaClasses"
+            :title="stageTimeTitle"
+            :aria-label="
+              stageSlaStatusValue === 'stale'
+                ? t('KANBAN.CARD.SLA_STALE')
+                : undefined
+            "
           >
             <i class="i-lucide-clock size-3 flex-shrink-0" />
             <span class="truncate">{{ stageTime }}</span>

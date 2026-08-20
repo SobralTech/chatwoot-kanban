@@ -8,10 +8,11 @@ class KanbanCards::VisibleStageCardsQuery
   ALL_TIME_TERMINAL_PERIOD = 'all'.freeze
   TERMINAL_PERIOD_VALUES = (TERMINAL_PERIODS.keys + [ALL_TIME_TERMINAL_PERIOD]).freeze
   DEFAULT_TERMINAL_PERIOD = '30d'.freeze
+  STAGE_SLA_VALUES = %w[stale].freeze
 
   # rubocop:disable Metrics/ParameterLists
   def initialize(account:, kanban_board:, kanban_stage:, visible_cards:, limit: DEFAULT_LIMIT, cursor: nil,
-                 terminal_period: DEFAULT_TERMINAL_PERIOD)
+                 terminal_period: DEFAULT_TERMINAL_PERIOD, filtered_stage_sla: nil)
     @account = account
     @kanban_board = kanban_board
     @kanban_stage = kanban_stage
@@ -19,6 +20,7 @@ class KanbanCards::VisibleStageCardsQuery
     @limit = limit
     @cursor = cursor
     @terminal_period = terminal_period.presence || DEFAULT_TERMINAL_PERIOD
+    @filtered_stage_sla = filtered_stage_sla
   end
   # rubocop:enable Metrics/ParameterLists
 
@@ -46,7 +48,7 @@ class KanbanCards::VisibleStageCardsQuery
 
   private
 
-  attr_reader :account, :kanban_board, :kanban_stage, :limit, :cursor, :terminal_period
+  attr_reader :account, :kanban_board, :kanban_stage, :limit, :cursor, :terminal_period, :filtered_stage_sla
 
   def empty_result
     Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0, total_value: '0.0')
@@ -65,6 +67,7 @@ class KanbanCards::VisibleStageCardsQuery
       scope = @board_visible_cards.where(kanban_stage_id: kanban_stage.id)
       # The period is a column slice, not a user filter, so it stays outside match_mode.
       scope = scope.where(terminal_period_condition) if terminal_period_condition
+      scope = scope.where(stage_sla_condition) if stage_sla_condition
       scope
     end
   end
@@ -80,6 +83,13 @@ class KanbanCards::VisibleStageCardsQuery
 
   def terminal_stage?
     KanbanStage.special_stage_ids(kanban_board).include?(kanban_stage.id)
+  end
+
+  def stage_sla_condition
+    return unless filtered_stage_sla&.include?('stale')
+    return card_table[:id].eq(nil) if terminal_stage? || kanban_stage.sla_hours.blank?
+
+    card_table[:stage_entered_at].lt(kanban_stage.sla_hours.hours.ago)
   end
 
   def visible_totals

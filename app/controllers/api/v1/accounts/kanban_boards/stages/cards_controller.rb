@@ -16,7 +16,8 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       visible_cards: visible_cards_scope,
       limit: @limit,
       cursor: params[:cursor],
-      terminal_period: sanitized_terminal_period
+      terminal_period: sanitized_terminal_period,
+      filtered_stage_sla: sanitized_filter_values(:stage_sla, KanbanCards::VisibleStageCardsQuery::STAGE_SLA_VALUES)
     ).call(load_cards: !metadata_only?)
   rescue KanbanCards::VisibleStageCardsQuery::RefreshRequiredError
     render json: { error: 'refresh_required' }, status: :conflict

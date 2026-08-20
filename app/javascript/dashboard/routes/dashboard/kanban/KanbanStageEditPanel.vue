@@ -13,6 +13,10 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  showSlaHours: {
+    type: Boolean,
+    default: false,
+  },
   isUpdating: {
     type: Boolean,
     default: false,
@@ -24,6 +28,10 @@ defineEmits(['save', 'cancel']);
 const name = defineModel('name', { type: String, default: '' });
 const description = defineModel('description', { type: String, default: '' });
 const color = defineModel('color', { type: String, default: '' });
+const slaHours = defineModel('slaHours', {
+  type: [Number, String],
+  default: null,
+});
 
 const { t } = useI18n();
 </script>
@@ -34,7 +42,7 @@ const { t } = useI18n();
     class="grid gap-3 rounded-md border p-3"
     :class="panelClass"
   >
-    <div class="flex min-w-0 items-center gap-3">
+    <div class="flex min-w-0 flex-wrap items-end gap-3">
       <ColorPicker
         v-if="showColorPicker"
         v-model="color"
@@ -48,7 +56,25 @@ const { t } = useI18n();
         class="reset-base !mb-0 h-10 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
         :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
       />
+      <label
+        v-if="showSlaHours"
+        class="grid w-32 flex-none gap-1 text-xs font-medium text-n-slate-11"
+      >
+        {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS') }}
+        <input
+          v-model="slaHours"
+          data-testid="kanban-board-form-edit-stage-sla-hours"
+          type="number"
+          min="1"
+          step="1"
+          class="reset-base !mb-0 h-10 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+          :placeholder="t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS_PLACEHOLDER')"
+        />
+      </label>
     </div>
+    <p v-if="showSlaHours" class="text-xs font-normal text-n-slate-10">
+      {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS_HELP') }}
+    </p>
     <textarea
       v-model="description"
       data-testid="kanban-board-form-edit-stage-description"

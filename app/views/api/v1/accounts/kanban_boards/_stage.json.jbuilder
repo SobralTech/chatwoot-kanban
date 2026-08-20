@@ -4,6 +4,7 @@ json.kanban_board_id kanban_stage.kanban_board_id
 json.name kanban_stage.name
 json.color kanban_stage.color
 json.description kanban_stage.description
+json.sla_hours kanban_stage.sla_hours
 json.position kanban_stage.position
 json.active kanban_stage.active
 json.created_at kanban_stage.created_at.to_i
