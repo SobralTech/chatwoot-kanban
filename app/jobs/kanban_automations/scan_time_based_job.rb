@@ -1,11 +1,10 @@
 class KanbanAutomations::ScanTimeBasedJob < ApplicationJob
   queue_as :scheduled_jobs
 
-  TIME_BASED_EVENTS = %w[card_stalled due_soon overdue no_reply].freeze
   IDEMPOTENCY_TTL = 24.hours
 
   def perform
-    KanbanAutomationRule.active.where(event_name: TIME_BASED_EVENTS).find_each do |rule|
+    KanbanAutomationRule.active.where(event_name: KanbanAutomationRule::TIME_BASED_EVENTS).find_each do |rule|
       candidate_cards_for(rule).find_each do |card|
         enqueue_once(rule, card)
       end
@@ -16,8 +15,8 @@ class KanbanAutomations::ScanTimeBasedJob < ApplicationJob
 
   def candidate_cards_for(rule)
     cards = KanbanCard.active.where(kanban_board_id: rule.kanban_board_id)
-    threshold_hours = hours(rule)
-    return cards.none if %w[card_stalled due_soon no_reply].include?(rule.event_name) && threshold_hours.blank?
+    threshold_hours = rule.threshold_hours.to_i
+    return cards.none if rule.threshold_required? && !threshold_hours.positive?
 
     case rule.event_name
     when 'card_stalled'
@@ -41,17 +40,6 @@ class KanbanAutomations::ScanTimeBasedJob < ApplicationJob
     recent_messages = incoming.where('created_at >= ?', cutoff).select(:conversation_id)
 
     cards.where(conversation_id: old_messages).where.not(conversation_id: recent_messages)
-  end
-
-  def hours(rule)
-    condition = Array(rule.conditions).find { |item| item.with_indifferent_access[:attribute_key].to_s == 'hours_in_stage' }
-    value = condition && Array(condition.with_indifferent_access[:values]).first
-    hours = Float(value)
-    raise ArgumentError unless hours.positive?
-
-    hours
-  rescue ArgumentError, TypeError
-    0
   end
 
   def terminal_stage_ids(rule)

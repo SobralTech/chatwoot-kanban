@@ -10,17 +10,17 @@
 #  inbox_scope_mode                     :string           default("all_inboxes"), not null
 #  lost_reason_required                 :boolean          default(FALSE), not null
 #  lost_recurrence_enabled              :boolean          default(FALSE), not null
-#  lost_recurrence_window_hours        :integer
+#  lost_recurrence_window_hours         :integer
 #  name                                 :string           not null
 #  position                             :integer          default(0), not null
 #  use_opportunity_card_reads           :boolean          default(TRUE), not null
 #  visibility_mode                      :string           default("all_agents"), not null
+#  won_recurrence_enabled               :boolean          default(FALSE), not null
+#  won_recurrence_window_hours          :integer
 #  created_at                           :datetime         not null
 #  updated_at                           :datetime         not null
 #  account_id                           :bigint           not null
 #  lost_stage_id                        :bigint
-#  won_recurrence_enabled               :boolean          default(FALSE), not null
-#  won_recurrence_window_hours         :integer
 #  won_stage_id                         :bigint
 #
 # Indexes

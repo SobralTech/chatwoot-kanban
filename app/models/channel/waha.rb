@@ -2,25 +2,25 @@
 #
 # Table name: channel_waha
 #
-#  id                       :bigint           not null, primary key
-#  api_key                  :string           not null
-#  auto_read_receipts       :boolean          default(TRUE), not null
-#  auto_reconnect           :boolean          default(TRUE), not null
-#  connected_number_locked  :boolean          default(FALSE), not null
-#  groups_enabled           :boolean          default(FALSE), not null
-#  import_on_connect_months :integer
-#  import_state             :jsonb            not null
-#  phone_number             :string
-#  session_name             :string           not null
-#  session_status           :string
-#  signing_enabled          :boolean          default(FALSE), not null
-#  status_history           :jsonb
-#  typing_simulation_enabled :boolean         default(TRUE), not null
-#  waha_url                 :string           not null
-#  webhook_token            :string           not null
-#  created_at               :datetime         not null
-#  updated_at               :datetime         not null
-#  account_id               :integer          not null
+#  id                        :bigint           not null, primary key
+#  api_key                   :string           not null
+#  auto_read_receipts        :boolean          default(TRUE), not null
+#  auto_reconnect            :boolean          default(TRUE), not null
+#  connected_number_locked   :boolean          default(FALSE), not null
+#  groups_enabled            :boolean          default(FALSE), not null
+#  import_on_connect_months  :integer
+#  import_state              :jsonb            not null
+#  phone_number              :string
+#  session_name              :string           not null
+#  session_status            :string
+#  signing_enabled           :boolean          default(FALSE), not null
+#  status_history            :jsonb
+#  typing_simulation_enabled :boolean          default(TRUE), not null
+#  waha_url                  :string           not null
+#  webhook_token             :string           not null
+#  created_at                :datetime         not null
+#  updated_at                :datetime         not null
+#  account_id                :integer          not null
 #
 # Indexes
 #

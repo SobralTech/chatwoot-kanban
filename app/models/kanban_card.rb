@@ -8,7 +8,7 @@
 #  active                 :boolean          default(TRUE), not null
 #  description            :text
 #  discount_amount        :decimal(12, 2)
-#  discount_type          :integer          default(0), not null
+#  discount_type          :integer          default("percent"), not null
 #  due_at                 :datetime
 #  normalized_subject     :string
 #  origin                 :string           not null

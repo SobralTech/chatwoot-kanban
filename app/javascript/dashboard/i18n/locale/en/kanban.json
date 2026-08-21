@@ -494,7 +494,11 @@
         "PREVIEW_AND_CONTINUE": "Preview impact",
         "SAVE": "Confirm and save",
         "CANCEL": "Cancel",
-        "TIME_THRESHOLD_PREFIX": "When the opportunity stays in a stage for",
+        "TIME_THRESHOLD_PREFIX": {
+          "card_stalled": "When the opportunity stays in a stage for",
+          "due_soon": "When the opportunity is due within",
+          "no_reply": "When the contact has not replied for"
+        },
         "TIME_THRESHOLD_SUFFIX": "hours",
         "THRESHOLD_REQUIRED": "Enter a positive number of hours.",
         "EVENTS": {

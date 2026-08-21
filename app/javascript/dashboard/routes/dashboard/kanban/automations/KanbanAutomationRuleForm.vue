@@ -51,7 +51,8 @@ const props = defineProps({
 
 const emit = defineEmits(['save']);
 
-const TIME_BASED_EVENTS = new Set(['card_stalled', 'due_soon', 'no_reply']);
+// `overdue` is time based too, but needs no threshold: a card is past due_at or it is not.
+const THRESHOLD_EVENTS = new Set(['card_stalled', 'due_soon', 'no_reply']);
 
 const NUMERIC_CONDITIONS = new Set([
   'stage_id',
@@ -163,8 +164,12 @@ const actionOptions = computed(() => [
   },
 ]);
 
-const isTimeBasedEvent = computed(() =>
-  TIME_BASED_EVENTS.has(rule.value?.event_name)
+const needsThreshold = computed(() =>
+  THRESHOLD_EVENTS.has(rule.value?.event_name)
+);
+
+const thresholdPrefix = computed(() =>
+  t(`KANBAN.AUTOMATIONS.FORM.TIME_THRESHOLD_PREFIX.${rule.value?.event_name}`)
 );
 
 const isEditMode = computed(() => props.mode === 'edit');
@@ -387,24 +392,10 @@ const filterTypes = computed(() => [
 ]);
 
 const displayedConditions = computed(() =>
-  (rule.value?.conditions || [])
-    .map((condition, index) => ({ condition, index }))
-    .filter(
-      ({ condition }) =>
-        !(
-          isTimeBasedEvent.value && condition.attribute_key === 'hours_in_stage'
-        )
-    )
-);
-
-const thresholdCondition = computed(() =>
-  (rule.value?.conditions || []).find(
-    condition => condition.attribute_key === 'hours_in_stage'
-  )
-);
-
-const thresholdHours = computed(
-  () => thresholdCondition.value?.values?.[0] || ''
+  (rule.value?.conditions || []).map((condition, index) => ({
+    condition,
+    index,
+  }))
 );
 
 const makeCondition = attributeKey => {
@@ -481,39 +472,24 @@ const normalizeConditionsForUi = () => {
 
 watch(filterTypes, normalizeConditionsForUi, { deep: true });
 
-const ensureTimeCondition = () => {
-  if (!rule.value || !isTimeBasedEvent.value) return;
-
-  const condition = thresholdCondition.value;
-  if (condition) {
-    if (!condition.values?.length) condition.values = [24];
-    condition.filter_operator = 'greater_than';
-    return;
-  }
-
-  rule.value.conditions.unshift({
-    attribute_key: 'hours_in_stage',
-    filter_operator: 'greater_than',
-    values: [24],
-  });
+const ensureThreshold = () => {
+  if (!rule.value || !needsThreshold.value) return;
+  if (!rule.value.threshold_hours) rule.value.threshold_hours = 24;
 };
 
 const resetForEvent = () => {
   if (!rule.value) return;
 
-  rule.value.conditions = (rule.value.conditions || []).filter(
-    condition => condition.attribute_key !== 'hours_in_stage'
-  );
-  if (!rule.value.conditions.length) {
+  if (!rule.value.conditions?.length) {
     rule.value.conditions = [makeCondition('stage_id')];
   }
-  ensureTimeCondition();
+  if (!needsThreshold.value) rule.value.threshold_hours = null;
+  ensureThreshold();
   errors.value = {};
 };
 
 const onThresholdChange = value => {
-  if (!thresholdCondition.value) ensureTimeCondition();
-  thresholdCondition.value.values = value === '' ? [] : [Number(value)];
+  rule.value.threshold_hours = value === '' ? null : Number(value);
 };
 
 const appendCondition = () => {
@@ -748,10 +724,7 @@ const validateForm = () => {
     condition.validate()
   );
 
-  if (
-    isTimeBasedEvent.value &&
-    (!thresholdHours.value || Number(thresholdHours.value) <= 0)
-  ) {
+  if (needsThreshold.value && !(Number(rule.value.threshold_hours) > 0)) {
     errors.value.threshold = 'THRESHOLD_REQUIRED';
   }
   if (!rule.value.conditions?.length)
@@ -808,7 +781,7 @@ const open = () => {
       },
     ];
     normalizeConditionsForUi();
-    ensureTimeCondition();
+    ensureThreshold();
   }
   dialogRef.value?.open();
 };
@@ -821,7 +794,7 @@ const close = () => {
 watch(
   () => rule.value?.event_name,
   () => {
-    if (dialogRef.value && isTimeBasedEvent.value) ensureTimeCondition();
+    if (dialogRef.value) ensureThreshold();
   }
 );
 
@@ -888,12 +861,12 @@ defineExpose({ open, close });
           @update:model-value="resetForEvent"
         />
         <div
-          v-if="isTimeBasedEvent"
+          v-if="needsThreshold"
           class="flex flex-wrap items-center gap-2 text-sm text-n-slate-12"
         >
-          <span>{{ t('KANBAN.AUTOMATIONS.FORM.TIME_THRESHOLD_PREFIX') }}</span>
+          <span>{{ thresholdPrefix }}</span>
           <input
-            :value="thresholdHours"
+            :value="rule.threshold_hours ?? ''"
             data-testid="kanban-automation-rule-threshold"
             type="number"
             min="1"

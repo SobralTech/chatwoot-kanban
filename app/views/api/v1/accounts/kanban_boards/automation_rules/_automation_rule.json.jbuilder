@@ -7,6 +7,7 @@ json.event_name automation_rule.event_name
 json.conditions automation_rule.conditions
 json.actions automation_rule.actions
 json.position automation_rule.position
+json.threshold_hours automation_rule.threshold_hours
 json.active automation_rule.active?
 json.dry_run automation_rule.dry_run?
 json.stop_after_match automation_rule.stop_after_match?

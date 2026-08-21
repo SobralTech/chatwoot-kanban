@@ -46,7 +46,8 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
       name: automation_rule_params[:name].presence || 'Preview',
       event_name: automation_rule_params[:event_name].presence || 'card_created',
       conditions: automation_rule_params[:conditions] || [],
-      actions: automation_rule_params[:actions] || []
+      actions: automation_rule_params[:actions] || [],
+      threshold_hours: automation_rule_params[:threshold_hours]
     )
 
     return render_preview_error unless @preview_rule.valid?
@@ -80,7 +81,7 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
 
   def automation_rule_params
     params.require(:automation_rule).permit(
-      :name, :description, :event_name, :position, :dry_run, :stop_after_match,
+      :name, :description, :event_name, :position, :dry_run, :stop_after_match, :threshold_hours,
       conditions: [:attribute_key, :filter_operator, { values: [] }],
       actions: [:action_name, { action_params: {} }]
     )

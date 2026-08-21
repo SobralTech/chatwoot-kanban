@@ -2,21 +2,20 @@
 #
 # Table name: accounts
 #
-#  id                                :integer          not null, primary key
-#  allow_agent_kanban_board_creation :boolean          default(TRUE), not null
-#  auto_resolve_duration             :integer
-#  custom_attributes                 :jsonb
-#  domain                            :string(100)
-#  feature_flags                     :bigint           default(0), not null
-#  internal_attributes               :jsonb            not null
-#  limits                            :jsonb
-#  locale                            :integer          default("en")
-#  name                              :string           not null
-#  settings                          :jsonb
-#  status                            :integer          default("active")
-#  support_email                     :string(100)
-#  created_at                        :datetime         not null
-#  updated_at                        :datetime         not null
+#  id                    :integer          not null, primary key
+#  auto_resolve_duration :integer
+#  custom_attributes     :jsonb
+#  domain                :string(100)
+#  feature_flags         :bigint           default(0), not null
+#  internal_attributes   :jsonb            not null
+#  limits                :jsonb
+#  locale                :integer          default("en")
+#  name                  :string           not null
+#  settings              :jsonb
+#  status                :integer          default("active")
+#  support_email         :string(100)
+#  created_at            :datetime         not null
+#  updated_at            :datetime         not null
 #
 # Indexes
 #

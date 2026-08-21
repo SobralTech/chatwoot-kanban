@@ -12,7 +12,7 @@ RSpec.describe KanbanAutomations::ScanTimeBasedJob do
       kanban_board: board,
       active: true,
       event_name: 'card_stalled',
-      conditions: [{ attribute_key: 'hours_in_stage', filter_operator: 'greater_than', values: [1] }]
+      threshold_hours: 1
     )
   end
 
@@ -29,5 +29,24 @@ RSpec.describe KanbanAutomations::ScanTimeBasedJob do
     )
 
     3.times { described_class.perform_now }
+  end
+
+  # The threshold used to live in the conditions as a synthetic `hours_in_stage`
+  # filter, so the matcher demanded the card had also been parked in its stage for
+  # that long. A card due tomorrow that just moved must still fire.
+  it 'enqueues a due_soon card that only just entered its stage' do
+    due_rule = create(
+      :kanban_automation_rule,
+      account: account, kanban_board: board, active: true,
+      event_name: 'due_soon', threshold_hours: 24
+    )
+    card.update!(due_at: 2.hours.from_now, stage_entered_at: 1.minute.ago)
+    allow(Redis::Alfred).to receive(:set).and_return(true)
+
+    expect(KanbanAutomations::RunRulesJob).to receive(:perform_later).once.with(
+      card.id, [due_rule.id], 'due_soon', anything
+    )
+
+    described_class.perform_now
   end
 end
