@@ -52,13 +52,15 @@ class KanbanCards::CreateFromConversationService
     raise_validation_error('Conversation must belong to account', :conversation) unless conversation.account_id == account.id
     raise_validation_error('Conversation must have a contact', :conversation) if conversation.contact_id.blank?
     raise_validation_error('Conversation must have an inbox', :conversation) if conversation.inbox_id.blank?
+    return if system_execution?
+
     raise Pundit::NotAuthorizedError unless ConversationPolicy.new(user_context, conversation).show?
   end
 
   def validate_board!
     raise_validation_error('Board must belong to account', :kanban_board) unless kanban_board.account_id == account.id
     raise_validation_error('Board must be active', :kanban_board) unless kanban_board.active?
-    raise Pundit::NotAuthorizedError unless KanbanBoardPolicy.new(user_context, kanban_board).visible?
+    raise Pundit::NotAuthorizedError unless system_execution? || KanbanBoardPolicy.new(user_context, kanban_board).visible?
 
     return if kanban_board.inbox_allowed?(conversation.inbox_id)
 
@@ -90,6 +92,8 @@ class KanbanCards::CreateFromConversationService
   end
 
   def authorize_card!
+    return if system_execution?
+
     raise Pundit::NotAuthorizedError unless KanbanCardPolicy.new(user_context, unsaved_card).create?
   end
 
@@ -177,7 +181,11 @@ class KanbanCards::CreateFromConversationService
   end
 
   def account_user
-    @account_user ||= user.account_users.find_by(account: account)
+    @account_user ||= user&.account_users&.find_by(account: account)
+  end
+
+  def system_execution?
+    user.blank?
   end
 
   def raise_validation_error(message, attribute = :base)

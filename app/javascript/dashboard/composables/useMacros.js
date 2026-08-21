@@ -2,6 +2,13 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStoreGetters } from 'dashboard/composables/store';
 import { PRIORITY_CONDITION_VALUES } from 'dashboard/constants/automation';
+import {
+  KANBAN_AGENT_ACTIONS,
+  KANBAN_STAGE_ACTIONS,
+  getKanbanAgentOptionsByBoard,
+  getKanbanBoardOptions,
+  getKanbanStageOptions,
+} from 'dashboard/helper/kanbanActionOptions';
 
 /**
  * Composable for handling macro-related functionality
@@ -14,6 +21,9 @@ export const useMacros = () => {
   const labels = computed(() => getters['labels/getLabels'].value);
   const teams = computed(() => getters['teams/getTeams'].value);
   const agents = computed(() => getters['agents/getVerifiedAgents'].value);
+  const kanbanBoards = computed(
+    () => getters['kanbanBoards/kanbanBoards']?.value || []
+  );
 
   const withNoneOption = options => [
     { id: 'nil', name: t('AUTOMATION.NONE_OPTION') },
@@ -26,6 +36,20 @@ export const useMacros = () => {
    * @returns {Array} An array of dropdown values
    */
   const getMacroDropdownValues = type => {
+    if (KANBAN_STAGE_ACTIONS.includes(type)) {
+      return getKanbanStageOptions(kanbanBoards.value, type);
+    }
+
+    if (KANBAN_AGENT_ACTIONS.includes(type)) {
+      return {
+        boards: getKanbanBoardOptions(kanbanBoards.value),
+        agentsByBoardId: getKanbanAgentOptionsByBoard(
+          kanbanBoards.value,
+          agents.value
+        ),
+      };
+    }
+
     switch (type) {
       case 'assign_team':
         return withNoneOption(teams.value);

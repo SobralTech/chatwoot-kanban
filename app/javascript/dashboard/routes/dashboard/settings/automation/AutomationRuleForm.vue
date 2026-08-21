@@ -2,6 +2,7 @@
 import { ref, computed, h, useTemplateRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
+import { useMapGetter } from 'dashboard/composables/store';
 import { useOperators } from 'dashboard/components-next/filter/operators';
 import ConditionRow from 'dashboard/components-next/filter/ConditionRow.vue';
 import AutomationActionInput from 'dashboard/components/widgets/AutomationActionInput.vue';
@@ -15,6 +16,10 @@ import {
 } from 'dashboard/helper/automationHelper';
 import { validateAutomation } from 'dashboard/helper/validations';
 import { AUTOMATION_RULE_EVENTS, AUTOMATION_ACTION_TYPES } from './constants';
+import {
+  KANBAN_AGENT_ACTIONS,
+  KANBAN_STAGE_ACTIONS,
+} from 'dashboard/helper/kanbanActionOptions';
 
 const props = defineProps({
   mode: {
@@ -74,6 +79,7 @@ const INPUT_TYPE_MAP = {
 const { t } = useI18n();
 const { isCloudFeatureEnabled } = useAccount();
 const { operators } = useOperators();
+const kanbanBoards = useMapGetter('kanbanBoards/kanbanBoards');
 
 const dialogRef = ref(null);
 const conditionsRef = useTemplateRef('conditionsRef');
@@ -170,7 +176,13 @@ const automationActionTypes = computed(() => {
     ? AUTOMATION_ACTION_TYPES
     : AUTOMATION_ACTION_TYPES.filter(({ key }) => key !== 'add_sla');
 
-  return actionTypes.map(action => ({
+  const kanbanActionKeys = [...KANBAN_AGENT_ACTIONS, ...KANBAN_STAGE_ACTIONS];
+  const availableActionTypes = actionTypes.filter(
+    ({ key }) =>
+      !kanbanActionKeys.includes(key) || (kanbanBoards.value || []).length > 0
+  );
+
+  return availableActionTypes.map(action => ({
     ...action,
     label: t(`AUTOMATION.ACTIONS.${action.label}`),
   }));

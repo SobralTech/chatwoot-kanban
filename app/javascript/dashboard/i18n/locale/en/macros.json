@@ -10,6 +10,9 @@
     "SEARCH_PLACEHOLDER": "Search macros...",
     "NO_RESULTS": "No macros found matching your search",
     "ERROR": "Something went wrong. Please try again",
+    "KANBAN_STAGE_PLACEHOLDER": "Select funnel and stage",
+    "KANBAN_BOARD_PLACEHOLDER": "Select funnel",
+    "KANBAN_AGENT_PLACEHOLDER": "Select agents",
     "ORDER_INFO": "Macros will run in the order you add your actions. You can rearrange them by dragging them by the handle beside each node.",
     "ADD": {
       "FORM": {
@@ -108,7 +111,10 @@
       "SEND_MESSAGE": "Send a Message",
       "CHANGE_PRIORITY": "Change Priority",
       "ADD_PRIVATE_NOTE": "Add a Private Note",
-      "SEND_WEBHOOK_EVENT": "Send Webhook Event"
+      "SEND_WEBHOOK_EVENT": "Send Webhook Event",
+      "ADD_TO_KANBAN_BOARD": "Add to funnel",
+      "MOVE_KANBAN_CARD": "Move funnel card",
+      "ASSIGN_KANBAN_CARD": "Assign funnel card"
     },
     "PRIORITY_TYPES": {
       "NONE": "None",

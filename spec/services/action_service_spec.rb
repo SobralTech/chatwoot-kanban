@@ -150,4 +150,80 @@ describe ActionService do
       expect(conversation.reload.assignee).to be_nil
     end
   end
+
+  describe '#add_to_kanban_board' do
+    let(:conversation) { create(:conversation, account: account) }
+    let(:kanban_board) { create(:kanban_board, account: account) }
+    let(:kanban_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board) }
+    let(:action_service) { described_class.new(conversation) }
+    let(:params) { [{ kanban_board_id: kanban_board.id, kanban_stage_id: kanban_stage.id }] }
+
+    it 'creates a conversation card in the selected stage' do
+      action_service.add_to_kanban_board(params)
+
+      expect(KanbanCard.conversation.find_by(conversation: conversation)).to have_attributes(
+        kanban_board_id: kanban_board.id,
+        kanban_stage_id: kanban_stage.id
+      )
+    end
+
+    it 'does not create a duplicate when the action runs twice' do
+      action_service.add_to_kanban_board(params)
+
+      expect { action_service.add_to_kanban_board(params) }.not_to change(KanbanCard, :count)
+    end
+
+    it 'skips a conversation outside the board inbox scope' do
+      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+
+      expect { action_service.add_to_kanban_board(params) }.not_to change(KanbanCard, :count)
+    end
+  end
+
+  describe '#move_kanban_card' do
+    let(:conversation) { create(:conversation, account: account) }
+    let(:kanban_board) { create(:kanban_board, account: account) }
+    let(:source_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1) }
+    let(:target_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2) }
+    let!(:card) do
+      create(:kanban_card, :conversation_origin, conversation: conversation, kanban_board: kanban_board,
+                                                 kanban_stage: source_stage, position: 1)
+    end
+    let(:action_service) { described_class.new(conversation) }
+
+    it 'moves the active conversation card to the selected stage' do
+      action_service.move_kanban_card([{ kanban_board_id: kanban_board.id, kanban_stage_id: target_stage.id }])
+
+      expect(card.reload.kanban_stage_id).to eq(target_stage.id)
+    end
+
+    it 'does not move a card to the won stage' do
+      won_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, position: 3)
+      kanban_board.update!(won_stage_id: won_stage.id)
+
+      action_service.move_kanban_card([{ kanban_board_id: kanban_board.id, kanban_stage_id: won_stage.id }])
+
+      expect(card.reload.kanban_stage_id).to eq(source_stage.id)
+    end
+  end
+
+  describe '#assign_kanban_card' do
+    let(:conversation) { create(:conversation, account: account) }
+    let(:kanban_board) { create(:kanban_board, account: account) }
+    let(:kanban_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board) }
+    let(:agent) { create(:user, account: account, role: :agent) }
+    let!(:card) do
+      create(:kanban_card, :conversation_origin, conversation: conversation, kanban_board: kanban_board,
+                                                 kanban_stage: kanban_stage, position: 1)
+    end
+    let(:action_service) { described_class.new(conversation) }
+
+    it 'assigns the selected agents to the active conversation card' do
+      action_service.assign_kanban_card([
+                                          { kanban_board_id: kanban_board.id, agent_ids: [agent.id] }
+                                        ])
+
+      expect(card.reload.assignees).to contain_exactly(agent)
+    end
+  end
 end

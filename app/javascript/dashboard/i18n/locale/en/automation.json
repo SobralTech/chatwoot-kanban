@@ -130,6 +130,9 @@
       "ATLEAST_ONE_ACTION_REQUIRED": "At least one action is required"
     },
     "NONE_OPTION": "None",
+    "KANBAN_STAGE_PLACEHOLDER": "Select funnel and stage",
+    "KANBAN_BOARD_PLACEHOLDER": "Select funnel",
+    "KANBAN_AGENT_PLACEHOLDER": "Select agents",
     "LAST_RESPONDING_AGENT": "Last Responding Agent",
     "EVENTS": {
       "CONVERSATION_CREATED": "Conversation Created",
@@ -156,6 +159,9 @@
       "ADD_PRIVATE_NOTE": "Add a Private Note",
       "CHANGE_PRIORITY": "Change Priority",
       "ADD_SLA": "Add SLA",
+      "ADD_TO_KANBAN_BOARD": "Add to funnel",
+      "MOVE_KANBAN_CARD": "Move funnel card",
+      "ASSIGN_KANBAN_CARD": "Assign funnel card",
       "OPEN_CONVERSATION": "Open conversation",
       "PENDING_CONVERSATION": "Mark conversation as pending"
     },

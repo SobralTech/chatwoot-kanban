@@ -44,7 +44,7 @@ const showActionInput = computed(() => {
     return false;
   const type = macroActionTypes.value.find(
     action => action.key === actionData.value.action_name
-  ).inputType;
+  )?.inputType;
   return !!type;
 });
 

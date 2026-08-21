@@ -58,7 +58,11 @@ class Api::V1::Accounts::AutomationRulesController < Api::V1::Accounts::BaseCont
     params.permit(
       :name, :description, :event_name, :active,
       conditions: [:attribute_key, :filter_operator, :query_operator, :custom_attribute_type, { values: [] }],
-      actions: [:action_name, { action_params: [] }]
+      actions: [
+        :action_name,
+        { action_params: [:kanban_board_id, :kanban_stage_id, :message, { agent_ids: [], team_ids: [] }] },
+        { action_params: [] }
+      ]
     )
   end
 

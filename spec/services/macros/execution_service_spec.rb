@@ -175,4 +175,25 @@ RSpec.describe Macros::ExecutionService, type: :service do
       service.send(:send_webhook_event, ['https://example.com/webhook'])
     end
   end
+
+  describe 'Kanban actions' do
+    let(:kanban_board) { create(:kanban_board, account: account) }
+    let(:source_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1) }
+    let(:target_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board, position: 2) }
+    let!(:card) do
+      create(:kanban_card, :conversation_origin, conversation: conversation, kanban_board: kanban_board,
+                                                 kanban_stage: source_stage, position: 1)
+    end
+
+    it 'executes the inherited move action' do
+      macro.update!(actions: [{
+                      action_name: 'move_kanban_card',
+                      action_params: [{ kanban_board_id: kanban_board.id, kanban_stage_id: target_stage.id }]
+                    }])
+
+      service.perform
+
+      expect(card.reload.kanban_stage_id).to eq(target_stage.id)
+    end
+  end
 end
