@@ -1,5 +1,6 @@
-# The card-level ActionCable payloads, in one place. The board-level events (a whole
-# stage reordered or deleted) keep their own shape and stay with the stage controller.
+# Every KANBAN_CARD_* ActionCable payload, in one place. A card-level event names the
+# card that moved; a stage-level one names only the stage, because it stands for all of
+# the cards in it at once.
 class KanbanCards::EventDispatcher
   def self.card_event(event_name, card, board_id: nil, stage_id: nil)
     dispatch(
@@ -21,6 +22,25 @@ class KanbanCards::EventDispatcher
       conversation_id: card.conversation_id,
       source_stage_id: source_stage_id,
       target_stage_id: card.kanban_stage_id
+    )
+  end
+
+  def self.stage_cards_reordered(board, source_stage_id:, target_stage_id:)
+    dispatch(
+      Events::Types::KANBAN_CARD_REORDERED,
+      account_id: board.account_id,
+      board_id: board.id,
+      source_stage_id: source_stage_id,
+      target_stage_id: target_stage_id
+    )
+  end
+
+  def self.stage_cards_deleted(board, stage_id:)
+    dispatch(
+      Events::Types::KANBAN_CARD_DELETED,
+      account_id: board.account_id,
+      board_id: board.id,
+      stage_id: stage_id
     )
   end
 

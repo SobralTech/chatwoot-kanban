@@ -32,7 +32,9 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       sort_by: params[:sort_by]
     )
 
-    dispatch_kanban_card_reordered_event(@kanban_stage.id, @kanban_stage.id)
+    KanbanCards::EventDispatcher.stage_cards_reordered(
+      @kanban_board, source_stage_id: @kanban_stage.id, target_stage_id: @kanban_stage.id
+    )
     head :no_content
   end
 
@@ -50,7 +52,9 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       target_stage: target_stage
     )
 
-    dispatch_kanban_card_reordered_event(@kanban_stage.id, target_stage.id)
+    KanbanCards::EventDispatcher.stage_cards_reordered(
+      @kanban_board, source_stage_id: @kanban_stage.id, target_stage_id: target_stage.id
+    )
     record_and_trigger_stage_changes(card_ids, @kanban_stage, target_stage)
     head :no_content
   rescue KanbanCards::BulkActionRequest::Error => e
@@ -65,7 +69,7 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       KanbanCard.normalize_positions_for_stage!(kanban_board: @kanban_board, kanban_stage: @kanban_stage)
     end
 
-    dispatch_kanban_card_deleted_event
+    KanbanCards::EventDispatcher.stage_cards_deleted(@kanban_board, stage_id: @kanban_stage.id)
     head :no_content
   end
 
@@ -138,27 +142,6 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
 
   def render_terminal_stage_not_allowed
     render json: { error: 'terminal_stage_not_allowed' }, status: :unprocessable_content
-  end
-
-  def dispatch_kanban_card_reordered_event(source_stage_id, target_stage_id)
-    Rails.configuration.dispatcher.dispatch(
-      Events::Types::KANBAN_CARD_REORDERED,
-      Time.zone.now,
-      account_id: @kanban_board.account_id,
-      board_id: @kanban_board.id,
-      source_stage_id: source_stage_id,
-      target_stage_id: target_stage_id
-    )
-  end
-
-  def dispatch_kanban_card_deleted_event
-    Rails.configuration.dispatcher.dispatch(
-      Events::Types::KANBAN_CARD_DELETED,
-      Time.zone.now,
-      account_id: @kanban_board.account_id,
-      board_id: @kanban_board.id,
-      stage_id: @kanban_stage.id
-    )
   end
 
   def record_and_trigger_stage_changes(card_ids, source_stage, target_stage)

@@ -86,15 +86,7 @@ class KanbanCards::MoveToBoardService
   end
 
   def dispatch_card_event(event_name, board_id:, stage_id:)
-    Rails.configuration.dispatcher.dispatch(
-      event_name,
-      Time.zone.now,
-      account_id: @card.account_id,
-      board_id: board_id,
-      stage_id: stage_id,
-      card_id: @card.id,
-      conversation_id: @card.conversation_id
-    )
+    KanbanCards::EventDispatcher.card_event(event_name, @card, board_id: board_id, stage_id: stage_id)
   end
 
   def next_target_position(target_stage)

@@ -127,15 +127,7 @@ class KanbanCards::CreateFromConversationService
   end
 
   def dispatch_card_created_event(card)
-    Rails.configuration.dispatcher.dispatch(
-      Events::Types::KANBAN_CARD_CREATED,
-      Time.zone.now,
-      account_id: card.account_id,
-      board_id: card.kanban_board_id,
-      stage_id: card.kanban_stage_id,
-      card_id: card.id,
-      conversation_id: card.conversation_id
-    )
+    KanbanCards::EventDispatcher.card_event(Events::Types::KANBAN_CARD_CREATED, card)
   end
 
   def lock_active_cards!
