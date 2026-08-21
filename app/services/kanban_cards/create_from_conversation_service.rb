@@ -28,7 +28,7 @@ class KanbanCards::CreateFromConversationService
       create_card!.tap do |created_card|
         created_card.update_labels(label_titles)
         created_card.update_assignees!(assignee_ids)
-        KanbanCards::RecordEventService.card_created(created_card, user: user, metadata: automation_metadata)
+        KanbanCards::RecordEventService.card_created(created_card, user: user)
       end
     end
     dispatch_card_created_event(card)
@@ -190,12 +190,6 @@ class KanbanCards::CreateFromConversationService
 
   def system_execution?
     user.blank?
-  end
-
-  def automation_metadata
-    return {} if context[:triggered_by_rule_id].blank?
-
-    { automation_rule_id: context[:triggered_by_rule_id] }
   end
 
   def trigger_automation(card)

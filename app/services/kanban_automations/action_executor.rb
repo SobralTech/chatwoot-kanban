@@ -184,8 +184,7 @@ class KanbanAutomations::ActionExecutor
       kanban_card: card,
       target_stage: target_stage,
       kanban_reason_id: kanban_reason_id,
-      user: nil,
-      event_metadata: automation_metadata
+      user: nil
     )
   end
 
@@ -196,9 +195,7 @@ class KanbanAutomations::ActionExecutor
 
     if persist
       card.update_assignees!(next_ids)
-      KanbanCards::RecordEventService.assignees_changed(
-        card: card, from: previous_ids, to: next_ids, user: nil, metadata: automation_metadata
-      )
+      KanbanCards::RecordEventService.assignees_changed(card: card, from: previous_ids, to: next_ids, user: nil)
     end
 
     executed_result(event_recorded: changed, metadata: { assignee_ids: next_ids })
@@ -241,8 +238,7 @@ class KanbanAutomations::ActionExecutor
     changed = previous_priority != priority
     if persist
       KanbanCards::RecordEventService.attribute_changed(
-        card: card, event_type: 'priority_changed', from: previous_priority, to: priority,
-        user: nil, metadata: automation_metadata
+        card: card, event_type: 'priority_changed', from: previous_priority, to: priority, user: nil
       )
     end
 
@@ -255,11 +251,7 @@ class KanbanAutomations::ActionExecutor
     next_labels = add ? (previous_labels + labels).uniq : previous_labels - labels
 
     card.update_labels(next_labels) if persist
-    if persist
-      KanbanCards::RecordEventService.labels_changed(
-        card: card, from: previous_labels, to: next_labels, user: nil, metadata: automation_metadata
-      )
-    end
+    KanbanCards::RecordEventService.labels_changed(card: card, from: previous_labels, to: next_labels, user: nil) if persist
 
     executed_result(event_recorded: previous_labels != next_labels, metadata: { from: previous_labels, to: next_labels })
   end
@@ -279,8 +271,7 @@ class KanbanAutomations::ActionExecutor
     changed = previous_due_at != due_at
     if persist
       KanbanCards::RecordEventService.attribute_changed(
-        card: card, event_type: 'due_at_changed', from: previous_due_at, to: due_at,
-        user: nil, metadata: automation_metadata
+        card: card, event_type: 'due_at_changed', from: previous_due_at, to: due_at, user: nil
       )
     end
 
@@ -364,7 +355,6 @@ class KanbanAutomations::ActionExecutor
     KanbanCards::RecordEventService.automation_action(
       card: card,
       action_name: action_name,
-      rule: rule,
       status: result.status,
       metadata: result.metadata
     )
@@ -425,10 +415,6 @@ class KanbanAutomations::ActionExecutor
 
   def automations_enabled?
     KanbanAutomations::GuardrailService.automations_enabled?(card)
-  end
-
-  def automation_metadata
-    { automation_rule_id: rule.id }
   end
 
   def automation_context

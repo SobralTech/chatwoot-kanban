@@ -24,7 +24,7 @@ class KanbanCards::CreateManualCardService
       lock_active_cards!
       shift_active_cards_down!
       create_card!.tap do |created_card|
-        KanbanCards::RecordEventService.card_created(created_card, user: user, metadata: automation_metadata)
+        KanbanCards::RecordEventService.card_created(created_card, user: user)
       end
     end
     dispatch_card_created_event(card)
@@ -166,12 +166,6 @@ class KanbanCards::CreateManualCardService
 
   def automation?
     @automation
-  end
-
-  def automation_metadata
-    return {} if context[:triggered_by_rule_id].blank?
-
-    { automation_rule_id: context[:triggered_by_rule_id] }
   end
 
   def trigger_automation(card)

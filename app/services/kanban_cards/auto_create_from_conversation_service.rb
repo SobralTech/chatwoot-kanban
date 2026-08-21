@@ -60,7 +60,7 @@ class KanbanCards::AutoCreateFromConversationService
       lock_active_cards!(kanban_board, stage)
       shift_active_cards_down!(kanban_board, stage)
       card = create_card!(kanban_board, stage)
-      KanbanCards::RecordEventService.card_created(card, metadata: automation_metadata)
+      KanbanCards::RecordEventService.card_created(card)
       summary[:created] += 1
       card
     end
@@ -92,12 +92,6 @@ class KanbanCards::AutoCreateFromConversationService
       card_id: card.id,
       conversation_id: card.conversation_id
     )
-  end
-
-  def automation_metadata
-    return {} if context[:triggered_by_rule_id].blank?
-
-    { automation_rule_id: context[:triggered_by_rule_id] }
   end
 
   def trigger_automation(card)

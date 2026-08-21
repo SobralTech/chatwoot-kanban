@@ -55,7 +55,7 @@ class KanbanCards::ImportExistingConversationsService
           kanban_card_id: row['id'],
           kanban_board_id: row['kanban_board_id'],
           event_type: 'card_created',
-          metadata: KanbanCards::RecordEventService.card_created_metadata(row).merge(automation_metadata),
+          metadata: KanbanCards::RecordEventService.card_created_metadata(row),
           created_at: recorded_at
         }
       end
@@ -184,12 +184,6 @@ class KanbanCards::ImportExistingConversationsService
 
   def summary_hash
     { created: 0 }
-  end
-
-  def automation_metadata
-    return {} if context[:triggered_by_rule_id].blank?
-
-    { automation_rule_id: context[:triggered_by_rule_id] }
   end
 
   def trigger_automation(rows)
