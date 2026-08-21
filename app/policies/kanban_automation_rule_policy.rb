@@ -19,6 +19,10 @@ class KanbanAutomationRulePolicy < ApplicationPolicy
     administrator?
   end
 
+  def preview?
+    administrator?
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       return scope.none unless account_user&.administrator?

@@ -106,7 +106,8 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
   def kanban_board_params
     params.require(:kanban_board).permit(
       :name, :description, :position, :active, :auto_create_cards_from_conversations,
-      :won_stage_id, :lost_stage_id, :lost_reason_required
+      :won_stage_id, :lost_stage_id, :lost_reason_required,
+      automation_settings: {}
     )
   end
 

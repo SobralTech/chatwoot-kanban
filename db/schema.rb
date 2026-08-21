@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_20_140100) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_21_100001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1094,6 +1094,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_20_140100) do
     t.index ["kanban_board_id"], name: "index_kanban_automation_rules_on_kanban_board_id"
   end
 
+  create_table "kanban_automation_logs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_automation_rule_id", null: false
+    t.bigint "kanban_card_id"
+    t.string "event_name", null: false
+    t.string "status", null: false
+    t.jsonb "details", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.index ["account_id"], name: "index_kanban_automation_logs_on_account_id"
+    t.index ["kanban_card_id"], name: "index_kanban_automation_logs_on_kanban_card_id"
+    t.index ["kanban_automation_rule_id", "created_at"], name: "index_kanban_automation_logs_on_rule_and_created_at"
+    t.index ["kanban_automation_rule_id"], name: "index_kanban_automation_logs_on_kanban_automation_rule_id"
+    t.index ["kanban_card_id", "created_at"], name: "index_kanban_automation_logs_on_card_and_created_at"
+  end
+
   create_table "kanban_boards", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.string "name", null: false
@@ -1113,6 +1128,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_20_140100) do
     t.integer "won_recurrence_window_hours"
     t.boolean "lost_recurrence_enabled", default: false, null: false
     t.integer "lost_recurrence_window_hours"
+    t.jsonb "automation_settings", default: {}, null: false
     t.index ["account_id", "active"], name: "index_kanban_boards_on_account_id_and_active"
     t.index ["account_id", "name"], name: "index_active_kanban_boards_on_account_id_and_name", unique: true, where: "(active = true)"
     t.index ["account_id", "position"], name: "index_kanban_boards_on_account_id_and_position"
@@ -1697,6 +1713,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_20_140100) do
   add_foreign_key "conversation_pins", "conversations"
   add_foreign_key "conversation_pins", "users"
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "kanban_automation_logs", "kanban_automation_rules", on_delete: :cascade
+  add_foreign_key "kanban_automation_logs", "kanban_cards", on_delete: :nullify
   add_foreign_key "kanban_automation_rules", "accounts"
   add_foreign_key "kanban_automation_rules", "kanban_boards"
   add_foreign_key "kanban_automation_rules", "users", column: "created_by_id"

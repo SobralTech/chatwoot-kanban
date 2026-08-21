@@ -51,6 +51,8 @@ class KanbanAutomationRule < ApplicationRecord
   belongs_to :kanban_board
   belongs_to :created_by, class_name: 'User', optional: true
 
+  has_many :kanban_automation_logs, dependent: :delete_all
+
   validates :account_id, :kanban_board_id, :name, :event_name, :position, presence: true
   validates :position, numericality: { only_integer: true }
 

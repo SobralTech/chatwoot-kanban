@@ -15,11 +15,18 @@ RSpec.describe KanbanAutomations::TriggerService do
       later_rule = create_rule(position: 2)
       first_rule = create_rule(position: 1)
 
-      expect do
-        described_class.call(card: card, event_name: 'card_created', user: nil)
-      end.to have_enqueued_job(KanbanAutomations::RunRulesJob)
-        .with(card.id, [first_rule.id, later_rule.id], 'card_created', { 'automation_depth' => 0 })
-        .on_queue('low')
+      travel_to Time.zone.parse('2026-08-24 10:00:00') do
+        expect do
+          described_class.call(card: card, event_name: 'card_created', user: nil)
+        end.to have_enqueued_job(KanbanAutomations::RunRulesJob)
+          .with(
+            card.id,
+            [first_rule.id, later_rule.id],
+            'card_created',
+            { 'automation_depth' => 0, 'triggered_at' => '2026-08-24T10:00:00Z' }
+          )
+          .on_queue('low')
+      end
     end
 
     it 'does not enqueue inactive rules' do

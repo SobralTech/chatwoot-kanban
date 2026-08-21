@@ -22,7 +22,10 @@ RSpec.describe KanbanAutomations::ScanTimeBasedJob do
     allow(Redis::Alfred).to receive(:set).and_return(true, false, false)
 
     expect(KanbanAutomations::RunRulesJob).to receive(:perform_later).once.with(
-      card.id, [rule.id], 'card_stalled', {}
+      card.id,
+      [rule.id],
+      'card_stalled',
+      hash_including('triggered_at' => kind_of(String))
     )
 
     3.times { described_class.perform_now }

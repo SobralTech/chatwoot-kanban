@@ -22,6 +22,10 @@ RSpec.describe 'Kanban automation rules API', type: :request do
     "/api/v1/accounts/#{account.id}/kanban_boards/#{board.id}/automation_rules"
   end
 
+  def preview_path
+    "#{rules_path}/preview"
+  end
+
   it 'creates a disabled dry-run rule for an administrator' do
     expect do
       post rules_path, headers: administrator.create_new_auth_token, params: rule_params, as: :json
@@ -86,5 +90,25 @@ RSpec.describe 'Kanban automation rules API', type: :request do
     get rules_path, headers: agent.create_new_auth_token, as: :json
 
     expect(response).to have_http_status(:forbidden)
+  end
+
+  it 'previews the active cards matching an unsaved rule' do
+    stage = create(:kanban_stage, account: account, kanban_board: board)
+    create(:kanban_card, account: account, kanban_board: board, kanban_stage: stage, priority: :high)
+    create(:kanban_card, account: account, kanban_board: board, kanban_stage: stage, priority: :low)
+
+    post preview_path,
+         headers: administrator.create_new_auth_token,
+         params: {
+           automation_rule: {
+             event_name: 'card_created',
+             conditions: [{ attribute_key: 'priority', filter_operator: 'equal_to', values: ['high'] }],
+             actions: []
+           }
+         },
+         as: :json
+
+    expect(response).to have_http_status(:success)
+    expect(response.parsed_body).to include('count' => 1, 'limit' => 500, 'capped' => false)
   end
 end

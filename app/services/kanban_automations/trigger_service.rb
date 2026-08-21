@@ -1,6 +1,6 @@
 class KanbanAutomations::TriggerService
   MAX_AUTOMATION_DEPTH = 2
-  CONTEXT_KEYS = %w[automation_depth triggered_by_rule_id triggered_by_user_id].freeze
+  CONTEXT_KEYS = %w[automation_depth triggered_by_rule_id triggered_by_user_id triggered_at].freeze
 
   def self.call(card:, event_name:, user: nil, context: {})
     new(card: card, event_name: event_name, user: user, context: context).call
@@ -19,6 +19,7 @@ class KanbanAutomations::TriggerService
   def call
     return :depth_exceeded if automation_depth >= MAX_AUTOMATION_DEPTH
     return if card.blank? || KanbanAutomationRule::EVENTS.exclude?(event_name)
+    return :disabled unless KanbanAutomations::GuardrailService.automations_enabled?(card)
 
     rule_ids = active_rule_ids
     return if rule_ids.empty?
@@ -44,6 +45,18 @@ class KanbanAutomations::TriggerService
   end
 
   def serialized_context
-    context.slice(*CONTEXT_KEYS).stringify_keys.merge('automation_depth' => automation_depth)
+    context.slice(*CONTEXT_KEYS).stringify_keys
+           .merge('automation_depth' => automation_depth)
+           .merge('triggered_at' => triggered_at.iso8601)
+  end
+
+  def triggered_at
+    value = context[:triggered_at]
+    return value.to_time if value.respond_to?(:to_time)
+    return Time.zone.parse(value.to_s) if value.present?
+
+    Time.current
+  rescue ArgumentError, TypeError
+    Time.current
   end
 end

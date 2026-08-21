@@ -62,6 +62,11 @@ class KanbanAutomations::ScanTimeBasedJob < ApplicationJob
     key = "#{rule.id}:#{card.id}:#{rule.event_name}:#{Time.zone.today}"
     return unless Redis::Alfred.set(key, '1', nx: true, ex: IDEMPOTENCY_TTL.to_i)
 
-    KanbanAutomations::RunRulesJob.perform_later(card.id, [rule.id], rule.event_name, {})
+    KanbanAutomations::RunRulesJob.perform_later(
+      card.id,
+      [rule.id],
+      rule.event_name,
+      { 'triggered_at' => Time.current.iso8601 }
+    )
   end
 end

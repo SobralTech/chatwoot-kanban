@@ -66,6 +66,7 @@ class KanbanCard < ApplicationRecord
   has_many :kanban_card_field_values, dependent: :destroy
   has_many :kanban_card_events, dependent: :delete_all
   has_many :kanban_card_notes, dependent: :destroy
+  has_many :kanban_automation_logs, dependent: :nullify
 
   enum :origin, {
     conversation: 'conversation',

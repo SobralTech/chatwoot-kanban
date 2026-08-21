@@ -1,4 +1,6 @@
 class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Accounts::BaseController
+  PREVIEW_LIMIT = 500
+
   before_action :fetch_kanban_board
   before_action :fetch_automation_rule, only: [:update, :destroy, :toggle]
   before_action :check_authorization
@@ -37,6 +39,26 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
     @automation_rule.update!(active: !@automation_rule.active?)
   end
 
+  def preview
+    @preview_rule = KanbanAutomationRule.new(
+      account: Current.account,
+      kanban_board: @kanban_board,
+      name: automation_rule_params[:name].presence || 'Preview',
+      event_name: automation_rule_params[:event_name].presence || 'card_created',
+      conditions: automation_rule_params[:conditions] || [],
+      actions: automation_rule_params[:actions] || []
+    )
+
+    return render_preview_error unless @preview_rule.valid?
+
+    cards = preview_cards
+    matching_count = cards.first(PREVIEW_LIMIT).count do |card|
+      KanbanAutomations::RuleMatcher.match?(card, @preview_rule)
+    end
+
+    render json: { count: matching_count, limit: PREVIEW_LIMIT, capped: cards.size > PREVIEW_LIMIT }
+  end
+
   private
 
   def fetch_kanban_board
@@ -62,6 +84,14 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
       conditions: [:attribute_key, :filter_operator, { values: [] }],
       actions: [:action_name, { action_params: {} }]
     )
+  end
+
+  def preview_cards
+    @kanban_board.kanban_cards.active.order(:id).limit(PREVIEW_LIMIT + 1).to_a
+  end
+
+  def render_preview_error
+    render json: { error: @preview_rule.errors.messages }, status: :unprocessable_content
   end
 
   def render_validation_error

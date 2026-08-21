@@ -19,6 +19,24 @@ RSpec.describe KanbanAutomations::ActionExecutor do
     )
   end
 
+  let(:message_contact) { create(:contact, account: account) }
+  let(:message_inbox) { create(:inbox, account: account, timezone: 'UTC') }
+  let(:message_conversation) do
+    create(:conversation, account: account, contact: message_contact, inbox: message_inbox)
+  end
+  let(:message_card) do
+    create(
+      :kanban_card,
+      account: account,
+      kanban_board: board,
+      kanban_stage: source_stage,
+      contact: message_contact,
+      inbox: message_inbox,
+      conversation: message_conversation,
+      origin: 'conversation'
+    )
+  end
+
   describe '.perform' do
     it 'moves a card to a regular stage and records a system event' do
       rule = create_rule(
@@ -137,7 +155,7 @@ RSpec.describe KanbanAutomations::ActionExecutor do
       expect_event('automation_action', rule, action_name: 'create_note', status: 'failed')
     end
 
-    it 'skips message actions without sending anything' do
+    it 'skips message actions without a conversation' do
       rule = create_rule(actions: [{ action_name: 'send_message', action_params: { content: 'Hello' } }])
 
       expect do
@@ -145,6 +163,55 @@ RSpec.describe KanbanAutomations::ActionExecutor do
       end.not_to change(Message, :count)
 
       expect_event('automation_action', rule, action_name: 'send_message', status: 'skipped')
+    end
+
+    it 'sends a message and records the rendered content when guardrails pass' do
+      enable_all_hours
+      rule = create_rule(
+        actions: [{ action_name: 'send_message', action_params: { content: 'Hello {{ contact_name }}' } }]
+      )
+
+      expect do
+        described_class.perform(card: message_card, rule: rule)
+      end.to change(Message, :count).by(1)
+
+      message = message_conversation.messages.last
+      expect(message.content).to eq("Hello #{message_contact.name}")
+      expect(message.content_attributes['automation_rule_id']).to eq(rule.id)
+
+      log = KanbanAutomationLog.where(kanban_card: message_card, kanban_automation_rule: rule).last
+      expect(log.status).to eq('executed')
+      expect(log.details['actions'].first['metadata']['content']).to eq("Hello #{message_contact.name}")
+    end
+
+    it 'simulates a message without persisting it and keeps the rendered text in the log' do
+      enable_all_hours
+      rule = create_rule(
+        dry_run: true,
+        actions: [{ action_name: 'send_message', action_params: { content: 'Hello {{ card_subject }}' } }]
+      )
+
+      expect do
+        described_class.perform(card: message_card, rule: rule)
+      end.not_to change(Message, :count)
+
+      log = KanbanAutomationLog.where(kanban_card: message_card, kanban_automation_rule: rule).last
+      expect(log.status).to eq('simulated')
+      expect(log.details['actions'].first['metadata']['content']).to eq('Hello New opportunity')
+    end
+
+    it 'blocks the board and global kill switches before executing actions' do
+      rule = create_rule(actions: [{ action_name: 'set_priority', action_params: { priority: 'high' } }])
+      board.update!(automation_settings: { enabled: false })
+
+      described_class.perform(card: card, rule: rule)
+      expect(card.reload.priority).to be_nil
+
+      board.update!(automation_settings: { enabled: true })
+      allow(GlobalConfigService).to receive(:load).with('KANBAN_AUTOMATIONS_ENABLED', 'true').and_return('false')
+
+      described_class.perform(card: card, rule: rule)
+      expect(card.reload.priority).to be_nil
     end
 
     it 'does not persist actions in dry-run mode' do
@@ -177,6 +244,18 @@ RSpec.describe KanbanAutomations::ActionExecutor do
       dry_run: dry_run,
       actions: actions
     )
+  end
+
+  def enable_all_hours
+    board.update!(
+      automation_settings: {
+        business_hours: { start: '00:00', end: '23:59', days: [0, 1, 2, 3, 4, 5, 6] },
+        max_auto_messages_per_contact_per_day: 2,
+        human_silence_minutes: 30,
+        enabled: true
+      }
+    )
+    allow(GlobalConfigService).to receive(:load).with('KANBAN_AUTOMATIONS_ENABLED', 'true').and_return('true')
   end
 
   # rubocop:disable Metrics/AbcSize

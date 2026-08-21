@@ -9,13 +9,13 @@ class KanbanAutomations::ActionExecutor
     'remove_label' => :remove_label,
     'set_due_at' => :set_due_at,
     'create_note' => :create_note,
+    'send_message' => :send_message,
+    'send_private_note' => :send_private_note,
     'mark_as_lost' => :mark_as_lost,
     'create_card_in_board' => :create_card_in_board
   }.freeze
 
   SKIPPED_ACTIONS = {
-    'send_message' => 'aguardando guardrails (S21)',
-    'send_private_note' => 'aguardando guardrails (S21)',
     'notify_agents' => 'aguardando notificações (S24)',
     'send_webhook' => 'aguardando guardrails (S21)'
   }.freeze
@@ -31,11 +31,15 @@ class KanbanAutomations::ActionExecutor
   end
 
   def perform
+    return unless automations_enabled?
+
+    @automation_started = true
     Current.executed_by = rule
-    rule.actions.each do |raw_action|
+    Array(rule.actions).each do |raw_action|
       execute(raw_action.with_indifferent_access)
     end
   ensure
+    persist_automation_log if @automation_started
     Current.reset
   end
 
@@ -58,6 +62,8 @@ class KanbanAutomations::ActionExecutor
   end
 
   def record_result(action_name, result)
+    record_action_detail(action_name, result)
+
     if rule.dry_run?
       log_action(action_name, result, dry_run: true)
     else
@@ -69,12 +75,13 @@ class KanbanAutomations::ActionExecutor
 
   def handle_action_error(action_name, error)
     failure = Result.new(status: 'failed', event_name: nil, event_recorded: false,
-                         metadata: { error_class: error.class.name })
+                         metadata: { error_class: error.class.name, error: error.message })
     begin
       record_fallback_event(action_name, failure) unless rule.dry_run?
     rescue StandardError => e
       Rails.logger.error("Kanban automation failure event could not be recorded: #{e.message}")
     end
+    record_action_detail(action_name, failure)
     log_action(action_name, failure, dry_run: rule.dry_run?)
     ChatwootExceptionTracker.new(error, account: account).capture_exception
   end
@@ -83,6 +90,43 @@ class KanbanAutomations::ActionExecutor
     return skipped_result(action_name, SKIPPED_ACTIONS.fetch(action_name)) if SKIPPED_ACTIONS.key?(action_name)
 
     dispatch_action(action_name, action_params, persist: !rule.dry_run?)
+  end
+
+  def send_message(params, persist:)
+    send_automated_message(params, persist: persist, private_note: false)
+  end
+
+  def send_private_note(params, persist:)
+    return skipped_result('send_private_note', 'card_without_conversation') if card.conversation.blank?
+
+    result = KanbanAutomations::MessagingAction.perform(
+      card: card,
+      rule: rule,
+      rendered_content: KanbanAutomations::MessagingAction.render_content(card: card, content: params[:content]),
+      private_note: true,
+      persist: persist
+    )
+    executed_result(metadata: result)
+  end
+
+  def send_automated_message(params, persist:, private_note:)
+    rendered_content = KanbanAutomations::MessagingAction.render_content(card: card, content: params[:content])
+    guardrail = KanbanAutomations::GuardrailService.check(
+      card: card,
+      rule: rule,
+      action_params: params,
+      context: context
+    )
+    return skipped_result('send_message', guardrail.reason, guardrail.metadata.merge(content: rendered_content)) unless guardrail.allowed?
+
+    result = KanbanAutomations::MessagingAction.perform(
+      card: card,
+      rule: rule,
+      rendered_content: rendered_content,
+      private_note: private_note,
+      persist: persist
+    )
+    executed_result(metadata: result)
   end
 
   def dispatch_action(action_name, params, persist:)
@@ -302,17 +346,7 @@ class KanbanAutomations::ActionExecutor
   end
 
   def render_template(value)
-    Liquid::Template.parse(value).render(
-      'card' => {
-        'id' => card.id,
-        'subject' => card.subject,
-        'total_value' => card.total_value.to_s,
-        'stage' => { 'id' => card.kanban_stage_id, 'name' => card.kanban_stage.name }
-      },
-      'contact' => { 'id' => card.contact_id, 'name' => card.contact.name },
-      'subject' => card.subject,
-      'total_value' => card.total_value.to_s
-    )
+    KanbanAutomations::MessagingAction.render_content(card: card, content: value)
   end
 
   def trigger_follow_up(event_name)
@@ -340,9 +374,9 @@ class KanbanAutomations::ActionExecutor
     Result.new(status: 'executed', event_name: event_name, event_recorded: event_recorded, metadata: metadata)
   end
 
-  def skipped_result(action_name, reason)
+  def skipped_result(action_name, reason, metadata = {})
     Result.new(status: 'skipped', event_name: nil, event_recorded: false,
-               metadata: { action_name: action_name, reason: reason })
+               metadata: { action_name: action_name, reason: reason }.merge(metadata))
   end
 
   def log_action(action_name, result, dry_run:)
@@ -356,6 +390,41 @@ class KanbanAutomations::ActionExecutor
         metadata: result.metadata
       }.to_json
     )
+  end
+
+  def record_action_detail(action_name, result)
+    @action_details ||= []
+    @action_details << {
+      action_name: action_name,
+      status: result.status,
+      metadata: result.metadata
+    }
+  end
+
+  def persist_automation_log
+    KanbanAutomationLog.create!(
+      account: account,
+      kanban_automation_rule: rule,
+      kanban_card: card,
+      event_name: rule.event_name,
+      status: automation_log_status,
+      details: { actions: @action_details || [] }
+    )
+  rescue StandardError => e
+    Rails.logger.error("Kanban automation log could not be recorded: #{e.message}")
+  end
+
+  def automation_log_status
+    return 'matched' if @action_details.blank?
+    return 'simulated' if rule.dry_run?
+    return 'failed' if @action_details.any? { |detail| detail[:status] == 'failed' }
+    return 'skipped' if @action_details.none? { |detail| detail[:status] == 'executed' }
+
+    'executed'
+  end
+
+  def automations_enabled?
+    KanbanAutomations::GuardrailService.automations_enabled?(card)
   end
 
   def automation_metadata

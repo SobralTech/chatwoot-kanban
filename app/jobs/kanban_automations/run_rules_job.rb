@@ -4,6 +4,7 @@ class KanbanAutomations::RunRulesJob < ApplicationJob
   def perform(card_id, rule_ids, event_name, context = {})
     card = KanbanCard.active.find_by(id: card_id)
     return if card.blank?
+    return unless KanbanAutomations::GuardrailService.automations_enabled?(card)
 
     rules_for(card, rule_ids, event_name).each do |rule|
       begin

@@ -62,6 +62,7 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
       :won_stage_id,
       :lost_stage_id,
       :lost_reason_required,
+      automation_settings: {},
       visible_user_ids: [],
       allowed_inbox_ids: []
     )

@@ -12,4 +12,4 @@ json.dry_run automation_rule.dry_run?
 json.stop_after_match automation_rule.stop_after_match?
 json.created_by_id automation_rule.created_by_id
 json.created_on automation_rule.created_at.to_i
-json.executions_count 0
+json.executions_count automation_rule.kanban_automation_logs.where('created_at >= ?', 7.days.ago).count
