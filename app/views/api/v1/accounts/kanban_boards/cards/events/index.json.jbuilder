@@ -2,6 +2,8 @@ json.payload @events do |event|
   json.id event.id
   json.event_type event.event_type
   json.metadata event.metadata
+  automation_rule_id = event.metadata['automation_rule_id']
+  json.automation_rule_name @automation_rule_names[automation_rule_id] if automation_rule_id
   json.created_at event.created_at.to_i
   if event.user
     json.user do

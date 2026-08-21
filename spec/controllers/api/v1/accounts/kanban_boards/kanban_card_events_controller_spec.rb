@@ -150,4 +150,17 @@ RSpec.describe 'Kanban card timeline API', type: :request do
   def update_url(card)
     base_url(card)
   end
+
+  it 'serves the automation rule name alongside the event' do
+    rule = create(:kanban_automation_rule, account: account, kanban_board: kanban_board, name: 'Follow up')
+    Current.executed_by = rule
+    KanbanCards::RecordEventService.automation_action(card: card, action_name: 'set_priority', status: 'executed')
+    Current.reset
+
+    get events_url(card), headers: agent.create_new_auth_token, as: :json
+
+    event = response.parsed_body['payload'].find { |item| item['event_type'] == 'automation_action' }
+    expect(event['automation_rule_name']).to eq('Follow up')
+    expect(event['metadata']['automation_rule_id']).to eq(rule.id)
+  end
 end

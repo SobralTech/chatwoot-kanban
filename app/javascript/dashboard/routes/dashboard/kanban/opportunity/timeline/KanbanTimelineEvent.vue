@@ -1,10 +1,9 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { format } from 'date-fns';
 
-import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
 import KanbanTimelineAvatar from './KanbanTimelineAvatar.vue';
 
@@ -12,8 +11,6 @@ const props = defineProps({
   event: { type: Object, required: true },
   boardId: { type: [Number, String], default: null },
 });
-const automationRuleNames = new Map();
-const automationRuleRequests = new Map();
 
 const { t } = useI18n();
 const route = useRoute();
@@ -92,7 +89,7 @@ const EVENT_MESSAGES = {
   ],
   automation_action: metadata => [
     automationActionMessage(metadata.status),
-    { action: metadata.actionName || metadata.action_name || 'unknown' },
+    { action: metadata.actionName || 'unknown' },
   ],
 };
 
@@ -119,64 +116,15 @@ const isAutomationEvent = computed(
   () => props.event.eventType === 'automation_action'
 );
 
-const fetchedAutomationRuleName = ref('');
+const automationRuleId = computed(() => props.event.metadata?.automationRuleId);
 
-const automationRuleId = computed(() => {
-  const metadata = props.event.metadata || {};
-  return metadata.automationRuleId || metadata.automation_rule_id;
-});
-
-const loadAutomationRuleName = async () => {
-  if (!isAutomationEvent.value || !props.boardId || !automationRuleId.value) {
-    return;
-  }
-
-  const accountId = route?.params?.accountId;
-  const cacheKey = `${accountId}:${props.boardId}:${automationRuleId.value}`;
-  if (automationRuleNames.has(cacheKey)) {
-    fetchedAutomationRuleName.value = automationRuleNames.get(cacheKey);
-    return;
-  }
-
-  const requestKey = `${accountId}:${props.boardId}`;
-  let request = automationRuleRequests.get(requestKey);
-  if (!request) {
-    request = KanbanBoardsAPI.getAutomationRules(props.boardId)
-      .then(response => response.data?.payload || [])
-      .then(rules => {
-        rules.forEach(rule => {
-          automationRuleNames.set(
-            `${accountId}:${props.boardId}:${rule.id}`,
-            rule.name
-          );
-        });
-        return rules;
-      })
-      .finally(() => {
-        automationRuleRequests.delete(requestKey);
-      });
-    automationRuleRequests.set(requestKey, request);
-  }
-
-  try {
-    await request;
-    fetchedAutomationRuleName.value = automationRuleNames.get(cacheKey) || '';
-  } catch {
-    fetchedAutomationRuleName.value = '';
-  }
-};
-
-const automationRuleLabel = computed(() => {
-  const metadata = props.event.metadata || {};
-  return (
-    metadata.automationRuleName ||
-    metadata.automation_rule_name ||
-    fetchedAutomationRuleName.value ||
+const automationRuleLabel = computed(
+  () =>
+    props.event.automationRuleName ||
     t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.EVENTS.AUTOMATION_RULE', {
       id: automationRuleId.value,
     })
-  );
-});
+);
 
 const automationLogLink = computed(() => ({
   name: 'kanban_board_edit_form',
@@ -189,8 +137,6 @@ const automationLogLink = computed(() => ({
     automation_rule_id: automationRuleId.value,
   },
 }));
-
-onMounted(loadAutomationRuleName);
 </script>
 
 <template>
