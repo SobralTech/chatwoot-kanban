@@ -46,10 +46,8 @@ class KanbanAutomations::GuardrailService
   end
 
   def check
-    reason = guardrail_reasons.find(&:present?)
-    return blocked(reason) if reason
-
-    allowed
+    reason = blocking_reason
+    reason ? blocked(reason) : allowed
   end
 
   private
@@ -83,38 +81,28 @@ class KanbanAutomations::GuardrailService
     current_minutes >= start_minutes && current_minutes < end_minutes
   end
 
-  def guardrail_reasons
-    return ['global_kill_switch'] unless self.class.global_enabled?
-    return ['board_kill_switch'] unless self.class.board_enabled?(board)
-    return ['card_without_conversation'] if conversation.blank?
-
-    [
-      business_hours_reason,
-      message_limit_reason,
-      human_silence_reason,
-      customer_response_reason,
-      resolved_conversation_reason
-    ]
+  # Ordered cheapest first, and each check stops the chain: the query-backed ones below
+  # are never reached once something above them has already blocked the send.
+  def blocking_reason
+    free_reason || queried_reason
   end
 
-  def business_hours_reason
-    'outside_business_hours' unless within_business_hours?
+  def free_reason
+    return 'global_kill_switch' unless self.class.global_enabled?
+    return 'board_kill_switch' unless self.class.board_enabled?(board)
+    return 'card_without_conversation' if conversation.blank?
+    return 'outside_business_hours' unless within_business_hours?
+
+    nil
   end
 
-  def message_limit_reason
-    'max_auto_messages_per_contact' if max_auto_messages_reached?
-  end
+  def queried_reason
+    return 'conversation_resolved' if resolved_without_permission?
+    return 'max_auto_messages_per_contact' if max_auto_messages_reached?
+    return 'human_silence' if human_spoke_recently?
+    return 'customer_replied' if customer_replied_after_trigger?
 
-  def human_silence_reason
-    'human_silence' if human_spoke_recently?
-  end
-
-  def customer_response_reason
-    'customer_replied' if customer_replied_after_trigger?
-  end
-
-  def resolved_conversation_reason
-    'conversation_resolved' if resolved_without_permission?
+    nil
   end
 
   def local_account_time
@@ -144,22 +132,21 @@ class KanbanAutomations::GuardrailService
     conversation.messages.outgoing
                 .where(private: false, sender_type: 'User')
                 .where('messages.created_at >= ?', silence_minutes.minutes.ago)
-                .to_a
-                .any? { |message| human_message?(message) }
+                .where("COALESCE(additional_attributes ->> 'campaign_id', '') = ''")
+                .pluck(:content_attributes)
+                .any? { |attributes| attributes.to_h['automation_rule_id'].blank? }
   end
 
+  # messages.content_attributes is a json column that holds a JSON *string*, so
+  # `content_attributes ->> 'key'` reads nothing and this predicate cannot move into
+  # SQL. Plucking the one column at least avoids instantiating every message.
   def automated_messages_count
     Message.joins(:conversation)
            .where(conversations: { account_id: account.id, contact_id: card.contact_id })
            .where(message_type: :outgoing, private: false)
            .where('messages.created_at >= ?', 24.hours.ago)
-           .to_a
-           .count { |message| message.content_attributes['automation_rule_id'].present? }
-  end
-
-  def human_message?(message)
-    message.content_attributes['automation_rule_id'].blank? &&
-      message.additional_attributes['campaign_id'].blank?
+           .pluck(:content_attributes)
+           .count { |attributes| attributes.to_h['automation_rule_id'].present? }
   end
 
   def customer_replied_after_trigger?

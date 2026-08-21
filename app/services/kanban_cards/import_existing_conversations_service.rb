@@ -2,11 +2,10 @@ class KanbanCards::ImportExistingConversationsService
   BATCH_SIZE = 1000
   GROUP_IDENTIFIER_PATTERN = '%@g.us%'.freeze
 
-  def initialize(account:, kanban_board:, ignore_groups: false, context: {})
+  def initialize(account:, kanban_board:, ignore_groups: false)
     @account = account
     @kanban_board = kanban_board
     @ignore_groups = ActiveModel::Type::Boolean.new.cast(ignore_groups)
-    @context = context.to_h.with_indifferent_access
     @summary = summary_hash
   end
 
@@ -28,7 +27,7 @@ class KanbanCards::ImportExistingConversationsService
 
   private
 
-  attr_reader :account, :kanban_board, :ignore_groups, :summary, :context
+  attr_reader :account, :kanban_board, :ignore_groups, :summary
 
   def import_batch(batch)
     inserted_rows = KanbanCard.transaction do
@@ -38,9 +37,13 @@ class KanbanCards::ImportExistingConversationsService
     end
 
     summary[:created] += inserted_rows.length
-    trigger_automation(inserted_rows)
   end
 
+  # Retroactive import deliberately does not fire `card_created` automations. A backfill
+  # of every existing conversation would hand a send_message rule the whole contact base
+  # at once, which is the failure the automation guardrails exist to prevent. Cards
+  # created from new conversations still trigger normally.
+  #
   # Stays bulk: the events are built from the INSERT ... RETURNING rows, so an
   # import costs two statements per batch instead of one per imported card.
   def record_card_created_events(rows)
@@ -184,11 +187,5 @@ class KanbanCards::ImportExistingConversationsService
 
   def summary_hash
     { created: 0 }
-  end
-
-  def trigger_automation(rows)
-    KanbanCard.where(id: rows.map { |row| row['id'] }).find_each do |card|
-      KanbanAutomations::TriggerService.call(card: card, event_name: 'card_created', user: nil, context: context)
-    end
   end
 end
