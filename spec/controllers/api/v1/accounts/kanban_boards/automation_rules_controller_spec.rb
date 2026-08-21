@@ -111,4 +111,44 @@ RSpec.describe 'Kanban automation rules API', type: :request do
     expect(response).to have_http_status(:success)
     expect(response.parsed_body).to include('count' => 1, 'limit' => 500, 'capped' => false)
   end
+
+  it 'applies an explicit active state so a repeated toggle is a no-op' do
+    rule = create(:kanban_automation_rule, account: account, kanban_board: board, active: false)
+
+    2.times do
+      patch "#{rules_path}/#{rule.id}/toggle",
+            headers: administrator.create_new_auth_token,
+            params: { active: true },
+            as: :json
+    end
+
+    expect(rule.reload).to be_active
+  end
+
+  it 'reorders every rule in one request' do
+    first, second, third = Array.new(3) do |index|
+      create(:kanban_automation_rule, account: account, kanban_board: board, position: index + 1)
+    end
+
+    patch "#{rules_path}/reorder",
+          headers: administrator.create_new_auth_token,
+          params: { rule_ids: [third.id, first.id, second.id] },
+          as: :json
+
+    expect(response).to have_http_status(:success)
+    expect([third, first, second].map { |rule| rule.reload.position }).to eq([1, 2, 3])
+  end
+
+  it 'rejects a reorder naming a rule from another board' do
+    other_rule = create(:kanban_automation_rule, account: account)
+    rule = create(:kanban_automation_rule, account: account, kanban_board: board, position: 1)
+
+    patch "#{rules_path}/reorder",
+          headers: administrator.create_new_auth_token,
+          params: { rule_ids: [other_rule.id, rule.id] },
+          as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(rule.reload.position).to eq(1)
+  end
 end

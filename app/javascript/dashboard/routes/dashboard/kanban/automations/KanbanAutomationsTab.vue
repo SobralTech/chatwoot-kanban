@@ -214,7 +214,8 @@ const saveRule = async payload => {
       if (shouldActivate) {
         await KanbanBoardsAPI.toggleAutomationRule(
           props.boardId,
-          draftRule.value.id
+          draftRule.value.id,
+          true
         );
       }
     } else {
@@ -239,7 +240,11 @@ const toggleRule = async rule => {
 
   isToggling.value = true;
   try {
-    await KanbanBoardsAPI.toggleAutomationRule(props.boardId, rule.id);
+    await KanbanBoardsAPI.toggleAutomationRule(
+      props.boardId,
+      rule.id,
+      !rule.active
+    );
     await fetchRules();
   } catch (error) {
     useAlert(getErrorMessage(error, t('KANBAN.AUTOMATIONS.TOGGLE_ERROR')));
@@ -296,12 +301,9 @@ const onRuleDragEnd = async event => {
   if (!rules.value[newIndex]?.id) return;
 
   try {
-    await Promise.all(
-      rules.value.map((orderedRule, index) =>
-        KanbanBoardsAPI.updateAutomationRule(props.boardId, orderedRule.id, {
-          automation_rule: { position: index + 1 },
-        })
-      )
+    await KanbanBoardsAPI.reorderAutomationRules(
+      props.boardId,
+      rules.value.map(orderedRule => orderedRule.id)
     );
     await fetchRules();
   } catch (error) {

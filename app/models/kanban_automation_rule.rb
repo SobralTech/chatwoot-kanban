@@ -77,6 +77,17 @@ class KanbanAutomationRule < ApplicationRecord
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, id: :asc) }
 
+  # Position is the only thing moving and the rules are already valid, so this writes
+  # the whole order in one statement instead of revalidating every rule.
+  def self.apply_position_order!(ordered_ids)
+    return if ordered_ids.empty?
+
+    cases = ordered_ids.each_with_index.map { |id, index| "WHEN #{id.to_i} THEN #{index + 1}" }.join(' ')
+    where(id: ordered_ids).update_all( # rubocop:disable Rails/SkipsModelValidations
+      ["position = CASE id #{cases} END, updated_at = ?", Time.current]
+    )
+  end
+
   def threshold_required?
     THRESHOLD_EVENTS.include?(event_name.to_s)
   end

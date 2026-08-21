@@ -151,6 +151,7 @@ Rails.application.routes.draw do
               resources :automation_rules, only: [:index, :create, :update, :destroy] do
                 patch :toggle, on: :member
                 post :preview, on: :collection
+                patch :reorder, on: :collection
               end
               resources :automation_logs, only: [:index]
               get 'cards/lookup', to: 'cards#lookup'

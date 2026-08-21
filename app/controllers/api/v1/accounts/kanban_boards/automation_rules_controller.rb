@@ -6,9 +6,7 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
   before_action :check_authorization
 
   def index
-    @automation_rules = policy_scope(KanbanAutomationRule)
-                        .where(kanban_board_id: @kanban_board.id)
-                        .ordered
+    @automation_rules = scoped_rules.ordered
   end
 
   def create
@@ -35,8 +33,20 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
     head :no_content
   end
 
+  # Takes the value it should end up with, so a retry or a double click is a no-op
+  # rather than a flip back.
   def toggle
-    @automation_rule.update!(active: !@automation_rule.active?)
+    active = params.key?(:active) ? ActiveModel::Type::Boolean.new.cast(params[:active]) : !@automation_rule.active?
+    @automation_rule.update!(active: active)
+  end
+
+  def reorder
+    ordered_ids = Array(params[:rule_ids]).map(&:to_i)
+    return render_unknown_rules if scoped_rules.where(id: ordered_ids).count != ordered_ids.size
+
+    scoped_rules.apply_position_order!(ordered_ids)
+    @automation_rules = scoped_rules.ordered
+    render :index
   end
 
   def preview
@@ -61,6 +71,14 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
   end
 
   private
+
+  def scoped_rules
+    policy_scope(KanbanAutomationRule).where(kanban_board_id: @kanban_board.id)
+  end
+
+  def render_unknown_rules
+    render json: { error: { rule_ids: ['must all belong to this board'] } }, status: :unprocessable_content
+  end
 
   def fetch_kanban_board
     @kanban_board = KanbanBoard.where(account_id: Current.account.id).find(params[:kanban_board_id])
