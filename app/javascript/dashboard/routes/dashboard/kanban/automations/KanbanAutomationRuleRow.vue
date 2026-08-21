@@ -77,28 +77,28 @@ const stageName = stageId =>
   props.stages.find(stage => Number(stage.id) === Number(stageId))?.name ||
   stageId;
 
+// The list is camelised on the way in, so a condition arrives as
+// { attributeKey, filterOperator, values }.
 const conditionValue = condition => {
-  const values = Array(condition.values || []).map(value => {
-    if (['stage_id', 'previous_stage_id'].includes(condition.attribute_key)) {
-      return stageName(value);
-    }
-    return value;
-  });
-
-  if (['is_present', 'is_not_present'].includes(condition.filter_operator)) {
+  if (['is_present', 'is_not_present'].includes(condition.filterOperator)) {
     return '';
   }
 
-  return values.join(', ');
+  const stageCondition = ['stage_id', 'previous_stage_id'].includes(
+    condition.attributeKey
+  );
+  return (condition.values || [])
+    .map(value => (stageCondition ? stageName(value) : value))
+    .join(', ');
 };
 
 const conditionSummary = computed(() => {
-  const condition = (props.rule.conditions || []).find(
-    item => item.attribute_key !== 'hours_in_stage'
-  );
+  const [condition] = props.rule.conditions || [];
   if (!condition) return t('KANBAN.AUTOMATIONS.FORM.NO_CONDITIONS');
 
-  return `${conditionLabels.value[condition.attribute_key] || condition.attribute_key} ${operatorLabel(condition.filter_operator)} ${conditionValue(condition)}`;
+  const label =
+    conditionLabels.value[condition.attributeKey] || condition.attributeKey;
+  return `${label} ${operatorLabel(condition.filterOperator)} ${conditionValue(condition)}`.trim();
 });
 
 const actionCount = computed(() => (props.rule.actions || []).length);
