@@ -70,6 +70,21 @@ export const MACRO_ACTION_TYPES = [
     inputType: 'search_select',
   },
   {
+    key: 'add_to_kanban_board',
+    label: 'ADD_TO_KANBAN_BOARD',
+    inputType: 'kanban_stage',
+  },
+  {
+    key: 'move_kanban_card',
+    label: 'MOVE_KANBAN_CARD',
+    inputType: 'kanban_stage',
+  },
+  {
+    key: 'assign_kanban_card',
+    label: 'ASSIGN_KANBAN_CARD',
+    inputType: 'kanban_agents',
+  },
+  {
     key: 'send_webhook_event',
     label: 'SEND_WEBHOOK_EVENT',
     inputType: 'url',

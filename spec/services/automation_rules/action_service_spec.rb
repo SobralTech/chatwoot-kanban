@@ -217,5 +217,35 @@ RSpec.describe AutomationRules::ActionService do
         expect(conversation.reload.assignee).to eq(agent)
       end
     end
+
+    describe '#perform with Kanban actions' do
+      let(:kanban_board) { create(:kanban_board, account: account) }
+      let(:kanban_stage) { create(:kanban_stage, account: account, kanban_board: kanban_board) }
+      let(:kanban_params) { { kanban_board_id: kanban_board.id, kanban_stage_id: kanban_stage.id } }
+
+      it 'creates a card from the conversation' do
+        rule.update!(actions: [{ action_name: 'add_to_kanban_board', action_params: [kanban_params] }])
+
+        described_class.new(rule, account, conversation).perform
+
+        expect(KanbanCard.conversation.find_by(conversation: conversation)).to have_attributes(
+          kanban_board_id: kanban_board.id,
+          kanban_stage_id: kanban_stage.id
+        )
+      end
+
+      it 'continues with later actions when the board rejects the inbox' do
+        kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+        rule.update!(actions: [
+                       { action_name: 'add_to_kanban_board', action_params: [kanban_params] },
+                       { action_name: 'add_label', action_params: ['after_kanban'] }
+                     ])
+
+        described_class.new(rule, account, conversation).perform
+
+        expect(KanbanCard.conversation.where(conversation: conversation)).to be_empty
+        expect(conversation.reload.label_list).to include('after_kanban')
+      end
+    end
   end
 end

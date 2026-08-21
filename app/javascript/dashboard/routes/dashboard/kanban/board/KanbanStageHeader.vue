@@ -7,7 +7,6 @@ import NextButton from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import ColorPicker from 'dashboard/components-next/colorpicker/ColorPicker.vue';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
-import { stageSlaStatus } from 'dashboard/helper/kanbanStageSla';
 import KanbanStageMenu from '../KanbanStageMenu.vue';
 
 const props = defineProps({
@@ -105,16 +104,9 @@ const terminalPeriodLabel = computed(
     )?.label || ''
 );
 
-const staleCardsCount = computed(
-  () =>
-    (props.stage.cards || []).filter(
-      card =>
-        stageSlaStatus({
-          stageEnteredAt: card.stageEnteredAt || card.stage_entered_at,
-          slaHours: props.stage.slaHours || props.stage.sla_hours,
-        }) === 'stale'
-    ).length
-);
+// Counted by the same query that pages the stage, so this covers every stale
+// card in the column rather than only the ones already loaded.
+const staleCardsCount = computed(() => props.stage.staleCount || 0);
 
 const toggleCollapseOnDoubleClick = () => {
   if (props.editingStageId === props.stage.id) return;

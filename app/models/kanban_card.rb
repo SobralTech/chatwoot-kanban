@@ -4,30 +4,30 @@
 #
 # Table name: kanban_cards
 #
-#  id                 :bigint           not null, primary key
-#  active             :boolean          default(TRUE), not null
-#  description        :text
-#  discount_cents     :integer
-#  discount_percent   :decimal(5, 2)
-#  due_at             :datetime
-#  normalized_subject :string
-#  origin             :string           not null
-#  position           :integer          default(0), not null
-#  priority           :integer
+#  id                     :bigint           not null, primary key
+#  active                 :boolean          default(TRUE), not null
+#  description            :text
+#  discount_amount        :decimal(12, 2)
+#  discount_type          :integer          default(0), not null
+#  due_at                 :datetime
+#  normalized_subject     :string
+#  origin                 :string           not null
+#  position               :integer          default(0), not null
+#  priority               :integer
+#  stage_entered_at       :datetime         not null
+#  starts_at              :datetime
+#  subject                :string
+#  created_at             :datetime         not null
+#  updated_at             :datetime         not null
+#  account_id             :bigint           not null
+#  contact_id             :bigint           not null
+#  conversation_id        :bigint
+#  inbox_id               :bigint           not null
+#  kanban_board_id        :bigint           not null
+#  kanban_reason_id       :bigint
+#  kanban_stage_id        :bigint           not null
+#  previous_stage_id      :bigint
 #  recreated_from_card_id :bigint
-#  stage_entered_at   :datetime         not null
-#  starts_at          :datetime
-#  subject            :string
-#  created_at         :datetime         not null
-#  updated_at         :datetime         not null
-#  account_id         :bigint           not null
-#  contact_id         :bigint           not null
-#  conversation_id    :bigint
-#  inbox_id           :bigint           not null
-#  kanban_board_id    :bigint           not null
-#  kanban_reason_id   :bigint
-#  kanban_stage_id    :bigint           not null
-#  previous_stage_id  :bigint
 #
 # Indexes
 #
@@ -43,12 +43,16 @@
 #  index_kanban_cards_on_kanban_reason_id             (kanban_reason_id)
 #  index_kanban_cards_on_previous_stage_id            (previous_stage_id)
 #  index_kanban_cards_on_recreated_from_card_id       (recreated_from_card_id)
+#  index_kanban_cards_on_subject_trgm                 (immutable_unaccent(lower((subject)::text)) gin_trgm_ops) WHERE (active = true) USING gin
+#
+# Foreign Keys
+#
+#  fk_rails_...  (previous_stage_id => kanban_stages.id) ON DELETE => nullify
+#  fk_rails_...  (recreated_from_card_id => kanban_cards.id) ON DELETE => nullify
 #
 # rubocop:enable Layout/LineLength
 class KanbanCard < ApplicationRecord
   include Labelable
-
-  DISCOUNT_EXCLUSIVITY_ERROR = 'Use either a percentage or an amount, not both.'.freeze
 
   belongs_to :account
   belongs_to :kanban_board
@@ -74,6 +78,8 @@ class KanbanCard < ApplicationRecord
   }
 
   enum :priority, { low: 0, medium: 1, high: 2, urgent: 3 }
+  enum :discount_type, { percent: 0, amount: 1 }, prefix: true
+
   SORT_ORDER_SQL = {
     'created_at_desc' => 'kanban_cards.created_at DESC, kanban_cards.id DESC',
     'created_at_asc' => 'kanban_cards.created_at ASC, kanban_cards.id ASC',
@@ -104,10 +110,9 @@ class KanbanCard < ApplicationRecord
             if: :validate_conversation_uniqueness?
   validate :due_at_after_starts_at
   validate :validate_account_consistency
-  validate :validate_discount_exclusivity
 
-  validates :discount_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
-  validates :discount_percent, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
+  validates :discount_amount, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :discount_amount, numericality: { less_than_or_equal_to: 100 }, allow_nil: true, if: :discount_type_percent?
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
@@ -120,11 +125,13 @@ class KanbanCard < ApplicationRecord
     kanban_card_products.sum { |product| product.unit_price * product.quantity }
   end
 
+  # A percentage is relative to the items, an amount is already absolute. The card
+  # keeps whichever the user picked so nothing has to be inferred from a null column.
   def discount_value
-    return BigDecimal(discount_cents.to_s) / 100 if discount_cents.present?
-    return items_total * (discount_percent / 100) if discount_percent.present?
+    return BigDecimal(0) if discount_amount.blank?
+    return items_total * (discount_amount / 100) if discount_type_percent?
 
-    BigDecimal(0)
+    discount_amount
   end
 
   def total_value
@@ -353,12 +360,6 @@ class KanbanCard < ApplicationRecord
     return 'stage_entered_at = stage_entered_at,' if stage_entered_at_cases.blank?
 
     "stage_entered_at = CASE id #{stage_entered_at_cases} ELSE stage_entered_at END,"
-  end
-
-  def validate_discount_exclusivity
-    return unless discount_cents.present? && discount_percent.present?
-
-    errors.add(:base, DISCOUNT_EXCLUSIVITY_ERROR)
   end
 
   def normalize_subject

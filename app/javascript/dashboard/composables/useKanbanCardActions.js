@@ -1,4 +1,5 @@
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 import {
   getCardStatusChangeErrorMessage,
   isDirectWonLostTransitionError,
@@ -11,7 +12,6 @@ export function useKanbanCardActions({
   endAction,
   findCardStageId,
   flushPendingRealtimeKanbanEvents,
-  getErrorMessage,
   hasActiveFilters,
   isActionActive,
   isCardDragging,
@@ -101,7 +101,7 @@ export function useKanbanCardActions({
       );
       await refreshStageFirstPages([card.kanbanStageId, stage.id]);
     } catch (error) {
-      let message = getErrorMessage(
+      let message = apiErrorMessage(
         error,
         t('KANBAN.ACTIONS.REORDER_CARD_ERROR')
       );
@@ -387,9 +387,7 @@ export function useKanbanCardActions({
         )
       );
     } catch (error) {
-      useAlert(
-        getCardStatusChangeErrorMessage(error, { reopen, t, getErrorMessage })
-      );
+      useAlert(getCardStatusChangeErrorMessage(error, { reopen, t }));
     } finally {
       endAction(actionKey);
     }

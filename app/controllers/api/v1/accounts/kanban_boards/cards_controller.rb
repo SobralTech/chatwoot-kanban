@@ -130,7 +130,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   def card_params
     params.require(:card).permit(
       :kanban_stage_id, :position, :after_card_id, :subject, :description, :starts_at, :due_at, :priority, :kanban_reason_id,
-      :discount_cents, :discount_percent,
+      :discount_type, :discount_amount,
       labels: []
     )
   end
@@ -226,7 +226,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def stable_card_update_params
-    card_params.slice(:subject, :description, :starts_at, :due_at, :priority, :discount_cents, :discount_percent)
+    card_params.slice(:subject, :description, :starts_at, :due_at, :priority, :discount_type, :discount_amount)
   end
 
   def card_label_titles

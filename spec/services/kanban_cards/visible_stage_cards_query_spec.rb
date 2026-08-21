@@ -26,11 +26,11 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
     it 'sums discounted totals by card' do
       percentage_card = create_visible_card(position: 1)
       create_card_product(percentage_card, unit_price: 100, quantity: 2)
-      percentage_card.update!(discount_percent: 10)
+      percentage_card.update!(discount_type: :percent, discount_amount: 10)
 
       amount_card = create_visible_card(position: 2)
       create_card_product(amount_card, unit_price: 300, quantity: 1)
-      amount_card.update!(discount_cents: 5000)
+      amount_card.update!(discount_type: :amount, discount_amount: 50)
 
       result = query.call
 
@@ -298,6 +298,23 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
 
       expect(result.cards).to eq([stale_card])
       expect(result.total_count).to eq(1)
+    end
+
+    it 'counts every stale card in the stage, not only the loaded page' do
+      kanban_stage.update!(sla_hours: 24)
+      cards = create_visible_cards(3)
+      cards.each { |card| card.update_column(:stage_entered_at, 36.hours.ago) } # rubocop:disable Rails/SkipsModelValidations
+
+      result = query(limit: 1).call
+
+      expect(result.cards.length).to eq(1)
+      expect(result.stale_count).to eq(3)
+    end
+
+    it 'reports no stale cards for a stage without an SLA' do
+      create_visible_card(position: 1).update_column(:stage_entered_at, 500.hours.ago) # rubocop:disable Rails/SkipsModelValidations
+
+      expect(query.call.stale_count).to eq(0)
     end
 
     it 'returns no cards for a stage without an SLA when filtering stale cards' do

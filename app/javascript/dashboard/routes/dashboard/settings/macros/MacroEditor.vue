@@ -9,6 +9,10 @@ import { useAlert } from 'dashboard/composables';
 import actionQueryGenerator from 'dashboard/helper/actionQueryGenerator.js';
 import { useMacros } from 'dashboard/composables/useMacros';
 import { useAdmin } from 'dashboard/composables/useAdmin';
+import {
+  KANBAN_AGENT_ACTIONS,
+  KANBAN_STAGE_ACTIONS,
+} from 'dashboard/helper/kanbanActionOptions';
 
 const store = useStore();
 const getters = useStoreGetters();
@@ -20,12 +24,19 @@ const { t } = useI18n();
 
 const { getMacroDropdownValues } = useMacros();
 const { isAdmin } = useAdmin();
+const kanbanBoards = computed(
+  () => getters['kanbanBoards/kanbanBoards']?.value || []
+);
 
 const macro = ref(null);
 const mode = ref('CREATE');
 
 const macroActionTypes = computed(() => {
-  return MACRO_ACTION_TYPES.map(type => ({
+  const kanbanActionKeys = [...KANBAN_AGENT_ACTIONS, ...KANBAN_STAGE_ACTIONS];
+  return MACRO_ACTION_TYPES.filter(
+    type =>
+      !kanbanActionKeys.includes(type.key) || kanbanBoards.value.length > 0
+  ).map(type => ({
     ...type,
     label: t(`MACROS.ACTIONS.${type.label}`),
   }));
@@ -43,6 +54,7 @@ const fetchDropdownData = () => {
   store.dispatch('agents/get');
   store.dispatch('teams/get');
   store.dispatch('labels/get');
+  store.dispatch('kanbanBoards/fetchBoards');
 };
 
 const formatMacro = macroData => {
@@ -51,7 +63,7 @@ const formatMacro = macroData => {
     if (action.action_params.length) {
       const inputType = macroActionTypes.value.find(
         item => item.key === action.action_name
-      ).inputType;
+      )?.inputType;
       if (inputType === 'multi_select' || inputType === 'search_select') {
         actionParams = getMacroDropdownValues(action.action_name).filter(item =>
           [...action.action_params].includes(item.id)

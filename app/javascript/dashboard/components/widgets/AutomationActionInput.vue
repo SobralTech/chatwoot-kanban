@@ -6,6 +6,7 @@ import NextButton from 'dashboard/components-next/button/Button.vue';
 import SingleSelect from 'dashboard/components-next/filter/inputs/SingleSelect.vue';
 import MultiSelect from 'dashboard/components-next/filter/inputs/MultiSelect.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
+import { parseBoardStageId } from 'dashboard/helper/kanbanActionOptions';
 
 export default {
   components: {
@@ -27,7 +28,7 @@ export default {
       default: () => [],
     },
     dropdownValues: {
-      type: Array,
+      type: [Array, Object],
       default: () => [],
     },
     errorMessage: {
@@ -77,7 +78,7 @@ export default {
     },
     inputType() {
       return this.actionTypes.find(action => action.key === this.action_name)
-        .inputType;
+        ?.inputType;
     },
     actionNameAsSelectModel: {
       get() {
@@ -91,6 +92,99 @@ export default {
     },
     actionTypesAsOptions() {
       return this.actionTypes.map(a => ({ id: a.key, name: a.label }));
+    },
+    kanbanStageSelection: {
+      get() {
+        const params = Array.isArray(this.action_params)
+          ? this.action_params[0]
+          : this.action_params;
+        if (!params || !Array.isArray(this.dropdownValues)) return null;
+
+        return (
+          this.dropdownValues.find(
+            option =>
+              option.id ===
+              `${params.kanban_board_id}:${params.kanban_stage_id}`
+          ) || null
+        );
+      },
+      set(value) {
+        if (!value) {
+          this.action_params = [];
+          return;
+        }
+
+        const { kanbanBoardId, kanbanStageId } = parseBoardStageId(value.id);
+        this.action_params = [
+          {
+            kanban_board_id: kanbanBoardId,
+            kanban_stage_id: kanbanStageId,
+          },
+        ];
+      },
+    },
+    kanbanBoardSelection: {
+      get() {
+        const params = Array.isArray(this.action_params)
+          ? this.action_params[0]
+          : this.action_params;
+        const boards = this.dropdownValues?.boards || [];
+        return (
+          boards.find(board => board.id === params?.kanban_board_id) || null
+        );
+      },
+      set(value) {
+        if (!value) {
+          this.action_params = [];
+          return;
+        }
+
+        this.action_params = [{ kanban_board_id: value.id, agent_ids: [] }];
+      },
+    },
+    kanbanAgentOptions() {
+      const params = Array.isArray(this.action_params)
+        ? this.action_params[0]
+        : this.action_params;
+      return (
+        this.dropdownValues?.agentsByBoardId?.[params?.kanban_board_id] || []
+      );
+    },
+    kanbanAgentSelections: {
+      get() {
+        const params = Array.isArray(this.action_params)
+          ? this.action_params[0]
+          : this.action_params;
+        const agentIds = params?.agent_ids || [];
+        return this.kanbanAgentOptions.filter(agent =>
+          agentIds.includes(agent.id)
+        );
+      },
+      set(value) {
+        const params = Array.isArray(this.action_params)
+          ? this.action_params[0]
+          : this.action_params;
+        if (!params?.kanban_board_id) return;
+
+        this.action_params = [
+          {
+            kanban_board_id: params.kanban_board_id,
+            agent_ids: (value || []).map(agent => agent.id),
+          },
+        ];
+      },
+    },
+    kanbanStagePlaceholder() {
+      if (this.isMacro) return this.$t('MACROS.KANBAN_STAGE_PLACEHOLDER');
+      return this.$t('AUTOMATION.KANBAN_STAGE_PLACEHOLDER');
+    },
+    kanbanBoardPlaceholder() {
+      if (this.isMacro) return this.$t('MACROS.KANBAN_BOARD_PLACEHOLDER');
+      return this.$t('AUTOMATION.KANBAN_BOARD_PLACEHOLDER');
+    },
+    kanbanAgentPlaceholder() {
+      if (this.isMacro) return this.$t('MACROS.KANBAN_AGENT_PLACEHOLDER');
+      return this.$t('AUTOMATION.KANBAN_AGENT_PLACEHOLDER');
     },
     isVerticalLayout() {
       return ['team_message', 'textarea'].includes(this.inputType);
@@ -139,7 +233,31 @@ export default {
         />
         <template v-if="showActionInput && !isVerticalLayout">
           <SingleSelect
-            v-if="inputType === 'search_select'"
+            v-if="inputType === 'kanban_stage'"
+            v-model="kanbanStageSelection"
+            :options="dropdownValues"
+            :placeholder="kanbanStagePlaceholder"
+            :dropdown-max-height="dropdownMaxHeight"
+          />
+          <div
+            v-else-if="inputType === 'kanban_agents'"
+            class="flex flex-wrap items-center gap-2"
+          >
+            <SingleSelect
+              v-model="kanbanBoardSelection"
+              :options="dropdownValues.boards || []"
+              :placeholder="kanbanBoardPlaceholder"
+              :dropdown-max-height="dropdownMaxHeight"
+            />
+            <MultiSelect
+              v-model="kanbanAgentSelections"
+              :options="kanbanAgentOptions"
+              :placeholder="kanbanAgentPlaceholder"
+              :dropdown-max-height="dropdownMaxHeight"
+            />
+          </div>
+          <SingleSelect
+            v-else-if="inputType === 'search_select'"
             v-model="action_params"
             :options="dropdownValues"
             :dropdown-max-height="dropdownMaxHeight"

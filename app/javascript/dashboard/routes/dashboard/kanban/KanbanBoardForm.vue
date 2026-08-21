@@ -12,7 +12,6 @@ import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
-import ColorPicker from 'dashboard/components-next/colorpicker/ColorPicker.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
@@ -24,6 +23,7 @@ import KanbanBoardTemplatePicker from './KanbanBoardTemplatePicker.vue';
 import KanbanCustomFieldsTab from './KanbanCustomFieldsTab.vue';
 import KanbanReasonsTab from './KanbanReasonsTab.vue';
 import KanbanAutomationsTab from './automations/KanbanAutomationsTab.vue';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
 const TAB_KEYS = [
   'stages',
@@ -210,12 +210,6 @@ const inboxOptions = computed(() =>
   }))
 );
 
-const getErrorMessage = (error, fallbackMessage) =>
-  error?.response?.data?.error ||
-  error?.response?.data?.message ||
-  error?.message ||
-  fallbackMessage;
-
 const normalizeForDiff = source => ({
   name: (source.name || '').trim(),
   description: (source.description || '').trim(),
@@ -301,7 +295,7 @@ const loadBoard = async () => {
     applyBoard(boardResponse.data);
     reconcileDraftStages();
   } catch (error) {
-    loadError.value = getErrorMessage(error, t('KANBAN.BOARD_EDIT.LOAD_ERROR'));
+    loadError.value = apiErrorMessage(error, t('KANBAN.BOARD_EDIT.LOAD_ERROR'));
   } finally {
     isLoading.value = false;
   }
@@ -314,7 +308,7 @@ const loadTemplates = async () => {
     const response = await KanbanBoardsAPI.templates();
     templates.value = camelcaseKeys(response.data || [], { deep: true });
   } catch (error) {
-    loadError.value = getErrorMessage(
+    loadError.value = apiErrorMessage(
       error,
       t('KANBAN.BOARD_TEMPLATES.LOAD_ERROR')
     );
@@ -353,7 +347,7 @@ const ensureDraftBoard = async templateKey => {
     });
     await loadBoard();
   } catch (error) {
-    loadError.value = getErrorMessage(
+    loadError.value = apiErrorMessage(
       error,
       t('KANBAN.BOARD_EDIT.CREATE_ERROR')
     );
@@ -401,7 +395,7 @@ const persistSettings = async () => {
     ]);
     return true;
   } catch (error) {
-    useAlert(getErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR')));
+    useAlert(apiErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR')));
     return false;
   } finally {
     isSavingSettings.value = false;
@@ -469,7 +463,7 @@ const onAutoCreateChange = async checked => {
     }
   } catch (error) {
     form.autoCreateCardsFromConversations = !checked;
-    useAlert(getErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR')));
+    useAlert(apiErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR')));
   } finally {
     isSavingAutomation.value = false;
   }
@@ -495,7 +489,7 @@ const importExistingConversations = async () => {
     showImportExistingConversationsModal.value = false;
     useAlert(t('KANBAN.SETTINGS.AUTOMATIONS.IMPORT_SUCCESS'));
   } catch (error) {
-    importError.value = getErrorMessage(
+    importError.value = apiErrorMessage(
       error,
       t('KANBAN.SETTINGS.AUTOMATIONS.IMPORT_ERROR')
     );
@@ -520,6 +514,11 @@ const closeCreateStageForm = () => {
   newStageSlaHours.value = null;
 };
 
+// An empty field means "no time limit", which the API stores as null. Sending a
+// redundant null costs nothing, so there is no case to guard against here.
+const toSlaHours = value =>
+  value === '' || value === null || value === undefined ? null : Number(value);
+
 const createStage = async () => {
   const name = newStageName.value.trim();
   if (!name || isCreatingStage.value || !isAdmin.value) return;
@@ -533,10 +532,8 @@ const createStage = async () => {
       description: newStageDescription.value.trim(),
       color: newStageColor.value,
       position: regularStages.value.length + 1,
+      sla_hours: toSlaHours(newStageSlaHours.value),
     };
-    if (newStageSlaHours.value !== '' && newStageSlaHours.value !== null) {
-      stagePayload.sla_hours = Number(newStageSlaHours.value);
-    }
 
     await KanbanBoardsAPI.createStage(boardId.value, { stage: stagePayload });
     closeCreateStageForm();
@@ -544,7 +541,7 @@ const createStage = async () => {
     await store.dispatch('kanbanBoards/refreshBoards');
     useAlert(t('KANBAN.ACTIONS.CREATE_STAGE_SUCCESS'));
   } catch (error) {
-    stageError.value = getErrorMessage(
+    stageError.value = apiErrorMessage(
       error,
       t('KANBAN.ACTIONS.CREATE_STAGE_ERROR')
     );
@@ -584,15 +581,7 @@ const updateStage = async stage => {
     };
     if (!isTerminalStage(stage)) {
       stagePayload.color = editStageColor.value;
-      if (
-        (stage.slaHours !== null && stage.slaHours !== undefined) ||
-        (editStageSlaHours.value !== '' && editStageSlaHours.value !== null)
-      ) {
-        stagePayload.sla_hours =
-          editStageSlaHours.value === '' || editStageSlaHours.value === null
-            ? null
-            : Number(editStageSlaHours.value);
-      }
+      stagePayload.sla_hours = toSlaHours(editStageSlaHours.value);
     }
 
     await KanbanBoardsAPI.updateStage(boardId.value, stage.id, {
@@ -603,7 +592,7 @@ const updateStage = async stage => {
     await store.dispatch('kanbanBoards/refreshBoards');
     useAlert(t('KANBAN.ACTIONS.UPDATE_STAGE_SUCCESS'));
   } catch (error) {
-    stageError.value = getErrorMessage(
+    stageError.value = apiErrorMessage(
       error,
       t('KANBAN.ACTIONS.UPDATE_STAGE_ERROR')
     );
@@ -649,7 +638,7 @@ const removeStage = async () => {
     } else if (error?.response?.status === 422) {
       stageError.value = t('KANBAN.ACTIONS.REMOVE_STAGE_NOT_EMPTY');
     } else {
-      stageError.value = getErrorMessage(
+      stageError.value = apiErrorMessage(
         error,
         t('KANBAN.ACTIONS.REMOVE_STAGE_ERROR')
       );
@@ -671,7 +660,7 @@ const reorderStageByPosition = async (stage, position) => {
     await refreshBoard();
     await store.dispatch('kanbanBoards/refreshBoards');
   } catch (error) {
-    stageError.value = getErrorMessage(
+    stageError.value = apiErrorMessage(
       error,
       t('KANBAN.ACTIONS.REORDER_STAGE_ERROR')
     );
@@ -710,7 +699,7 @@ const onActiveToggle = async () => {
     useAlert(
       desired
         ? t('KANBAN.BOARD_EDIT.ACTIVATE_ERROR')
-        : getErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR'))
+        : apiErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR'))
     );
   } finally {
     isTogglingActive.value = false;
@@ -764,7 +753,7 @@ const discardDraft = async () => {
     await store.dispatch('kanbanBoards/refreshBoards');
     resolveNavigation(true);
   } catch (error) {
-    useAlert(getErrorMessage(error, t('KANBAN.BOARD_EDIT.DISCARD_ERROR')));
+    useAlert(apiErrorMessage(error, t('KANBAN.BOARD_EDIT.DISCARD_ERROR')));
   } finally {
     isDiscarding.value = false;
   }
@@ -793,7 +782,7 @@ const deleteBoard = async () => {
     });
     useAlert(t('KANBAN.ACTIONS.REMOVE_BOARD_SUCCESS'));
   } catch (error) {
-    useAlert(getErrorMessage(error, t('KANBAN.ACTIONS.REMOVE_BOARD_ERROR')));
+    useAlert(apiErrorMessage(error, t('KANBAN.ACTIONS.REMOVE_BOARD_ERROR')));
   } finally {
     isDeleting.value = false;
   }
@@ -1100,72 +1089,21 @@ onMounted(async () => {
             {{ stageReconcileWarning }}
           </p>
 
-          <div
+          <KanbanStageEditPanel
             v-if="showCreateStageForm"
-            data-testid="kanban-board-form-create-stage-panel"
-            class="grid gap-3 rounded-md border border-n-weak bg-n-surface-1 p-3"
-          >
-            <div class="flex min-w-0 items-center gap-3">
-              <ColorPicker
-                v-model="newStageColor"
-                data-testid="kanban-board-form-new-stage-color"
-                class="flex-none"
-              />
-              <input
-                v-model="newStageName"
-                data-testid="kanban-board-form-new-stage-name"
-                type="text"
-                class="reset-base !mb-0 h-10 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
-              />
-              <label
-                class="grid w-32 flex-none gap-1 text-xs font-medium text-n-slate-11"
-              >
-                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS') }}
-                <input
-                  v-model="newStageSlaHours"
-                  data-testid="kanban-board-form-new-stage-sla-hours"
-                  type="number"
-                  min="1"
-                  step="1"
-                  class="reset-base !mb-0 h-10 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                  :placeholder="
-                    t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS_PLACEHOLDER')
-                  "
-                />
-              </label>
-            </div>
-            <textarea
-              v-model="newStageDescription"
-              data-testid="kanban-board-form-new-stage-description"
-              rows="2"
-              class="!mb-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-              :placeholder="
-                t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_DESCRIPTION_PLACEHOLDER')
-              "
-            />
-            <div class="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                data-testid="kanban-board-form-create-stage"
-                icon="i-lucide-check"
-                :label="t('KANBAN.ACTIONS.CREATE_STAGE_CONFIRM')"
-                color="blue"
-                size="sm"
-                :disabled="!newStageName.trim()"
-                :is-loading="isCreatingStage"
-                @click="createStage"
-              />
-              <Button
-                type="button"
-                icon="i-lucide-x"
-                :label="t('KANBAN.ACTIONS.CANCEL')"
-                color="slate"
-                size="sm"
-                @click="closeCreateStageForm"
-              />
-            </div>
-          </div>
+            v-model:name="newStageName"
+            v-model:description="newStageDescription"
+            v-model:color="newStageColor"
+            v-model:sla-hours="newStageSlaHours"
+            show-color-picker
+            show-sla-hours
+            testid-prefix="kanban-board-form-new-stage"
+            save-testid="kanban-board-form-create-stage"
+            save-label-key="KANBAN.ACTIONS.CREATE_STAGE_CONFIRM"
+            :is-updating="isCreatingStage"
+            @save="createStage"
+            @cancel="closeCreateStageForm"
+          />
 
           <p
             v-if="stageError"

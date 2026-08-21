@@ -107,9 +107,7 @@ class KanbanStage < ApplicationRecord
   end
 
   def total_value
-    totals = KanbanCards::Totals.metric(kanban_cards.active)
-
-    BigDecimal(totals.value)
+    KanbanCards::Totals.metric(kanban_cards.active).value
   end
 
   private

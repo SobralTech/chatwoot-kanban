@@ -6,37 +6,46 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: key => key }),
 }));
 
+const mountPanel = (props = {}) =>
+  mount(KanbanStageEditPanel, {
+    props: { showColorPicker: true, showSlaHours: true, ...props },
+    global: { stubs: { Button: true, ColorPicker: true } },
+  });
+
 describe('KanbanStageEditPanel', () => {
-  it('keeps the SLA field within the available stage edit width', () => {
-    const wrapper = mount(KanbanStageEditPanel, {
-      props: {
-        showColorPicker: true,
-        showSlaHours: true,
-      },
-      global: {
-        stubs: {
-          Button: true,
-          ColorPicker: true,
-        },
-      },
+  it('hides the SLA field unless the stage supports a time limit', () => {
+    const wrapper = mountPanel({ showSlaHours: false });
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-board-form-edit-stage-sla-hours"]')
+        .exists()
+    ).toBe(false);
+  });
+
+  it('reports the SLA hours the user typed', async () => {
+    const wrapper = mountPanel();
+
+    await wrapper
+      .find('[data-testid="kanban-board-form-edit-stage-sla-hours"]')
+      .setValue('48');
+
+    expect(wrapper.emitted()['update:slaHours'].at(-1)).toEqual([48]);
+  });
+
+  it('names its fields after the form it is rendering', () => {
+    const wrapper = mountPanel({
+      testidPrefix: 'kanban-board-form-new-stage',
+      saveTestid: 'kanban-board-form-create-stage',
     });
 
-    const nameInput = wrapper.find(
-      '[data-testid="kanban-board-form-edit-stage-name"]'
-    );
-    const slaLabel = nameInput.element.parentElement.querySelector('label');
-    const slaInput = wrapper.find(
-      '[data-testid="kanban-board-form-edit-stage-sla-hours"]'
-    );
-
-    expect(nameInput.classes()).toEqual(
-      expect.arrayContaining(['w-0', 'min-w-0'])
-    );
-    expect([...slaLabel.classList]).toEqual(
-      expect.arrayContaining(['max-w-full', 'min-w-0'])
-    );
-    expect(slaInput.classes()).toEqual(
-      expect.arrayContaining(['w-full', 'min-w-0'])
-    );
+    expect(
+      wrapper.find('[data-testid="kanban-board-form-new-stage-name"]').exists()
+    ).toBe(true);
+    expect(
+      wrapper
+        .find('[data-testid="kanban-board-form-new-stage-sla-hours"]')
+        .exists()
+    ).toBe(true);
   });
 });

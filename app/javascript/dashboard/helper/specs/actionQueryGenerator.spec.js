@@ -38,4 +38,13 @@ describe('#actionQueryGenerator', () => {
       actionQueryGenerator(testData).every(i => Array.isArray(i.action_params))
     ).toBe(true);
   });
+
+  it('preserves Kanban action objects inside action_params', () => {
+    const kanbanAction = {
+      action_name: 'add_to_kanban_board',
+      action_params: [{ kanban_board_id: 7, kanban_stage_id: 11 }],
+    };
+
+    expect(actionQueryGenerator([kanbanAction])).toEqual([kanbanAction]);
+  });
 });

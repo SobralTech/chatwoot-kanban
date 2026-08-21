@@ -15,6 +15,7 @@ import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import KanbanDueDatePicker from '../../kanban/KanbanDueDatePicker.vue';
 import KanbanPriorityDropdown from '../../kanban/KanbanPriorityDropdown.vue';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
 const props = defineProps({
   conversationId: {
@@ -216,12 +217,6 @@ const normalizeCollection = response =>
 const isAbortError = error =>
   error?.name === 'AbortError' || error?.name === 'CanceledError';
 
-const getErrorMessage = (error, fallback) =>
-  error?.response?.data?.error ||
-  error?.response?.data?.message ||
-  error?.message ||
-  fallback;
-
 const resetAbortController = () => {
   abortController.value?.abort();
   abortController.value = null;
@@ -398,7 +393,7 @@ const loadStages = async boardId => {
       return;
     }
 
-    stagesError.value = getErrorMessage(
+    stagesError.value = apiErrorMessage(
       error,
       t('CONVERSATION_SIDEBAR.KANBAN.ERROR')
     );
@@ -440,7 +435,7 @@ const loadEditStages = async boardId => {
       return;
     }
 
-    editError.value = getErrorMessage(
+    editError.value = apiErrorMessage(
       error,
       t('CONVERSATION_SIDEBAR.KANBAN.ERROR')
     );
@@ -489,7 +484,7 @@ const loadBoards = async () => {
       return;
     }
 
-    boardsError.value = getErrorMessage(
+    boardsError.value = apiErrorMessage(
       error,
       t('CONVERSATION_SIDEBAR.KANBAN.ERROR')
     );
@@ -613,7 +608,7 @@ const submitEdit = async card => {
 
     hasPendingRealtimeRefresh.value = false;
   } catch (error) {
-    editError.value = getErrorMessage(
+    editError.value = apiErrorMessage(
       error,
       t('CONVERSATION_SIDEBAR.KANBAN.UPDATE_ERROR')
     );
@@ -657,7 +652,7 @@ const loadEditAssignees = async card => {
     editAssignedUsers.value = response?.data?.payload || [];
     editAssignableUsers.value = response?.data?.assignable_users || [];
   } catch (error) {
-    editAssigneesError.value = getErrorMessage(
+    editAssigneesError.value = apiErrorMessage(
       error,
       t('CONVERSATION_SIDEBAR.KANBAN.LOAD_ASSIGNEES_ERROR')
     );
@@ -684,7 +679,7 @@ const saveEditAssignees = async (card, nextIds) => {
       response?.data?.assignable_users || editAssignableUsers.value;
   } catch (error) {
     editAssignedUsers.value = previousUsers;
-    editAssigneesError.value = getErrorMessage(
+    editAssigneesError.value = apiErrorMessage(
       error,
       t('CONVERSATION_SIDEBAR.KANBAN.SAVE_ASSIGNEES_ERROR')
     );
@@ -755,7 +750,7 @@ const submitForm = async () => {
   } catch (error) {
     if (isAbortError(error)) return;
 
-    createError.value = getErrorMessage(
+    createError.value = apiErrorMessage(
       error,
       t('CONVERSATION_SIDEBAR.KANBAN.CREATE_ERROR')
     );
@@ -817,7 +812,7 @@ const confirmDeleteCard = async () => {
     deleteDialogRef.value?.close();
   } catch (error) {
     useAlert(
-      getErrorMessage(error, t('CONVERSATION_SIDEBAR.KANBAN.DELETE_ERROR'))
+      apiErrorMessage(error, t('CONVERSATION_SIDEBAR.KANBAN.DELETE_ERROR'))
     );
   } finally {
     isDeletingCard.value = false;

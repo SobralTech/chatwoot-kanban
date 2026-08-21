@@ -1232,8 +1232,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_21_100001) do
     t.bigint "kanban_reason_id"
     t.bigint "previous_stage_id"
     t.bigint "recreated_from_card_id"
-    t.integer "discount_cents"
-    t.decimal "discount_percent", precision: 5, scale: 2
+    t.integer "discount_type", default: 0, null: false
+    t.decimal "discount_amount", precision: 12, scale: 2
     t.index "immutable_unaccent(lower((subject)::text)) gin_trgm_ops", name: "index_kanban_cards_on_subject_trgm", where: "(active = true)", using: :gin
     t.index ["account_id", "active"], name: "index_kanban_cards_on_account_id_and_active"
     t.index ["account_id", "contact_id"], name: "index_kanban_cards_on_account_id_and_contact_id"

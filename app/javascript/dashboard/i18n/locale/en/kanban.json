@@ -185,7 +185,7 @@
       "DELETE_STAGE": "Delete this list",
       "DELETE_CARDS": "Delete all cards in this list",
       "CARD_COUNT": "{count} cards",
-      "STALE_COUNT": "{count} stalled among loaded cards",
+      "STALE_COUNT": "{count} stalled",
       "COPY": {
         "LABEL": "Copy list",
         "TITLE": "Copy list",
@@ -793,6 +793,7 @@
         "DISCOUNT_LABEL": "Discount",
         "DISCOUNT_PERCENT": "Percent",
         "DISCOUNT_AMOUNT": "Amount",
+        "DISCOUNT_APPLIED": "−{value}",
         "DISCOUNT_INVALID": "Use either a percentage or an amount, not both.",
         "TOTAL_LABEL": "Total",
         "TOTAL_VALUE": "Total value"

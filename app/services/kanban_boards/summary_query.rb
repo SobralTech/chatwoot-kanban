@@ -47,7 +47,7 @@ class KanbanBoards::SummaryQuery
   def average_ticket_for(metric)
     return if metric.count.zero?
 
-    format('%.2f', BigDecimal(metric.value) / metric.count)
+    format('%.2f', metric.value / metric.count)
   end
 
   def card_table

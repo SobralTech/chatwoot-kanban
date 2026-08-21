@@ -58,9 +58,8 @@ export function useKanbanBoardData({
             }
           : stage.pagination,
         cardsCount: data.stages[index]?.pagination?.total_count ?? 0,
-        totalValue:
-          data.stages[index]?.pagination?.total_value ??
-          payload.stages[index]?.totalValue,
+        totalValue: data.stages[index]?.pagination?.total_value,
+        staleCount: data.stages[index]?.pagination?.stale_count ?? 0,
       }));
     }
 
@@ -112,15 +111,22 @@ export function useKanbanBoardData({
     };
   };
 
+  // Stage totals only ride on the first page, so a cursor page keeps whatever
+  // the stage already knows rather than blanking the header.
+  const stagePageMetadata = (page, stage) => ({
+    pagination: page.pagination || stage.pagination,
+    cardsCount: page.pagination?.totalCount ?? stage.cardsCount,
+    totalValue: page.pagination?.totalValue ?? stage.totalValue,
+    staleCount: page.pagination?.staleCount ?? stage.staleCount,
+  });
+
   const applyStageCardsPage = (stageId, page, shouldAppend = true) => {
     updateStageCards(stageId, stage => ({
       ...stage,
       cards: shouldAppend
         ? mergeCardsById(stage.cards, page.cards)
         : page.cards || [],
-      pagination: page.pagination || stage.pagination,
-      cardsCount: page.pagination?.totalCount ?? stage.cardsCount,
-      totalValue: page.pagination?.totalValue ?? stage.totalValue,
+      ...stagePageMetadata(page, stage),
     }));
   };
 
@@ -135,9 +141,7 @@ export function useKanbanBoardData({
     updateStageCards(stageId, stage => ({
       ...stage,
       cards: page.cards || [],
-      pagination: page.pagination || stage.pagination,
-      cardsCount: page.pagination?.totalCount ?? stage.cardsCount,
-      totalValue: page.pagination?.totalValue ?? stage.totalValue,
+      ...stagePageMetadata(page, stage),
     }));
     setStageCardsError(stageId);
   };
@@ -276,15 +280,14 @@ export function useKanbanBoardData({
     const cardInStage = visibleStage.cards.find(
       stageCard => stageCard.id === updatedCard.id
     );
-    const previousValue = Number(cardInStage?.value || 0);
-    const nextValue = Number(updatedCard.value);
-    const valueChanged =
-      Number.isFinite(nextValue) && Number.isFinite(previousValue);
+    const delta = Number(updatedCard.value) - Number(cardInStage?.value || 0);
 
     updateStageCards(visibleStage.id, stage => ({
       ...stage,
-      totalValue: valueChanged
-        ? Number(stage.totalValue || 0) + nextValue - previousValue
+      // The server sends the stage total as a decimal string; keep that shape so
+      // the field reads the same whether or not a card was edited this session.
+      totalValue: Number.isFinite(delta)
+        ? String(Number(stage.totalValue || 0) + delta)
         : stage.totalValue,
       cards: stage.cards.map(stageCard =>
         stageCard.id === updatedCard.id

@@ -12,6 +12,13 @@ import {
   MESSAGE_CONDITION_VALUES,
   PRIORITY_CONDITION_VALUES,
 } from 'dashboard/constants/automation';
+import {
+  KANBAN_AGENT_ACTIONS,
+  KANBAN_STAGE_ACTIONS,
+  getKanbanAgentOptionsByBoard,
+  getKanbanBoardOptions,
+  getKanbanStageOptions,
+} from 'dashboard/helper/kanbanActionOptions';
 
 /**
  * This is a shared composables that holds utilities used to build dropdown and file options
@@ -27,6 +34,7 @@ export default function useAutomationValues() {
   const labels = useMapGetter('labels/getLabels');
   const teams = useMapGetter('teams/getTeams');
   const slaPolicies = useMapGetter('sla/getSLA');
+  const kanbanBoards = useMapGetter('kanbanBoards/kanbanBoards');
 
   const booleanFilterOptions = computed(() => [
     { id: true, name: t('FILTER.ATTRIBUTE_LABELS.TRUE') },
@@ -121,6 +129,19 @@ export default function useAutomationValues() {
    * @returns {Array} An array of action dropdown values.
    */
   const getActionDropdownValues = type => {
+    const boards = kanbanBoards.value || [];
+
+    if (KANBAN_STAGE_ACTIONS.includes(type)) {
+      return getKanbanStageOptions(boards, type);
+    }
+
+    if (KANBAN_AGENT_ACTIONS.includes(type)) {
+      return {
+        boards: getKanbanBoardOptions(boards),
+        agentsByBoardId: getKanbanAgentOptionsByBoard(boards, agents.value),
+      };
+    }
+
     let agentsList = agents.value;
     if (type === 'assign_agent') {
       agentsList = [

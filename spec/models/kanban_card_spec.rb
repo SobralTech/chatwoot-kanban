@@ -23,32 +23,44 @@ RSpec.describe KanbanCard do
 
     it 'applies a percentage discount' do
       create_card_product(card, unit_price: 100, quantity: 2)
-      card.update!(discount_percent: 10)
+      card.update!(discount_type: :percent, discount_amount: 10)
 
       expect(card.total_value).to eq(BigDecimal(180))
     end
 
     it 'applies an absolute discount' do
       create_card_product(card, unit_price: 100, quantity: 2)
-      card.update!(discount_cents: 3000)
+      card.update!(discount_type: :amount, discount_amount: 30)
 
       expect(card.total_value).to eq(BigDecimal(170))
     end
 
     it 'floors the total at zero when the discount exceeds the subtotal' do
       create_card_product(card, unit_price: 100, quantity: 2)
-      card.update!(discount_cents: 25_000)
+      card.update!(discount_type: :amount, discount_amount: 250)
 
       expect(card.total_value).to eq(BigDecimal(0))
     end
   end
 
   describe 'discount validations' do
-    it 'rejects a percentage and an amount together' do
-      card = build(:kanban_card, discount_percent: 10, discount_cents: 100)
+    it 'rejects a percentage above 100' do
+      card = build(:kanban_card, discount_type: :percent, discount_amount: 101)
 
       expect(card).not_to be_valid
-      expect(card.errors[:base]).to include(KanbanCard::DISCOUNT_EXCLUSIVITY_ERROR)
+      expect(card.errors[:discount_amount]).to be_present
+    end
+
+    it 'allows an absolute discount above 100' do
+      card = build(:kanban_card, discount_type: :amount, discount_amount: 500)
+
+      expect(card).to be_valid
+    end
+
+    it 'rejects a negative discount' do
+      card = build(:kanban_card, discount_type: :amount, discount_amount: -1)
+
+      expect(card).not_to be_valid
     end
   end
 

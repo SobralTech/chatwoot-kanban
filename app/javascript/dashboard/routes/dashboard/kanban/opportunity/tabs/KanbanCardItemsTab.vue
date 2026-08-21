@@ -10,8 +10,13 @@ import NextInput from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
-import { debounce } from '@chatwoot/utils';
+import {
+  DISCOUNT_PERCENT,
+  cardTotal,
+  itemsTotalOf,
+} from 'dashboard/helper/kanbanDiscount';
 
 const props = defineProps({
   boardId: {
@@ -22,31 +27,25 @@ const props = defineProps({
     type: [Number, String],
     required: true,
   },
-  discountCents: {
-    type: [Number, String],
-    default: null,
+  discountType: {
+    type: String,
+    default: DISCOUNT_PERCENT,
   },
-  discountPercent: {
+  discountAmount: {
     type: [Number, String],
     default: null,
   },
 });
-
 const emit = defineEmits(['totalChanged', 'cardChanged']);
+const CATALOG_ITEM_TYPE = 'catalog';
+import { debounce } from '@chatwoot/utils';
+
+import KanbanCardDiscountFooter from '../items/KanbanCardDiscountFooter.vue';
+import KanbanCustomItemForm from '../items/KanbanCustomItemForm.vue';
+
 const { t } = useI18n();
 const { isAdmin } = useAdmin();
 
-const getErrorMessage = (error, fallback) => {
-  const errors = error?.response?.data?.errors;
-
-  if (Array.isArray(errors)) return errors.join(', ');
-  if (typeof errors === 'string') return errors;
-  if (errors && typeof errors === 'object') {
-    return Object.values(errors).flat().join(', ');
-  }
-
-  return error?.response?.data?.message || error?.message || fallback;
-};
 const normalizePayload = payload =>
   camelcaseKeys(payload || {}, { deep: true });
 // --- Products tab ---
@@ -88,88 +87,22 @@ const editingQuantityId = ref(null);
 const editingQuantityValue = ref('');
 const isUpdatingProductId = ref(null);
 const isRemovingProductId = ref(null);
-const isUpdatingDiscount = ref(false);
-const discountError = ref('');
-const discountMode = ref(
-  props.discountPercent != null || props.discountCents == null
-    ? 'percent'
-    : 'amount'
-);
-const initialDiscountInput = () => {
-  if (props.discountPercent != null) return props.discountPercent;
-  if (props.discountCents != null) return Number(props.discountCents) / 100;
+const isCustomItemFormOpen = ref(false);
 
-  return '';
-};
-const discountInput = ref(initialDiscountInput());
-const customItemForm = ref({
-  open: false,
-  name: '',
-  quantity: 1,
-  unitPrice: '',
-  itemType: 'service',
-  isSaving: false,
-  error: '',
-});
-
-const ITEM_TYPE_OPTIONS = [
-  {
-    value: 'service',
-    label: t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_SERVICE'),
-  },
-  {
-    value: 'custom',
-    label: t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_CUSTOM'),
-  },
-];
-
-const DISCOUNT_TYPE_OPTIONS = [
-  {
-    value: 'percent',
-    label: t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_PERCENT'),
-  },
-  {
-    value: 'amount',
-    label: t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_AMOUNT'),
-  },
-];
-
-const subtotal = computed(() =>
-  cardProducts.value.reduce(
-    (sum, product) =>
-      sum + Number(product.subtotal ?? product.unitPrice * product.quantity),
-    0
-  )
-);
-
-const parsedDiscountInput = computed(() => {
-  const value = Number(discountInput.value);
-  return Number.isFinite(value) && value >= 0 ? value : 0;
-});
-
-const discountValue = computed(() => {
-  if (discountMode.value === 'percent') {
-    return subtotal.value * (parsedDiscountInput.value / 100);
-  }
-
-  return parsedDiscountInput.value;
-});
+const itemsTotal = computed(() => itemsTotalOf(cardProducts.value));
 
 const totalValue = computed(() =>
-  Math.max(subtotal.value - discountValue.value, 0)
+  cardTotal({
+    itemsTotal: itemsTotal.value,
+    discountType: props.discountType,
+    discountAmount: props.discountAmount,
+  })
 );
 
-const formattedSubtotal = computed(() => formatCurrency(subtotal.value));
-const formattedTotalValue = computed(() => formatCurrency(totalValue.value));
-
+// Loading products only refreshes what the header displays; a mutation also has
+// to tell the panel the stored card changed.
 const emitCardTotal = () => emit('totalChanged', totalValue.value);
-
-const emitCardChange = card => {
-  emit('cardChanged', {
-    ...(card || {}),
-    value: Number(card?.value ?? totalValue.value),
-  });
-};
+const emitCardChange = () => emit('cardChanged', { value: totalValue.value });
 
 const loadCardProducts = async () => {
   isLoadingProducts.value = true;
@@ -183,7 +116,7 @@ const loadCardProducts = async () => {
     cardProducts.value = normalizePayload(response?.data || []);
     emitCardTotal();
   } catch (error) {
-    productsLoadError.value = getErrorMessage(
+    productsLoadError.value = apiErrorMessage(
       error,
       t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.LOAD_ERROR')
     );
@@ -235,7 +168,7 @@ const performSearch = async () => {
     });
     searchResults.value = normalizePayload(response?.data).products || [];
   } catch (error) {
-    searchError.value = getErrorMessage(
+    searchError.value = apiErrorMessage(
       error,
       t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SEARCH_ERROR')
     );
@@ -283,7 +216,7 @@ const confirmAddProduct = async product => {
     emitCardChange();
     useAlert(t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_SUCCESS'));
   } catch (error) {
-    draft.error = getErrorMessage(
+    draft.error = apiErrorMessage(
       error,
       t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_ERROR')
     );
@@ -293,8 +226,11 @@ const confirmAddProduct = async product => {
   }
 };
 
+// Mirrors the rule the products controller enforces: a catalog price comes from
+// the price list and only an administrator may override it, while manually added
+// lines are priced on the card itself.
 const canEditUnitPrice = product =>
-  isAdmin.value || ['service', 'custom'].includes(product.itemType);
+  product.itemType !== CATALOG_ITEM_TYPE || isAdmin.value;
 
 const startEditUnitPrice = product => {
   if (!canEditUnitPrice(product)) return;
@@ -338,7 +274,7 @@ const saveUnitPrice = async product => {
     emitCardChange();
   } catch (error) {
     useAlert(
-      getErrorMessage(
+      apiErrorMessage(
         error,
         t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.UPDATE_ERROR')
       )
@@ -365,7 +301,7 @@ const saveQuantity = async product => {
     emitCardChange();
   } catch (error) {
     useAlert(
-      getErrorMessage(
+      apiErrorMessage(
         error,
         t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.UPDATE_ERROR')
       )
@@ -391,7 +327,7 @@ const removeCardProduct = async product => {
     useAlert(t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.REMOVE_SUCCESS'));
   } catch (error) {
     useAlert(
-      getErrorMessage(
+      apiErrorMessage(
         error,
         t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.REMOVE_ERROR')
       )
@@ -401,134 +337,10 @@ const removeCardProduct = async product => {
   }
 };
 
-const toggleCustomItemForm = () => {
-  customItemForm.value.open = !customItemForm.value.open;
-  customItemForm.value.error = '';
-};
-
-const confirmAddCustomItem = async () => {
-  const form = customItemForm.value;
-  const quantity = Number(form.quantity);
-  const unitPrice = Number(form.unitPrice);
-
-  if (
-    !form.name.trim() ||
-    !Number.isInteger(quantity) ||
-    quantity < 1 ||
-    !Number.isFinite(unitPrice) ||
-    unitPrice < 0
-  ) {
-    form.error = t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_ERROR');
-    return;
-  }
-
-  if (form.isSaving) return;
-
-  form.isSaving = true;
-  form.error = '';
-
-  try {
-    await KanbanBoardsAPI.createCardProduct(props.boardId, props.cardId, {
-      name: form.name.trim(),
-      quantity,
-      unit_price: unitPrice,
-      item_type: form.itemType,
-    });
-    form.open = false;
-    form.name = '';
-    form.quantity = 1;
-    form.unitPrice = '';
-    await loadCardProducts();
-    emitCardChange();
-    useAlert(t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_SUCCESS'));
-  } catch (error) {
-    form.error = getErrorMessage(
-      error,
-      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_ERROR')
-    );
-    useAlert(form.error);
-  } finally {
-    form.isSaving = false;
-  }
-};
-
-const discountPayload = () => {
-  const rawValue = String(discountInput.value ?? '').trim();
-  const value = Number(rawValue);
-
-  if (!rawValue) {
-    return { discount_cents: null, discount_percent: null };
-  }
-
-  if (!Number.isFinite(value) || value < 0) return null;
-
-  return discountMode.value === 'percent'
-    ? { discount_cents: null, discount_percent: value }
-    : { discount_cents: Math.round(value * 100), discount_percent: null };
-};
-
-const applyDiscountCard = card => {
-  if (card?.discountPercent != null) {
-    discountMode.value = 'percent';
-    discountInput.value = card.discountPercent;
-  } else if (card?.discountCents != null) {
-    discountMode.value = 'amount';
-    discountInput.value = Number(card.discountCents) / 100;
-  } else {
-    discountInput.value = '';
-  }
-};
-
-const saveDiscount = async () => {
-  if (isUpdatingDiscount.value) return;
-
-  const payload = discountPayload();
-  if (!payload) return;
-
-  const previousMode = discountMode.value;
-  const previousInput = discountInput.value;
-  isUpdatingDiscount.value = true;
-  discountError.value = '';
-
-  try {
-    const response = await KanbanBoardsAPI.updateCardDetailsById(
-      props.boardId,
-      props.cardId,
-      payload
-    );
-    const updatedCard = normalizePayload(response?.data || {});
-    applyDiscountCard(updatedCard);
-    emitCardTotal();
-    emitCardChange(updatedCard);
-  } catch (error) {
-    discountMode.value = previousMode;
-    discountInput.value = previousInput;
-    discountError.value = getErrorMessage(
-      error,
-      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_INVALID')
-    );
-    useAlert(discountError.value);
-  } finally {
-    isUpdatingDiscount.value = false;
-  }
-};
-
-const changeDiscountMode = mode => {
-  const currentValue = String(discountInput.value ?? '').trim();
-  const currentAmount = discountValue.value;
-
-  discountMode.value = mode;
-  if (!currentValue) {
-    discountInput.value = '';
-  } else if (mode === 'percent') {
-    discountInput.value = subtotal.value
-      ? (currentAmount / subtotal.value) * 100
-      : 0;
-  } else {
-    discountInput.value = currentAmount;
-  }
-
-  saveDiscount();
+const onCustomItemAdded = async () => {
+  isCustomItemFormOpen.value = false;
+  await loadCardProducts();
+  emitCardChange();
 };
 
 onMounted(loadCardProducts);
@@ -742,80 +554,17 @@ defineExpose({ reload: loadCardProducts });
           xs
           data-testid="kanban-opportunity-add-custom-item"
           :label="t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_CUSTOM_ITEM')"
-          @click="toggleCustomItemForm"
+          @click="isCustomItemFormOpen = !isCustomItemFormOpen"
         />
       </div>
 
-      <form
-        v-if="customItemForm.open"
-        data-testid="kanban-opportunity-custom-item-form"
-        class="grid gap-3 rounded-md border border-n-weak bg-n-surface-2 p-3 sm:grid-cols-[minmax(0,1fr)_8rem_10rem]"
-        @submit.prevent="confirmAddCustomItem"
-      >
-        <label class="grid gap-1 text-xs font-medium text-n-slate-12">
-          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_NAME') }}
-          <input
-            v-model="customItemForm.name"
-            type="text"
-            data-testid="kanban-opportunity-custom-item-name"
-            class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-          />
-        </label>
-        <label class="grid gap-1 text-xs font-medium text-n-slate-12">
-          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_QUANTITY') }}
-          <input
-            v-model.number="customItemForm.quantity"
-            type="number"
-            min="1"
-            data-testid="kanban-opportunity-custom-item-quantity"
-            class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-          />
-        </label>
-        <label class="grid gap-1 text-xs font-medium text-n-slate-12">
-          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_UNIT_PRICE') }}
-          <input
-            v-model.number="customItemForm.unitPrice"
-            type="number"
-            min="0"
-            step="0.01"
-            data-testid="kanban-opportunity-custom-item-unit-price"
-            class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-          />
-        </label>
-        <div
-          class="grid gap-1 text-xs font-medium text-n-slate-12 sm:col-span-2"
-        >
-          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_LABEL') }}
-          <Select
-            v-model="customItemForm.itemType"
-            data-testid="kanban-opportunity-custom-item-type"
-            :options="ITEM_TYPE_OPTIONS"
-          />
-        </div>
-        <p
-          v-if="customItemForm.error"
-          class="mb-0 text-xs text-n-ruby-11 sm:col-span-3"
-        >
-          {{ customItemForm.error }}
-        </p>
-        <div class="flex items-center gap-2 sm:col-span-3">
-          <NextButton
-            type="submit"
-            sm
-            data-testid="kanban-opportunity-custom-item-submit"
-            :label="t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_CONFIRM')"
-            :is-loading="customItemForm.isSaving"
-          />
-          <NextButton
-            type="button"
-            outline
-            slate
-            sm
-            :label="t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_CANCEL')"
-            @click="toggleCustomItemForm"
-          />
-        </div>
-      </form>
+      <KanbanCustomItemForm
+        v-if="isCustomItemFormOpen"
+        :board-id="boardId"
+        :card-id="cardId"
+        @added="onCustomItemAdded"
+        @cancel="isCustomItemFormOpen = false"
+      />
 
       <p
         v-if="isLoadingProducts"
@@ -884,7 +633,7 @@ defineExpose({ reload: loadCardProducts });
                 <div class="grid gap-0.5">
                   <span>{{ product.name }}</span>
                   <span
-                    v-if="product.itemType !== 'catalog'"
+                    v-if="product.itemType !== CATALOG_ITEM_TYPE"
                     class="text-xs text-n-slate-10"
                   >
                     {{
@@ -1035,58 +784,14 @@ defineExpose({ reload: loadCardProducts });
         </table>
       </div>
 
-      <div class="grid gap-2 border-t border-n-weak pt-3 text-sm">
-        <div class="flex items-center justify-between gap-2 text-n-slate-11">
-          <span>{{
-            t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SUBTOTAL_LABEL')
-          }}</span>
-          <span data-testid="kanban-opportunity-products-subtotal">
-            {{ formattedSubtotal }}
-          </span>
-        </div>
-        <div
-          class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem] sm:items-end"
-        >
-          <span class="font-medium text-n-slate-12">
-            {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_LABEL') }}
-          </span>
-          <Select
-            :model-value="discountMode"
-            data-testid="kanban-opportunity-discount-type"
-            :options="DISCOUNT_TYPE_OPTIONS"
-            @update:model-value="changeDiscountMode"
-          />
-          <input
-            v-model="discountInput"
-            type="number"
-            min="0"
-            :max="discountMode === 'percent' ? 100 : undefined"
-            step="0.01"
-            data-testid="kanban-opportunity-discount-input"
-            class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-            :disabled="isUpdatingDiscount"
-            @blur="saveDiscount"
-            @keyup.enter.prevent="saveDiscount"
-          />
-        </div>
-        <p
-          v-if="discountError"
-          data-testid="kanban-opportunity-discount-error"
-          class="mb-0 text-xs text-n-ruby-11"
-        >
-          {{ discountError }}
-        </p>
-        <div
-          class="flex items-center justify-between gap-2 font-medium text-n-slate-12"
-        >
-          <span>{{
-            t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.TOTAL_LABEL')
-          }}</span>
-          <span data-testid="kanban-opportunity-products-total">
-            {{ formattedTotalValue }}
-          </span>
-        </div>
-      </div>
+      <KanbanCardDiscountFooter
+        :board-id="boardId"
+        :card-id="cardId"
+        :items-total="itemsTotal"
+        :discount-type="discountType"
+        :discount-amount="discountAmount"
+        @card-changed="emit('cardChanged', $event)"
+      />
     </section>
   </section>
 </template>

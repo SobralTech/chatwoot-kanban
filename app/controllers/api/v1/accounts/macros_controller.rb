@@ -58,7 +58,11 @@ class Api::V1::Accounts::MacrosController < Api::V1::Accounts::BaseController
   def permitted_params
     params.permit(
       :name, :visibility,
-      actions: [:action_name, { action_params: [] }]
+      actions: [
+        :action_name,
+        { action_params: [:kanban_board_id, :kanban_stage_id, :message, { agent_ids: [], team_ids: [] }] },
+        { action_params: [] }
+      ]
     )
   end
 
