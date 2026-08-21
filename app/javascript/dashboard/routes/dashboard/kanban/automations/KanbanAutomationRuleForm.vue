@@ -422,9 +422,14 @@ const submit = () => {
   emit('save', buildPayload());
 };
 
-const activateForReal = () => {
-  if (!props.hasSimulatedLog || !rule.value) return;
-  rule.value.dry_run = false;
+// Simulation is one boolean, so it gets one button: the one that leaves it, or the one
+// that comes back. Going live needs a simulated run behind it, and the line under the
+// button says so when there is not one yet.
+const setSimulation = value => {
+  if (!rule.value) return;
+  if (!value && !props.hasSimulatedLog) return;
+
+  rule.value.dry_run = value;
 };
 
 const open = () => {
@@ -657,18 +662,10 @@ defineExpose({ open, close });
       <section
         class="grid gap-3 rounded-lg border border-n-weak bg-n-surface-2 p-4"
       >
-        <label
-          class="flex items-center justify-between gap-3 text-sm font-medium text-n-slate-12"
-        >
-          <span>{{ t('KANBAN.AUTOMATIONS.FORM.SIMULATION_LABEL') }}</span>
-          <input
-            v-model="rule.dry_run"
-            type="checkbox"
-            :disabled="rule.dry_run && !hasSimulatedLog"
-            class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
-          />
-        </label>
-        <p class="text-sm text-n-slate-11">
+        <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+          {{ t('KANBAN.AUTOMATIONS.FORM.SIMULATION_LABEL') }}
+        </h3>
+        <p class="mb-0 text-sm text-n-slate-11">
           {{ t('KANBAN.AUTOMATIONS.FORM.SIMULATION_HELP') }}
         </p>
         <Button
@@ -678,17 +675,22 @@ defineExpose({ open, close });
           color="teal"
           size="sm"
           :disabled="!hasSimulatedLog"
-          :title="
-            !hasSimulatedLog
-              ? t('KANBAN.AUTOMATIONS.FORM.ACTIVATE_BLOCKED')
-              : ''
-          "
           data-testid="kanban-automation-activate"
-          @click="activateForReal"
+          @click="setSimulation(false)"
+        />
+        <Button
+          v-else
+          icon="i-lucide-flask-conical"
+          :label="t('KANBAN.AUTOMATIONS.FORM.BACK_TO_SIMULATION')"
+          variant="faded"
+          color="slate"
+          size="sm"
+          data-testid="kanban-automation-simulate"
+          @click="setSimulation(true)"
         />
         <p
           v-if="rule.dry_run && !hasSimulatedLog"
-          class="text-xs text-n-amber-11"
+          class="mb-0 text-xs text-n-amber-11"
         >
           {{ t('KANBAN.AUTOMATIONS.FORM.ACTIVATE_BLOCKED') }}
         </p>
