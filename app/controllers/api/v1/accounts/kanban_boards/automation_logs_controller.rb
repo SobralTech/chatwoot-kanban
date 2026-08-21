@@ -43,7 +43,9 @@ class Api::V1::Accounts::KanbanBoards::AutomationLogsController < Api::V1::Accou
     value = parsed_time(params[key])
     return scope unless value
 
-    scope.where("created_at #{operator} ?", value)
+    # The board reaches its logs through the rules, so both tables are in the query and
+    # a bare created_at is ambiguous to Postgres.
+    scope.where("kanban_automation_logs.created_at #{operator} ?", value)
   end
 
   def parsed_time(value)
