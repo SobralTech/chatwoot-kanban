@@ -70,6 +70,10 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.get(`${this.url}/${boardId}`, config);
   }
 
+  getSummary(boardId, config = {}) {
+    return axios.get(`${this.url}/${boardId}/summary`, config);
+  }
+
   getSettings(boardId) {
     return axios.get(`${this.url}/${boardId}/settings`);
   }
@@ -83,6 +87,42 @@ class KanbanBoardsAPI extends ApiClient {
       `${this.url}/${boardId}/settings/import_existing_conversations`,
       payload
     );
+  }
+
+  getAutomationRules(boardId) {
+    return axios.get(`${this.url}/${boardId}/automation_rules`);
+  }
+
+  createAutomationRule(boardId, payload) {
+    return axios.post(`${this.url}/${boardId}/automation_rules`, payload);
+  }
+
+  updateAutomationRule(boardId, ruleId, payload) {
+    return axios.patch(
+      `${this.url}/${boardId}/automation_rules/${ruleId}`,
+      payload
+    );
+  }
+
+  toggleAutomationRule(boardId, ruleId) {
+    return axios.patch(
+      `${this.url}/${boardId}/automation_rules/${ruleId}/toggle`
+    );
+  }
+
+  deleteAutomationRule(boardId, ruleId) {
+    return axios.delete(`${this.url}/${boardId}/automation_rules/${ruleId}`);
+  }
+
+  previewAutomationRule(boardId, payload) {
+    return axios.post(
+      `${this.url}/${boardId}/automation_rules/preview`,
+      payload
+    );
+  }
+
+  getAutomationLogs(boardId, params = {}) {
+    return axios.get(`${this.url}/${boardId}/automation_logs`, { params });
   }
 
   getConversationCards(conversationId, config = {}) {

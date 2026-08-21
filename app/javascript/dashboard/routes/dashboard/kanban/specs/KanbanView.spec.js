@@ -56,6 +56,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     get: vi.fn(),
     show: vi.fn(),
     showBoard: vi.fn(),
+    getSummary: vi.fn(),
     reorderStage: vi.fn(),
     reorderCardById: vi.fn(),
     create: vi.fn(),
@@ -237,6 +238,15 @@ const mountView = async (
   });
   KanbanBoardsAPI.show.mockResolvedValue({
     data: boardResponse,
+  });
+  KanbanBoardsAPI.getSummary.mockResolvedValue({
+    data: {
+      open: { count: 1, value: '10.0' },
+      won_this_month: { count: 1, value: '10.0' },
+      lost_this_month: { count: 1, value: '10.0' },
+      average_ticket: '10.00',
+      currency: 'BRL',
+    },
   });
   KanbanBoardsAPI.reorderStage.mockResolvedValue({ data: {} });
   KanbanBoardsAPI.reorderCardById.mockResolvedValue({ data: {} });
@@ -611,6 +621,24 @@ describe('KanbanView realtime events', () => {
     expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
       limit: 20,
     });
+  });
+
+  it('refreshes the funnel summary when a card moves between stages', async () => {
+    await mountView();
+    KanbanBoardsAPI.getSummary.mockClear();
+
+    await emitKanbanRealtimeEvent({
+      event: 'kanban.card.reordered',
+      data: {
+        board_id: 10,
+        card_id: 501,
+        source_stage_id: 100,
+        target_stage_id: 200,
+      },
+    });
+
+    // Two stages refreshed, but the summary they share is only fetched once.
+    expect(KanbanBoardsAPI.getSummary).toHaveBeenCalledTimes(1);
   });
 
   it('fetches card detail and patches visible cards for card updated events', async () => {

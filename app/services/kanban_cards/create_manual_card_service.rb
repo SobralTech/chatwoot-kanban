@@ -2,7 +2,7 @@ class KanbanCards::CreateManualCardService
   DUPLICATE_SUBJECT_ERROR = 'Manual opportunity with this subject already exists for this contact and inbox'.freeze
 
   # rubocop:disable Metrics/ParameterLists
-  def initialize(account:, user:, kanban_board:, kanban_stage:, contact:, inbox:, subject:, conversation: nil)
+  def initialize(account:, user:, kanban_board:, kanban_stage:, contact:, inbox:, subject:, conversation: nil, context: {}, automation: false)
     @account = account
     @user = user
     @kanban_board = kanban_board
@@ -11,6 +11,8 @@ class KanbanCards::CreateManualCardService
     @inbox = inbox
     @subject = subject
     @conversation = conversation
+    @context = context.to_h.with_indifferent_access
+    @automation = automation
   end
   # rubocop:enable Metrics/ParameterLists
 
@@ -21,9 +23,12 @@ class KanbanCards::CreateManualCardService
       kanban_stage.lock!
       lock_active_cards!
       shift_active_cards_down!
-      create_card!.tap { |created_card| KanbanCards::RecordEventService.card_created(created_card, user: user) }
+      create_card!.tap do |created_card|
+        KanbanCards::RecordEventService.card_created(created_card, user: user, metadata: automation_metadata)
+      end
     end
     dispatch_card_created_event(card)
+    trigger_automation(card)
     card
   rescue ActiveRecord::RecordNotUnique
     raise_validation_error(DUPLICATE_SUBJECT_ERROR, :subject)
@@ -31,7 +36,7 @@ class KanbanCards::CreateManualCardService
 
   private
 
-  attr_reader :account, :user, :kanban_board, :kanban_stage, :contact, :inbox, :subject, :conversation
+  attr_reader :account, :user, :kanban_board, :kanban_stage, :contact, :inbox, :subject, :conversation, :context
 
   def validate_scope!
     validate_board!
@@ -44,6 +49,8 @@ class KanbanCards::CreateManualCardService
   def validate_board!
     raise_validation_error('Board must belong to account', :kanban_board) unless kanban_board.account_id == account.id
     raise_validation_error('Board must be active', :kanban_board) unless kanban_board.active?
+    return if automation?
+
     raise Pundit::NotAuthorizedError unless KanbanBoardPolicy.new(user_context, kanban_board).visible?
   end
 
@@ -55,7 +62,7 @@ class KanbanCards::CreateManualCardService
   def validate_records!
     raise_validation_error('Contact must belong to account', :contact) unless contact.account_id == account.id
     raise_validation_error('Inbox must belong to account', :inbox) unless inbox.account_id == account.id
-    raise_validation_error('User cannot access inbox', :inbox) unless user_can_access_inbox?
+    raise_validation_error('User cannot access inbox', :inbox) unless automation? || user_can_access_inbox?
     raise_validation_error('Inbox is not allowed by board scope', :inbox) unless kanban_board.inbox_allowed?(inbox)
   end
 
@@ -65,6 +72,8 @@ class KanbanCards::CreateManualCardService
     raise_validation_error('Conversation must belong to account', :conversation) unless conversation.account_id == account.id
     raise_validation_error('Conversation must belong to contact', :conversation) unless conversation.contact_id == contact.id
     raise_validation_error('Conversation must use selected inbox', :conversation) unless conversation.inbox_id == inbox.id
+    return if automation?
+
     raise_validation_error('User cannot access conversation', :conversation) unless ConversationPolicy.new(user_context, conversation).show?
   end
 
@@ -128,6 +137,8 @@ class KanbanCards::CreateManualCardService
   end
 
   def permitted_conversation
+    return if automation?
+
     @permitted_conversation ||= matching_conversations.find do |matching_conversation|
       ConversationPolicy.new(user_context, matching_conversation).show?
     end
@@ -138,7 +149,7 @@ class KanbanCards::CreateManualCardService
   end
 
   def user_can_access_inbox?
-    administrator? || user.inboxes.where(account_id: account.id).exists?(id: inbox.id)
+    administrator? || user&.inboxes&.where(account_id: account.id)&.exists?(id: inbox.id)
   end
 
   def administrator?
@@ -150,7 +161,26 @@ class KanbanCards::CreateManualCardService
   end
 
   def account_user
-    @account_user ||= user.account_users.find_by(account: account)
+    @account_user ||= user&.account_users&.find_by(account: account)
+  end
+
+  def automation?
+    @automation
+  end
+
+  def automation_metadata
+    return {} if context[:triggered_by_rule_id].blank?
+
+    { automation_rule_id: context[:triggered_by_rule_id] }
+  end
+
+  def trigger_automation(card)
+    KanbanAutomations::TriggerService.call(
+      card: card,
+      event_name: 'card_created',
+      user: user,
+      context: context
+    )
   end
 
   def raise_validation_error(message, attribute = :base)

@@ -1,9 +1,11 @@
 import { nextTick } from 'vue';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import { bulkPartialMessage } from 'dashboard/helper/kanbanBulkResult';
 
 export function useKanbanStageActions({
   boardScrollContainer,
+  boards,
   defaultStageColor,
   editingStageId,
   endAction,
@@ -19,9 +21,11 @@ export function useKanbanStageActions({
   refreshSelectedBoard,
   refreshStageFirstPages,
   selectedBoard,
+  showMoveStageConfirmation,
   showRemoveStageCardsConfirmation,
   showRemoveStageConfirmation,
   stageCardsPendingRemoval,
+  stagePendingMove,
   stagePendingRemoval,
   showActionError,
   stageActionKey,
@@ -163,7 +167,14 @@ export function useKanbanStageActions({
   };
 
   const stageCardCount = stage =>
-    stage?.cardsCount ?? stage?.cards_count ?? stage?.cards?.length ?? 0;
+    boards.value
+      .find(board => Number(board.id) === Number(stage?.kanbanBoardId))
+      ?.stagesSummary?.find(summary => Number(summary.id) === Number(stage?.id))
+      ?.cardsCount ??
+    stage?.cardsCount ??
+    stage?.cards_count ??
+    stage?.cards?.length ??
+    0;
 
   const openRemoveStageConfirmation = stage => {
     stagePendingRemoval.value = stage;
@@ -229,7 +240,7 @@ export function useKanbanStageActions({
     }
   };
 
-  const moveStage = async (stage, { kanbanBoardId, position }) => {
+  const executeMoveStage = async (stage, { kanbanBoardId, position }) => {
     const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
@@ -254,6 +265,33 @@ export function useKanbanStageActions({
     }
   };
 
+  const moveStage = async (stage, { kanbanBoardId, position }) => {
+    const isCrossBoardMove =
+      Number(kanbanBoardId) !== Number(selectedBoard.value?.id);
+
+    if (isCrossBoardMove && stageCardCount(stage) > 0) {
+      stagePendingMove.value = { stage, kanbanBoardId, position };
+      showMoveStageConfirmation.value = true;
+      return;
+    }
+
+    await executeMoveStage(stage, { kanbanBoardId, position });
+  };
+
+  const closeMoveStageConfirmation = () => {
+    showMoveStageConfirmation.value = false;
+    stagePendingMove.value = null;
+  };
+
+  const confirmMoveStage = async () => {
+    const pendingMove = stagePendingMove.value;
+    closeMoveStageConfirmation();
+
+    if (!pendingMove) return;
+
+    await executeMoveStage(pendingMove.stage, pendingMove);
+  };
+
   const sortStageCards = async (stage, { sortBy }) => {
     const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
@@ -275,24 +313,38 @@ export function useKanbanStageActions({
     }
   };
 
-  const moveAllStageCards = async (stage, { targetStageId }) => {
+  const moveAllStageCards = async (stage, { targetStageId, targetBoardId }) => {
     const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
       return;
     }
 
+    const isCrossBoardMove =
+      targetBoardId && Number(targetBoardId) !== Number(selectedBoard.value.id);
+
     startAction(actionKey);
 
     try {
-      await KanbanBoardsAPI.moveAllStageCards(
+      const payload = { target_stage_id: targetStageId };
+      if (isCrossBoardMove) payload.target_kanban_board_id = targetBoardId;
+
+      const response = await KanbanBoardsAPI.moveAllStageCards(
         selectedBoard.value.id,
         stage.id,
-        {
-          target_stage_id: targetStageId,
-        }
+        payload
       );
-      await refreshStageFirstPages([stage.id, targetStageId]);
-      useAlert(t('KANBAN.STAGE_MENU.SUCCESS.MOVE_CARDS'));
+
+      // The target funnel is not mounted in this view, so it refreshes through its
+      // summary instead of a stage page.
+      await refreshStageFirstPages(
+        isCrossBoardMove ? [stage.id] : [stage.id, targetStageId]
+      );
+      if (isCrossBoardMove) await store.dispatch('kanbanBoards/fetchBoards');
+
+      useAlert(
+        bulkPartialMessage(response.data, t) ||
+          t('KANBAN.STAGE_MENU.SUCCESS.MOVE_CARDS')
+      );
     } catch (error) {
       showActionError(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
     } finally {
@@ -378,10 +430,12 @@ export function useKanbanStageActions({
   return {
     cancelEditingStage,
     cancelStageDraft,
+    closeMoveStageConfirmation,
     closeRemoveStageCardsConfirmation,
     closeRemoveStageConfirmation,
     confirmRemoveStage,
     confirmRemoveStageCards,
+    confirmMoveStage,
     copyStage,
     createStage,
     moveAllStageCards,

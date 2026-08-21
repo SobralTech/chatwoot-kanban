@@ -20,6 +20,7 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import KanbanStageColumn from './board/KanbanStageColumn.vue';
 import KanbanBoardHeader from './board/KanbanBoardHeader.vue';
+import KanbanBoardSummary from './board/KanbanBoardSummary.vue';
 import KanbanStageDraft from './board/KanbanStageDraft.vue';
 import KanbanBulkActions from './KanbanBulkActions.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
@@ -56,6 +57,7 @@ const isFetchingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
 const { isAdmin } = useAdmin();
 const selectedBoard = ref(null);
 const collapsedStageIds = ref(new Set());
+const isSummaryCollapsed = ref(false);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
 const isCreatingStageDraft = ref(false);
@@ -89,9 +91,11 @@ let createdCardHighlightTimer = null;
 const cardPendingRemoval = ref(null);
 const stagePendingRemoval = ref(null);
 const stageCardsPendingRemoval = ref(null);
+const stagePendingMove = ref(null);
 const showRemoveCardConfirmation = ref(false);
 const showRemoveStageConfirmation = ref(false);
 const showRemoveStageCardsConfirmation = ref(false);
+const showMoveStageConfirmation = ref(false);
 const isCardDragging = ref(false);
 const pendingRealtimeKanbanEvents = ref([]);
 const hasCardDragChanged = ref(false);
@@ -159,10 +163,12 @@ const terminalPeriodOptions = computed(() => [
 ]);
 const {
   applyStageFirstPage,
+  boardSummary,
   fetchStageCardsPage,
   findCardStage,
   findCardStageId,
   getStageCardsError,
+  isFetchingSummary,
   isStageCardsLoading,
   loadMoreStageCards,
   normalizePayload,
@@ -172,6 +178,7 @@ const {
   requestGeneration,
   showBoard,
   staleRequest,
+  summaryError,
 } = useKanbanBoardData({
   collapsedStageIds,
   currentFilterParams,
@@ -301,16 +308,50 @@ const isNameTakenError = error => {
 const isSpecialStageOrderError = error =>
   error?.response?.data?.error === 'special_stages_must_be_last';
 
+const stageCardsBlockedMessage = error => {
+  const blocked = error?.response?.data?.blocked || {};
+  const duplicateCount = Number(blocked.card_already_in_target_board || 0);
+  const inboxCount = Number(blocked.inbox_not_allowed || 0);
+  const count = duplicateCount + inboxCount;
+  const details = [
+    duplicateCount
+      ? t('KANBAN.STAGE_MENU.ERRORS.STAGE_CARDS_BLOCKED_DUPLICATE', {
+          count: duplicateCount,
+        })
+      : null,
+    inboxCount
+      ? t('KANBAN.STAGE_MENU.ERRORS.STAGE_CARDS_BLOCKED_INBOX', {
+          count: inboxCount,
+        })
+      : null,
+  ].filter(Boolean);
+
+  return [
+    t('KANBAN.STAGE_MENU.ERRORS.STAGE_CARDS_BLOCKED', { count }),
+    ...details,
+  ].join(' ');
+};
+
 const stageActionErrorMessage = error => {
   switch (error?.response?.data?.error) {
     case 'stage_not_empty':
       return t('KANBAN.STAGE_MENU.ERRORS.STAGE_NOT_EMPTY');
+    case 'stage_cards_blocked':
+      return stageCardsBlockedMessage(error);
+    case 'stage_name_taken':
+      return t('KANBAN.STAGE_MENU.ERRORS.STAGE_NAME_TAKEN');
+    case 'last_stage_cannot_move_board':
+      return t('KANBAN.STAGE_MENU.ERRORS.LAST_STAGE_CANNOT_MOVE_BOARD');
     case 'special_stage_cannot_move_board':
       return t('KANBAN.STAGE_MENU.ERRORS.SPECIAL_STAGE_CANNOT_MOVE_BOARD');
     case 'special_stage_cannot_be_deleted':
       return t('KANBAN.ACTIONS.REMOVE_STAGE_TERMINAL');
     case 'terminal_stage_not_allowed':
       return t('KANBAN.STAGE_MENU.ERRORS.TERMINAL_STAGE_NOT_ALLOWED');
+    case 'bulk_action_limit_exceeded':
+      return t('KANBAN.STAGE_MENU.ERRORS.MOVE_CARDS_LIMIT', {
+        count: selectionLimit.value,
+      });
     default:
       return null;
   }
@@ -344,6 +385,7 @@ const loadBoardPrefs = boardId => {
 
   collapsedStageIds.value = new Set(storedStageIds);
   terminalPeriod.value = normalizeTerminalPeriod(prefs?.terminalPeriod);
+  isSummaryCollapsed.value = prefs?.summaryCollapsed === true;
 
   return prefs;
 };
@@ -594,6 +636,7 @@ const persistBoardPrefs = () => {
     prefs: {
       collapsedStageIds: [...collapsedStageIds.value],
       terminalPeriod: terminalPeriod.value,
+      summaryCollapsed: isSummaryCollapsed.value,
       mine: isMineActive.value,
       today: isTodayActive.value,
     },
@@ -629,6 +672,11 @@ const updateBoardFilters = async filters => {
   persistBoardPrefs();
   requestGeneration.value += 1;
   await refreshSelectedBoard();
+};
+
+const toggleSummary = () => {
+  isSummaryCollapsed.value = !isSummaryCollapsed.value;
+  persistBoardPrefs();
 };
 
 const clearBoardFilters = () => {
@@ -703,8 +751,10 @@ const openBoardSettings = () => {
 const {
   cancelEditingStage,
   cancelStageDraft,
+  closeMoveStageConfirmation,
   closeRemoveStageCardsConfirmation,
   closeRemoveStageConfirmation,
+  confirmMoveStage,
   confirmRemoveStage,
   confirmRemoveStageCards,
   copyStage,
@@ -724,6 +774,7 @@ const {
   updateStageNameDraft,
 } = useKanbanStageActions({
   boardScrollContainer,
+  boards,
   defaultStageColor,
   editingStageId,
   endAction,
@@ -739,11 +790,13 @@ const {
   refreshSelectedBoard,
   refreshStageFirstPages,
   selectedBoard,
+  showMoveStageConfirmation,
   showActionError,
   showRemoveStageCardsConfirmation,
   showRemoveStageConfirmation,
   stageActionKey,
   stageCardsPendingRemoval,
+  stagePendingMove,
   stageColors,
   stageNames,
   stageNameInputs,
@@ -1108,6 +1161,44 @@ const removeStageCardsMessageValue = computed(() => {
     { count: stageCardCount(stageCardsPendingRemoval.value) }
   )})`;
 });
+const moveStageTargetBoard = computed(() => {
+  const targetBoardId = stagePendingMove.value?.kanbanBoardId;
+  return boards.value.find(board => Number(board.id) === Number(targetBoardId));
+});
+const moveStageDroppedFieldKeys = computed(() => {
+  if (!stagePendingMove.value) return [];
+
+  const sourceFields = selectedBoard.value?.customFields || [];
+  const targetFields = moveStageTargetBoard.value?.customFields || [];
+
+  return sourceFields
+    .filter(
+      sourceField =>
+        !targetFields.some(
+          targetField =>
+            targetField.key === sourceField.key &&
+            targetField.fieldType === sourceField.fieldType &&
+            Boolean(targetField.multiple) === Boolean(sourceField.multiple)
+        )
+    )
+    .map(field => field.key)
+    .filter(Boolean);
+});
+const moveStageConfirmationMessage = computed(() => {
+  const pendingMove = stagePendingMove.value;
+  if (!pendingMove) return '';
+
+  return t('KANBAN.STAGE_MENU.MOVE.CONFIRM_MESSAGE', {
+    count: stageCardCount(pendingMove.stage),
+  });
+});
+const moveStageConfirmationDroppedFields = computed(() => {
+  if (!moveStageDroppedFieldKeys.value.length) return '';
+
+  return ` ${t('KANBAN.STAGE_MENU.MOVE.CONFIRM_DROPPED_FIELDS', {
+    fields: moveStageDroppedFieldKeys.value.join(', '),
+  })}`;
+});
 
 const openConversationInNewTab = card => {
   if (!card?.conversationId) return;
@@ -1174,6 +1265,19 @@ const closeOpportunityDetails = () => {
     opportunityTriggerRef.value = null;
   });
 };
+
+const openCardFromQuery = () => {
+  const cardId = Number(route.query?.card_id);
+  if (!selectedBoard.value || !Number.isInteger(cardId) || cardId <= 0) {
+    return;
+  }
+
+  openDetails({ id: cardId });
+  router.replace({ query: { ...route.query, card_id: undefined } });
+};
+
+watch([selectedBoard, () => route.query?.card_id], openCardFromQuery);
+
 const attemptCloseOpportunityDetails = () => {
   if (opportunityModalRef.value?.hasUnsavedChanges) {
     showUnsavedOpportunityChangesConfirm.value = true;
@@ -1245,6 +1349,7 @@ const {
   selectedCardIds,
   selectionLimit,
   startAction,
+  store,
   t,
   useAlert,
 });
@@ -1332,6 +1437,15 @@ watch(searchInput, () => {
         @clear-board-filters="clearBoardFilters"
         @open-board-settings="openBoardSettings"
         @open-stage-draft="openStageDraft"
+      />
+
+      <KanbanBoardSummary
+        v-if="selectedBoard"
+        :summary="boardSummary"
+        :is-loading="isFetchingSummary"
+        :error="summaryError"
+        :is-collapsed="isSummaryCollapsed"
+        @toggle="toggleSummary"
       />
 
       <div
@@ -1520,6 +1634,8 @@ watch(searchInput, () => {
     <KanbanBulkActions
       v-if="selectedBoard && selectedCardIds.size"
       :selected-count="selectedCardIds.size"
+      :board="selectedBoard"
+      :boards="boards"
       :stages="stages"
       :assignable-users="assignableUsers"
       :has-assigned-selected-cards="hasAssignedSelectedCards"
@@ -1533,6 +1649,18 @@ watch(searchInput, () => {
       @action="applyBulkAction"
       @delete="openBulkDeleteConfirmation"
       @clear="clearCardSelection"
+    />
+
+    <woot-delete-modal
+      v-model:show="showMoveStageConfirmation"
+      :on-close="closeMoveStageConfirmation"
+      :on-confirm="confirmMoveStage"
+      :is-loading="isBoardBusy"
+      :title="t('KANBAN.STAGE_MENU.MOVE.CONFIRM_TITLE')"
+      :message="moveStageConfirmationMessage"
+      :message-value="moveStageConfirmationDroppedFields"
+      :confirm-text="t('KANBAN.STAGE_MENU.MOVE.CONFIRM_SUBMIT')"
+      :reject-text="t('KANBAN.STAGE_MENU.MOVE.CONFIRM_CANCEL')"
     />
 
     <woot-delete-modal

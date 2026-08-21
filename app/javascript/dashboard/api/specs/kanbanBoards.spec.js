@@ -15,6 +15,7 @@ describe('#KanbanBoardsAPI', () => {
     expect(kanbanBoards).toHaveProperty('deleteStage');
     expect(kanbanBoards).toHaveProperty('getBoards');
     expect(kanbanBoards).toHaveProperty('showBoard');
+    expect(kanbanBoards).toHaveProperty('getSummary');
     expect(kanbanBoards).toHaveProperty('getSettings');
     expect(kanbanBoards).toHaveProperty('updateSettings');
     expect(kanbanBoards).toHaveProperty('importExistingConversations');
@@ -153,6 +154,16 @@ describe('#KanbanBoardsAPI', () => {
       expect(axiosMock.get).toHaveBeenCalledWith(
         '/api/v1/accounts/1/kanban_boards/2',
         { signal: controller.signal }
+      );
+    });
+
+    it('#getSummary with config', () => {
+      const config = { params: { assignee_ids: [7] } };
+      kanbanBoards.getSummary(2, config);
+
+      expect(axiosMock.get).toHaveBeenCalledWith(
+        '/api/v1/accounts/1/kanban_boards/2/summary',
+        config
       );
     });
 

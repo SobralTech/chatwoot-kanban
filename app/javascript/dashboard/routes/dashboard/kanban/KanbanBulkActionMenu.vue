@@ -101,6 +101,7 @@ const reset = () => {
     </button>
     <template #content="{ hide }">
       <div :class="[BULK_ACTION_MENU_CLASSES, menuClass]">
+        <slot name="header" />
         <p
           v-if="emptyText && !options.length"
           class="px-2 py-1 text-xs text-n-slate-10"

@@ -1,11 +1,13 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useKanbanMoveTarget } from 'dashboard/composables/useKanbanMoveTarget';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
 import WootLabel from 'dashboard/components/ui/Label.vue';
 import KanbanBulkActionMenu from './KanbanBulkActionMenu.vue';
 import KanbanReasonPicker from './KanbanReasonPicker.vue';
@@ -18,6 +20,14 @@ const props = defineProps({
   selectedCount: {
     type: Number,
     required: true,
+  },
+  board: {
+    type: Object,
+    required: true,
+  },
+  boards: {
+    type: Array,
+    default: () => [],
   },
   stages: {
     type: Array,
@@ -65,19 +75,42 @@ const emit = defineEmits(['action', 'clear', 'delete']);
 const { t } = useI18n();
 const selectedReasonId = ref('');
 
-const stageOptions = computed(() =>
-  props.stages
-    .filter(
-      stage =>
-        Number(stage.id) !== Number(props.wonStageId) &&
-        Number(stage.id) !== Number(props.lostStageId)
-    )
-    .map(stage => ({
-      value: stage.id,
-      label: stage.name,
-      color: stage.color,
-    }))
+const chooseAction = (action, payload, hide) => {
+  emit('action', { action, payload });
+  hide?.();
+};
+
+const currentBoardId = computed(() => Number(props.board.id));
+const {
+  boardId: moveBoardId,
+  boardOptions: moveBoardOptions,
+  isCurrentBoard: isCurrentMoveBoard,
+  reset: resetMove,
+  targetStages: moveStages,
+} = useKanbanMoveTarget({
+  board: toRef(props, 'board'),
+  boards: toRef(props, 'boards'),
+  currentBoardId,
+  lostStageId: toRef(props, 'lostStageId'),
+  stages: toRef(props, 'stages'),
+  wonStageId: toRef(props, 'wonStageId'),
+});
+const moveStageOptions = computed(() =>
+  moveStages.value.map(stage => ({
+    value: stage.id,
+    label: stage.name,
+    color: stage.color,
+  }))
 );
+
+const chooseMoveStage = stageId => {
+  const payload = { kanban_stage_id: stageId };
+  if (!isCurrentMoveBoard.value) {
+    payload.target_kanban_board_id = Number(moveBoardId.value);
+  }
+
+  chooseAction('move', payload);
+};
 
 const assigneeOptions = computed(() =>
   props.assignableUsers.map(user => ({
@@ -114,11 +147,6 @@ const priorityOptions = computed(() => [
     label: t('CONVERSATION.PRIORITY.OPTIONS.LOW'),
   },
 ]);
-
-const chooseAction = (action, payload, hide) => {
-  emit('action', { action, payload });
-  hide?.();
-};
 
 const chooseReason = hide => {
   if (props.lostReasonRequired && !selectedReasonId.value) return;
@@ -167,13 +195,27 @@ const resetReason = () => {
     <KanbanBulkActionMenu
       :label="t('KANBAN.BULK.MOVE')"
       icon="i-lucide-corner-up-right"
-      :options="stageOptions"
+      :options="moveStageOptions"
       :empty-text="t('KANBAN.CARD.NO_REGULAR_STAGES')"
       trigger-testid="kanban-bulk-action-move"
       option-testid="kanban-bulk-move-stage"
       :is-busy="isBusy"
-      @select="chooseAction('move', { kanban_stage_id: $event })"
+      @hide="resetMove"
+      @select="chooseMoveStage"
     >
+      <template #header>
+        <label class="block text-xs font-medium text-n-slate-11">
+          {{ t('KANBAN.CARD.MOVE_BOARD_LABEL') }}
+          <Select
+            v-model="moveBoardId"
+            data-testid="kanban-bulk-move-board"
+            :options="moveBoardOptions"
+            full-width
+            class="mt-1 font-normal"
+          />
+        </label>
+        <div class="my-2 border-t border-n-weak" />
+      </template>
       <template #optionIcon="{ option }">
         <span
           class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9"

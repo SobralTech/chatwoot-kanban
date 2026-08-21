@@ -260,6 +260,7 @@ const { t } = useI18n();
             :assignable-users="assignableUsers"
             :won-stage-id="board?.wonStageId"
             :lost-stage-id="board?.lostStageId"
+            :sla-hours="stage.slaHours"
             :reasons="board?.reasons || []"
             :lost-reason-required="board?.lostReasonRequired"
             @open-conversation-in-new-tab="

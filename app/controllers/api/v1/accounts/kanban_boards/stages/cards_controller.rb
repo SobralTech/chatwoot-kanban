@@ -11,12 +11,13 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     @limit = cards_limit
     @result = KanbanCards::VisibleStageCardsQuery.new(
       account: Current.account,
-      user: Current.user,
       kanban_board: @kanban_board,
       kanban_stage: @kanban_stage,
+      visible_cards: visible_cards_scope,
       limit: @limit,
       cursor: params[:cursor],
-      **kanban_card_filter_params
+      terminal_period: sanitized_terminal_period,
+      filtered_stage_sla: sanitized_filter_values(:stage_sla, KanbanCards::VisibleStageCardsQuery::STAGE_SLA_VALUES)
     ).call(load_cards: !metadata_only?)
   rescue KanbanCards::VisibleStageCardsQuery::RefreshRequiredError
     render json: { error: 'refresh_required' }, status: :conflict
@@ -36,10 +37,13 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
   end
 
   def move_all
-    target_stage = @kanban_board.kanban_stages.active.find_by(id: params[:target_stage_id])
-    return render_terminal_stage_not_allowed if target_stage.blank? || terminal_stage?(target_stage)
+    target_board = target_kanban_board
+    target_stage = target_board.kanban_stages.active.find_by(id: params[:target_stage_id])
+    return render_terminal_stage_not_allowed if target_stage.blank? || terminal_stage?(target_stage, target_board)
+    return move_all_cards_to_board(target_board, target_stage) if target_board != @kanban_board
     return head :no_content if target_stage == @kanban_stage
 
+    card_ids = @kanban_stage.kanban_cards.active.pluck(:id)
     KanbanCard.move_active_cards_to_stage!(
       kanban_board: @kanban_board,
       source_stage: @kanban_stage,
@@ -47,7 +51,10 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     )
 
     dispatch_kanban_card_reordered_event(@kanban_stage.id, target_stage.id)
+    record_and_trigger_stage_changes(card_ids, @kanban_stage, target_stage)
     head :no_content
+  rescue KanbanCards::BulkActionRequest::Error => e
+    render json: { error: e.code }, status: :unprocessable_content
   end
 
   def destroy_all
@@ -80,6 +87,34 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     @kanban_stage = @kanban_board.kanban_stages.active.find(params[:stage_id] || params[:id])
   end
 
+  def target_kanban_board
+    return @kanban_board if params[:target_kanban_board_id].blank?
+
+    policy_scope(KanbanBoard).active.find(params[:target_kanban_board_id])
+  end
+
+  # Emptying a stage into another board is a bulk move of every card it holds, so it runs
+  # through the same service the bulk bar uses and inherits its cap, per-card
+  # authorization and events. Like the same-board move it answers with no content when
+  # every card made it, and only spells out the cards when some of them did not.
+  def move_all_cards_to_board(target_board, target_stage)
+    card_ids = @kanban_stage.kanban_cards.active.order(:position, :id).pluck(:id)
+    # An empty stage is nothing to move, not the missing-ids mistake the bulk bar makes.
+    return head :no_content if card_ids.empty?
+
+    result = KanbanCards::BulkActionService.new(
+      user: Current.user,
+      kanban_board: @kanban_board,
+      target_kanban_board: target_board,
+      operation: 'move',
+      card_ids: card_ids,
+      payload: { kanban_stage_id: target_stage.id }
+    ).perform!
+    return head :no_content if result.failed.empty?
+
+    render json: { succeeded: result.succeeded, failed: result.failed }
+  end
+
   # Collapsed columns still need fresh counters, so they refresh through the same
   # endpoint asking for totals only instead of skipping the request altogether.
   def metadata_only?
@@ -93,8 +128,8 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
     )
   end
 
-  def terminal_stage?(stage)
-    KanbanStage.special_stage_ids(@kanban_board).include?(stage.id)
+  def terminal_stage?(stage, board)
+    KanbanStage.special_stage_ids(board).include?(stage.id)
   end
 
   def render_invalid_sort
@@ -124,5 +159,22 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
       board_id: @kanban_board.id,
       stage_id: @kanban_stage.id
     )
+  end
+
+  def record_and_trigger_stage_changes(card_ids, source_stage, target_stage)
+    KanbanCard.where(id: card_ids).find_each do |card|
+      KanbanCards::RecordEventService.call(
+        card: card,
+        event_type: 'stage_changed',
+        user: Current.user,
+        metadata: {
+          from_stage_id: source_stage.id,
+          to_stage_id: target_stage.id,
+          from_stage_name: source_stage.name,
+          to_stage_name: target_stage.name
+        }
+      )
+      KanbanAutomations::TriggerService.call(card: card, event_name: 'stage_changed', user: Current.user)
+    end
   end
 end

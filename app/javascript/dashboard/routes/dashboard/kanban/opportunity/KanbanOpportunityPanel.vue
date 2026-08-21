@@ -135,6 +135,16 @@ const totalValue = computed(
   () => productsTotalValue.value ?? Number(card.value?.value || 0)
 );
 
+const onProductsTotalChanged = value => {
+  productsTotalValue.value = value;
+};
+
+const onProductsCardChanged = updatedCard => {
+  patchCard(updatedCard);
+  productsTotalValue.value = Number(updatedCard?.value ?? 0);
+  notifyCardUpdated();
+};
+
 const tabItems = computed(() => [
   {
     key: 'general',
@@ -352,7 +362,10 @@ defineExpose({
                 v-show="activeTabKey === 'products'"
                 :board-id="boardId"
                 :card-id="cardId"
-                @total-changed="productsTotalValue = $event"
+                :discount-cents="card.discountCents"
+                :discount-percent="card.discountPercent"
+                @total-changed="onProductsTotalChanged"
+                @card-changed="onProductsCardChanged"
               />
               <section
                 v-if="loadedTabKeys.includes('additionalData')"

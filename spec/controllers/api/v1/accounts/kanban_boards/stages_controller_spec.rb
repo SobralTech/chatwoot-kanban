@@ -434,6 +434,82 @@ RSpec.describe 'Kanban Stages API', type: :request do
     end
   end
 
+  describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages/{id}/move' do
+    it 'moves a populated stage with its cards and refreshes both boards' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Negotiation', position: 1)
+      create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Proposal', position: 2)
+      target_board = create(:kanban_board, account: account, name: 'Support')
+      create(:kanban_stage, account: account, kanban_board: target_board, name: 'Triage', position: 1)
+      card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage)
+      allow(Rails.configuration.dispatcher).to receive(:dispatch)
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}/move",
+            headers: administrator.create_new_auth_token,
+            params: { target_kanban_board_id: target_board.id, position: 1 },
+            as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(stage.reload.kanban_board_id).to eq(target_board.id)
+      expect(card.reload.kanban_board_id).to eq(target_board.id)
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_UPDATED,
+        anything,
+        { account_id: account.id, board_id: kanban_board.id, stage_id: stage.id }
+      )
+      expect(Rails.configuration.dispatcher).to have_received(:dispatch).with(
+        Events::Types::KANBAN_STAGE_UPDATED,
+        anything,
+        { account_id: account.id, board_id: target_board.id, stage_id: stage.id }
+      )
+    end
+
+    it 'returns the blocked card breakdown without changing the stage' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Negotiation', position: 1)
+      create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Proposal', position: 2)
+      target_board = create(:kanban_board, account: account, name: 'Support')
+      target_stage = create(:kanban_stage, account: account, kanban_board: target_board, name: 'Triage')
+      card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: stage)
+      create(
+        :kanban_card,
+        account: account,
+        kanban_board: target_board,
+        kanban_stage: target_stage,
+        contact: card.contact,
+        inbox: card.inbox,
+        subject: card.subject
+      )
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}/move",
+            headers: administrator.create_new_auth_token,
+            params: { target_kanban_board_id: target_board.id },
+            as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(response.parsed_body).to eq(
+        'error' => 'stage_cards_blocked',
+        'blocked' => { 'card_already_in_target_board' => 1 }
+      )
+      expect(stage.reload.kanban_board_id).to eq(kanban_board.id)
+      expect(card.reload.kanban_board_id).to eq(kanban_board.id)
+    end
+
+    it 'rejects cross-board stage moves for non-administrators' do
+      stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Negotiation', position: 1)
+      create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Proposal', position: 2)
+      target_board = create(:kanban_board, account: account, name: 'Support')
+      target_stage = create(:kanban_stage, account: account, kanban_board: target_board, name: 'Triage')
+
+      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}/move",
+            headers: agent.create_new_auth_token,
+            params: { target_kanban_board_id: target_board.id, position: 1 },
+            as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(target_stage.reload.kanban_board_id).to eq(target_board.id)
+      expect(stage.reload.kanban_board_id).to eq(kanban_board.id)
+    end
+  end
+
   describe 'DELETE /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages/{id}' do
     it 'deactivates a stage through its board' do
       stage = create(:kanban_stage, account: account, kanban_board: kanban_board)

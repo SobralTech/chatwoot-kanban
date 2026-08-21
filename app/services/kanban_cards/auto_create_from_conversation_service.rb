@@ -1,9 +1,10 @@
 class KanbanCards::AutoCreateFromConversationService
-  def initialize(conversation, kanban_board: nil, inbox: nil, recreated_from_card_id: nil)
+  def initialize(conversation, kanban_board: nil, inbox: nil, recreated_from_card_id: nil, context: {})
     @conversation = conversation
     @kanban_board = kanban_board
     @provided_inbox = inbox
     @recreated_from_card_id = recreated_from_card_id
+    @context = context.to_h.with_indifferent_access
     @summary = summary_hash
   end
 
@@ -19,7 +20,7 @@ class KanbanCards::AutoCreateFromConversationService
 
   private
 
-  attr_reader :conversation, :kanban_board, :provided_inbox, :recreated_from_card_id, :summary
+  attr_reader :conversation, :kanban_board, :provided_inbox, :recreated_from_card_id, :summary, :context
 
   def eligible_boards
     scope = KanbanBoard.accepting_inbox_for_account(conversation.account_id, inbox.id)
@@ -39,7 +40,10 @@ class KanbanCards::AutoCreateFromConversationService
         create_for_stage(kanban_board, stage)
       end
     end
-    dispatch_card_created_event(card) if card.present?
+    if card.present?
+      dispatch_card_created_event(card)
+      trigger_automation(card)
+    end
   rescue ActiveRecord::RecordNotUnique
     skip_existing_card
   end
@@ -56,7 +60,7 @@ class KanbanCards::AutoCreateFromConversationService
       lock_active_cards!(kanban_board, stage)
       shift_active_cards_down!(kanban_board, stage)
       card = create_card!(kanban_board, stage)
-      KanbanCards::RecordEventService.card_created(card)
+      KanbanCards::RecordEventService.card_created(card, metadata: automation_metadata)
       summary[:created] += 1
       card
     end
@@ -88,6 +92,16 @@ class KanbanCards::AutoCreateFromConversationService
       card_id: card.id,
       conversation_id: card.conversation_id
     )
+  end
+
+  def automation_metadata
+    return {} if context[:triggered_by_rule_id].blank?
+
+    { automation_rule_id: context[:triggered_by_rule_id] }
+  end
+
+  def trigger_automation(card)
+    KanbanAutomations::TriggerService.call(card: card, event_name: 'card_created', user: nil, context: context)
   end
 
   def lock_active_cards!(kanban_board, stage)

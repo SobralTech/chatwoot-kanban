@@ -51,6 +51,12 @@ const dueDateOptions = computed(() => [
   { value: 'week', label: t('KANBAN.FILTERS.DUE_DATE.WEEK') },
   { value: 'month', label: t('KANBAN.FILTERS.DUE_DATE.MONTH') },
 ]);
+const stageSlaOptions = computed(() => [
+  {
+    value: 'stale',
+    label: t('KANBAN.FILTERS.SLA.STALE'),
+  },
+]);
 const labelOptions = computed(() => [
   { value: 'none', label: t('KANBAN.FILTERS.LABELS_NONE') },
   ...labels.value.map(label => ({
@@ -87,6 +93,11 @@ const filterGroups = computed(() => [
     key: 'dueDates',
     title: t('KANBAN.FILTERS.DUE_DATE.TITLE'),
     options: dueDateOptions.value,
+  },
+  {
+    key: 'stageSla',
+    title: t('KANBAN.FILTERS.SLA.TITLE'),
+    options: stageSlaOptions.value,
   },
   {
     key: 'labels',

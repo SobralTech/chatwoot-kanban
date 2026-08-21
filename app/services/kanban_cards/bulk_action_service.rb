@@ -1,15 +1,21 @@
 class KanbanCards::BulkActionService
   Result = Struct.new(:succeeded, :failed, keyword_init: true)
 
-  delegate :operation, :card_ids, :target_stage, :assignee_ids, :labels, :priority, :reason_id, to: :request
+  delegate :operation, :card_ids, :target_stage, :target_kanban_board, :assignee_ids, :labels, :priority, :reason_id,
+           to: :request
 
-  def initialize(user:, kanban_board:, operation:, card_ids:, payload: {})
+  def initialize(user:, kanban_board:, operation:, card_ids:, payload: {}, target_kanban_board: nil, context: {}) # rubocop:disable Metrics/ParameterLists
     @user = user
     @kanban_board = kanban_board
     @request = KanbanCards::BulkActionRequest.new(
-      kanban_board: kanban_board, operation: operation, card_ids: card_ids, payload: payload
+      kanban_board: kanban_board,
+      operation: operation,
+      card_ids: card_ids,
+      payload: payload,
+      target_kanban_board: target_kanban_board
     )
-    @affected_stage_ids = []
+    @context = context.to_h.with_indifferent_access
+    @affected_stage_refs = []
   end
 
   def perform!
@@ -23,7 +29,7 @@ class KanbanCards::BulkActionService
 
   private
 
-  attr_reader :user, :kanban_board, :request, :affected_stage_ids
+  attr_reader :user, :kanban_board, :request, :affected_stage_refs, :context
 
   def account
     kanban_board.account
@@ -36,9 +42,11 @@ class KanbanCards::BulkActionService
     return add_failure(result, card_id, 'card_not_found') unless card
     return add_failure(result, card_id, 'not_authorized') unless authorized_card?(card)
 
+    source_stage_id = card.kanban_stage_id
     stage_ids = KanbanCard.transaction { apply_operation(card) }
-    affected_stage_ids.concat(stage_ids)
+    stage_ids.each { |stage_id| affected_stage_refs << [kanban_board.id, stage_id] }
     result.succeeded << card.id
+    trigger_automation(card, automation_event_name(card, source_stage_id))
   rescue StandardError => e
     add_failure(result, card_id, error_code(e))
   end
@@ -68,6 +76,8 @@ class KanbanCards::BulkActionService
   end
 
   def move_card(card)
+    return move_card_to_board(card) if cross_board_move?
+
     stage_transition = KanbanCards::StageTransition.new(
       kanban_board: kanban_board,
       kanban_card: card,
@@ -81,6 +91,21 @@ class KanbanCards::BulkActionService
     stage_transition.apply!
     stage_transition.record_event!
     stage_transition.affected_stage_ids
+  end
+
+  def move_card_to_board(card)
+    result = KanbanCards::MoveToBoardService.new(
+      card: card,
+      target_board: target_kanban_board,
+      target_stage_id: target_stage.id,
+      user: user
+    ).perform!
+    raise KanbanCards::BulkActionRequest::Error, result.error unless result.success?
+
+    # The card lives on the target board now, so its arrival stage has to be refreshed
+    # there; the stage it left belongs to the board this request runs on.
+    affected_stage_refs << [target_kanban_board.id, card.kanban_stage_id]
+    [result.source_stage_id]
   end
 
   def assign_card(card)
@@ -143,13 +168,39 @@ class KanbanCards::BulkActionService
     'bulk_action_failed'
   end
 
+  def cross_board_move?
+    operation == 'move' && target_kanban_board.id != kanban_board.id
+  end
+
+  def automation_event_name(card, source_stage_id)
+    return unless %w[move lose].include?(operation)
+    return if cross_board_move? || source_stage_id == card.kanban_stage_id
+    return 'card_won' if card.kanban_stage_id == kanban_board.won_stage_id
+    return 'card_lost' if card.kanban_stage_id == kanban_board.lost_stage_id
+
+    'stage_changed'
+  end
+
+  def trigger_automation(card, event_name)
+    return if event_name.blank? || !card.persisted? || !card.active?
+
+    KanbanAutomations::TriggerService.call(
+      card: card.reload,
+      event_name: event_name,
+      user: user,
+      context: context
+    )
+  end
+
   def dispatch_affected_stage_events
-    affected_stage_ids.compact.uniq.each do |stage_id|
+    affected_stage_refs.uniq.each do |board_id, stage_id|
+      next if stage_id.blank?
+
       Rails.configuration.dispatcher.dispatch(
         Events::Types::KANBAN_STAGE_UPDATED,
         Time.zone.now,
         account_id: kanban_board.account_id,
-        board_id: kanban_board.id,
+        board_id: board_id,
         stage_id: stage_id
       )
     end

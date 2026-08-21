@@ -134,6 +134,7 @@ Rails.application.routes.draw do
             patch '', on: :member, action: :update
 
             scope module: :kanban_boards do
+              resource :summary, only: [:show], controller: :summary
               resource :settings, only: [:show, :update]
               post 'settings/import_existing_conversations', to: 'settings#import_existing_conversations'
               resources :stages, only: [:create, :destroy] do
@@ -147,6 +148,11 @@ Rails.application.routes.draw do
                 resources :cards, only: [:index], module: :stages
               end
               resources :custom_fields, only: [:index, :create, :update, :destroy]
+              resources :automation_rules, only: [:index, :create, :update, :destroy] do
+                patch :toggle, on: :member
+                post :preview, on: :collection
+              end
+              resources :automation_logs, only: [:index]
               get 'cards/lookup', to: 'cards#lookup'
               post 'cards/manual', to: 'cards#create_manual'
               post 'cards/bulk_actions', to: 'cards/bulk_actions#create'

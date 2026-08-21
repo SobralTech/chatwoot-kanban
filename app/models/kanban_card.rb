@@ -7,6 +7,8 @@
 #  id                 :bigint           not null, primary key
 #  active             :boolean          default(TRUE), not null
 #  description        :text
+#  discount_cents     :integer
+#  discount_percent   :decimal(5, 2)
 #  due_at             :datetime
 #  normalized_subject :string
 #  origin             :string           not null
@@ -46,6 +48,8 @@
 class KanbanCard < ApplicationRecord
   include Labelable
 
+  DISCOUNT_EXCLUSIVITY_ERROR = 'Use either a percentage or an amount, not both.'.freeze
+
   belongs_to :account
   belongs_to :kanban_board
   belongs_to :kanban_stage
@@ -62,6 +66,7 @@ class KanbanCard < ApplicationRecord
   has_many :kanban_card_field_values, dependent: :destroy
   has_many :kanban_card_events, dependent: :delete_all
   has_many :kanban_card_notes, dependent: :destroy
+  has_many :kanban_automation_logs, dependent: :nullify
 
   enum :origin, {
     conversation: 'conversation',
@@ -99,6 +104,10 @@ class KanbanCard < ApplicationRecord
             if: :validate_conversation_uniqueness?
   validate :due_at_after_starts_at
   validate :validate_account_consistency
+  validate :validate_discount_exclusivity
+
+  validates :discount_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :discount_percent, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, created_at: :asc, id: :asc) }
@@ -107,8 +116,19 @@ class KanbanCard < ApplicationRecord
           .where.not(kanban_stage_id: KanbanStage.special_stage_ids(kanban_board))
   }
 
-  def total_value
+  def items_total
     kanban_card_products.sum { |product| product.unit_price * product.quantity }
+  end
+
+  def discount_value
+    return BigDecimal(discount_cents.to_s) / 100 if discount_cents.present?
+    return items_total * (discount_percent / 100) if discount_percent.present?
+
+    BigDecimal(0)
+  end
+
+  def total_value
+    [items_total - discount_value, 0].max
   end
 
   def self.normalize_positions_for_stage!(kanban_board:, kanban_stage:)
@@ -173,8 +193,10 @@ class KanbanCard < ApplicationRecord
     KanbanStage.where(id: stage_ids).order(:id).lock.each(&:id)
   end
 
+  # A stage has no size limit, so the lock plucks ids rather than instantiating a record per
+  # card. The ordering is what keeps concurrent callers from deadlocking, not the rows.
   def self.lock_active_cards_for_stages!(kanban_board, stage_ids)
-    where(kanban_board: kanban_board, kanban_stage_id: stage_ids).active.order(:kanban_stage_id, :position, :created_at, :id).lock.each(&:id)
+    where(kanban_board: kanban_board, kanban_stage_id: stage_ids).active.order(:kanban_stage_id, :position, :created_at, :id).lock.pluck(:id)
   end
 
   def self.bulk_normalize_positions_for_stage!(kanban_board, kanban_stage)
@@ -331,6 +353,12 @@ class KanbanCard < ApplicationRecord
     return 'stage_entered_at = stage_entered_at,' if stage_entered_at_cases.blank?
 
     "stage_entered_at = CASE id #{stage_entered_at_cases} ELSE stage_entered_at END,"
+  end
+
+  def validate_discount_exclusivity
+    return unless discount_cents.present? && discount_percent.present?
+
+    errors.add(:base, DISCOUNT_EXCLUSIVITY_ERROR)
   end
 
   def normalize_subject

@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import { bulkPartialMessage } from 'dashboard/helper/kanbanBulkResult';
 
 const BULK_ACTION_KEY = 'bulk-kanban-action';
 
@@ -14,6 +15,7 @@ export function useKanbanBulkActions({
   selectedCardIds,
   selectionLimit,
   startAction,
+  store,
   t,
   useAlert,
 }) {
@@ -32,18 +34,24 @@ export function useKanbanBulkActions({
     }
   };
 
-  // The cards leave their current stages and land in a new one, so both ends need a
-  // refresh before the board is consistent again.
+  const isCrossBoardMove = (action, payload) =>
+    action === 'move' &&
+    Boolean(payload.target_kanban_board_id) &&
+    Number(payload.target_kanban_board_id) !== Number(selectedBoard.value.id);
+
+  // A cross-board move refreshes the source stages here; the target board is refreshed
+  // through its summary because it is not mounted in this view.
   const affectedStageIds = (action, payload) => {
     const sourceStageIds = [...selectedCardIds.value].map(cardId =>
       findCardStageId({ id: cardId })
     );
     const terminalStageId =
-      action === 'lose' ? selectedBoard.value?.lostStageId : null;
+      action === 'lose' ? selectedBoard.value.lostStageId : null;
+    const targetStageId = isCrossBoardMove(action, payload)
+      ? null
+      : payload.kanban_stage_id;
 
-    return [...sourceStageIds, payload.kanban_stage_id, terminalStageId].filter(
-      Boolean
-    );
+    return [...sourceStageIds, targetStageId, terminalStageId].filter(Boolean);
   };
 
   const applyBulkAction = async ({ action, payload = {} } = {}) => {
@@ -64,22 +72,17 @@ export function useKanbanBulkActions({
         }
       );
       const succeeded = response.data?.succeeded || [];
-      const failed = response.data?.failed || [];
 
       await refreshStageFirstPages(stageIds);
+      if (isCrossBoardMove(action, payload)) {
+        await store.dispatch('kanbanBoards/fetchBoards');
+      }
       clearCardSelection();
 
-      if (failed.length) {
-        useAlert(
-          t('KANBAN.BULK.PARTIAL', {
-            succeeded: succeeded.length,
-            total: cardIds.length,
-            failed: failed.length,
-          })
-        );
-      } else {
-        useAlert(t('KANBAN.BULK.SUCCESS', { count: succeeded.length }));
-      }
+      useAlert(
+        bulkPartialMessage(response.data, t) ||
+          t('KANBAN.BULK.SUCCESS', { count: succeeded.length })
+      );
     } catch (error) {
       useAlert(errorMessage(error));
     } finally {

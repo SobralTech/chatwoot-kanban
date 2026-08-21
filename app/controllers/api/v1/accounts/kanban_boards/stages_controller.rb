@@ -32,6 +32,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
         name: copy_stage_params[:name],
         color: source_stage.color,
         description: source_stage.description,
+        sla_hours: source_stage.sla_hours,
         position: position
       )
       KanbanStage.normalize_positions_for_board!(@kanban_board)
@@ -80,23 +81,18 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   def move
     target_board = target_kanban_board
     return reorder unless target_board && target_board != @kanban_board
-    return render_stage_move_error('stage_not_empty') if stage_has_active_cards?
-    return render_stage_move_error('special_stage_cannot_move_board') if special_stage?
 
-    source_board = @kanban_board
-    target_position = requested_target_position(target_board)
-
-    KanbanStage.transaction do
-      KanbanStage.lock_reorder_stages_for_board!([source_board, target_board])
-      KanbanStage.shift_active_positions_from!(target_board, target_position)
-      @kanban_stage.update!(kanban_board: target_board, position: target_position)
-      KanbanStage.normalize_positions_for_board!(source_board)
-      KanbanStage.normalize_positions_for_board!(target_board)
-    end
+    result = KanbanStages::MoveToBoardService.new(
+      stage: @kanban_stage,
+      target_board: target_board,
+      position: params[:position],
+      user: Current.user
+    ).perform!
+    return render_stage_move_error(result.error, blocked: result.blocked) unless result.success?
 
     @kanban_board = target_board
     @kanban_stage.reload
-    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_UPDATED, board_id: source_board.id)
+    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_UPDATED, board_id: result.source_board_id)
     dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_UPDATED, board_id: target_board.id)
     render :update
   end
@@ -139,7 +135,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def kanban_stage_params
-    params.require(:stage).permit(:name, :position, :active, :color, :description)
+    params.require(:stage).permit(:name, :position, :active, :color, :description, :sla_hours)
   end
 
   def copy_stage_params
@@ -173,6 +169,7 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
                          else
                            KanbanBoards::TemplateCatalog::LOST_COLOR
                          end
+    attributes[:sla_hours] = nil
     attributes
   end
 
@@ -188,18 +185,15 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     find_kanban_board(params[:target_kanban_board_id]).tap { |board| authorize board, :update? }
   end
 
-  def requested_target_position(target_board)
-    maximum_position = KanbanStage.next_active_position(target_board)
-    (params[:position].presence || maximum_position).to_i.clamp(1, maximum_position)
-  end
-
   def render_stage_not_empty_error
     render json: { error: 'Kanban stage must be empty before it can be removed. Active cards are still assigned to this stage.' },
            status: :unprocessable_content
   end
 
-  def render_stage_move_error(error)
-    render json: { error: error }, status: :unprocessable_content
+  def render_stage_move_error(error, blocked: nil)
+    payload = { error: error }
+    payload[:blocked] = blocked if blocked.present?
+    render json: payload, status: :unprocessable_content
   end
 
   def dispatch_kanban_stage_event(event_name, board_id: @kanban_stage.kanban_board_id)

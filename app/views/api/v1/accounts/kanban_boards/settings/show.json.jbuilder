@@ -14,3 +14,4 @@ json.lost_recurrence_window_hours @kanban_board.lost_recurrence_window_hours
 json.won_stage_id @kanban_board.won_stage_id
 json.lost_stage_id @kanban_board.lost_stage_id
 json.lost_reason_required @kanban_board.lost_reason_required
+json.automation_settings @kanban_board.automation_settings

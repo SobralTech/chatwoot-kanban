@@ -23,6 +23,20 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.total_count).to eq(3)
     end
 
+    it 'sums discounted totals by card' do
+      percentage_card = create_visible_card(position: 1)
+      create_card_product(percentage_card, unit_price: 100, quantity: 2)
+      percentage_card.update!(discount_percent: 10)
+
+      amount_card = create_visible_card(position: 2)
+      create_card_product(amount_card, unit_price: 300, quantity: 1)
+      amount_card.update!(discount_cents: 5000)
+
+      result = query.call
+
+      expect(result.total_value).to eq('430.0')
+    end
+
     it 'uses a default limit of 20' do
       cards = create_visible_cards(21)
 
@@ -273,6 +287,28 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       expect(result.total_count).to eq(1)
     end
 
+    it 'filters stale cards when the stage has an SLA' do
+      kanban_stage.update!(sla_hours: 24)
+      fresh_card = create_visible_card(position: 1)
+      stale_card = create_visible_card(position: 2)
+      fresh_card.update_column(:stage_entered_at, 12.hours.ago) # rubocop:disable Rails/SkipsModelValidations
+      stale_card.update_column(:stage_entered_at, 36.hours.ago) # rubocop:disable Rails/SkipsModelValidations
+
+      result = query(filtered_stage_sla: ['stale']).call
+
+      expect(result.cards).to eq([stale_card])
+      expect(result.total_count).to eq(1)
+    end
+
+    it 'returns no cards for a stage without an SLA when filtering stale cards' do
+      create_visible_card(position: 1).update_column(:stage_entered_at, 36.hours.ago) # rubocop:disable Rails/SkipsModelValidations
+
+      result = query(filtered_stage_sla: ['stale']).call
+
+      expect(result.cards).to be_empty
+      expect(result.total_count).to eq(0)
+    end
+
     it 'filters card priorities including cards without a priority' do
       unprioritized_card = create_visible_card(position: 1)
       high_priority_card = create_visible_card(position: 2, priority: :high)
@@ -496,11 +532,21 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
   def query(**options)
     described_class.new(
       account: account,
-      user: options.fetch(:user, agent),
       kanban_board: kanban_board,
       kanban_stage: options.fetch(:kanban_stage, kanban_stage),
+      visible_cards: visible_cards_scope(**options),
       limit: options[:limit],
       cursor: options[:cursor],
+      terminal_period: options[:terminal_period],
+      filtered_stage_sla: options[:filtered_stage_sla]
+    )
+  end
+
+  def visible_cards_scope(**options)
+    KanbanCards::VisibleCardsScope.new(
+      account: account,
+      user: options.fetch(:user, agent),
+      kanban_board: kanban_board,
       account_user: options[:account_user],
       filtered_inbox_ids: options[:filtered_inbox_ids],
       filtered_assignee_ids: options[:filtered_assignee_ids],
@@ -509,9 +555,8 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
       filtered_due_dates: options[:filtered_due_dates],
       filtered_labels: options[:filtered_labels],
       match_mode: options[:match_mode],
-      search_query: options[:search_query],
-      terminal_period: options[:terminal_period]
-    )
+      search_query: options[:search_query]
+    ).call
   end
 
   def explain_analyze_id_query
@@ -590,6 +635,19 @@ RSpec.describe KanbanCards::VisibleStageCardsQuery do
     conversation = create(:conversation, account: account, inbox: card_inbox, contact: contact, assignee: assignee)
 
     create_visible_card(attributes.merge(conversation: conversation, contact: contact, inbox: card_inbox, origin: 'conversation', subject: nil))
+  end
+
+  def create_card_product(card, attributes = {})
+    KanbanCardProduct.create!(
+      {
+        account: account,
+        kanban_card: card,
+        sku: SecureRandom.hex(4),
+        name: 'Product',
+        unit_price: 10,
+        quantity: 1
+      }.merge(attributes)
+    )
   end
 
   def avatar_fixture

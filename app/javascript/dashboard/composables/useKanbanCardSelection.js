@@ -1,7 +1,8 @@
 import { computed, ref } from 'vue';
 
-// Shift-click extends the range within a single stage, so the anchor tracks the stage
-// it was set in and a shift-click anywhere else falls back to a plain toggle.
+// A plain click opens a selection gesture and fixes its direction; shift-clicks paint
+// the range from the anchor in that same direction, so the anchor stays put until the
+// next plain click. A shift-click outside the anchor's stage falls back to a plain toggle.
 export function useKanbanCardSelection({
   findCardStage,
   selectionLimit,
@@ -51,25 +52,26 @@ export function useKanbanCardSelection({
     if (!stage) return;
 
     const nextSelectedCardIds = new Set(selectedCardIds.value);
-    const isSelected = nextSelectedCardIds.has(card.id);
     const rangeCards = event.shiftKey ? rangeToAnchor(stage, card) : null;
+    const targetCards = rangeCards ?? [card];
+    const isSelecting = rangeCards
+      ? selectionAnchor.value.isSelecting
+      : !nextSelectedCardIds.has(card.id);
 
-    if (rangeCards) {
-      const addedCount = rangeCards.filter(
+    if (isSelecting) {
+      const addedCards = targetCards.filter(
         item => !nextSelectedCardIds.has(item.id)
-      ).length;
-      if (exceedsLimit(nextSelectedCardIds.size + addedCount)) return;
+      );
+      if (exceedsLimit(nextSelectedCardIds.size + addedCards.length)) return;
 
-      rangeCards.forEach(item => nextSelectedCardIds.add(item.id));
-    } else if (isSelected) {
-      nextSelectedCardIds.delete(card.id);
+      addedCards.forEach(item => nextSelectedCardIds.add(item.id));
     } else {
-      if (exceedsLimit(nextSelectedCardIds.size + 1)) return;
-
-      nextSelectedCardIds.add(card.id);
+      targetCards.forEach(item => nextSelectedCardIds.delete(item.id));
     }
 
-    selectionAnchor.value = { id: card.id, stageId: stage.id };
+    if (!rangeCards) {
+      selectionAnchor.value = { id: card.id, stageId: stage.id, isSelecting };
+    }
     selectedCardIds.value = nextSelectedCardIds;
   };
 

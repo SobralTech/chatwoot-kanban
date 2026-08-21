@@ -54,11 +54,6 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     ).perform!
     return render json: { error: result.error }, status: :unprocessable_content unless result.success?
 
-    dispatch_kanban_card_move_events(
-      source_board: @kanban_board,
-      target_board: target_board,
-      source_stage_id: result.source_stage_id
-    )
     @kanban_board = target_board
     render_card
   end
@@ -78,6 +73,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     end
 
     dispatch_kanban_card_reordered_event(source_stage_id)
+    trigger_automation('card_reopened')
     render_card
   end
 
@@ -134,6 +130,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   def card_params
     params.require(:card).permit(
       :kanban_stage_id, :position, :after_card_id, :subject, :description, :starts_at, :due_at, :priority, :kanban_reason_id,
+      :discount_cents, :discount_percent,
       labels: []
     )
   end
@@ -149,6 +146,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   def update_kanban_card
     card_before_update = card_update_snapshot
     stage_transition = card_stage_transition(@kanban_stage)
+    automation_event_name = stage_transition.automation_event_name
     transition_error = stable_card_move_params? && stage_transition.error
     return render json: transition_error, status: :unprocessable_content if transition_error
 
@@ -156,6 +154,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     return render_unknown_labels(invalid_label_titles) if invalid_label_titles.present?
 
     dispatch_kanban_card_event(Events::Types::KANBAN_CARD_UPDATED)
+    trigger_automation(automation_event_name)
     render_card
   end
 
@@ -180,6 +179,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
   def reorder_kanban_card
     stage_transition = card_stage_transition(target_card_stage_for_reorder)
+    automation_event_name = stage_transition.automation_event_name
     transition_error = stage_transition.error
     return render json: transition_error, status: :unprocessable_content if transition_error
 
@@ -190,6 +190,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     end
 
     dispatch_kanban_card_reordered_event(source_stage_id)
+    trigger_automation(automation_event_name)
     render_card
   end
 
@@ -225,7 +226,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def stable_card_update_params
-    card_params.slice(:subject, :description, :starts_at, :due_at, :priority)
+    card_params.slice(:subject, :description, :starts_at, :due_at, :priority, :discount_cents, :discount_percent)
   end
 
   def card_label_titles
@@ -335,19 +336,6 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     card_params[:kanban_reason_id]
   end
 
-  def dispatch_kanban_card_move_events(source_board:, target_board:, source_stage_id:)
-    dispatch_kanban_card_event(
-      Events::Types::KANBAN_CARD_DELETED,
-      board_id: source_board.id,
-      stage_id: source_stage_id
-    )
-    dispatch_kanban_card_event(
-      Events::Types::KANBAN_CARD_CREATED,
-      board_id: target_board.id,
-      stage_id: @kanban_card.kanban_stage_id
-    )
-  end
-
   def dispatch_kanban_card_event(event_name, board_id: @kanban_card.kanban_board_id, stage_id: @kanban_card.kanban_stage_id)
     Rails.configuration.dispatcher.dispatch(
       event_name,
@@ -370,6 +358,17 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       conversation_id: @kanban_card.conversation_id,
       source_stage_id: source_stage_id,
       target_stage_id: @kanban_card.kanban_stage_id
+    )
+  end
+
+  def trigger_automation(event_name, context: {})
+    return if event_name.blank?
+
+    KanbanAutomations::TriggerService.call(
+      card: @kanban_card.reload,
+      event_name: event_name,
+      user: Current.user,
+      context: context
     )
   end
 

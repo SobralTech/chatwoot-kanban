@@ -8,12 +8,12 @@ class KanbanCards::RecordEventService
     )
   end
 
-  def self.card_created(card, user: nil, created_at: Time.current)
+  def self.card_created(card, user: nil, created_at: Time.current, metadata: {})
     call(
       card: card,
       event_type: 'card_created',
       user: user,
-      metadata: card_created_metadata(card.attributes),
+      metadata: card_created_metadata(card.attributes).merge(metadata),
       created_at: created_at
     )
   end
@@ -29,18 +29,36 @@ class KanbanCards::RecordEventService
     }
   end
 
-  def self.labels_changed(card:, from:, to:, user: nil)
-    diff_event(card, 'labels_changed', { added: to - from, removed: from - to }, user)
+  def self.labels_changed(card:, from:, to:, user: nil, metadata: {})
+    diff_event(card, 'labels_changed', { added: to - from, removed: from - to }, user, metadata)
   end
 
-  def self.assignees_changed(card:, from:, to:, user: nil)
-    diff_event(card, 'assignees_changed', { added_ids: to - from, removed_ids: from - to }, user)
+  def self.assignees_changed(card:, from:, to:, user: nil, metadata: {})
+    diff_event(card, 'assignees_changed', { added_ids: to - from, removed_ids: from - to }, user, metadata)
   end
 
-  def self.attribute_changed(card:, event_type:, from:, to:, user: nil)
+  def self.attribute_changed(card:, event_type:, from:, to:, user: nil, metadata: {}) # rubocop:disable Metrics/ParameterLists
     return if from == to
 
-    call(card: card, event_type: event_type, user: user, metadata: { from: serialize(from), to: serialize(to) })
+    call(
+      card: card,
+      event_type: event_type,
+      user: user,
+      metadata: { from: serialize(from), to: serialize(to) }.merge(metadata)
+    )
+  end
+
+  def self.automation_action(card:, action_name:, rule:, status:, metadata: {})
+    call(
+      card: card,
+      event_type: 'automation_action',
+      user: nil,
+      metadata: {
+        automation_rule_id: rule.id,
+        action_name: action_name,
+        status: status
+      }.merge(metadata)
+    )
   end
 
   # Timestamps go into the metadata as ISO8601 so the timeline renders them without
@@ -61,10 +79,10 @@ class KanbanCards::RecordEventService
     )
   end
 
-  def self.diff_event(card, event_type, diff, user)
+  def self.diff_event(card, event_type, diff, user, metadata = {})
     return if diff.values.all?(&:blank?)
 
-    call(card: card, event_type: event_type, user: user, metadata: diff.transform_values(&:sort))
+    call(card: card, event_type: event_type, user: user, metadata: diff.transform_values(&:sort).merge(metadata))
   end
   private_class_method :diff_event
 

@@ -2,11 +2,13 @@
 import { computed, nextTick, ref, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
+import { useKanbanMoveTarget } from 'dashboard/composables/useKanbanMoveTarget';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
 import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
+import { stageSlaStatus } from 'dashboard/helper/kanbanStageSla';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
@@ -64,6 +66,10 @@ const props = defineProps({
   },
   lostStageId: {
     type: Number,
+    default: null,
+  },
+  slaHours: {
+    type: [Number, String],
     default: null,
   },
   reasons: {
@@ -154,103 +160,39 @@ const extraAssigneeCount = computed(() =>
   Math.max(assignees.value.length - 1, 0)
 );
 const extraAssigneeLabel = computed(() => `+${extraAssigneeCount.value}`);
-const moveBoardId = ref(null);
 const moveTargetStage = ref(null);
 const currentBoardId = computed(() => {
   const boardId = props.board?.id ?? props.card.kanbanBoardId;
   return boardId ? Number(boardId) : null;
-});
-const sourceBoard = computed(() => {
-  if (props.board?.id) return props.board;
-
-  return (
-    props.boards.find(board => Number(board.id) === currentBoardId.value) || {}
-  );
 });
 const cardInboxId = computed(() => {
   const inboxId =
     props.card.inboxId ?? props.card.inbox?.id ?? conversation.value.inboxId;
   return inboxId ? Number(inboxId) : null;
 });
-// The board the card sits on comes from the show endpoint, which sends
-// allowedInboxIds; every other board comes from the index, which sends the
-// inboxes themselves.
-const boardAllowedInboxIds = board =>
-  (
-    board.allowedInboxIds ??
-    board.allowedInboxes?.map(allowedInbox => allowedInbox.id) ??
-    []
-  ).map(Number);
-const boardAcceptsCardInbox = board =>
-  board.inboxScopeMode !== 'selected_inboxes' ||
-  boardAllowedInboxIds(board).includes(cardInboxId.value);
-const movableBoards = computed(() => {
-  let availableBoards = props.boards;
-  if (!availableBoards.length && props.board?.id) {
-    availableBoards = [props.board];
-  }
-  return availableBoards
-    .filter(board => board.active !== false && boardAcceptsCardInbox(board))
-    .slice()
-    .sort((firstBoard, secondBoard) => {
-      const firstIsCurrent = Number(firstBoard.id) === currentBoardId.value;
-      const secondIsCurrent = Number(secondBoard.id) === currentBoardId.value;
-      if (firstIsCurrent !== secondIsCurrent) return firstIsCurrent ? -1 : 1;
-
-      return (
-        Number(firstBoard.position ?? 0) - Number(secondBoard.position ?? 0)
-      );
-    });
+const {
+  boardId: moveBoardId,
+  boardOptions: moveBoardOptions,
+  isCurrentBoard: isCurrentMoveBoard,
+  reset: resetMoveTarget,
+  selectedBoard: selectedMoveBoard,
+  sourceBoard,
+  targetStages: moveStages,
+} = useKanbanMoveTarget({
+  board: toRef(props, 'board'),
+  boards: toRef(props, 'boards'),
+  currentBoardId,
+  excludeStageId: computed(() => props.card.kanbanStageId),
+  inboxId: cardInboxId,
+  lostStageId: toRef(props, 'lostStageId'),
+  stages: toRef(props, 'stages'),
+  wonStageId: toRef(props, 'wonStageId'),
 });
-const selectedMoveBoard = computed(
-  () =>
-    movableBoards.value.find(
-      board => Number(board.id) === Number(moveBoardId.value)
-    ) || sourceBoard.value
-);
 const moveBoardName = computed(
   () =>
     selectedMoveBoard.value?.name ||
     t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: '' })
 );
-const moveBoardOptions = computed(() =>
-  movableBoards.value.map(board => ({
-    value: board.id,
-    label:
-      Number(board.id) === currentBoardId.value
-        ? t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: board.name })
-        : board.name,
-  }))
-);
-const isCurrentMoveBoard = computed(() => {
-  if (!currentBoardId.value) return moveBoardId.value === null;
-
-  return Number(moveBoardId.value) === currentBoardId.value;
-});
-const moveStages = computed(() => {
-  const board = selectedMoveBoard.value;
-  const stages = isCurrentMoveBoard.value
-    ? props.stages
-    : board.stagesSummary || [];
-  const wonStageId = isCurrentMoveBoard.value
-    ? props.wonStageId
-    : board.wonStageId;
-  const lostStageId = isCurrentMoveBoard.value
-    ? props.lostStageId
-    : board.lostStageId;
-  const terminalStageIds = [wonStageId, lostStageId]
-    .filter(Boolean)
-    .map(Number);
-
-  return stages.filter(stage => {
-    if (stage.active === false) return false;
-    if (terminalStageIds.includes(Number(stage.id))) return false;
-    return (
-      !isCurrentMoveBoard.value ||
-      Number(stage.id) !== Number(props.card.kanbanStageId)
-    );
-  });
-});
 const sourceCustomFields = computed(() => sourceBoard.value.customFields || []);
 const targetCustomFields = computed(
   () => selectedMoveBoard.value.customFields || []
@@ -377,6 +319,21 @@ const toUnixTimestamp = value => {
 const stageEnteredAt = computed(() =>
   toUnixTimestamp(props.card.stage_entered_at || props.card.stageEnteredAt)
 );
+const stageSlaStatusValue = computed(() =>
+  stageSlaStatus({
+    stageEnteredAt: props.card.stage_entered_at || props.card.stageEnteredAt,
+    slaHours: props.slaHours,
+  })
+);
+const stageSlaClasses = computed(() => {
+  if (stageSlaStatusValue.value === 'warning') {
+    return 'rounded-full bg-n-amber-3 px-1.5 py-0.5 text-n-amber-11';
+  }
+  if (stageSlaStatusValue.value === 'stale') {
+    return 'rounded-full bg-n-ruby-3 px-1.5 py-0.5 text-n-ruby-11';
+  }
+  return '';
+});
 const stageTime = computed(() =>
   stageEnteredAt.value
     ? shortTimestamp(dynamicTime(stageEnteredAt.value), true)
@@ -400,6 +357,15 @@ const dueAtStatus = computed(() => {
   if (diffInDays === 1) return 'tomorrow';
   return 'upcoming';
 });
+const stageTimeTitle = computed(() => {
+  if (!stageTime.value) return undefined;
+  if (!props.slaHours) return dynamicTime(stageEnteredAt.value);
+
+  return t('KANBAN.CARD.SLA_TOOLTIP', {
+    age: dynamicTime(stageEnteredAt.value),
+    hours: props.slaHours,
+  });
+});
 const dueAtClasses = computed(() => {
   switch (dueAtStatus.value) {
     case 'today':
@@ -420,7 +386,7 @@ const openDetails = () => {
 
 const resetView = () => {
   view.value = 'root';
-  moveBoardId.value = null;
+  resetMoveTarget();
   moveTargetStage.value = null;
 };
 
@@ -432,7 +398,7 @@ const closeMenu = hide => {
 const openView = nextView => {
   if (nextView === 'due') dueDateInput.value = formatDateInput(dueAt.value);
   if (nextView === 'move') {
-    moveBoardId.value = currentBoardId.value;
+    resetMoveTarget();
     moveTargetStage.value = null;
   }
   view.value = nextView;
@@ -537,7 +503,10 @@ const toggleSelection = async event => {
   <article
     tabindex="0"
     class="card-drag-handle group relative cursor-pointer select-none rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-brand"
-    :class="{ 'border-n-brand ring-1 ring-n-brand': isSelected }"
+    :class="{
+      'border-n-brand ring-1 ring-n-brand': isSelected,
+      'border-l-2 border-n-ruby-9': stageSlaStatusValue === 'stale',
+    }"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openCard"
@@ -965,11 +934,7 @@ const toggleSelection = async event => {
         data-testid="kanban-card-meta"
         class="mt-1 flex items-center justify-between gap-1.5 text-xs leading-4 text-n-slate-10"
       >
-        <span
-          class="no-drag inline-flex flex-shrink-0"
-          :title="t('KANBAN.CARD.CHANGE_PRIORITY')"
-          @click.stop
-        >
+        <span class="inline-flex flex-shrink-0">
           <CardPriorityIcon :priority="priority" show-empty class="!size-3.5" />
         </span>
 
@@ -1005,7 +970,13 @@ const toggleSelection = async event => {
           <span
             v-if="stageTime"
             class="inline-flex min-w-0 items-center gap-1 truncate"
-            :title="dynamicTime(stageEnteredAt)"
+            :class="stageSlaClasses"
+            :title="stageTimeTitle"
+            :aria-label="
+              stageSlaStatusValue === 'stale'
+                ? t('KANBAN.CARD.SLA_STALE')
+                : undefined
+            "
           >
             <i class="i-lucide-clock size-3 flex-shrink-0" />
             <span class="truncate">{{ stageTime }}</span>

@@ -8,6 +8,7 @@
 #  description     :text
 #  name            :string           not null
 #  position        :integer          default(0), not null
+#  sla_hours       :integer
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null
 #  account_id      :bigint           not null
@@ -35,6 +36,7 @@ class KanbanStage < ApplicationRecord
   validates :name, presence: true, uniqueness: { scope: :kanban_board_id, conditions: -> { active } }, if: :active?
   validates :position, presence: true, numericality: { only_integer: true }
   validates :color, format: { with: /\A#[0-9A-F]{6}\z/i }
+  validates :sla_hours, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :validate_board_account
   validate :validate_special_stage_not_deactivated
 
@@ -105,10 +107,9 @@ class KanbanStage < ApplicationRecord
   end
 
   def total_value
-    KanbanCardProduct.joins(:kanban_card)
-                     .merge(KanbanCard.active)
-                     .where(kanban_cards: { kanban_stage_id: id })
-                     .sum('kanban_card_products.unit_price * kanban_card_products.quantity')
+    totals = KanbanCards::Totals.metric(kanban_cards.active)
+
+    BigDecimal(totals.value)
   end
 
   private
