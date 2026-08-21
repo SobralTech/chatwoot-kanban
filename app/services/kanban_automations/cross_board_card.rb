@@ -40,7 +40,7 @@ class KanbanAutomations::CrossBoardCard
 
   def subject(params)
     @subject ||= begin
-      rendered = KanbanAutomations::MessagingAction.render_content(
+      rendered = KanbanAutomations::ContentRenderer.render(
         card: card, content: params[:subject].presence || card.subject.to_s
       )
       raise ArgumentError, 'card subject cannot be blank' if rendered.blank?

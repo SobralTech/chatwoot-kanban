@@ -198,7 +198,7 @@ class KanbanAutomations::CardActions
   end
 
   def render_template(value)
-    KanbanAutomations::MessagingAction.render_content(card: card, content: value)
+    KanbanAutomations::ContentRenderer.render(card: card, content: value)
   end
 
   def executed_result(event_name: nil, event_recorded: false, metadata: {})
