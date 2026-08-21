@@ -7,7 +7,15 @@ import ConditionRow from 'dashboard/components-next/filter/ConditionRow.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
-import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
+import RuleActionFields from './RuleActionFields.vue';
+import {
+  ACTION_NAMES,
+  actionError,
+  castActionParams,
+  defaultActionParams,
+} from './ruleActionSchema';
+import { DEFAULT_CONDITION_KEY, buildFilterTypes } from './ruleConditionTypes';
+import { toApiValues, toWidgetValues } from './ruleConditionValues';
 
 const props = defineProps({
   mode: {
@@ -54,22 +62,6 @@ const emit = defineEmits(['save']);
 // `overdue` is time based too, but needs no threshold: a card is past due_at or it is not.
 const THRESHOLD_EVENTS = new Set(['card_stalled', 'due_soon', 'no_reply']);
 
-const NUMERIC_CONDITIONS = new Set([
-  'stage_id',
-  'previous_stage_id',
-  'assignee_id',
-  'inbox_id',
-  'total_value',
-  'hours_in_stage',
-  'reason_id',
-]);
-
-const MESSAGE_ACTIONS = new Set([
-  'send_message',
-  'create_note',
-  'send_private_note',
-]);
-
 const rule = defineModel('rule', { type: Object, default: null });
 
 const { t } = useI18n();
@@ -83,87 +75,31 @@ const hasReviewedImpact = ref(false);
 const previewError = ref('');
 const isPreviewing = ref(false);
 
-const eventOptions = computed(() => [
-  {
-    value: 'card_created',
-    label: t('KANBAN.AUTOMATIONS.FORM.EVENTS.CARD_CREATED'),
-  },
-  {
-    value: 'stage_changed',
-    label: t('KANBAN.AUTOMATIONS.FORM.EVENTS.STAGE_CHANGED'),
-  },
-  {
-    value: 'card_won',
-    label: t('KANBAN.AUTOMATIONS.FORM.EVENTS.CARD_WON'),
-  },
-  {
-    value: 'card_lost',
-    label: t('KANBAN.AUTOMATIONS.FORM.EVENTS.CARD_LOST'),
-  },
-  {
-    value: 'card_reopened',
-    label: t('KANBAN.AUTOMATIONS.FORM.EVENTS.CARD_REOPENED'),
-  },
-  {
-    value: 'card_stalled',
-    label: t('KANBAN.AUTOMATIONS.FORM.EVENTS.CARD_STALLED'),
-  },
-  {
-    value: 'due_soon',
-    label: t('KANBAN.AUTOMATIONS.FORM.EVENTS.DUE_SOON'),
-  },
-  {
-    value: 'overdue',
-    label: t('KANBAN.AUTOMATIONS.FORM.EVENTS.OVERDUE'),
-  },
-  {
-    value: 'no_reply',
-    label: t('KANBAN.AUTOMATIONS.FORM.EVENTS.NO_REPLY'),
-  },
-]);
+const EVENT_NAMES = [
+  'card_created',
+  'stage_changed',
+  'card_won',
+  'card_lost',
+  'card_reopened',
+  'card_stalled',
+  'due_soon',
+  'overdue',
+  'no_reply',
+];
 
-const actionOptions = computed(() => [
-  {
-    value: 'move_to_stage',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.MOVE_TO_STAGE'),
-  },
-  {
-    value: 'assign_agents',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.ASSIGN_AGENTS'),
-  },
-  {
-    value: 'set_priority',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.SET_PRIORITY'),
-  },
-  {
-    value: 'add_label',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.ADD_LABEL'),
-  },
-  {
-    value: 'remove_label',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.REMOVE_LABEL'),
-  },
-  {
-    value: 'send_message',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.SEND_MESSAGE'),
-  },
-  {
-    value: 'create_note',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.CREATE_NOTE'),
-  },
-  {
-    value: 'send_private_note',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.SEND_PRIVATE_NOTE'),
-  },
-  {
-    value: 'set_due_at',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.SET_DUE_AT'),
-  },
-  {
-    value: 'mark_as_lost',
-    label: t('KANBAN.AUTOMATIONS.FORM.ACTIONS.MARK_AS_LOST'),
-  },
-]);
+const eventOptions = computed(() =>
+  EVENT_NAMES.map(value => ({
+    value,
+    label: t(`KANBAN.AUTOMATIONS.FORM.EVENTS.${value.toUpperCase()}`),
+  }))
+);
+
+const actionOptions = computed(() =>
+  ACTION_NAMES.map(value => ({
+    value,
+    label: t(`KANBAN.AUTOMATIONS.FORM.ACTIONS.${value.toUpperCase()}`),
+  }))
+);
 
 const needsThreshold = computed(() =>
   THRESHOLD_EVENTS.has(rule.value?.event_name)
@@ -278,119 +214,23 @@ const operator = (value, inputOverride = null) => {
 
 const operatorsFor = values => values.map(value => operator(value));
 
-const filterTypes = computed(() => [
-  {
-    attributeKey: 'stage_id',
-    value: 'stage_id',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.STAGE'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.STAGE'),
-    inputType: 'multiSelect',
-    options: stageConditionOptions.value,
-    filterOperators: operatorsFor(['equal_to', 'not_equal_to', 'is_one_of']),
-  },
-  {
-    attributeKey: 'previous_stage_id',
-    value: 'previous_stage_id',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.PREVIOUS_STAGE'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.PREVIOUS_STAGE'),
-    inputType: 'multiSelect',
-    options: stageConditionOptions.value,
-    filterOperators: operatorsFor(['equal_to', 'not_equal_to', 'is_one_of']),
-  },
-  {
-    attributeKey: 'priority',
-    value: 'priority',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.PRIORITY'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.PRIORITY'),
-    inputType: 'multiSelect',
-    options: priorityConditionOptions.value,
-    filterOperators: operatorsFor(['equal_to', 'not_equal_to', 'is_one_of']),
-  },
-  {
-    attributeKey: 'labels',
-    value: 'labels',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.LABELS'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.LABELS'),
-    inputType: 'multiSelect',
-    options: labelConditionOptions.value,
-    filterOperators: operatorsFor(['includes', 'is_not_present']),
-  },
-  {
-    attributeKey: 'assignee_id',
-    value: 'assignee_id',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.ASSIGNEE'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.ASSIGNEE'),
-    inputType: 'multiSelect',
-    options: agentConditionOptions.value,
-    filterOperators: operatorsFor(['equal_to', 'not_equal_to', 'is_one_of']),
-  },
-  {
-    attributeKey: 'inbox_id',
-    value: 'inbox_id',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.INBOX'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.INBOX'),
-    inputType: 'multiSelect',
-    options: inboxConditionOptions.value,
-    filterOperators: operatorsFor(['equal_to', 'not_equal_to', 'is_one_of']),
-  },
-  {
-    attributeKey: 'total_value',
-    value: 'total_value',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.TOTAL_VALUE'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.TOTAL_VALUE'),
-    inputType: 'number',
-    options: [],
-    filterOperators: operatorsFor([
-      'equal_to',
-      'not_equal_to',
-      'greater_than',
-      'less_than',
-    ]),
-  },
-  {
-    attributeKey: 'hours_in_stage',
-    value: 'hours_in_stage',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.HOURS_IN_STAGE'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.HOURS_IN_STAGE'),
-    inputType: 'number',
-    options: [],
-    filterOperators: operatorsFor([
-      'equal_to',
-      'not_equal_to',
-      'greater_than',
-      'less_than',
-    ]),
-  },
-  {
-    attributeKey: 'reason_id',
-    value: 'reason_id',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.REASON'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.REASON'),
-    inputType: 'multiSelect',
-    options: reasonConditionOptions.value,
-    filterOperators: operatorsFor(['equal_to', 'not_equal_to', 'is_one_of']),
-  },
-  {
-    attributeKey: 'origin',
-    value: 'origin',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.ORIGIN'),
-    attributeName: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.ORIGIN'),
-    inputType: 'multiSelect',
-    options: originOptions.value,
-    filterOperators: operatorsFor(['equal_to', 'not_equal_to', 'is_one_of']),
-  },
-  {
-    attributeKey: 'contact_has_open_card',
-    value: 'contact_has_open_card',
-    label: t('KANBAN.AUTOMATIONS.FORM.CONDITIONS.CONTACT_HAS_OPEN_CARD'),
-    attributeName: t(
-      'KANBAN.AUTOMATIONS.FORM.CONDITIONS.CONTACT_HAS_OPEN_CARD'
-    ),
-    inputType: 'booleanSelect',
-    options: [],
-    filterOperators: operatorsFor(['equal_to', 'not_equal_to']),
-  },
-]);
+const conditionOptionSets = computed(() => ({
+  stages: stageConditionOptions.value,
+  priorities: priorityConditionOptions.value,
+  labels: labelConditionOptions.value,
+  agents: agentConditionOptions.value,
+  inboxes: inboxConditionOptions.value,
+  reasons: reasonConditionOptions.value,
+  origins: originOptions.value,
+}));
+
+const filterTypes = computed(() =>
+  buildFilterTypes({
+    t,
+    optionsFor: key => conditionOptionSets.value[key] || [],
+    operatorsFor,
+  })
+);
 
 const displayedConditions = computed(() =>
   (rule.value?.conditions || []).map((condition, index) => ({
@@ -399,7 +239,7 @@ const displayedConditions = computed(() =>
   }))
 );
 
-const makeCondition = attributeKey => {
+const makeCondition = (attributeKey = DEFAULT_CONDITION_KEY) => {
   const type = filterTypes.value.find(
     item => item.attributeKey === attributeKey
   );
@@ -410,61 +250,17 @@ const makeCondition = attributeKey => {
   };
 };
 
-const normalizedValue = value => {
-  if (value && typeof value === 'object' && 'id' in value) return value.id;
-  return value;
-};
-
 const normalizeConditionForUi = condition => {
-  const filter = filterTypes.value.find(
-    item => item.attributeKey === condition.attribute_key
+  toWidgetValues(
+    condition,
+    filterTypes.value.find(
+      item => item.attributeKey === condition.attribute_key
+    ),
+    {
+      trueLabel: t('FILTER.ATTRIBUTE_LABELS.TRUE'),
+      falseLabel: t('FILTER.ATTRIBUTE_LABELS.FALSE'),
+    }
   );
-  const values = Array.isArray(condition.values)
-    ? condition.values
-    : [condition.values];
-
-  if (filter?.inputType === 'multiSelect') {
-    if (['is_present', 'is_not_present'].includes(condition.filter_operator)) {
-      condition.values = [];
-      return;
-    }
-
-    condition.values = values
-      .map(value => {
-        const valueId = normalizedValue(value);
-        return (
-          filter.options.find(
-            option => String(option.id) === String(valueId)
-          ) ||
-          (value && typeof value === 'object'
-            ? value
-            : { id: valueId, name: String(valueId) })
-        );
-      })
-      .filter(Boolean);
-    return;
-  }
-
-  if (filter?.inputType === 'booleanSelect') {
-    const value = normalizedValue(values[0]);
-    if (value === undefined || value === null || value === '') {
-      condition.values = {};
-      return;
-    }
-
-    const booleanValue = value === true || value === 'true';
-    condition.values = {
-      id: booleanValue,
-      name: booleanValue
-        ? t('FILTER.ATTRIBUTE_LABELS.TRUE')
-        : t('FILTER.ATTRIBUTE_LABELS.FALSE'),
-    };
-    return;
-  }
-
-  if (filter?.inputType === 'number') {
-    condition.values = values[0] ?? '';
-  }
 };
 
 const normalizeConditionsForUi = () => {
@@ -482,7 +278,7 @@ const resetForEvent = () => {
   if (!rule.value) return;
 
   if (!rule.value.conditions?.length) {
-    rule.value.conditions = [makeCondition('stage_id')];
+    rule.value.conditions = [makeCondition()];
   }
   if (!needsThreshold.value) rule.value.threshold_hours = null;
   ensureThreshold();
@@ -495,36 +291,12 @@ const onThresholdChange = value => {
 
 const appendCondition = () => {
   if (!rule.value) return;
-  rule.value.conditions.push(makeCondition('stage_id'));
+  rule.value.conditions.push(makeCondition());
 };
 
 const removeCondition = index => {
   if (!rule.value) return;
   rule.value.conditions.splice(index, 1);
-};
-
-const defaultActionParams = actionName => {
-  switch (actionName) {
-    case 'move_to_stage':
-      return { stage_id: props.stages[0]?.id || '' };
-    case 'assign_agents':
-      return { agent_ids: [], mode: 'set' };
-    case 'set_priority':
-      return { priority: '' };
-    case 'add_label':
-    case 'remove_label':
-      return { labels: [] };
-    case 'send_message':
-    case 'create_note':
-    case 'send_private_note':
-      return { content: '' };
-    case 'set_due_at':
-      return { days: 1, business_days: false };
-    case 'mark_as_lost':
-      return { reason_id: reasonOptions.value[0]?.value || '' };
-    default:
-      return {};
-  }
 };
 
 const appendAction = () => {
@@ -567,42 +339,6 @@ const variables = computed(() => [
   },
 ]);
 
-const previewValues = {
-  contact_name: 'Maria Silva',
-  agent_name: 'João Costa',
-  card_subject: 'Orçamento #4521',
-  total: 'R$ 1,250.00',
-  'card.stage.name': 'Negociação',
-};
-
-const renderPreview = content =>
-  String(content || '').replace(/{{\s*([^}]+?)\s*}}/g, (_match, key) => {
-    return previewValues[key.trim()] || `{{${key.trim()}}}`;
-  });
-
-const appendVariable = (action, key) => {
-  action.action_params.content = `${action.action_params.content || ''}{{${key}}}`;
-};
-
-const normalizeConditionValues = condition => {
-  const values = Array.isArray(condition.values)
-    ? condition.values
-    : [condition.values];
-  const normalized = values
-    .map(normalizedValue)
-    .filter(value => value !== undefined && value !== null && value !== '');
-
-  if (condition.attribute_key === 'contact_has_open_card') {
-    return normalized.map(value => value === true || value === 'true');
-  }
-
-  if (NUMERIC_CONDITIONS.has(condition.attribute_key)) {
-    return normalized.map(value => Number(value));
-  }
-
-  return normalized;
-};
-
 const buildPayload = () => {
   const payload = structuredClone(toRaw(rule.value));
   payload.name = payload.name.trim();
@@ -610,70 +346,19 @@ const buildPayload = () => {
   payload.conditions = (payload.conditions || []).map(condition => ({
     attribute_key: condition.attribute_key,
     filter_operator: condition.filter_operator,
-    values: normalizeConditionValues(condition),
+    values: toApiValues(condition),
   }));
-  payload.actions = (payload.actions || []).map(action => {
-    const actionParams = structuredClone(action.action_params || {});
-    if (actionParams.agent_ids) {
-      actionParams.agent_ids = actionParams.agent_ids.map(Number);
-    }
-    if (actionParams.stage_id)
-      actionParams.stage_id = Number(actionParams.stage_id);
-    if (actionParams.reason_id)
-      actionParams.reason_id = Number(actionParams.reason_id);
-    if (actionParams.days !== undefined)
-      actionParams.days = Number(actionParams.days);
-    return {
-      action_name: action.action_name,
-      action_params: actionParams,
-    };
-  });
+  payload.actions = (payload.actions || []).map(action => ({
+    action_name: action.action_name,
+    action_params: castActionParams(action),
+  }));
   payload.dry_run = Boolean(payload.dry_run);
 
   return payload;
 };
 
 const validateAction = (action, index) => {
-  const params = action.action_params || {};
-  let message = '';
-
-  switch (action.action_name) {
-    case 'move_to_stage':
-      if (!params.stage_id) message = 'ACTION_STAGE_REQUIRED';
-      break;
-    case 'assign_agents':
-      if (
-        !Array.isArray(params.agent_ids) ||
-        (params.mode !== 'round_robin' && !params.agent_ids.length)
-      ) {
-        message = 'ACTION_AGENTS_REQUIRED';
-      }
-      if (!params.mode) message = 'ACTION_MODE_REQUIRED';
-      break;
-    case 'set_priority':
-      if (!params.priority) message = 'ACTION_PRIORITY_REQUIRED';
-      break;
-    case 'add_label':
-    case 'remove_label':
-      if (!params.labels?.length) message = 'ACTION_LABELS_REQUIRED';
-      break;
-    case 'send_message':
-    case 'create_note':
-    case 'send_private_note':
-      if (!params.content?.trim()) message = 'ACTION_CONTENT_REQUIRED';
-      break;
-    case 'set_due_at':
-      if (!Number(params.days) || Number(params.days) < 1) {
-        message = 'ACTION_DAYS_REQUIRED';
-      }
-      break;
-    case 'mark_as_lost':
-      if (!params.reason_id) message = 'ACTION_REASON_REQUIRED';
-      break;
-    default:
-      break;
-  }
-
+  const message = actionError(action);
   if (message) errors.value[`action_${index}`] = message;
 };
 
@@ -682,36 +367,8 @@ const resetValidation = () => {
   conditionRefs.value?.forEach(condition => condition.resetValidation());
 };
 
-const actionErrorMessages = computed(() => ({
-  ACTION_STAGE_REQUIRED: t(
-    'KANBAN.AUTOMATIONS.FORM.ERRORS.ACTION_STAGE_REQUIRED'
-  ),
-  ACTION_AGENTS_REQUIRED: t(
-    'KANBAN.AUTOMATIONS.FORM.ERRORS.ACTION_AGENTS_REQUIRED'
-  ),
-  ACTION_MODE_REQUIRED: t(
-    'KANBAN.AUTOMATIONS.FORM.ERRORS.ACTION_MODE_REQUIRED'
-  ),
-  ACTION_PRIORITY_REQUIRED: t(
-    'KANBAN.AUTOMATIONS.FORM.ERRORS.ACTION_PRIORITY_REQUIRED'
-  ),
-  ACTION_LABELS_REQUIRED: t(
-    'KANBAN.AUTOMATIONS.FORM.ERRORS.ACTION_LABELS_REQUIRED'
-  ),
-  ACTION_CONTENT_REQUIRED: t(
-    'KANBAN.AUTOMATIONS.FORM.ERRORS.ACTION_CONTENT_REQUIRED'
-  ),
-  ACTION_DAYS_REQUIRED: t(
-    'KANBAN.AUTOMATIONS.FORM.ERRORS.ACTION_DAYS_REQUIRED'
-  ),
-  ACTION_REASON_REQUIRED: t(
-    'KANBAN.AUTOMATIONS.FORM.ERRORS.ACTION_REASON_REQUIRED'
-  ),
-}));
-
 const actionErrorMessage = error =>
-  actionErrorMessages.value[error] ||
-  t('KANBAN.AUTOMATIONS.FORM.REQUIRED_FIELDS');
+  t(`KANBAN.AUTOMATIONS.FORM.ERRORS.${error}`);
 
 const validateForm = () => {
   errors.value = {};
@@ -776,7 +433,7 @@ const open = () => {
   hasReviewedImpact.value = false;
   previewError.value = '';
   if (rule.value) {
-    rule.value.conditions ||= [makeCondition('stage_id')];
+    rule.value.conditions ||= [makeCondition()];
     rule.value.actions ||= [
       {
         action_name: 'move_to_stage',
@@ -980,137 +637,14 @@ defineExpose({ open, close });
               />
             </div>
 
-            <Select
-              v-if="action.action_name === 'move_to_stage'"
-              v-model="action.action_params.stage_id"
-              :options="regularStageOptions"
-              :placeholder="t('KANBAN.AUTOMATIONS.FORM.SELECT_STAGE')"
-              full-width
-            />
-
-            <div
-              v-else-if="action.action_name === 'assign_agents'"
-              class="grid gap-3"
-            >
-              <TagMultiSelectComboBox
-                v-model="action.action_params.agent_ids"
-                :options="agentActionOptions"
-                :placeholder="t('KANBAN.AUTOMATIONS.FORM.SELECT_AGENTS')"
-                :search-placeholder="t('KANBAN.AUTOMATIONS.FORM.SEARCH_AGENTS')"
-                :empty-state="t('KANBAN.AUTOMATIONS.FORM.NO_AGENTS')"
-              />
-              <Select
-                v-model="action.action_params.mode"
-                :options="[
-                  {
-                    value: 'set',
-                    label: t('KANBAN.AUTOMATIONS.FORM.ASSIGN_MODES.SET'),
-                  },
-                  {
-                    value: 'add',
-                    label: t('KANBAN.AUTOMATIONS.FORM.ASSIGN_MODES.ADD'),
-                  },
-                  {
-                    value: 'round_robin',
-                    label: t(
-                      'KANBAN.AUTOMATIONS.FORM.ASSIGN_MODES.ROUND_ROBIN'
-                    ),
-                  },
-                ]"
-                full-width
-              />
-            </div>
-
-            <Select
-              v-else-if="action.action_name === 'set_priority'"
-              v-model="action.action_params.priority"
-              :options="priorityOptions"
-              :placeholder="t('KANBAN.AUTOMATIONS.FORM.SELECT_PRIORITY')"
-              full-width
-            />
-
-            <TagMultiSelectComboBox
-              v-else-if="
-                ['add_label', 'remove_label'].includes(action.action_name)
-              "
-              v-model="action.action_params.labels"
-              :options="labelActionOptions"
-              :placeholder="t('KANBAN.AUTOMATIONS.FORM.SELECT_LABELS')"
-              :search-placeholder="t('KANBAN.AUTOMATIONS.FORM.SEARCH_LABELS')"
-              :empty-state="t('KANBAN.AUTOMATIONS.FORM.NO_LABELS')"
-            />
-
-            <div
-              v-else-if="MESSAGE_ACTIONS.has(action.action_name)"
-              class="grid gap-3"
-            >
-              <div class="grid gap-2 lg:grid-cols-[minmax(0,1fr)_13rem]">
-                <textarea
-                  v-model="action.action_params.content"
-                  rows="4"
-                  :placeholder="
-                    t('KANBAN.AUTOMATIONS.FORM.MESSAGE_PLACEHOLDER')
-                  "
-                  class="min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                />
-                <div
-                  class="grid content-start gap-2 rounded-md bg-n-alpha-2 p-2"
-                >
-                  <p class="text-xs font-medium text-n-slate-11">
-                    {{ t('KANBAN.AUTOMATIONS.FORM.VARIABLES') }}
-                  </p>
-                  <button
-                    v-for="variable in variables"
-                    :key="variable.key"
-                    type="button"
-                    class="truncate rounded px-2 py-1 text-left text-xs text-n-blue-11 hover:bg-n-alpha-2"
-                    @click="appendVariable(action, variable.key)"
-                  >
-                    {{ variable.label }}
-                  </button>
-                </div>
-              </div>
-              <div class="rounded-md border border-n-weak bg-n-surface-2 p-3">
-                <p class="mb-1 text-xs font-medium text-n-slate-11">
-                  {{ t('KANBAN.AUTOMATIONS.FORM.PREVIEW') }}
-                </p>
-                <p class="whitespace-pre-wrap text-sm text-n-slate-12">
-                  {{
-                    renderPreview(action.action_params.content) ||
-                    t('KANBAN.AUTOMATIONS.FORM.EMPTY_MESSAGE')
-                  }}
-                </p>
-              </div>
-            </div>
-
-            <div
-              v-else-if="action.action_name === 'set_due_at'"
-              class="grid gap-3"
-            >
-              <label class="grid gap-1 text-sm text-n-slate-12">
-                {{ t('KANBAN.AUTOMATIONS.FORM.DAYS') }}
-                <input
-                  v-model="action.action_params.days"
-                  type="number"
-                  min="1"
-                  class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 outline-none focus:border-n-brand"
-                />
-              </label>
-              <label class="flex items-center gap-2 text-sm text-n-slate-12">
-                <input
-                  v-model="action.action_params.business_days"
-                  type="checkbox"
-                />
-                {{ t('KANBAN.AUTOMATIONS.FORM.BUSINESS_DAYS') }}
-              </label>
-            </div>
-
-            <Select
-              v-else-if="action.action_name === 'mark_as_lost'"
-              v-model="action.action_params.reason_id"
-              :options="reasonOptions"
-              :placeholder="t('KANBAN.AUTOMATIONS.FORM.SELECT_REASON')"
-              full-width
+            <RuleActionFields
+              v-model:action="rule.actions[index]"
+              :stages="regularStageOptions"
+              :agents="agentActionOptions"
+              :labels="labelActionOptions"
+              :reasons="reasonOptions"
+              :priorities="priorityOptions"
+              :variables="variables"
             />
 
             <p v-if="errors[`action_${index}`]" class="text-sm text-n-ruby-11">

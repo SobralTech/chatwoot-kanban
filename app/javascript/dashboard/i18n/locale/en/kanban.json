@@ -570,6 +570,13 @@
           "ACTION_CONTENT_REQUIRED": "Enter some content.",
           "ACTION_DAYS_REQUIRED": "Enter at least one day.",
           "ACTION_REASON_REQUIRED": "Choose a loss reason."
+        },
+        "PREVIEW_SAMPLE": {
+          "CONTACT_NAME": "Alex Morgan",
+          "AGENT_NAME": "Sam Rivera",
+          "CARD_SUBJECT": "Quote #4521",
+          "TOTAL": "1,250.00",
+          "STAGE": "Negotiation"
         }
       },
       "LOG": {
