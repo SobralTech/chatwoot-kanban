@@ -2,13 +2,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useStoreGetters } from 'dashboard/composables/store';
 import { PRIORITY_CONDITION_VALUES } from 'dashboard/constants/automation';
-import {
-  KANBAN_AGENT_ACTIONS,
-  KANBAN_STAGE_ACTIONS,
-  getKanbanAgentOptionsByBoard,
-  getKanbanBoardOptions,
-  getKanbanStageOptions,
-} from 'dashboard/helper/kanbanActionOptions';
+import { kanbanDropdownValues } from 'dashboard/helper/kanbanActionOptions';
 
 /**
  * Composable for handling macro-related functionality
@@ -36,19 +30,12 @@ export const useMacros = () => {
    * @returns {Array} An array of dropdown values
    */
   const getMacroDropdownValues = type => {
-    if (KANBAN_STAGE_ACTIONS.includes(type)) {
-      return getKanbanStageOptions(kanbanBoards.value, type);
-    }
-
-    if (KANBAN_AGENT_ACTIONS.includes(type)) {
-      return {
-        boards: getKanbanBoardOptions(kanbanBoards.value),
-        agentsByBoardId: getKanbanAgentOptionsByBoard(
-          kanbanBoards.value,
-          agents.value
-        ),
-      };
-    }
+    const kanbanValues = kanbanDropdownValues(
+      type,
+      kanbanBoards.value,
+      agents.value
+    );
+    if (kanbanValues) return kanbanValues;
 
     switch (type) {
       case 'assign_team':

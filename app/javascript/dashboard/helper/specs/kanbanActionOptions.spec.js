@@ -1,6 +1,7 @@
 import {
-  getKanbanAgentOptionsByBoard,
+  getKanbanBoardOptions,
   getKanbanStageOptions,
+  kanbanDropdownValues,
 } from '../kanbanActionOptions';
 
 const boards = [
@@ -38,12 +39,24 @@ describe('kanban action options', () => {
     ]);
   });
 
-  it('uses visible board members for selected-agent boards', () => {
+  it('offers the lost stage to a move only when the board needs no reason', () => {
+    expect(getKanbanStageOptions(boards, 'move_kanban_card')).toEqual([
+      { id: '1:2', name: 'Sales › Prospecting' },
+      { id: '1:5', name: 'Sales › Lost' },
+      { id: '3:6', name: 'Support › Triage' },
+    ]);
+  });
+
+  it('carries each board its own assignable agents', () => {
     expect(
-      getKanbanAgentOptionsByBoard(boards, [{ id: 8, name: 'Account agent' }])
-    ).toEqual({
-      1: [{ id: 8, name: 'Account agent' }],
-      3: [{ id: 9, name: 'Visible agent' }],
-    });
+      getKanbanBoardOptions(boards, [{ id: 8, name: 'Account agent' }])
+    ).toEqual([
+      { id: 1, name: 'Sales', agents: [{ id: 8, name: 'Account agent' }] },
+      { id: 3, name: 'Support', agents: [{ id: 9, name: 'Visible agent' }] },
+    ]);
+  });
+
+  it('returns null for actions that are not Kanban ones', () => {
+    expect(kanbanDropdownValues('add_label', boards, [])).toBeNull();
   });
 });

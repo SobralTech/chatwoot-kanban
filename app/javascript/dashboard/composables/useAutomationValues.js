@@ -12,13 +12,7 @@ import {
   MESSAGE_CONDITION_VALUES,
   PRIORITY_CONDITION_VALUES,
 } from 'dashboard/constants/automation';
-import {
-  KANBAN_AGENT_ACTIONS,
-  KANBAN_STAGE_ACTIONS,
-  getKanbanAgentOptionsByBoard,
-  getKanbanBoardOptions,
-  getKanbanStageOptions,
-} from 'dashboard/helper/kanbanActionOptions';
+import { kanbanDropdownValues } from 'dashboard/helper/kanbanActionOptions';
 
 /**
  * This is a shared composables that holds utilities used to build dropdown and file options
@@ -129,18 +123,12 @@ export default function useAutomationValues() {
    * @returns {Array} An array of action dropdown values.
    */
   const getActionDropdownValues = type => {
-    const boards = kanbanBoards.value || [];
-
-    if (KANBAN_STAGE_ACTIONS.includes(type)) {
-      return getKanbanStageOptions(boards, type);
-    }
-
-    if (KANBAN_AGENT_ACTIONS.includes(type)) {
-      return {
-        boards: getKanbanBoardOptions(boards),
-        agentsByBoardId: getKanbanAgentOptionsByBoard(boards, agents.value),
-      };
-    }
+    const kanbanValues = kanbanDropdownValues(
+      type,
+      kanbanBoards.value || [],
+      agents.value
+    );
+    if (kanbanValues) return kanbanValues;
 
     let agentsList = agents.value;
     if (type === 'assign_agent') {

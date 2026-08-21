@@ -2,56 +2,60 @@ export const KANBAN_STAGE_ACTIONS = ['add_to_kanban_board', 'move_kanban_card'];
 
 export const KANBAN_AGENT_ACTIONS = ['assign_kanban_card'];
 
-const boardStageId = (boardId, stageId) => `${boardId}:${stageId}`;
+export const KANBAN_ACTIONS = [
+  ...KANBAN_STAGE_ACTIONS,
+  ...KANBAN_AGENT_ACTIONS,
+];
 
-const boardId = board => board.id;
-const stageId = stage => stage.id;
+const stagesOf = board => board.stagesSummary || [];
 
-const boardStages = board => board.stagesSummary || [];
+const isTerminal = (board, stage) =>
+  stage.id === board.wonStageId || stage.id === board.lostStageId;
 
-const isWonStage = (board, stage) => stageId(stage) === board.wonStageId;
-const isLostStage = (board, stage) => stageId(stage) === board.lostStageId;
+// A stage option carries both ids in one value, because the action form has no
+// dependent selects. `parseBoardStageId` is the other half of this contract.
+const isSelectable = (board, stage, actionName) => {
+  if (isTerminal(board, stage)) {
+    return (
+      actionName === 'move_kanban_card' &&
+      stage.id === board.lostStageId &&
+      !board.lostReasonRequired
+    );
+  }
+  return true;
+};
 
-export const getKanbanStageOptions = (boards, actionName) => {
-  return boards.flatMap(board =>
-    boardStages(board)
-      .filter(stage => {
-        if (actionName === 'add_to_kanban_board') {
-          return !isWonStage(board, stage) && !isLostStage(board, stage);
-        }
-
-        if (actionName === 'move_kanban_card') {
-          return (
-            !isWonStage(board, stage) &&
-            (!isLostStage(board, stage) || !board.lostReasonRequired)
-          );
-        }
-
-        return false;
-      })
+export const getKanbanStageOptions = (boards, actionName) =>
+  boards.flatMap(board =>
+    stagesOf(board)
+      .filter(stage => isSelectable(board, stage, actionName))
       .map(stage => ({
-        id: boardStageId(boardId(board), stageId(stage)),
+        id: `${board.id}:${stage.id}`,
         name: `${board.name} › ${stage.name}`,
       }))
   );
+
+// Each board carries the agents assignable on it, so the action input stays a plain
+// list of options instead of a differently shaped object.
+export const getKanbanBoardOptions = (boards, agents) =>
+  boards.map(board => ({
+    id: board.id,
+    name: board.name,
+    agents: (board.visibilityMode === 'selected_agents'
+      ? board.visibleUsers || []
+      : agents
+    ).map(user => ({ id: user.id, name: user.name })),
+  }));
+
+export const kanbanDropdownValues = (actionName, boards, agents) => {
+  if (KANBAN_STAGE_ACTIONS.includes(actionName)) {
+    return getKanbanStageOptions(boards, actionName);
+  }
+  if (KANBAN_AGENT_ACTIONS.includes(actionName)) {
+    return getKanbanBoardOptions(boards, agents);
+  }
+  return null;
 };
-
-export const getKanbanBoardOptions = boards =>
-  boards.map(board => ({ id: boardId(board), name: board.name }));
-
-export const getKanbanAgentOptionsByBoard = (boards, agents) =>
-  boards.reduce((options, board) => {
-    const users =
-      board.visibilityMode === 'selected_agents'
-        ? board.visibleUsers || []
-        : agents;
-
-    options[boardId(board)] = users.map(user => ({
-      id: user.id,
-      name: user.name,
-    }));
-    return options;
-  }, {});
 
 export const parseBoardStageId = value => {
   const [kanbanBoardId, kanbanStageId] = String(value || '').split(':');

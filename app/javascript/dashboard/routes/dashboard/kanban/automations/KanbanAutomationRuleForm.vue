@@ -79,6 +79,7 @@ const dialogRef = ref(null);
 const conditionRefs = useTemplateRef('conditionRefs');
 const errors = ref({});
 const impactPreview = ref(null);
+const hasReviewedImpact = ref(false);
 const previewError = ref('');
 const isPreviewing = ref(false);
 
@@ -743,6 +744,7 @@ const requestPreview = async () => {
   try {
     const response = await props.previewRule(buildPayload());
     impactPreview.value = response.count;
+    hasReviewedImpact.value = true;
   } catch (error) {
     previewError.value =
       error?.response?.data?.error ||
@@ -754,7 +756,7 @@ const requestPreview = async () => {
 };
 
 const submit = () => {
-  if (impactPreview.value === null) {
+  if (!hasReviewedImpact.value) {
     requestPreview();
     return;
   }
@@ -771,6 +773,7 @@ const activateForReal = () => {
 const open = () => {
   resetValidation();
   impactPreview.value = null;
+  hasReviewedImpact.value = false;
   previewError.value = '';
   if (rule.value) {
     rule.value.conditions ||= [makeCondition('stage_id')];
@@ -801,7 +804,10 @@ watch(
 watch(
   rule,
   () => {
-    if (!isPreviewing.value) impactPreview.value = null;
+    if (isPreviewing.value) return;
+
+    impactPreview.value = null;
+    hasReviewedImpact.value = false;
   },
   { deep: true }
 );
@@ -1179,9 +1185,9 @@ defineExpose({ open, close });
           color="blue"
           type="button"
           :label="
-            impactPreview === null
-              ? t('KANBAN.AUTOMATIONS.FORM.PREVIEW_AND_CONTINUE')
-              : t('KANBAN.AUTOMATIONS.FORM.SAVE')
+            hasReviewedImpact
+              ? t('KANBAN.AUTOMATIONS.FORM.SAVE')
+              : t('KANBAN.AUTOMATIONS.FORM.PREVIEW_AND_CONTINUE')
           "
           :is-loading="isPreviewing || isSaving"
           :disabled="isPreviewing || isSaving"

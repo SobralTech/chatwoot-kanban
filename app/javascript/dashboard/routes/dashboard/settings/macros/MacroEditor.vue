@@ -9,10 +9,6 @@ import { useAlert } from 'dashboard/composables';
 import actionQueryGenerator from 'dashboard/helper/actionQueryGenerator.js';
 import { useMacros } from 'dashboard/composables/useMacros';
 import { useAdmin } from 'dashboard/composables/useAdmin';
-import {
-  KANBAN_AGENT_ACTIONS,
-  KANBAN_STAGE_ACTIONS,
-} from 'dashboard/helper/kanbanActionOptions';
 
 const store = useStore();
 const getters = useStoreGetters();
@@ -24,19 +20,11 @@ const { t } = useI18n();
 
 const { getMacroDropdownValues } = useMacros();
 const { isAdmin } = useAdmin();
-const kanbanBoards = computed(
-  () => getters['kanbanBoards/kanbanBoards']?.value || []
-);
-
 const macro = ref(null);
 const mode = ref('CREATE');
 
 const macroActionTypes = computed(() => {
-  const kanbanActionKeys = [...KANBAN_AGENT_ACTIONS, ...KANBAN_STAGE_ACTIONS];
-  return MACRO_ACTION_TYPES.filter(
-    type =>
-      !kanbanActionKeys.includes(type.key) || kanbanBoards.value.length > 0
-  ).map(type => ({
+  return MACRO_ACTION_TYPES.map(type => ({
     ...type,
     label: t(`MACROS.ACTIONS.${type.label}`),
   }));

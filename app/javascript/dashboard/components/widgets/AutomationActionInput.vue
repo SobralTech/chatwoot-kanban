@@ -28,7 +28,7 @@ export default {
       default: () => [],
     },
     dropdownValues: {
-      type: [Array, Object],
+      type: Array,
       default: () => [],
     },
     errorMessage: {
@@ -93,18 +93,21 @@ export default {
     actionTypesAsOptions() {
       return this.actionTypes.map(a => ({ id: a.key, name: a.label }));
     },
+    // Automation and macro action_params are a one-element array around the hash.
+    kanbanParams() {
+      return (
+        (Array.isArray(this.action_params)
+          ? this.action_params[0]
+          : this.action_params) || {}
+      );
+    },
     kanbanStageSelection: {
       get() {
-        const params = Array.isArray(this.action_params)
-          ? this.action_params[0]
-          : this.action_params;
-        if (!params || !Array.isArray(this.dropdownValues)) return null;
-
+        const { kanban_board_id: boardId, kanban_stage_id: stageId } =
+          this.kanbanParams;
         return (
           this.dropdownValues.find(
-            option =>
-              option.id ===
-              `${params.kanban_board_id}:${params.kanban_stage_id}`
+            option => option.id === `${boardId}:${stageId}`
           ) || null
         );
       },
@@ -116,75 +119,59 @@ export default {
 
         const { kanbanBoardId, kanbanStageId } = parseBoardStageId(value.id);
         this.action_params = [
-          {
-            kanban_board_id: kanbanBoardId,
-            kanban_stage_id: kanbanStageId,
-          },
+          { kanban_board_id: kanbanBoardId, kanban_stage_id: kanbanStageId },
         ];
       },
     },
     kanbanBoardSelection: {
       get() {
-        const params = Array.isArray(this.action_params)
-          ? this.action_params[0]
-          : this.action_params;
-        const boards = this.dropdownValues?.boards || [];
         return (
-          boards.find(board => board.id === params?.kanban_board_id) || null
+          this.dropdownValues.find(
+            board => board.id === this.kanbanParams.kanban_board_id
+          ) || null
         );
       },
       set(value) {
-        if (!value) {
-          this.action_params = [];
-          return;
-        }
-
-        this.action_params = [{ kanban_board_id: value.id, agent_ids: [] }];
+        this.action_params = value
+          ? [{ kanban_board_id: value.id, agent_ids: [] }]
+          : [];
       },
     },
     kanbanAgentOptions() {
-      const params = Array.isArray(this.action_params)
-        ? this.action_params[0]
-        : this.action_params;
-      return (
-        this.dropdownValues?.agentsByBoardId?.[params?.kanban_board_id] || []
-      );
+      return this.kanbanBoardSelection?.agents || [];
     },
     kanbanAgentSelections: {
       get() {
-        const params = Array.isArray(this.action_params)
-          ? this.action_params[0]
-          : this.action_params;
-        const agentIds = params?.agent_ids || [];
+        const agentIds = this.kanbanParams.agent_ids || [];
         return this.kanbanAgentOptions.filter(agent =>
           agentIds.includes(agent.id)
         );
       },
       set(value) {
-        const params = Array.isArray(this.action_params)
-          ? this.action_params[0]
-          : this.action_params;
-        if (!params?.kanban_board_id) return;
+        const boardId = this.kanbanParams.kanban_board_id;
+        if (!boardId) return;
 
         this.action_params = [
           {
-            kanban_board_id: params.kanban_board_id,
+            kanban_board_id: boardId,
             agent_ids: (value || []).map(agent => agent.id),
           },
         ];
       },
     },
-    kanbanStagePlaceholder() {
-      if (this.isMacro) return this.$t('MACROS.KANBAN_STAGE_PLACEHOLDER');
-      return this.$t('AUTOMATION.KANBAN_STAGE_PLACEHOLDER');
-    },
-    kanbanBoardPlaceholder() {
-      if (this.isMacro) return this.$t('MACROS.KANBAN_BOARD_PLACEHOLDER');
-      return this.$t('AUTOMATION.KANBAN_BOARD_PLACEHOLDER');
-    },
-    kanbanAgentPlaceholder() {
-      if (this.isMacro) return this.$t('MACROS.KANBAN_AGENT_PLACEHOLDER');
-      return this.$t('AUTOMATION.KANBAN_AGENT_PLACEHOLDER');
+    kanbanPlaceholders() {
+      if (this.isMacro) {
+        return {
+          stage: this.$t('MACROS.KANBAN_STAGE_PLACEHOLDER'),
+          board: this.$t('MACROS.KANBAN_BOARD_PLACEHOLDER'),
+          agent: this.$t('MACROS.KANBAN_AGENT_PLACEHOLDER'),
+        };
+      }
+      return {
+        stage: this.$t('AUTOMATION.KANBAN_STAGE_PLACEHOLDER'),
+        board: this.$t('AUTOMATION.KANBAN_BOARD_PLACEHOLDER'),
+        agent: this.$t('AUTOMATION.KANBAN_AGENT_PLACEHOLDER'),
+      };
     },
     isVerticalLayout() {
       return ['team_message', 'textarea'].includes(this.inputType);
@@ -236,7 +223,7 @@ export default {
             v-if="inputType === 'kanban_stage'"
             v-model="kanbanStageSelection"
             :options="dropdownValues"
-            :placeholder="kanbanStagePlaceholder"
+            :placeholder="kanbanPlaceholders.stage"
             :dropdown-max-height="dropdownMaxHeight"
           />
           <div
@@ -245,14 +232,14 @@ export default {
           >
             <SingleSelect
               v-model="kanbanBoardSelection"
-              :options="dropdownValues.boards || []"
-              :placeholder="kanbanBoardPlaceholder"
+              :options="dropdownValues"
+              :placeholder="kanbanPlaceholders.board"
               :dropdown-max-height="dropdownMaxHeight"
             />
             <MultiSelect
               v-model="kanbanAgentSelections"
               :options="kanbanAgentOptions"
-              :placeholder="kanbanAgentPlaceholder"
+              :placeholder="kanbanPlaceholders.agent"
               :dropdown-max-height="dropdownMaxHeight"
             />
           </div>
