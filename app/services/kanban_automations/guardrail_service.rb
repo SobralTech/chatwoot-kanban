@@ -67,7 +67,10 @@ class KanbanAutomations::GuardrailService
   end
 
   def settings
-    @settings ||= DEFAULT_SETTINGS.deep_merge(board.automation_settings.to_h.with_indifferent_access)
+    # Indifferent access on the *left* of the merge: DEFAULT_SETTINGS is keyed by symbol
+    # and the board's settings by string, so merging the other way round leaves both keys
+    # side by side and every lookup below silently reads the default.
+    @settings ||= DEFAULT_SETTINGS.with_indifferent_access.deep_merge(board.automation_settings.to_h)
   end
 
   def within_business_hours?
