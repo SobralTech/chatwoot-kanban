@@ -2,7 +2,7 @@ class KanbanCards::CreateManualCardService
   DUPLICATE_SUBJECT_ERROR = 'Manual opportunity with this subject already exists for this contact and inbox'.freeze
 
   # rubocop:disable Metrics/ParameterLists
-  def initialize(account:, user:, kanban_board:, kanban_stage:, contact:, inbox:, subject:, conversation: nil, context: {}, automation: false)
+  def initialize(account:, user:, kanban_board:, kanban_stage:, contact:, inbox:, subject:, conversation: nil, context: {})
     @account = account
     @user = user
     @kanban_board = kanban_board
@@ -12,7 +12,6 @@ class KanbanCards::CreateManualCardService
     @subject = subject
     @conversation = conversation
     @context = context.to_h.with_indifferent_access
-    @automation = automation
   end
   # rubocop:enable Metrics/ParameterLists
 
@@ -49,7 +48,7 @@ class KanbanCards::CreateManualCardService
   def validate_board!
     raise_validation_error('Board must belong to account', :kanban_board) unless kanban_board.account_id == account.id
     raise_validation_error('Board must be active', :kanban_board) unless kanban_board.active?
-    return if automation?
+    return if system_run?
 
     raise Pundit::NotAuthorizedError unless KanbanBoardPolicy.new(user_context, kanban_board).visible?
   end
@@ -62,7 +61,7 @@ class KanbanCards::CreateManualCardService
   def validate_records!
     raise_validation_error('Contact must belong to account', :contact) unless contact.account_id == account.id
     raise_validation_error('Inbox must belong to account', :inbox) unless inbox.account_id == account.id
-    raise_validation_error('User cannot access inbox', :inbox) unless automation? || user_can_access_inbox?
+    raise_validation_error('User cannot access inbox', :inbox) unless system_run? || user_can_access_inbox?
     raise_validation_error('Inbox is not allowed by board scope', :inbox) unless kanban_board.inbox_allowed?(inbox)
   end
 
@@ -72,7 +71,7 @@ class KanbanCards::CreateManualCardService
     raise_validation_error('Conversation must belong to account', :conversation) unless conversation.account_id == account.id
     raise_validation_error('Conversation must belong to contact', :conversation) unless conversation.contact_id == contact.id
     raise_validation_error('Conversation must use selected inbox', :conversation) unless conversation.inbox_id == inbox.id
-    return if automation?
+    return if system_run?
 
     raise_validation_error('User cannot access conversation', :conversation) unless ConversationPolicy.new(user_context, conversation).show?
   end
@@ -137,7 +136,7 @@ class KanbanCards::CreateManualCardService
   end
 
   def permitted_conversation
-    return if automation?
+    return if system_run?
 
     @permitted_conversation ||= matching_conversations.find do |matching_conversation|
       ConversationPolicy.new(user_context, matching_conversation).show?
@@ -156,16 +155,18 @@ class KanbanCards::CreateManualCardService
     account_user&.administrator?
   end
 
+  # No user means the automation engine is acting as the system, so there is no agent
+  # whose permissions could be checked.
+  def system_run?
+    user.nil?
+  end
+
   def user_context
     @user_context ||= { user: user, account: account, account_user: account_user }
   end
 
   def account_user
     @account_user ||= user&.account_users&.find_by(account: account)
-  end
-
-  def automation?
-    @automation
   end
 
   def trigger_automation(card)
