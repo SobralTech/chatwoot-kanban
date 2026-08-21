@@ -210,13 +210,6 @@ class KanbanAutomations::CardActions
                metadata: { action_name: action_name, reason: reason }.merge(metadata))
   end
 
-  def automation_context
-    {
-      triggered_by_rule_id: rule.id,
-      automation_depth: context[:automation_depth].to_i + 1
-    }
-  end
-
   def account
     card.account
   end

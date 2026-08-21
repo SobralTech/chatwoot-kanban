@@ -195,9 +195,11 @@ class KanbanAutomations::RuleValidator
     true
   end
 
+  # Strong parameters are not Hashes, so both shapes are named. Asking for to_h instead
+  # would accept nil and Array too, and leave the 'must be an object' error unreachable.
   def normalized_hash(value)
     return value.with_indifferent_access if value.is_a?(Hash)
-    return value.to_h.with_indifferent_access if value.respond_to?(:to_h)
+    return value.to_h.with_indifferent_access if value.is_a?(ActionController::Parameters)
 
     nil
   end

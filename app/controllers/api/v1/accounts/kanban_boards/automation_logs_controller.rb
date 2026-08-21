@@ -1,4 +1,6 @@
 class Api::V1::Accounts::KanbanBoards::AutomationLogsController < Api::V1::Accounts::BaseController
+  include KanbanAutomationAuthorization
+
   DEFAULT_LIMIT = 50
   MAX_LIMIT = 100
 
@@ -16,9 +18,7 @@ class Api::V1::Accounts::KanbanBoards::AutomationLogsController < Api::V1::Accou
   end
 
   def authorize_kanban_board
-    authorize @kanban_board, :update?
-  rescue Pundit::NotAuthorizedError
-    render json: { error: 'You are not authorized to do this action' }, status: :forbidden
+    with_automation_authorization { authorize @kanban_board, :update? }
   end
 
   def filtered_logs

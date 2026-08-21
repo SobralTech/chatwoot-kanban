@@ -11,7 +11,6 @@ module KanbanActionService
     target = kanban_target('add_to_kanban_board', params)
     return unless target.resolve
     return target.skip('terminal stages cannot receive new cards') if target.terminal_stage?
-    return target.skip('conversation already has a card') if target.conversation_card_exists?
 
     KanbanCards::CreateFromConversationService.new(
       account: @account,

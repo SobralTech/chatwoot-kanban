@@ -1,4 +1,6 @@
 class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Accounts::BaseController
+  include KanbanAutomationAuthorization
+
   PREVIEW_LIMIT = 500
 
   before_action :fetch_kanban_board
@@ -92,9 +94,7 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
   end
 
   def check_authorization
-    authorize(@automation_rule || KanbanAutomationRule)
-  rescue Pundit::NotAuthorizedError
-    render json: { error: 'You are not authorized to do this action' }, status: :forbidden
+    with_automation_authorization { authorize(@automation_rule || KanbanAutomationRule) }
   end
 
   def automation_rule_params

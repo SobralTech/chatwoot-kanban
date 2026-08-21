@@ -32,12 +32,6 @@ class KanbanCards::ActionTarget
                      KanbanCard.active_non_terminal_for(board, conversation.contact_id).ordered.first
   end
 
-  # Deliberately narrower than active_card: a second card for the same conversation is
-  # what the unique index rejects, regardless of which contact card exists.
-  def conversation_card_exists?
-    KanbanCard.where(origin: :conversation).exists?(kanban_board: board, conversation_id: conversation.id)
-  end
-
   def terminal_stage?
     KanbanStage.special_stage_ids(board).include?(stage.id)
   end
