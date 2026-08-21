@@ -80,7 +80,6 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     getConversationCards: vi.fn(),
     getBoards: vi.fn(),
-    showBoard: vi.fn(),
     createConversationCard: vi.fn(),
     updateCardDetailsById: vi.fn(),
     updateCardLabels: vi.fn(),
@@ -200,6 +199,7 @@ const buildBoard = overrides => ({
   id: 10,
   name: 'Sales',
   active: true,
+  stages_summary: [{ id: 20, name: 'New', color: '#2781F6', active: true }],
   ...overrides,
 });
 
@@ -311,14 +311,6 @@ describe('KanbanConversationCards', () => {
         buildBoard(),
         buildBoard({ id: 11, name: 'Inactive', active: false }),
       ],
-    });
-    KanbanBoardsAPI.showBoard.mockResolvedValue({
-      data: {
-        stages: [
-          buildStage(),
-          buildStage({ id: 21, name: 'Inactive', active: false }),
-        ],
-      },
     });
     KanbanBoardsAPI.createConversationCard.mockResolvedValue({
       data: { payload: buildCard() },
@@ -697,9 +689,6 @@ describe('KanbanConversationCards', () => {
 
     await openForm(wrapper);
 
-    expect(KanbanBoardsAPI.showBoard).toHaveBeenCalledWith(10, {
-      signal: expect.any(AbortSignal),
-    });
     const stageDropdown = wrapper
       .findAllComponents({ name: 'MultiselectDropdown' })
       .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
@@ -712,17 +701,16 @@ describe('KanbanConversationCards', () => {
     KanbanBoardsAPI.getBoards.mockResolvedValue({
       data: [buildBoard(), buildBoard({ id: 11, name: 'Support' })],
     });
-    KanbanBoardsAPI.showBoard
-      .mockResolvedValueOnce({ data: { stages: [buildStage()] } })
-      .mockImplementationOnce(
-        () =>
-          new Promise(resolve => {
-            setTimeout(
-              () => resolve({ data: { stages: [buildStage({ id: 30 })] } }),
-              0
-            );
-          })
-      );
+    KanbanBoardsAPI.getBoards.mockResolvedValue({
+      data: [
+        buildBoard(),
+        buildBoard({
+          id: 11,
+          name: 'Support',
+          stages_summary: [buildStage({ id: 30 })],
+        }),
+      ],
+    });
     const wrapper = mountComponent();
     await flushPromises();
     await openForm(wrapper);
@@ -737,7 +725,9 @@ describe('KanbanConversationCards', () => {
     const stageDropdown = wrapper
       .findAllComponents({ name: 'MultiselectDropdown' })
       .find(c => c.props('multiselectorTitle') === 'Opportunity stage');
-    expect(stageDropdown.props('selectedItem')).toEqual({});
+    expect(stageDropdown.props('selectedItem')).toEqual(
+      expect.objectContaining({ id: 30 })
+    );
   });
 
   it('prefills the subject and keeps it editable', async () => {
@@ -897,7 +887,7 @@ describe('KanbanConversationCards', () => {
 
     await wrapper.setProps({ conversationId: 789 });
 
-    expect(boardSignals[0].aborted).toBe(true);
+    expect(boardSignals[0].aborted).toBe(false);
     expect(wrapper.text()).not.toContain('Create opportunity');
   });
 
@@ -909,9 +899,6 @@ describe('KanbanConversationCards', () => {
     await flushPromises();
 
     expect(store.dispatch).toHaveBeenCalledWith('labels/get');
-    expect(KanbanBoardsAPI.showBoard).toHaveBeenCalledWith(10, {
-      signal: expect.any(AbortSignal),
-    });
     expect(wrapper.find('input[type="text"]').element.value).toBe(
       'Maria Silva - Sales Inbox'
     );

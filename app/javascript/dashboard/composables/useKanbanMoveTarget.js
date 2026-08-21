@@ -1,14 +1,6 @@
 import { computed, ref, unref } from 'vue';
 import { useI18n } from 'vue-i18n';
-
-// The board a card sits on comes from the show endpoint, which sends allowedInboxIds;
-// every other board comes from the index, which sends the inboxes themselves.
-const boardAllowedInboxIds = board =>
-  (
-    board.allowedInboxIds ??
-    board.allowedInboxes?.map(allowedInbox => allowedInbox.id) ??
-    []
-  ).map(Number);
+import { boardAcceptsInbox } from 'dashboard/helper/kanbanBoardScope';
 
 // Sending cards to another funnel always means picking a funnel and then one of its
 // regular stages, whether it is one card, a selection or a whole stage being emptied.
@@ -37,16 +29,6 @@ export function useKanbanMoveTarget({
     );
   });
 
-  const acceptsInbox = targetBoard => {
-    const requiredInboxId = unref(inboxId);
-    if (!requiredInboxId) return true;
-
-    return (
-      targetBoard.inboxScopeMode !== 'selected_inboxes' ||
-      boardAllowedInboxIds(targetBoard).includes(Number(requiredInboxId))
-    );
-  };
-
   // A card opened from outside the board page has no funnel list to offer, so it falls
   // back to the one funnel it already knows.
   const availableBoards = computed(() => {
@@ -55,7 +37,12 @@ export function useKanbanMoveTarget({
       : [sourceBoard.value];
 
     return knownBoards
-      .filter(item => item?.id && item.active !== false && acceptsInbox(item))
+      .filter(
+        item =>
+          item?.id &&
+          item.active !== false &&
+          boardAcceptsInbox(item, unref(inboxId))
+      )
       .slice()
       .sort((firstBoard, secondBoard) => {
         const firstIsCurrent = Number(firstBoard.id) === unref(currentBoardId);

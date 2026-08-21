@@ -63,7 +63,8 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
               .joins(:kanban_board, :kanban_stage)
               .merge(KanbanBoard.active)
               .merge(KanbanStage.active)
-              .includes(:kanban_board, :kanban_stage, :contact, :inbox, :labels, :assignees)
+              .includes(:kanban_board, :kanban_stage, :contact, :inbox, :labels, :assignees,
+                        :kanban_card_products, kanban_card_field_values: :kanban_custom_field)
               .order('kanban_boards.position ASC, kanban_stages.position ASC, kanban_cards.position ASC, kanban_cards.id ASC')
   end
 

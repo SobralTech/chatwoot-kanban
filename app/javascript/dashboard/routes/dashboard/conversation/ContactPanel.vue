@@ -136,13 +136,13 @@ const onDragEnd = () => {
   });
 };
 
-const toggleKanban = value => {
+const toggleKanban = () => {
   if (embedded.value) {
-    isEmbeddedKanbanOpen.value = value;
+    isEmbeddedKanbanOpen.value = !isEmbeddedKanbanOpen.value;
     return;
   }
 
-  toggleSidebarUIState('is_kanban_open', value);
+  toggleSidebarUIState('is_kanban_open');
 };
 
 onMounted(() => {

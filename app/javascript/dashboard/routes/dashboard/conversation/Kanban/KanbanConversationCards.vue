@@ -35,11 +35,9 @@ const hasError = ref(false);
 const requestId = ref(0);
 const abortController = ref(null);
 const boardsAbortController = ref(null);
-const stagesAbortController = ref(null);
 const createAbortController = ref(null);
 const boardsRequestId = ref(0);
-const stagesRequestId = ref(0);
-const editStagesRequestId = ref(0);
+let boardsLoadPromise = Promise.resolve();
 
 const isFormOpen = ref(false);
 const boards = ref([]);
@@ -74,7 +72,6 @@ const editError = ref('');
 const isLoadingEditStages = ref(false);
 const isSavingEdit = ref(false);
 const hasPendingEditSave = ref(false);
-const editStagesAbortController = ref(null);
 const hasPendingRealtimeRefresh = ref(false);
 const deleteDialogRef = ref(null);
 const cardToDelete = ref(null);
@@ -224,27 +221,17 @@ const resetAbortController = () => {
 
 const abortFormRequests = () => {
   boardsAbortController.value?.abort();
-  stagesAbortController.value?.abort();
   createAbortController.value?.abort();
   boardsAbortController.value = null;
-  stagesAbortController.value = null;
   createAbortController.value = null;
   boardsRequestId.value += 1;
-  stagesRequestId.value += 1;
-};
-
-const abortEditRequests = () => {
-  editStagesAbortController.value?.abort();
-  editStagesAbortController.value = null;
-  editStagesRequestId.value += 1;
 };
 
 const resetFormState = () => {
-  abortFormRequests();
+  createAbortController.value?.abort();
+  createAbortController.value = null;
   isFormOpen.value = false;
-  boards.value = [];
   stages.value = [];
-  selectedBoardId.value = '';
   selectedStageId.value = '';
   subject.value = '';
   dueAt.value = '';
@@ -262,7 +249,6 @@ const resetFormState = () => {
 
 const resetEditState = () => {
   cancelScheduledEdit();
-  abortEditRequests();
   editingCardId.value = null;
   editingCard.value = null;
   editStages.value = [];
@@ -359,92 +345,47 @@ const cardBoardId = card => card.kanban_board_id || card.kanban_board?.id;
 
 const cardStageId = card => card.kanban_stage_id || card.kanban_stage?.id;
 
-const loadStages = async boardId => {
-  if (!boardId) return;
+const loadStages = boardId => {
+  if (!boardId) {
+    stages.value = [];
+    selectedStageId.value = '';
+    assignableUsers.value = [];
+    return;
+  }
 
-  const currentRequestId = stagesRequestId.value + 1;
-  stagesRequestId.value = currentRequestId;
-  stagesAbortController.value?.abort();
-
-  const controller = new AbortController();
-  stagesAbortController.value = controller;
   isLoadingStages.value = true;
   stagesError.value = '';
   stages.value = [];
   selectedStageId.value = '';
 
-  try {
-    const response = await KanbanBoardsAPI.showBoard(boardId, {
-      signal: controller.signal,
-    });
-
-    if (
-      stagesRequestId.value !== currentRequestId ||
-      controller.signal.aborted
-    ) {
-      return;
-    }
-
-    stages.value = response.data?.stages || [];
-    selectedStageId.value = activeStages.value[0]?.id || '';
-    assignableUsers.value = response.data?.assignable_users || [];
-  } catch (error) {
-    if (isAbortError(error) || stagesRequestId.value !== currentRequestId) {
-      return;
-    }
-
-    stagesError.value = apiErrorMessage(
-      error,
-      t('CONVERSATION_SIDEBAR.KANBAN.ERROR')
-    );
-  } finally {
-    if (stagesRequestId.value === currentRequestId) {
-      isLoadingStages.value = false;
-      stagesAbortController.value = null;
-    }
-  }
+  const board = activeBoards.value.find(
+    item => Number(item.id) === Number(boardId)
+  );
+  stages.value = board?.stages_summary || board?.stagesSummary || [];
+  selectedStageId.value = activeStages.value[0]?.id || '';
+  assignableUsers.value =
+    board?.assignable_users ||
+    board?.assignableUsers ||
+    board?.visible_users ||
+    board?.visibleUsers ||
+    [];
+  isLoadingStages.value = false;
 };
 
 const loadEditStages = async boardId => {
-  if (!boardId) return;
+  if (!boardId) {
+    editStages.value = [];
+    return;
+  }
 
-  const currentRequestId = editStagesRequestId.value + 1;
-  editStagesRequestId.value = currentRequestId;
-  editStagesAbortController.value?.abort();
-
-  const controller = new AbortController();
-  editStagesAbortController.value = controller;
   isLoadingEditStages.value = true;
   editStages.value = [];
-
-  try {
-    const response = await KanbanBoardsAPI.showBoard(boardId, {
-      signal: controller.signal,
-    });
-
-    if (
-      editStagesRequestId.value !== currentRequestId ||
-      controller.signal.aborted
-    ) {
-      return;
-    }
-
-    editStages.value = response.data?.stages || [];
-  } catch (error) {
-    if (isAbortError(error) || editStagesRequestId.value !== currentRequestId) {
-      return;
-    }
-
-    editError.value = apiErrorMessage(
-      error,
-      t('CONVERSATION_SIDEBAR.KANBAN.ERROR')
-    );
-  } finally {
-    if (editStagesRequestId.value === currentRequestId) {
-      isLoadingEditStages.value = false;
-      editStagesAbortController.value = null;
-    }
-  }
+  await boardsLoadPromise;
+  const board = activeBoards.value.find(
+    item => Number(item.id) === Number(boardId)
+  );
+  editStages.value = board?.stages_summary || board?.stagesSummary || [];
+  isLoadingEditStages.value = false;
 };
 
 const loadBoards = async () => {
@@ -477,7 +418,7 @@ const loadBoards = async () => {
     selectedBoardId.value = activeBoards.value[0]?.id || '';
 
     if (selectedBoardId.value) {
-      await loadStages(selectedBoardId.value);
+      loadStages(selectedBoardId.value);
     }
   } catch (error) {
     if (isAbortError(error) || boardsRequestId.value !== currentRequestId) {
@@ -504,7 +445,8 @@ const openForm = () => {
   selectedLabelTitles.value = [];
   createError.value = '';
   store.dispatch('labels/get');
-  loadBoards();
+  selectedBoardId.value = activeBoards.value[0]?.id || '';
+  loadStages(selectedBoardId.value);
 };
 
 const cancelForm = () => {
@@ -828,6 +770,7 @@ const handleRealtimeKanbanEvent = eventPayload => {
 
 onMounted(() => {
   emitter.on(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
+  boardsLoadPromise = loadBoards();
   loadCards();
 });
 
@@ -858,7 +801,6 @@ onBeforeUnmount(() => {
   flushScheduledEdit();
   resetAbortController();
   abortFormRequests();
-  abortEditRequests();
   emitter.off(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
 });
 </script>

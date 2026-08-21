@@ -178,5 +178,11 @@ describe('ContactPanel', () => {
 
     expect(toggleSidebarUIStateMock).not.toHaveBeenCalled();
     expect(kanbanAccordion.props('isOpen')).toBe(false);
+
+    await kanbanAccordion
+      .get('[data-testid="accordion-toggle"]')
+      .trigger('click');
+
+    expect(kanbanAccordion.props('isOpen')).toBe(true);
   });
 });
