@@ -50,6 +50,20 @@ RSpec.describe KanbanCards::BulkActionService do
       expect(hidden_card.reload.priority).to be_nil
     end
 
+    it 'triggers the automation event the transition resolved, and only for moves' do
+      target_stage = create(:kanban_stage, account: account, kanban_board: kanban_board, name: 'Negotiation')
+      moved_card = create_card(stage: regular_stage, subject: 'Moved card')
+      other_card = create_card(stage: regular_stage, subject: 'Reprioritised card')
+
+      allow(KanbanAutomations::TriggerService).to receive(:call)
+
+      service(operation: :move, card_ids: [moved_card.id], payload: { kanban_stage_id: target_stage.id }).perform!
+      service(operation: :priority, card_ids: [other_card.id], payload: { priority: 'high' }).perform!
+
+      expect(KanbanAutomations::TriggerService).to have_received(:call).once
+                                                                       .with(hash_including(event_name: 'stage_changed'))
+    end
+
     it 'rejects more than the maximum number of cards' do
       card_ids = (1..(KanbanCards::BulkActionRequest::MAX_CARDS + 1)).to_a
 

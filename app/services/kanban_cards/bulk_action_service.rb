@@ -42,11 +42,11 @@ class KanbanCards::BulkActionService
     return add_failure(result, card_id, 'card_not_found') unless card
     return add_failure(result, card_id, 'not_authorized') unless authorized_card?(card)
 
-    source_stage_id = card.kanban_stage_id
+    @automation_event_name = nil
     stage_ids = KanbanCard.transaction { apply_operation(card) }
     stage_ids.each { |stage_id| affected_stage_refs << [kanban_board.id, stage_id] }
     result.succeeded << card.id
-    trigger_automation(card, automation_event_name(card, source_stage_id))
+    trigger_automation(card, @automation_event_name)
   rescue StandardError => e
     add_failure(result, card_id, error_code(e))
   end
@@ -90,6 +90,9 @@ class KanbanCards::BulkActionService
 
     stage_transition.apply!
     stage_transition.record_event!
+    # A move is the only operation that fires an automation, and the transition already
+    # knows whether this one crossed a stage and which event that makes it.
+    @automation_event_name = stage_transition.automation_event_name
     stage_transition.affected_stage_ids
   end
 
@@ -170,15 +173,6 @@ class KanbanCards::BulkActionService
 
   def cross_board_move?
     operation == 'move' && target_kanban_board.id != kanban_board.id
-  end
-
-  def automation_event_name(card, source_stage_id)
-    return unless %w[move lose].include?(operation)
-    return if cross_board_move? || source_stage_id == card.kanban_stage_id
-    return 'card_won' if card.kanban_stage_id == kanban_board.won_stage_id
-    return 'card_lost' if card.kanban_stage_id == kanban_board.lost_stage_id
-
-    'stage_changed'
   end
 
   def trigger_automation(card, event_name)
