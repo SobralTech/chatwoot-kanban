@@ -94,5 +94,35 @@ RSpec.describe KanbanAutomationRule do
       expect { rule.valid? }.not_to raise_error
       expect(rule.errors[:conditions]).to be_present
     end
+
+    # The lookups used to return what `errors.add` hands back, and the caller then
+    # asked that ActiveModel::Error for its id.
+    [{}, { stage_id: 'abc' }, { stage_id: nil }].each do |action_params|
+      it "reports rather than raises for move_to_stage with #{action_params.inspect}" do
+        board = create(:kanban_board)
+        rule = build(
+          :kanban_automation_rule,
+          account: board.account,
+          kanban_board: board,
+          actions: [{ action_name: 'move_to_stage', action_params: action_params }]
+        )
+
+        expect { rule.valid? }.not_to raise_error
+        expect(rule.errors[:actions].join).to include('stage_id')
+      end
+    end
+
+    it 'reports rather than raises for create_card_in_board with a bad board id' do
+      board = create(:kanban_board)
+      rule = build(
+        :kanban_automation_rule,
+        account: board.account,
+        kanban_board: board,
+        actions: [{ action_name: 'create_card_in_board', action_params: { kanban_board_id: 'abc', stage_id: 'abc' } }]
+      )
+
+      expect { rule.valid? }.not_to raise_error
+      expect(rule.errors[:actions].join).to include('kanban_board_id')
+    end
   end
 end

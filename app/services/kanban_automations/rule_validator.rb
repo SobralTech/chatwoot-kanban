@@ -122,10 +122,10 @@ class KanbanAutomations::RuleValidator
 
   def validate_assignment(action_params, index)
     agent_ids = action_params[:agent_ids]
-    return add_item_error(:actions, index, 'agent_ids must be an array') unless agent_ids.is_a?(Array)
+    return reject(:actions, index, 'agent_ids must be an array') unless agent_ids.is_a?(Array)
 
     ids = agent_ids.map { |agent_id| integer_id(agent_id) }
-    return add_item_error(:actions, index, 'agent_ids must contain integer ids') if ids.any?(&:nil?)
+    return reject(:actions, index, 'agent_ids must contain integer ids') if ids.any?(&:nil?)
 
     return unless ready_for_reference_validation?
 
@@ -147,39 +147,36 @@ class KanbanAutomations::RuleValidator
     return unless ready_for_reference_validation? && board.present?
 
     id = integer_id(stage_id)
-    return add_item_error(:actions, index, 'stage_id must be an integer id') unless id
+    return reject(:actions, index, 'stage_id must be an integer id') unless id
 
     stage = KanbanStage.find_by(id: id)
     return stage if stage.present? && stage.account_id == @rule.account_id && stage.kanban_board_id == board.id
 
-    add_item_error(:actions, index, 'stage_id must belong to the referenced board and account')
-    nil
+    reject(:actions, index, 'stage_id must belong to the referenced board and account')
   end
 
   def find_reason(reason_id, index)
     return unless ready_for_reference_validation?
 
     id = integer_id(reason_id)
-    return add_item_error(:actions, index, 'reason_id must be an integer id') unless id
+    return reject(:actions, index, 'reason_id must be an integer id') unless id
 
     reason = KanbanReason.find_by(id: id)
     return reason if reason.present? && reason.account_id == @rule.account_id && reason.kanban_board_id == @rule.kanban_board_id
 
-    add_item_error(:actions, index, 'reason_id must belong to this board and account')
-    nil
+    reject(:actions, index, 'reason_id must belong to this board and account')
   end
 
   def find_board(board_id, index)
     return unless ready_for_reference_validation?
 
     id = integer_id(board_id)
-    return add_item_error(:actions, index, 'kanban_board_id must be an integer id') unless id
+    return reject(:actions, index, 'kanban_board_id must be an integer id') unless id
 
     board = KanbanBoard.find_by(id: id)
     return board if board.present? && board.account_id == @rule.account_id
 
-    add_item_error(:actions, index, 'kanban_board_id must belong to this account')
-    nil
+    reject(:actions, index, 'kanban_board_id must belong to this account')
   end
 
   def validate_required_key(hash, key, attribute, index)
@@ -217,5 +214,10 @@ class KanbanAutomations::RuleValidator
 
   def add_item_error(attribute, index, message)
     @errors.add(attribute, "#{attribute}[#{index}] #{message}")
+    nil
   end
+
+  # Same as add_item_error, named for the lookups that return it: `errors.add` hands
+  # back an ActiveModel::Error, and callers here dereference the result as a record.
+  alias reject add_item_error
 end
