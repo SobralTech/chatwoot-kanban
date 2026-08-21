@@ -38,6 +38,12 @@ RSpec.describe KanbanAutomations::RuleMatcher do
       expect(match_condition('stage_id', 'less_than', [stage.id + 1])).to be(true)
     end
 
+    it 'does not match, and does not raise, when a numeric comparison has no numbers' do
+      expect(match_condition('total_value', 'greater_than', ['1000'])).to be(false)
+      expect(match_condition('total_value', 'greater_than', ['not a number'])).to be(false)
+      expect(match_conditions([{ attribute_key: 'priority', filter_operator: 'no_such_operator', values: ['high'] }])).to be(false)
+    end
+
     it 'matches collection operators' do
       expect(match_condition('priority', 'is_one_of', %w[low high])).to be(true)
       expect(match_condition('labels', 'includes', ['vip'])).to be(true)
