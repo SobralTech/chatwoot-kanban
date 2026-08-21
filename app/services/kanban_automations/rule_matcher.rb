@@ -9,7 +9,9 @@ class KanbanAutomations::RuleMatcher
     'stage_id' => ->(card) { card.kanban_stage_id },
     'previous_stage_id' => ->(card) { card.previous_stage_id },
     'priority' => ->(card) { card.priority },
-    'labels' => ->(card) { card.label_list.to_a },
+    # `labels` is the tag association behind label_list, and unlike label_list it can be
+    # preloaded -- which the preview, matching a page of cards at once, depends on.
+    'labels' => ->(card) { card.labels.map(&:name) },
     'assignee_id' => ->(card) { card.kanban_card_assignees.map(&:user_id) },
     'inbox_id' => ->(card) { card.inbox_id },
     'total_value' => ->(card) { card.total_value },

@@ -105,8 +105,13 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
     )
   end
 
+  # The matcher reads labels and assignees off every card it is handed, so a page of
+  # them is loaded with both already in memory: without this the preview costs three
+  # queries per card, on a request fired every time a rule is saved.
   def preview_cards
-    @kanban_board.kanban_cards.active.order(:id).limit(PREVIEW_LIMIT + 1).to_a
+    @kanban_board.kanban_cards.active
+                 .includes(:labels, :kanban_card_assignees)
+                 .order(:id).limit(PREVIEW_LIMIT + 1).to_a
   end
 
   def render_preview_error
