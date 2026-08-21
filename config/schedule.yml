@@ -68,6 +68,13 @@ kanban_automation_scan_time_based_job:
   queue: scheduled_jobs
 
 # executed daily at 2230 UTC
+# removes Kanban automation logs older than 90 days
+kanban_automation_purge_logs_job:
+  cron: '30 22 * * *'
+  class: 'KanbanAutomations::PurgeLogsJob'
+  queue: purgable
+
+# executed daily at 2230 UTC
 # removes old notifications (>1 month) and trims to 300 per user
 remove_old_notification_job:
   cron: '30 22 * * *'
