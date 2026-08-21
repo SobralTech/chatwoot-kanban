@@ -8,6 +8,7 @@ import { useAlert } from 'dashboard/composables';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
 const props = defineProps({
   boardId: { type: [Number, String], required: true },
@@ -37,9 +38,6 @@ const nextLocalId = () => {
   return `new-${localIdCounter}`;
 };
 
-const getErrorMessage = (error, fallbackMessage) =>
-  error?.response?.data?.message || error?.message || fallbackMessage;
-
 const buildRow = (payload = {}) => ({
   localId: payload.id ?? nextLocalId(),
   id: payload.id ?? null,
@@ -64,7 +62,7 @@ const fetchFields = async () => {
       .sort((a, b) => a.position - b.position)
       .map(buildRow);
   } catch (error) {
-    loadError.value = getErrorMessage(
+    loadError.value = apiErrorMessage(
       error,
       t('KANBAN.CUSTOM_FIELDS.LOAD_ERROR')
     );
@@ -98,7 +96,7 @@ const createField = async row => {
     row.id = created.id;
     row.position = created.position;
   } catch (error) {
-    row.error = getErrorMessage(error, t('KANBAN.CUSTOM_FIELDS.CREATE_ERROR'));
+    row.error = apiErrorMessage(error, t('KANBAN.CUSTOM_FIELDS.CREATE_ERROR'));
     useAlert(row.error);
   } finally {
     row.isSaving = false;
@@ -118,7 +116,7 @@ const updateField = async row => {
       buildPayload(row)
     );
   } catch (error) {
-    row.error = getErrorMessage(error, t('KANBAN.CUSTOM_FIELDS.UPDATE_ERROR'));
+    row.error = apiErrorMessage(error, t('KANBAN.CUSTOM_FIELDS.UPDATE_ERROR'));
     useAlert(row.error);
   } finally {
     row.isSaving = false;
@@ -180,7 +178,7 @@ const removeRow = async row => {
     await KanbanBoardsAPI.deleteCustomField(props.boardId, row.id);
     fields.value = fields.value.filter(item => item.localId !== row.localId);
   } catch (error) {
-    row.error = getErrorMessage(error, t('KANBAN.CUSTOM_FIELDS.DELETE_ERROR'));
+    row.error = apiErrorMessage(error, t('KANBAN.CUSTOM_FIELDS.DELETE_ERROR'));
     useAlert(row.error);
   } finally {
     row.isDeleting = false;

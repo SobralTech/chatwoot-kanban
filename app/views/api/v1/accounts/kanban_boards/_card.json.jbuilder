@@ -23,26 +23,7 @@ if card.respond_to?(:kanban_card_field_values)
     field_value.kanban_custom_field.key
   end)
 end
-if card.respond_to?(:kanban_card_products)
-  json.products card.kanban_card_products.ordered do |product|
-    json.id product.id
-    json.sku product.sku
-    json.name product.name
-    json.brand product.brand
-    json.image_url product.image_url
-    json.item_type product.item_type
-    json.quantity product.quantity
-    json.unit_price product.unit_price
-    json.price_type product.price_type
-    json.price_list product.price_list
-    json.subtotal product.subtotal
-  end
-  json.items_total card.items_total
-  json.discount_cents card.discount_cents
-  json.discount_percent card.discount_percent
-  json.discount_value card.discount_value
-  json.value card.total_value
-end
+json.partial!('api/v1/accounts/kanban_boards/card_items', formats: [:json], card: card) if card.respond_to?(:kanban_card_products)
 if stable_card
   json.description card.description
   json.starts_at card.starts_at&.iso8601

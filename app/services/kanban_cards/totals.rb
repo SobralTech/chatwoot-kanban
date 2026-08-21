@@ -3,6 +3,7 @@
 # all read it, so the expressions and the wire format live here instead of once per
 # query.
 class KanbanCards::Totals
+  # `value` is a BigDecimal - callers that serialize it run it through .decimal_string.
   Metric = Data.define(:count, :value)
   PRODUCT_TOTALS_ALIAS = 'kanban_card_product_totals'.freeze
 
@@ -21,8 +22,17 @@ class KanbanCards::Totals
       row = totals_scope(scope).pick(*conditions.values.flat_map { |condition| expressions(condition) })
 
       conditions.keys.each_with_index.to_h do |key, index|
-        [key, Metric.new(row[index * 2].to_i, decimal_string(row[(index * 2) + 1]))]
+        [key, Metric.new(row[index * 2].to_i, BigDecimal(row[(index * 2) + 1].to_s))]
       end
+    end
+
+    # Money crosses the wire as a plain decimal string. BigDecimal#to_s would emit
+    # scientific notation ("0.43e3"), so every serializer formats through here and
+    # the payload reads the same whichever query produced it.
+    def decimal_string(value)
+      return if value.nil?
+
+      BigDecimal(value.to_s).to_s('F')
     end
 
     private
@@ -53,18 +63,17 @@ class KanbanCards::Totals
       named_function('COALESCE', filtered(sum, condition), Arel::Nodes.build_quoted(0))
     end
 
+    # The aggregate mirror of KanbanCard#discount_value / #total_value. The enum
+    # mapping is read from the model so the two cannot drift on the type codes.
     def card_total_sql
+      items = "COALESCE(#{PRODUCT_TOTALS_ALIAS}.items_total, 0)"
+
       <<~SQL.squish
-        GREATEST(
-          COALESCE(#{PRODUCT_TOTALS_ALIAS}.items_total, 0) -
-          CASE
-            WHEN kanban_cards.discount_cents IS NOT NULL THEN kanban_cards.discount_cents / 100.0
-            WHEN kanban_cards.discount_percent IS NOT NULL THEN
-              COALESCE(#{PRODUCT_TOTALS_ALIAS}.items_total, 0) * kanban_cards.discount_percent / 100.0
-            ELSE 0
-          END,
-          0
-        )
+        GREATEST(#{items} - COALESCE(
+          CASE WHEN kanban_cards.discount_type = #{KanbanCard.discount_types.fetch(:percent)}
+            THEN #{items} * kanban_cards.discount_amount / 100.0
+            ELSE kanban_cards.discount_amount
+          END, 0), 0)
       SQL
     end
 
@@ -75,10 +84,6 @@ class KanbanCards::Totals
 
     def named_function(name, *expressions)
       Arel::Nodes::NamedFunction.new(name, expressions)
-    end
-
-    def decimal_string(value)
-      BigDecimal(value.to_s).to_s('F')
     end
   end
 end

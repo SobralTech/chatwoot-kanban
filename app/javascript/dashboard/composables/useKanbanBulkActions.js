@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { bulkPartialMessage } from 'dashboard/helper/kanbanBulkResult';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
 const BULK_ACTION_KEY = 'bulk-kanban-action';
 
@@ -8,7 +9,6 @@ export function useKanbanBulkActions({
   clearCardSelection,
   endAction,
   findCardStageId,
-  getErrorMessage,
   isBoardBusy,
   refreshStageFirstPages,
   selectedBoard,
@@ -30,7 +30,7 @@ export function useKanbanBulkActions({
       case 'bulk_action_limit_exceeded':
         return t('KANBAN.BULK.LIMIT', { count: selectionLimit.value });
       default:
-        return getErrorMessage(error, t('KANBAN.BULK.ERROR'));
+        return apiErrorMessage(error, t('KANBAN.BULK.ERROR'));
     }
   };
 

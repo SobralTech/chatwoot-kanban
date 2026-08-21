@@ -7,6 +7,7 @@ import { useAlert } from 'dashboard/composables';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
 const props = defineProps({
   boardId: {
@@ -46,12 +47,6 @@ const wonReasons = computed(() =>
     .sort((a, b) => a.position - b.position)
 );
 
-const getErrorMessage = (error, fallback) =>
-  error?.response?.data?.error ||
-  error?.response?.data?.message ||
-  error?.message ||
-  fallback;
-
 const fetchReasons = async () => {
   isLoading.value = true;
   loadError.value = '';
@@ -60,7 +55,7 @@ const fetchReasons = async () => {
     const response = await KanbanBoardsAPI.getReasons(props.boardId);
     reasons.value = camelcaseKeys(response.data || [], { deep: true });
   } catch (error) {
-    loadError.value = getErrorMessage(error, t('KANBAN.REASONS.LOAD_ERROR'));
+    loadError.value = apiErrorMessage(error, t('KANBAN.REASONS.LOAD_ERROR'));
   } finally {
     isLoading.value = false;
   }
@@ -133,7 +128,7 @@ const saveReason = async () => {
     const fallback = editingReasonId.value
       ? t('KANBAN.REASONS.UPDATE_ERROR')
       : t('KANBAN.REASONS.CREATE_ERROR');
-    formError.value = getErrorMessage(error, fallback);
+    formError.value = apiErrorMessage(error, fallback);
     useAlert(formError.value);
   } finally {
     isSaving.value = false;
@@ -162,7 +157,7 @@ const removeReason = async () => {
     await fetchReasons();
     useAlert(t('KANBAN.REASONS.REMOVE_SUCCESS'));
   } catch (error) {
-    useAlert(getErrorMessage(error, t('KANBAN.REASONS.REMOVE_ERROR')));
+    useAlert(apiErrorMessage(error, t('KANBAN.REASONS.REMOVE_ERROR')));
   } finally {
     isRemoving.value = false;
   }

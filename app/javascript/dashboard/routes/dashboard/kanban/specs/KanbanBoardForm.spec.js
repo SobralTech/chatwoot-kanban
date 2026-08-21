@@ -301,19 +301,21 @@ describe('KanbanBoardForm', () => {
     expect(KanbanBoardsAPI.updateSettings).toHaveBeenCalledTimes(1);
   });
 
-  it('persists a color selected with the color picker', async () => {
-    const wrapper = await mountForm();
-
+  const openCreateStagePanel = async wrapper => {
     await wrapper
       .find('[data-testid="kanban-board-form-create-stage-toggle"]')
       .trigger('click');
-    await wrapper
-      .find('[data-testid="kanban-board-form-new-stage-name"]')
-      .setValue('Negotiation');
-    await wrapper.findComponent({ name: 'ColorPicker' }).trigger('click');
-    await wrapper
-      .find('[data-testid="kanban-board-form-create-stage"]')
-      .trigger('click');
+
+    return wrapper.findComponent({ name: 'KanbanStageEditPanel' });
+  };
+
+  it('persists the name and colour reported by the create stage panel', async () => {
+    const wrapper = await mountForm();
+
+    const panel = await openCreateStagePanel(wrapper);
+    await panel.vm.$emit('update:name', 'Negotiation');
+    await panel.vm.$emit('update:color', '#FF6B6B');
+    await panel.vm.$emit('save');
     await flushPromises();
 
     expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(10, {
@@ -322,8 +324,26 @@ describe('KanbanBoardForm', () => {
         description: '',
         color: '#FF6B6B',
         position: 1,
+        sla_hours: null,
       },
     });
+  });
+
+  it('sends the stage time limit when the create panel reports one', async () => {
+    const wrapper = await mountForm();
+
+    const panel = await openCreateStagePanel(wrapper);
+    await panel.vm.$emit('update:name', 'Negotiation');
+    await panel.vm.$emit('update:slaHours', '48');
+    await panel.vm.$emit('save');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.createStage).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({
+        stage: expect.objectContaining({ sla_hours: 48 }),
+      })
+    );
   });
 
   it('keeps the current route when continuing to edit unsaved changes', async () => {

@@ -8,6 +8,7 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
 const props = defineProps({
   boardId: { type: [Number, String], required: true },
@@ -35,9 +36,6 @@ const hasUnsavedChanges = computed(
     props.customFields.length > 0 &&
     buildSnapshot() !== savedSnapshot.value
 );
-
-const getErrorMessage = (error, fallback) =>
-  error?.response?.data?.message || error?.message || fallback;
 
 const isBooleanTrue = value => value === true || value === 'true';
 
@@ -79,7 +77,7 @@ const fetchData = async () => {
 
     captureSnapshot();
   } catch (error) {
-    loadError.value = getErrorMessage(
+    loadError.value = apiErrorMessage(
       error,
       t('KANBAN.CARD_ADDITIONAL_DATA.LOAD_ERROR')
     );
@@ -156,7 +154,7 @@ const saveFieldValues = async () => {
     return true;
   } catch (error) {
     useAlert(
-      getErrorMessage(error, t('KANBAN.CARD_ADDITIONAL_DATA.SAVE_ERROR'))
+      apiErrorMessage(error, t('KANBAN.CARD_ADDITIONAL_DATA.SAVE_ERROR'))
     );
     return false;
   }

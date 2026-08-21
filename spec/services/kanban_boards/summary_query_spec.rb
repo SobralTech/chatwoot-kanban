@@ -21,7 +21,7 @@ RSpec.describe KanbanBoards::SummaryQuery do
 
       result = query.call
 
-      expect(result.open).to have_attributes(count: 1, value: '10.0')
+      expect(result.open).to have_attributes(count: 1, value: BigDecimal('10.0'))
       expect(result.won_this_month.count).to eq(0)
     end
 
@@ -38,7 +38,7 @@ RSpec.describe KanbanBoards::SummaryQuery do
         filtered_assignee_ids: [other_agent.id]
       ).call
 
-      expect(result.open).to have_attributes(count: 1, value: '10.0')
+      expect(result.open).to have_attributes(count: 1, value: BigDecimal('10.0'))
     end
 
     it 'keeps won and lost cards out of the open metric' do
@@ -48,7 +48,7 @@ RSpec.describe KanbanBoards::SummaryQuery do
 
       result = query.call
 
-      expect(result.open).to have_attributes(count: 1, value: '10.0')
+      expect(result.open).to have_attributes(count: 1, value: BigDecimal('10.0'))
     end
 
     it 'counts only the lost cards that entered the stage this month' do
@@ -58,7 +58,7 @@ RSpec.describe KanbanBoards::SummaryQuery do
 
         result = query.call
 
-        expect(result.lost_this_month).to have_attributes(count: 1, value: '10.0')
+        expect(result.lost_this_month).to have_attributes(count: 1, value: BigDecimal('10.0'))
       end
     end
 
@@ -69,9 +69,9 @@ RSpec.describe KanbanBoards::SummaryQuery do
 
       result = query.call
 
-      expect(result.open).to have_attributes(count: 2, value: '20.0')
-      expect(result.won_this_month).to have_attributes(count: 0, value: '0.0')
-      expect(result.lost_this_month).to have_attributes(count: 0, value: '0.0')
+      expect(result.open).to have_attributes(count: 2, value: BigDecimal('20.0'))
+      expect(result.won_this_month).to have_attributes(count: 0, value: BigDecimal('0.0'))
+      expect(result.lost_this_month).to have_attributes(count: 0, value: BigDecimal('0.0'))
       expect(result.average_ticket).to be_nil
     end
 
@@ -92,7 +92,7 @@ RSpec.describe KanbanBoards::SummaryQuery do
 
         result = query.call
 
-        expect(result.won_this_month).to have_attributes(count: 1, value: '10.0')
+        expect(result.won_this_month).to have_attributes(count: 1, value: BigDecimal('10.0'))
         expect(result.average_ticket).to eq('10.00')
       end
     end

@@ -18,7 +18,7 @@ class Api::V1::Accounts::KanbanBoards::Cards::ProductsController < Api::V1::Acco
 
   def update
     authorize @kanban_card, :update?
-    return render_forbidden if catalog_price_update_by_non_admin?
+    return render_catalog_price_forbidden if catalog_price_update_by_non_admin?
 
     previous_unit_price = @kanban_card_product.unit_price
     previous_quantity = @kanban_card_product.quantity
@@ -61,14 +61,14 @@ class Api::V1::Accounts::KanbanBoards::Cards::ProductsController < Api::V1::Acco
   end
 
   def update_product_params
-    permitted = params.permit(:unit_price, :quantity)
-    return permitted if Current.account_user&.administrator? || !@kanban_card_product.catalog?
-
-    permitted.slice(:quantity)
+    params.permit(:unit_price, :quantity)
   end
 
+  # Catalog prices come from the price list, so only an administrator may override
+  # one. Manually added service and custom lines are priced on the card itself and
+  # stay editable by anyone who can edit the card.
   def catalog_price_update_by_non_admin?
-    @kanban_card_product.catalog? && !Current.account_user&.administrator? && params[:unit_price].present?
+    @kanban_card_product.catalog? && !Current.account_user&.administrator? && params.key?(:unit_price)
   end
 
   def product_metadata(product)
@@ -90,7 +90,7 @@ class Api::V1::Accounts::KanbanBoards::Cards::ProductsController < Api::V1::Acco
     )
   end
 
-  def render_forbidden
-    render json: { error: 'Only administrators can edit a linked product' }, status: :forbidden
+  def render_catalog_price_forbidden
+    render json: { error: 'Only administrators can change the price of a catalog product' }, status: :forbidden
   end
 end

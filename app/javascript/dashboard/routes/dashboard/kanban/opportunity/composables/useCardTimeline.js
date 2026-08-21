@@ -4,6 +4,7 @@ import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
 const PAGE_LIMIT = 20;
 
@@ -19,9 +20,6 @@ const SOURCES = [
     request: (...args) => KanbanBoardsAPI.getCardNotes(...args),
   },
 ];
-
-const getErrorMessage = (error, fallback) =>
-  error?.response?.data?.message || error?.message || fallback;
 
 const camelize = data => camelcaseKeys(data || {}, { deep: true });
 
@@ -81,7 +79,7 @@ export function useCardTimeline(boardId, cardId) {
       }));
       setItems(append ? [...items.value, ...fetched] : fetched);
     } catch (error) {
-      loadError.value = getErrorMessage(
+      loadError.value = apiErrorMessage(
         error,
         t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.LOAD_ERROR')
       );
@@ -100,7 +98,7 @@ export function useCardTimeline(boardId, cardId) {
       return true;
     } catch (error) {
       useAlert(
-        getErrorMessage(
+        apiErrorMessage(
           error,
           t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.NOTE_ERROR')
         )

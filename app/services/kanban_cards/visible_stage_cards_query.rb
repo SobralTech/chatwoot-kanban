@@ -1,5 +1,5 @@
 class KanbanCards::VisibleStageCardsQuery
-  Result = Struct.new(:cards, :has_more, :next_cursor, :total_count, :total_value, keyword_init: true)
+  Result = Struct.new(:cards, :has_more, :next_cursor, :total_count, :total_value, :stale_count, keyword_init: true)
   RefreshRequiredError = Class.new(StandardError)
 
   DEFAULT_LIMIT = 20
@@ -33,16 +33,14 @@ class KanbanCards::VisibleStageCardsQuery
     ids = paginated_card_ids(anchor)
     page_ids = ids.first(effective_limit)
     cards = payload_cards(page_ids)
-    # Counting on every cursor-paginated page would re-scan the whole
-    # stage on each load-more click; only the first page needs it.
-    totals = anchor.nil? ? visible_totals : nil
 
     Result.new(
       cards: cards,
       has_more: ids.length > effective_limit,
       next_cursor: next_cursor_for(page_ids, ids),
-      total_count: totals&.count,
-      total_value: totals&.value
+      # Counting on every cursor-paginated page would re-scan the whole
+      # stage on each load-more click; only the first page needs it.
+      **(anchor.nil? ? totals_fields : {})
     )
   end
 
@@ -51,7 +49,7 @@ class KanbanCards::VisibleStageCardsQuery
   attr_reader :account, :kanban_board, :kanban_stage, :limit, :cursor, :terminal_period, :filtered_stage_sla
 
   def empty_result
-    Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0, total_value: '0.0')
+    Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0, total_value: '0.0', stale_count: 0)
   end
 
   def valid_board_and_stage?
@@ -85,25 +83,37 @@ class KanbanCards::VisibleStageCardsQuery
     KanbanStage.special_stage_ids(kanban_board).include?(kanban_stage.id)
   end
 
-  def stage_sla_condition
-    return unless filtered_stage_sla&.include?('stale')
+  # Cards past the stage time limit. A terminal stage or one without a limit has
+  # none, and a predicate no row can satisfy reports that as a zero metric instead
+  # of needing a branch at each call site.
+  def stale_cards_condition
     return card_table[:id].eq(nil) if terminal_stage? || kanban_stage.sla_hours.blank?
 
     card_table[:stage_entered_at].lt(kanban_stage.sla_hours.hours.ago)
   end
 
+  def stage_sla_condition
+    return unless filtered_stage_sla&.include?('stale')
+
+    stale_cards_condition
+  end
+
+  # The stale slice rides along on the totals scan, so the stage header reports
+  # every stale card rather than only the ones the first page happened to load.
   def visible_totals
-    @visible_totals ||= KanbanCards::Totals.metric(visible_cards)
+    @visible_totals ||= KanbanCards::Totals.metrics(visible_cards, all: nil, stale: stale_cards_condition)
+  end
+
+  def totals_fields
+    {
+      total_count: visible_totals.fetch(:all).count,
+      total_value: KanbanCards::Totals.decimal_string(visible_totals.fetch(:all).value),
+      stale_count: visible_totals.fetch(:stale).count
+    }
   end
 
   def metadata_result
-    Result.new(
-      cards: [],
-      has_more: false,
-      next_cursor: nil,
-      total_count: visible_totals.count,
-      total_value: visible_totals.value
-    )
+    Result.new(cards: [], has_more: false, next_cursor: nil, **totals_fields)
   end
 
   def paginated_card_ids(anchor)

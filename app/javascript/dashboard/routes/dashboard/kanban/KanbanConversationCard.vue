@@ -5,10 +5,10 @@ import { useStore } from 'dashboard/composables/store';
 import { useKanbanMoveTarget } from 'dashboard/composables/useKanbanMoveTarget';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { format, differenceInCalendarDays } from 'date-fns';
-import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
 import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
-import { stageSlaStatus } from 'dashboard/helper/kanbanStageSla';
+import { SLA_STALE } from 'dashboard/helper/kanbanStageSla';
+import { useKanbanCardSla } from 'dashboard/composables/useKanbanCardSla';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
@@ -308,37 +308,11 @@ const cardLabelTitles = computed(() =>
   labels.value.map(label => label.title).filter(Boolean)
 );
 
-const toUnixTimestamp = value => {
-  if (!value) return null;
-  if (typeof value === 'number') return value;
-
-  const timestamp = Date.parse(value);
-  return Number.isNaN(timestamp) ? null : Math.floor(timestamp / 1000);
-};
-
-const stageEnteredAt = computed(() =>
-  toUnixTimestamp(props.card.stage_entered_at || props.card.stageEnteredAt)
-);
-const stageSlaStatusValue = computed(() =>
-  stageSlaStatus({
-    stageEnteredAt: props.card.stage_entered_at || props.card.stageEnteredAt,
-    slaHours: props.slaHours,
-  })
-);
-const stageSlaClasses = computed(() => {
-  if (stageSlaStatusValue.value === 'warning') {
-    return 'rounded-full bg-n-amber-3 px-1.5 py-0.5 text-n-amber-11';
-  }
-  if (stageSlaStatusValue.value === 'stale') {
-    return 'rounded-full bg-n-ruby-3 px-1.5 py-0.5 text-n-ruby-11';
-  }
-  return '';
-});
-const stageTime = computed(() =>
-  stageEnteredAt.value
-    ? shortTimestamp(dynamicTime(stageEnteredAt.value), true)
-    : ''
-);
+const { stageSlaStatusValue, stageSlaClasses, stageTime, stageTimeTitle } =
+  useKanbanCardSla(
+    computed(() => props.card),
+    computed(() => props.slaHours)
+  );
 const dueAt = computed(() => props.card.due_at || props.card.dueAt);
 const dueAtDate = computed(() => {
   if (!dueAt.value) return null;
@@ -356,15 +330,6 @@ const dueAtStatus = computed(() => {
   if (diffInDays <= 0) return 'today';
   if (diffInDays === 1) return 'tomorrow';
   return 'upcoming';
-});
-const stageTimeTitle = computed(() => {
-  if (!stageTime.value) return undefined;
-  if (!props.slaHours) return dynamicTime(stageEnteredAt.value);
-
-  return t('KANBAN.CARD.SLA_TOOLTIP', {
-    age: dynamicTime(stageEnteredAt.value),
-    hours: props.slaHours,
-  });
 });
 const dueAtClasses = computed(() => {
   switch (dueAtStatus.value) {
@@ -505,7 +470,7 @@ const toggleSelection = async event => {
     class="card-drag-handle group relative cursor-pointer select-none rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-brand"
     :class="{
       'border-n-brand ring-1 ring-n-brand': isSelected,
-      'border-l-2 border-n-ruby-9': stageSlaStatusValue === 'stale',
+      'border-l-2 border-n-ruby-9': stageSlaStatusValue === SLA_STALE,
     }"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
@@ -973,7 +938,7 @@ const toggleSelection = async event => {
             :class="stageSlaClasses"
             :title="stageTimeTitle"
             :aria-label="
-              stageSlaStatusValue === 'stale'
+              stageSlaStatusValue === SLA_STALE
                 ? t('KANBAN.CARD.SLA_STALE')
                 : undefined
             "

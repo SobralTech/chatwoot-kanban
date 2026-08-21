@@ -10,24 +10,7 @@ json.subject card.subject
 json.active card.active
 json.custom_field_keys(card.kanban_card_field_values.map { |field_value| field_value.kanban_custom_field.key })
 json.kanban_reason_id card.kanban_reason_id
-json.products card.kanban_card_products.ordered do |product|
-  json.id product.id
-  json.sku product.sku
-  json.name product.name
-  json.brand product.brand
-  json.image_url product.image_url
-  json.item_type product.item_type
-  json.quantity product.quantity
-  json.unit_price product.unit_price
-  json.price_type product.price_type
-  json.price_list product.price_list
-  json.subtotal product.subtotal
-end
-json.items_total card.items_total
-json.discount_cents card.discount_cents
-json.discount_percent card.discount_percent
-json.discount_value card.discount_value
-json.value card.total_value
+json.partial! 'api/v1/accounts/kanban_boards/card_items', formats: [:json], card: card
 json.due_at card.due_at&.iso8601
 json.labels card.labels.map(&:name)
 json.stage_entered_at card.stage_entered_at&.iso8601

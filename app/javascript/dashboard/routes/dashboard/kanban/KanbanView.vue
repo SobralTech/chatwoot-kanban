@@ -42,6 +42,7 @@ import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import KanbanOpportunityPanel from './opportunity/KanbanOpportunityPanel.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
 const route = useRoute();
 const router = useRouter();
@@ -294,14 +295,8 @@ const emptyCardsLabel = stage =>
     ? t('KANBAN.EMPTY_CARDS_FILTERED')
     : t('KANBAN.EMPTY_CARDS');
 
-const getErrorMessage = (error, fallbackMessage) =>
-  error?.response?.data?.error ||
-  error?.response?.data?.message ||
-  error?.message ||
-  fallbackMessage;
-
 const isNameTakenError = error => {
-  const errorMessage = String(getErrorMessage(error, '')).toLowerCase();
+  const errorMessage = String(apiErrorMessage(error, '')).toLowerCase();
   return errorMessage.includes('name') && errorMessage.includes('taken');
 };
 
@@ -358,7 +353,7 @@ const stageActionErrorMessage = error => {
 };
 
 const showActionError = (error, fallbackMessage) => {
-  let message = getErrorMessage(error, fallbackMessage);
+  let message = apiErrorMessage(error, fallbackMessage);
   const stageActionMessage = stageActionErrorMessage(error);
   if (isNameTakenError(error)) message = t('KANBAN.ACTIONS.STAGE_NAME_TAKEN');
   if (isSpecialStageOrderError(error))
@@ -1005,7 +1000,6 @@ const {
   endAction,
   findCardStageId,
   flushPendingRealtimeKanbanEvents,
-  getErrorMessage,
   hasActiveFilters,
   hasCardDragChanged,
   isActionActive,
@@ -1061,7 +1055,7 @@ const confirmBoardRename = async () => {
   } catch (error) {
     // Keep the row in edit mode so the name can be corrected in place, most
     // commonly after the per-account uniqueness check rejects a duplicate.
-    useAlert(getErrorMessage(error, t('KANBAN.ACTIONS.RENAME_BOARD_ERROR')));
+    useAlert(apiErrorMessage(error, t('KANBAN.ACTIONS.RENAME_BOARD_ERROR')));
   } finally {
     isRenamingBoard.value = false;
   }
@@ -1329,7 +1323,6 @@ const {
   clearCardSelection,
   endAction,
   findCardStageId,
-  getErrorMessage,
   isBoardBusy,
   refreshStageFirstPages,
   selectedBoard,

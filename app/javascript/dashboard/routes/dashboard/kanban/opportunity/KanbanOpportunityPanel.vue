@@ -19,6 +19,7 @@ import { normalizePayload } from './opportunityPayload';
 import { useOpportunityForm } from './composables/useOpportunityForm';
 import { useOpportunitySave } from './composables/useOpportunitySave';
 import { usePanelKeyboard } from './composables/usePanelKeyboard';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
 const props = defineProps({
   boardId: {
@@ -141,7 +142,7 @@ const onProductsTotalChanged = value => {
 
 const onProductsCardChanged = updatedCard => {
   patchCard(updatedCard);
-  productsTotalValue.value = Number(updatedCard?.value ?? 0);
+  productsTotalValue.value = Number(updatedCard.value ?? 0);
   notifyCardUpdated();
 };
 
@@ -173,18 +174,6 @@ const onTabChanged = tab => {
   loadedTabKeys.value = [...new Set([...loadedTabKeys.value, tab.key])];
 };
 
-const getErrorMessage = (error, fallback) => {
-  const errors = error?.response?.data?.errors;
-
-  if (Array.isArray(errors)) return errors.join(', ');
-  if (typeof errors === 'string') return errors;
-  if (errors && typeof errors === 'object') {
-    return Object.values(errors).flat().join(', ');
-  }
-
-  return error?.response?.data?.message || error?.message || fallback;
-};
-
 const loadCard = async () => {
   isLoading.value = true;
   loadError.value = '';
@@ -199,7 +188,7 @@ const loadCard = async () => {
     form.setEmbeddedContext(cardPayload);
     form.captureSnapshot();
   } catch (error) {
-    loadError.value = getErrorMessage(
+    loadError.value = apiErrorMessage(
       error,
       t('KANBAN.OPPORTUNITY_DETAILS.LOAD_ERROR')
     );
@@ -244,9 +233,7 @@ const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
       )
     );
   } catch (error) {
-    useAlert(
-      getCardStatusChangeErrorMessage(error, { reopen, t, getErrorMessage })
-    );
+    useAlert(getCardStatusChangeErrorMessage(error, { reopen, t }));
   }
 };
 
@@ -362,8 +349,8 @@ defineExpose({
                 v-show="activeTabKey === 'products'"
                 :board-id="boardId"
                 :card-id="cardId"
-                :discount-cents="card.discountCents"
-                :discount-percent="card.discountPercent"
+                :discount-type="card.discountType"
+                :discount-amount="card.discountAmount"
                 @total-changed="onProductsTotalChanged"
                 @card-changed="onProductsCardChanged"
               />
