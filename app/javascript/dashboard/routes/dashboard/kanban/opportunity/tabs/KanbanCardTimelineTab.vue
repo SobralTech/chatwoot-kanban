@@ -107,7 +107,7 @@ onMounted(() => load());
           :update-note="updateNote"
           @request-delete="requestDeleteNote"
         />
-        <KanbanTimelineEvent v-else :event="item" />
+        <KanbanTimelineEvent v-else :event="item" :board-id="boardId" />
       </li>
     </ol>
 

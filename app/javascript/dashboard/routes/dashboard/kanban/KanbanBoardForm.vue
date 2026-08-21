@@ -23,8 +23,15 @@ import KanbanStageEditPanel from './KanbanStageEditPanel.vue';
 import KanbanBoardTemplatePicker from './KanbanBoardTemplatePicker.vue';
 import KanbanCustomFieldsTab from './KanbanCustomFieldsTab.vue';
 import KanbanReasonsTab from './KanbanReasonsTab.vue';
+import KanbanAutomationsTab from './automations/KanbanAutomationsTab.vue';
 
-const TAB_KEYS = ['stages', 'custom_fields', 'settings', 'reasons'];
+const TAB_KEYS = [
+  'stages',
+  'custom_fields',
+  'settings',
+  'reasons',
+  'automations',
+];
 
 const { t } = useI18n();
 const route = useRoute();
@@ -73,7 +80,10 @@ const stagePendingRemoval = ref(null);
 const ignoreGroupsForImport = ref(false);
 const stageReconcileWarning = ref('');
 
-const activeTabIndex = ref(0);
+const requestedAutomationLog = route.query?.automation_log === '1';
+const activeTabIndex = ref(
+  requestedAutomationLog && isAdmin.value ? TAB_KEYS.indexOf('automations') : 0
+);
 const isFreshDraft = ref(false);
 const templates = ref([]);
 const isCreatingTemplate = ref(false);
@@ -99,6 +109,7 @@ const form = reactive({
   wonRecurrenceWindowHours: null,
   lostRecurrenceEnabled: false,
   lostRecurrenceWindowHours: null,
+  automationSettings: {},
 });
 
 const { isTerminalStage, isWonStage, regularStages, terminalStages } =
@@ -156,6 +167,9 @@ const tabItems = computed(() => [
   { label: t('KANBAN.BOARD_EDIT.TABS.CUSTOM_FIELDS') },
   { label: t('KANBAN.BOARD_EDIT.TABS.SETTINGS') },
   { label: t('KANBAN.BOARD_EDIT.TABS.REASONS') },
+  ...(isAdmin.value
+    ? [{ label: t('KANBAN.BOARD_EDIT.TABS.AUTOMATIONS') }]
+    : []),
 ]);
 const activeTabKey = computed(() => TAB_KEYS[activeTabIndex.value]);
 
@@ -244,6 +258,7 @@ const applySettings = payload => {
   form.wonRecurrenceWindowHours = settings.wonRecurrenceWindowHours ?? null;
   form.lostRecurrenceEnabled = settings.lostRecurrenceEnabled || false;
   form.lostRecurrenceWindowHours = settings.lostRecurrenceWindowHours ?? null;
+  form.automationSettings = settings.automationSettings || {};
 
   savedSnapshot.value = normalizeForDiff(form);
 };
@@ -1496,6 +1511,20 @@ onMounted(async () => {
         data-testid="kanban-board-form-reasons-tab"
       >
         <KanbanReasonsTab v-if="boardId" :board-id="boardId" />
+      </section>
+
+      <section
+        v-show="activeTabKey === 'automations'"
+        data-testid="kanban-board-form-automations-tab"
+      >
+        <KanbanAutomationsTab
+          v-if="boardId && isAdmin"
+          :board-id="boardId"
+          :stages="regularStages"
+          :automation-settings="form.automationSettings"
+          :initial-view="requestedAutomationLog ? 'log' : 'rules'"
+          :initial-rule-id="route.query?.automation_rule_id"
+        />
       </section>
     </div>
 

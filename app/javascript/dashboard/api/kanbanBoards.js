@@ -89,6 +89,42 @@ class KanbanBoardsAPI extends ApiClient {
     );
   }
 
+  getAutomationRules(boardId) {
+    return axios.get(`${this.url}/${boardId}/automation_rules`);
+  }
+
+  createAutomationRule(boardId, payload) {
+    return axios.post(`${this.url}/${boardId}/automation_rules`, payload);
+  }
+
+  updateAutomationRule(boardId, ruleId, payload) {
+    return axios.patch(
+      `${this.url}/${boardId}/automation_rules/${ruleId}`,
+      payload
+    );
+  }
+
+  toggleAutomationRule(boardId, ruleId) {
+    return axios.patch(
+      `${this.url}/${boardId}/automation_rules/${ruleId}/toggle`
+    );
+  }
+
+  deleteAutomationRule(boardId, ruleId) {
+    return axios.delete(`${this.url}/${boardId}/automation_rules/${ruleId}`);
+  }
+
+  previewAutomationRule(boardId, payload) {
+    return axios.post(
+      `${this.url}/${boardId}/automation_rules/preview`,
+      payload
+    );
+  }
+
+  getAutomationLogs(boardId, params = {}) {
+    return axios.get(`${this.url}/${boardId}/automation_logs`, { params });
+  }
+
   getConversationCards(conversationId, config = {}) {
     return axios.get(
       `${this.baseUrl()}/conversations/${conversationId}/kanban_cards`,

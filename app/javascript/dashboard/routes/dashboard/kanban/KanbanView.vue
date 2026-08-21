@@ -1265,6 +1265,19 @@ const closeOpportunityDetails = () => {
     opportunityTriggerRef.value = null;
   });
 };
+
+const openCardFromQuery = () => {
+  const cardId = Number(route.query?.card_id);
+  if (!selectedBoard.value || !Number.isInteger(cardId) || cardId <= 0) {
+    return;
+  }
+
+  openDetails({ id: cardId });
+  router.replace({ query: { ...route.query, card_id: undefined } });
+};
+
+watch([selectedBoard, () => route.query?.card_id], openCardFromQuery);
+
 const attemptCloseOpportunityDetails = () => {
   if (opportunityModalRef.value?.hasUnsavedChanges) {
     showUnsavedOpportunityChangesConfirm.value = true;

@@ -93,7 +93,8 @@
         "STAGES": "Stages and Data",
         "CUSTOM_FIELDS": "Global Custom Fields",
         "SETTINGS": "Settings",
-        "REASONS": "Win and Loss Reasons"
+        "REASONS": "Win and Loss Reasons",
+        "AUTOMATIONS": "Automations"
       },
       "STAGES_TAB": {
         "ACTIVE_STATUS": "Active status",
@@ -411,6 +412,200 @@
         "ACTION": "Delete funnel"
       }
     },
+    "AUTOMATIONS": {
+      "EMPTY_TITLE": "No automations yet",
+      "EMPTY_DESCRIPTION": "Create rules to move, assign, and follow up opportunities automatically.",
+      "ADD_RULE": "Add rule",
+      "LOADING": "Loading automations...",
+      "LOAD_ERROR": "Could not load automations.",
+      "SAVED": "Automation saved.",
+      "CREATED": "Automation created in simulation mode.",
+      "SAVE_ERROR": "Could not save the automation.",
+      "TOGGLE_ERROR": "Could not change the automation state.",
+      "DELETED": "Automation deleted.",
+      "DELETE_ERROR": "Could not delete the automation.",
+      "REORDER_ERROR": "Could not reorder the automations.",
+      "KILL_SWITCH": "Automations enabled for this funnel",
+      "KILL_SWITCH_HELP": "Turning this off pauses every rule in this funnel.",
+      "KILL_SWITCH_ERROR": "Could not change the funnel automation setting.",
+      "DUPLICATE_SUFFIX": "(copy)",
+      "STATE": {
+        "ACTIVE": "Active",
+        "SIMULATION": "Simulation",
+        "INACTIVE": "Inactive",
+        "PAUSED": "Paused"
+      },
+      "RUNS_7D": "{count} runs / 7d",
+      "TABS": {
+        "RULES": "Rules",
+        "LOG": "Log"
+      },
+      "MENU": {
+        "EDIT": "Edit",
+        "DUPLICATE": "Duplicate",
+        "VIEW_LOG": "View log",
+        "ACTIVATE": "Activate",
+        "DEACTIVATE": "Deactivate",
+        "DELETE": "Delete"
+      },
+      "ROW": {
+        "SUMMARY": "When {event} · If {condition} · Then {count} actions",
+        "DRAG_TO_REORDER": "Drag to reorder",
+        "MORE_ACTIONS": "More actions"
+      },
+      "FORM": {
+        "ADD_TITLE": "Add automation rule",
+        "EDIT_TITLE": "Edit automation rule",
+        "REQUIRED_FIELDS": "Name and event are required.",
+        "NAME": "Rule name",
+        "NAME_PLACEHOLDER": "E.g. Follow up unanswered quote",
+        "DESCRIPTION": "Description",
+        "DESCRIPTION_PLACEHOLDER": "Explain what this rule is for",
+        "WHEN": "When",
+        "IF": "If",
+        "THEN": "Then",
+        "ALL_CONDITIONS_HINT": "All conditions must be true.",
+        "ADD_CONDITION": "Add condition",
+        "NO_CONDITIONS": "No additional conditions.",
+        "ACTIONS_HINT": "Actions run in the order shown.",
+        "ADD_ACTION": "Add action",
+        "REMOVE_ACTION": "Remove action",
+        "SELECT_STAGE": "Select a regular stage",
+        "SELECT_AGENTS": "Select agents",
+        "SEARCH_AGENTS": "Search agents",
+        "NO_AGENTS": "No agents found",
+        "SELECT_PRIORITY": "Select priority",
+        "SELECT_LABELS": "Select labels",
+        "SEARCH_LABELS": "Search labels",
+        "NO_LABELS": "No labels found",
+        "SELECT_REASON": "Select a loss reason",
+        "MESSAGE_PLACEHOLDER": "Write the message or note...",
+        "VARIABLES": "Available variables",
+        "PREVIEW": "Preview",
+        "EMPTY_MESSAGE": "The preview will appear here.",
+        "DAYS": "Days",
+        "BUSINESS_DAYS": "Business days",
+        "SIMULATION_LABEL": "Simulation mode",
+        "SIMULATION_HELP": "The rule records what it would do without doing it. Recommended for 24h.",
+        "ACTIVATE_FOR_REAL": "Activate for real",
+        "ACTIVATE_BLOCKED": "Run in simulation first to see the impact.",
+        "IMPACT_PREVIEW": "This rule would affect {count} opportunities today.",
+        "PREVIEW_ERROR": "Could not calculate the impact preview.",
+        "PREVIEW_AND_CONTINUE": "Preview impact",
+        "SAVE": "Confirm and save",
+        "CANCEL": "Cancel",
+        "TIME_THRESHOLD_PREFIX": "When the opportunity stays in a stage for",
+        "TIME_THRESHOLD_SUFFIX": "hours",
+        "THRESHOLD_REQUIRED": "Enter a positive number of hours.",
+        "EVENTS": {
+          "CARD_CREATED": "a card is created",
+          "STAGE_CHANGED": "a card changes stage",
+          "CARD_WON": "a card is won",
+          "CARD_LOST": "a card is lost",
+          "CARD_REOPENED": "a card is reopened",
+          "CARD_STALLED": "a card is stalled",
+          "DUE_SOON": "a card is nearly due",
+          "OVERDUE": "a card becomes overdue",
+          "NO_REPLY": "a contact does not reply"
+        },
+        "CONDITIONS": {
+          "STAGE": "stage",
+          "PREVIOUS_STAGE": "previous stage",
+          "PRIORITY": "priority",
+          "LABELS": "labels",
+          "ASSIGNEE": "assigned agent",
+          "INBOX": "inbox",
+          "TOTAL_VALUE": "total value",
+          "HOURS_IN_STAGE": "hours in stage",
+          "REASON": "reason",
+          "ORIGIN": "origin",
+          "CONTACT_HAS_OPEN_CARD": "contact has another open card"
+        },
+        "OPERATORS": {
+          "greater_than": "greater than",
+          "less_than": "less than",
+          "is_one_of": "is one of",
+          "includes": "includes"
+        },
+        "ACTIONS": {
+          "MOVE_TO_STAGE": "Move to stage",
+          "ASSIGN_AGENTS": "Assign agents",
+          "SET_PRIORITY": "Set priority",
+          "ADD_LABEL": "Add labels",
+          "REMOVE_LABEL": "Remove labels",
+          "SEND_MESSAGE": "Send message",
+          "CREATE_NOTE": "Create note",
+          "SEND_PRIVATE_NOTE": "Create private note",
+          "SET_DUE_AT": "Set due date",
+          "MARK_AS_LOST": "Mark as lost"
+        },
+        "ASSIGN_MODES": {
+          "SET": "Set agents",
+          "ADD": "Add agents",
+          "ROUND_ROBIN": "Distribute evenly"
+        },
+        "ORIGINS": {
+          "MANUAL": "Manual",
+          "CONVERSATION": "Conversation",
+          "IMPORT": "Import",
+          "RECURRENCE": "Recurrence"
+        },
+        "VARIABLE_NAMES": {
+          "CONTACT_NAME": "Contact name",
+          "AGENT_NAME": "Agent name",
+          "CARD_SUBJECT": "Opportunity subject",
+          "TOTAL": "Total value",
+          "STAGE": "Stage name"
+        },
+        "ERRORS": {
+          "ACTION_STAGE_REQUIRED": "Choose a regular stage.",
+          "ACTION_AGENTS_REQUIRED": "Choose at least one agent.",
+          "ACTION_MODE_REQUIRED": "Choose an assignment mode.",
+          "ACTION_PRIORITY_REQUIRED": "Choose a priority.",
+          "ACTION_LABELS_REQUIRED": "Choose at least one label.",
+          "ACTION_CONTENT_REQUIRED": "Enter some content.",
+          "ACTION_DAYS_REQUIRED": "Enter at least one day.",
+          "ACTION_REASON_REQUIRED": "Choose a loss reason."
+        }
+      },
+      "LOG": {
+        "TITLE": "Automation log",
+        "ALL_RULES": "All rules",
+        "ALL_STATUSES": "All statuses",
+        "UNKNOWN_RULE": "Rule #{id}",
+        "RULE_FILTER": "Rule",
+        "STATUS_FILTER": "Status",
+        "PERIOD_FILTER": "Period",
+        "PERIOD": {
+          "24H": "Last 24 hours",
+          "7D": "Last 7 days",
+          "30D": "Last 30 days"
+        },
+        "LOADING": "Loading automation log...",
+        "LOAD_ERROR": "Could not load the automation log.",
+        "EMPTY": "No runs recorded yet. Only executions that matched a rule are recorded.",
+        "NO_ACTION_DETAILS": "No action details",
+        "ACTION_SUMMARY": "{action}: {status}",
+        "CARD": "Opportunity #{id}",
+        "DELETED_CARD": "Opportunity no longer exists",
+        "SKIP_REASON": "Reason: {reason}",
+        "SENT_TEXT": "Message sent",
+        "SIMULATED_TEXT": "Message that would be sent",
+        "STATUS": {
+          "MATCHED": "Matched",
+          "EXECUTED": "Executed",
+          "SIMULATED": "Simulated",
+          "SKIPPED": "Skipped",
+          "FAILED": "Failed"
+        }
+      },
+      "DELETE": {
+        "TITLE": "Delete automation",
+        "MESSAGE": "Delete this automation rule? Its log will also be removed.",
+        "CONFIRM": "Delete",
+        "CANCEL": "Cancel"
+      }
+    },
     "REMOVE_BOARD": {
       "TITLE": "Remove board",
       "MESSAGE": "Remove this kanban board?",
@@ -526,6 +721,7 @@
           "AUTOMATION_ACTION": "ran automation action {action}",
           "AUTOMATION_ACTION_SKIPPED": "skipped automation action {action}",
           "AUTOMATION_ACTION_FAILED": "failed automation action {action}",
+          "AUTOMATION_RULE": "Automation rule #{id}",
           "CARD_DELETED": "deleted this opportunity",
           "UNKNOWN": "updated this opportunity"
         }
