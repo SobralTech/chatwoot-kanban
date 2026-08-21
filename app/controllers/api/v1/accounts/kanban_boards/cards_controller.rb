@@ -336,29 +336,12 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     card_params[:kanban_reason_id]
   end
 
-  def dispatch_kanban_card_event(event_name, board_id: @kanban_card.kanban_board_id, stage_id: @kanban_card.kanban_stage_id)
-    Rails.configuration.dispatcher.dispatch(
-      event_name,
-      Time.zone.now,
-      account_id: @kanban_card.account_id,
-      board_id: board_id,
-      stage_id: stage_id,
-      card_id: @kanban_card.id,
-      conversation_id: @kanban_card.conversation_id
-    )
+  def dispatch_kanban_card_event(event_name, board_id: nil, stage_id: nil)
+    KanbanCards::EventDispatcher.card_event(event_name, @kanban_card, board_id: board_id, stage_id: stage_id)
   end
 
   def dispatch_kanban_card_reordered_event(source_stage_id)
-    Rails.configuration.dispatcher.dispatch(
-      Events::Types::KANBAN_CARD_REORDERED,
-      Time.zone.now,
-      account_id: @kanban_card.account_id,
-      board_id: @kanban_card.kanban_board_id,
-      card_id: @kanban_card.id,
-      conversation_id: @kanban_card.conversation_id,
-      source_stage_id: source_stage_id,
-      target_stage_id: @kanban_card.kanban_stage_id
-    )
+    KanbanCards::EventDispatcher.card_reordered(@kanban_card, source_stage_id: source_stage_id)
   end
 
   def trigger_automation(event_name, context: {})
