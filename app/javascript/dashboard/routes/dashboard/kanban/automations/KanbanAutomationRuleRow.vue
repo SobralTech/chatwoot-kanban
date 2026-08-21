@@ -40,7 +40,7 @@ const eventLabels = computed(() => ({
 }));
 
 const eventLabel = computed(() => {
-  const key = props.rule.eventName || props.rule.event_name;
+  const key = props.rule.event_name;
   return eventLabels.value[key] || key;
 });
 
@@ -77,15 +77,13 @@ const stageName = stageId =>
   props.stages.find(stage => Number(stage.id) === Number(stageId))?.name ||
   stageId;
 
-// The list is camelised on the way in, so a condition arrives as
-// { attributeKey, filterOperator, values }.
 const conditionValue = condition => {
-  if (['is_present', 'is_not_present'].includes(condition.filterOperator)) {
+  if (['is_present', 'is_not_present'].includes(condition.filter_operator)) {
     return '';
   }
 
   const stageCondition = ['stage_id', 'previous_stage_id'].includes(
-    condition.attributeKey
+    condition.attribute_key
   );
   return (condition.values || [])
     .map(value => (stageCondition ? stageName(value) : value))
@@ -97,8 +95,8 @@ const conditionSummary = computed(() => {
   if (!condition) return t('KANBAN.AUTOMATIONS.FORM.NO_CONDITIONS');
 
   const label =
-    conditionLabels.value[condition.attributeKey] || condition.attributeKey;
-  return `${label} ${operatorLabel(condition.filterOperator)} ${conditionValue(condition)}`.trim();
+    conditionLabels.value[condition.attribute_key] || condition.attribute_key;
+  return `${label} ${operatorLabel(condition.filter_operator)} ${conditionValue(condition)}`.trim();
 });
 
 const actionCount = computed(() => (props.rule.actions || []).length);
@@ -113,7 +111,7 @@ const summary = computed(() =>
 
 const stateKey = computed(() => {
   if (!props.automationsEnabled) return 'PAUSED';
-  if (props.rule.dryRun ?? props.rule.dry_run) return 'SIMULATION';
+  if (props.rule.dry_run) return 'SIMULATION';
   return props.rule.active ? 'ACTIVE' : 'INACTIVE';
 });
 
@@ -192,7 +190,7 @@ const menuItems = computed(() => [
           <span class="flex-none text-xs text-n-slate-10">
             {{
               t('KANBAN.AUTOMATIONS.RUNS_7D', {
-                count: rule.executionsCount || rule.executions_count || 0,
+                count: rule.executions_count || 0,
               })
             }}
           </span>

@@ -152,7 +152,7 @@ const inboxConditionOptions = computed(() =>
 
 const reasonOptions = computed(() =>
   props.reasons
-    .filter(reason => (reason.reasonType || reason.reason_type) === 'lost')
+    .filter(reason => reason.reasonType === 'lost')
     .map(reason => ({ value: reason.id, label: reason.title }))
 );
 

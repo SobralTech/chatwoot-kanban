@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, toRaw, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
-import snakecaseKeys from 'snakecase-keys';
 import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
@@ -109,8 +108,10 @@ const defaultRule = () => ({
   stop_after_match: false,
 });
 
-const formRule = source =>
-  snakecaseKeys(structuredClone(toRaw(source)), { deep: true });
+// A rule is a document whose keys are the API contract -- event_name, attribute_key,
+// action_params -- and the form edits it as it arrives, the way the conversation
+// automation form does. Only the resources around it (agents, reasons) are camelised.
+const formRule = source => structuredClone(toRaw(source));
 
 const fetchRules = async () => {
   isLoading.value = true;
@@ -118,7 +119,7 @@ const fetchRules = async () => {
 
   try {
     const response = await KanbanBoardsAPI.getAutomationRules(props.boardId);
-    rules.value = camelcaseKeys(response.data?.payload || [], { deep: true });
+    rules.value = response.data?.payload || [];
   } catch (error) {
     loadError.value = getErrorMessage(
       error,

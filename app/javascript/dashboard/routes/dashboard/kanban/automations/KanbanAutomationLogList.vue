@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -101,7 +100,7 @@ const actionSummary = log => {
   return actions
     .map(action =>
       t('KANBAN.AUTOMATIONS.LOG.ACTION_SUMMARY', {
-        action: action.actionName || action.action_name,
+        action: action.action_name,
         status: statusLabel(action.status),
       })
     )
@@ -156,7 +155,7 @@ const fetchLogs = async () => {
       props.boardId,
       params
     );
-    logs.value = camelcaseKeys(response.data?.payload || [], { deep: true });
+    logs.value = response.data?.payload || [];
   } catch (error) {
     loadError.value =
       error?.response?.data?.error ||
@@ -241,9 +240,9 @@ onMounted(fetchLogs);
           <div
             class="flex min-w-0 flex-wrap items-center gap-2 text-xs text-n-slate-10"
           >
-            <time>{{ logDate(log.createdAt) }}</time>
+            <time>{{ logDate(log.created_at) }}</time>
             <span class="min-w-0 truncate font-medium text-n-slate-12">
-              {{ ruleName(log.kanbanAutomationRuleId) }}
+              {{ ruleName(log.kanban_automation_rule_id) }}
             </span>
             <span
               class="rounded-full px-2 py-0.5 font-medium"
@@ -264,12 +263,12 @@ onMounted(fetchLogs);
             class="flex min-w-0 flex-wrap items-center gap-2 text-sm text-n-slate-12"
           >
             <router-link
-              v-if="log.kanbanCardId"
-              :to="cardLink(log.kanbanCardId)"
+              v-if="log.kanban_card_id"
+              :to="cardLink(log.kanban_card_id)"
               class="text-n-blue-11 hover:underline"
               @click.stop
             >
-              {{ t('KANBAN.AUTOMATIONS.LOG.CARD', { id: log.kanbanCardId }) }}
+              {{ t('KANBAN.AUTOMATIONS.LOG.CARD', { id: log.kanban_card_id }) }}
             </router-link>
             <span v-else>{{ t('KANBAN.AUTOMATIONS.LOG.DELETED_CARD') }}</span>
             <span class="min-w-0 truncate text-xs text-n-slate-11">
