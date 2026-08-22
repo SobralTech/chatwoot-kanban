@@ -63,6 +63,10 @@ const isKanbanOpen = computed(() =>
     ? isEmbeddedKanbanOpen.value
     : isContactSidebarItemOpen('is_kanban_open')
 );
+const kanbanSummary = ref({ count: 0, staleCount: 0 });
+const updateKanbanSummary = summary => {
+  kanbanSummary.value = summary;
+};
 
 const shopifyIntegration = useFunctionGetter(
   'integrations/getIntegration',
@@ -172,7 +176,29 @@ onMounted(() => {
           :draggable="false"
           @toggle="toggleKanban"
         >
-          <KanbanConversationCards :conversation-id="conversationId" />
+          <template #button>
+            <span class="ml-1 text-xs font-normal text-n-slate-10">
+              {{ $t('CONVERSATION_SIDEBAR.KANBAN.SEPARATOR') }}
+              {{
+                $t('CONVERSATION_SIDEBAR.KANBAN.COUNT', {
+                  count: kanbanSummary.count,
+                })
+              }}
+            </span>
+            <span
+              v-if="kanbanSummary.staleCount"
+              class="ml-1 inline-block size-2 rounded-full bg-n-ruby-9 align-middle"
+              :title="
+                $t('CONVERSATION_SIDEBAR.KANBAN.STALE_HINT', {
+                  count: kanbanSummary.staleCount,
+                })
+              "
+            />
+          </template>
+          <KanbanConversationCards
+            :conversation-id="conversationId"
+            @summary="updateKanbanSummary"
+          />
         </AccordionItem>
       </div>
       <div class="conversation--actions">

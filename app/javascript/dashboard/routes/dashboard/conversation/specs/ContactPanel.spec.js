@@ -80,6 +80,7 @@ const AccordionItemStub = {
     <section>
       <h3>{{ title }}</h3>
       <button data-testid="accordion-toggle" @click="$emit('toggle', false)" />
+      <div data-testid="accordion-button-slot"><slot name="button" /></div>
       <slot />
     </section>
   `,
@@ -96,7 +97,7 @@ const mountPanel = (embeddedContext = null) =>
         ? { [EMBEDDED_CONVERSATION]: ref(embeddedContext) }
         : {},
       mocks: {
-        $t: key => {
+        $t: (key, values = {}) => {
           const translations = {
             'CONVERSATION_SIDEBAR.ACCORDION.KANBAN': 'Kanban',
             'CONVERSATION_SIDEBAR.ACCORDION.MACROS': 'Macros',
@@ -104,10 +105,16 @@ const mountPanel = (embeddedContext = null) =>
               'Conversation Actions',
             'CONVERSATION_SIDEBAR.ACCORDION.CONVERSATION_INFO':
               'Conversation Information',
+            'CONVERSATION_SIDEBAR.KANBAN.SEPARATOR': '·',
+            'CONVERSATION_SIDEBAR.KANBAN.COUNT': '{count} opportunities',
+            'CONVERSATION_SIDEBAR.KANBAN.STALE_HINT': '{count} stalled',
             'CONVERSATION.SIDEBAR.CONTACT': 'Contact',
           };
 
-          return translations[key] || key;
+          return (translations[key] || key).replace(
+            '{count}',
+            values.count ?? '{count}'
+          );
         },
       },
       stubs: {
@@ -156,6 +163,23 @@ describe('ContactPanel', () => {
     expect(text.indexOf('Macros')).toBeLessThan(
       text.indexOf('Conversation Information')
     );
+  });
+
+  it('shows the card count and stale indicator in the accordion header', async () => {
+    const wrapper = mountPanel();
+    await nextTick();
+    const kanban = wrapper.findComponent(KanbanConversationCards);
+
+    kanban.vm.$emit('summary', { count: 2, staleCount: 1 });
+    await nextTick();
+
+    const accordion = wrapper
+      .findAllComponents({ name: 'AccordionItem' })
+      .find(component => component.props('title') === 'Kanban');
+    expect(
+      accordion.get('[data-testid="accordion-button-slot"]').text()
+    ).toContain('2 opportunities');
+    expect(accordion.get('[title="1 stalled"]').exists()).toBe(true);
   });
 
   it('expands Kanban locally in embedded mode without updating UI settings', async () => {
