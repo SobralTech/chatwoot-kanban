@@ -32,6 +32,10 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  compact: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['change']);
@@ -160,27 +164,34 @@ const dayClasses = day => ({
 </script>
 
 <template>
-  <div class="grid gap-1.5 [&>span]:w-full">
+  <div :class="compact ? 'flex min-w-0' : 'grid gap-1.5 [&>span]:w-full'">
     <span v-if="label" class="text-sm font-medium text-n-slate-12">
       {{ label }}
     </span>
 
     <Popover align="start" disable-mobile-view :show-content-border="false">
-      <div class="flex w-full gap-2">
+      <div :class="compact ? 'flex min-w-0' : 'flex w-full gap-2'">
         <button
           type="button"
-          class="inline-flex min-h-10 flex-1 items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand"
+          class="inline-flex items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 text-left text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand"
+          :class="[
+            compact
+              ? 'h-7 min-w-0 w-auto px-2 py-1 text-xs'
+              : 'min-h-10 flex-1 px-3 py-2 text-sm',
+          ]"
+          :aria-label="props.label || props.placeholder"
         >
-          <i class="i-lucide-calendar size-4 flex-shrink-0 text-n-slate-11" />
-          <span class="min-w-0 flex-1 truncate">{{ buttonLabel }}</span>
+          <i class="i-lucide-calendar size-3 flex-shrink-0 text-n-slate-11" />
+          <span class="min-w-0 truncate">{{ buttonLabel }}</span>
           <i
-            class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11"
+            class="i-lucide-chevron-down size-3 flex-shrink-0 text-n-slate-11"
           />
         </button>
         <button
           v-if="selectedDate"
           type="button"
-          class="flex min-h-10 w-10 flex-shrink-0 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+          :class="compact ? 'size-7' : 'min-h-10 w-10'"
+          class="flex flex-shrink-0 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
           :aria-label="clearLabel"
           @click.stop="clearDate"
         >

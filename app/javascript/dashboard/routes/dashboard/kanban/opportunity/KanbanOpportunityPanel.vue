@@ -12,7 +12,6 @@ import KanbanCardAdditionalDataTab from '../KanbanCardAdditionalDataTab.vue';
 import KanbanCardOverviewTab from './tabs/KanbanCardOverviewTab.vue';
 import KanbanCardItemsTab from './tabs/KanbanCardItemsTab.vue';
 import KanbanCardTimelineTab from './tabs/KanbanCardTimelineTab.vue';
-import KanbanCardContextRail from './KanbanCardContextRail.vue';
 import KanbanOpportunityHeader from './KanbanOpportunityHeader.vue';
 import KanbanOpportunitySaveBar from './KanbanOpportunitySaveBar.vue';
 import { normalizePayload } from './opportunityPayload';
@@ -29,6 +28,10 @@ const props = defineProps({
   cardId: {
     type: [Number, String],
     required: true,
+  },
+  boardName: {
+    type: String,
+    default: '',
   },
   wonStageId: {
     type: Number,
@@ -144,6 +147,11 @@ const onProductsCardChanged = updatedCard => {
   patchCard(updatedCard);
   productsTotalValue.value = Number(updatedCard.value ?? 0);
   notifyCardUpdated();
+};
+
+const openProducts = () => {
+  activeTabKey.value = 'products';
+  loadedTabKeys.value = [...new Set([...loadedTabKeys.value, 'products'])];
 };
 
 const tabItems = computed(() => [
@@ -275,21 +283,38 @@ defineExpose({
       aria-modal="true"
       aria-labelledby="kanban-opportunity-title"
       tabindex="-1"
-      class="flex h-full w-full max-w-full flex-col overflow-hidden border-n-weak bg-n-background shadow-xl outline-none ltr:ml-auto ltr:border-l rtl:mr-auto rtl:border-r md:w-[min(56rem,70vw)]"
+      class="flex h-full w-full max-w-full flex-col overflow-hidden border-n-weak bg-n-background shadow-xl outline-none ltr:ml-auto ltr:border-l rtl:mr-auto rtl:border-r md:w-[min(40rem,100vw)]"
     >
       <KanbanOpportunityHeader
+        v-model:subject="subject"
+        v-model:priority="priority"
+        v-model:due-at="dueAt"
         :card="card"
         :card-display-id="cardDisplayId"
+        :board-name="boardName"
         :has-unsaved-changes="hasUnsavedChanges"
+        :subject-error="subjectError"
         :stages="stages"
         :won-stage-id="wonStageId"
         :lost-stage-id="lostStageId"
         :lost-reason-required="lostReasonRequired"
         :reasons="reasons"
         :move-to-stage="moveToStage"
+        :account-labels="accountLabels"
+        :selected-label-titles="selectedLabelTitles"
+        :assigned-users="assignedUsers"
+        :assignable-users="assignableUsers"
+        :total-value="totalValue"
         @change-status="onChangeCardStatus"
         @stage-moved="patchCard({ kanbanStageId: $event })"
         @copy-card-id="copyCardId"
+        @subject-error="subjectError = $event"
+        @clear-subject-error="subjectError = ''"
+        @add-label="addLabel"
+        @remove-label="removeLabel"
+        @toggle-assignee="toggleAssignee"
+        @open-products="openProducts"
+        @open-conversation="openConversation"
         @remove-card="emit('removeCard', $event)"
         @close="emit('close')"
       />
@@ -302,7 +327,7 @@ defineExpose({
         />
       </div>
 
-      <div class="min-h-0 flex-1 overflow-auto px-4 py-4">
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <p
           v-if="isLoading"
           data-testid="kanban-opportunity-loading"
@@ -320,10 +345,7 @@ defineExpose({
         </p>
 
         <template v-else-if="card">
-          <div
-            data-testid="kanban-opportunity-layout"
-            class="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]"
-          >
+          <div data-testid="kanban-opportunity-layout" class="min-w-0">
             <div class="min-w-0">
               <section
                 v-show="activeTabKey === 'general'"
@@ -334,13 +356,7 @@ defineExpose({
                   class="grid gap-5"
                   @submit.prevent="saveCard"
                 >
-                  <KanbanCardOverviewTab
-                    v-model:subject="subject"
-                    v-model:description="description"
-                    v-model:priority="priority"
-                    :subject-error="subjectError"
-                    @clear-subject-error="subjectError = ''"
-                  />
+                  <KanbanCardOverviewTab v-model:description="description" />
                 </form>
               </section>
 
@@ -376,20 +392,6 @@ defineExpose({
                 :card-id="cardId"
               />
             </div>
-
-            <KanbanCardContextRail
-              v-model:due-at="dueAt"
-              :card="card"
-              :account-labels="accountLabels"
-              :selected-label-titles="selectedLabelTitles"
-              :assigned-users="assignedUsers"
-              :assignable-users="assignableUsers"
-              :total-value="totalValue"
-              @add-label="addLabel"
-              @remove-label="removeLabel"
-              @toggle-assignee="toggleAssignee"
-              @open-conversation="openConversation"
-            />
           </div>
           <p
             v-if="saveError"

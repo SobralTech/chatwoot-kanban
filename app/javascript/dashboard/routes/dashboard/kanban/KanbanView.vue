@@ -1706,6 +1706,7 @@ watch(searchInput, () => {
       ref="opportunityModalRef"
       :board-id="selectedBoard.id"
       :card-id="selectedOpportunityCardId"
+      :board-name="selectedBoard.name"
       :stages="selectedBoard.stages || []"
       :won-stage-id="selectedBoard.wonStageId"
       :lost-stage-id="selectedBoard.lostStageId"

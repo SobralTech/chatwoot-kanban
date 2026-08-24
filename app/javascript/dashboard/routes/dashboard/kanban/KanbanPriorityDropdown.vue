@@ -23,6 +23,10 @@ const props = defineProps({
     type: String,
     default: 'kanban-priority-menu',
   },
+  compact: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -68,18 +72,24 @@ const onSelect = option => {
     <button
       type="button"
       :data-testid="testId"
-      class="inline-flex min-h-10 w-full items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-left text-sm text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+      class="inline-flex min-w-0 items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 text-left text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+      :class="[
+        compact
+          ? 'h-7 w-auto px-2 py-1 text-xs'
+          : 'min-h-10 w-full px-3 py-2 text-sm',
+      ]"
       :disabled="disabled"
+      :aria-label="selectedOption.label"
     >
       <CardPriorityIcon
         :priority="modelValue"
         show-empty
         class="size-4 flex-shrink-0"
       />
-      <span class="min-w-0 flex-1 truncate">
+      <span v-if="!compact || modelValue" class="min-w-0 truncate">
         {{ selectedOption.label }}
       </span>
-      <i class="i-lucide-chevron-down size-4 flex-shrink-0 text-n-slate-11" />
+      <i class="i-lucide-chevron-down size-3 flex-shrink-0 text-n-slate-11" />
     </button>
 
     <template #content>

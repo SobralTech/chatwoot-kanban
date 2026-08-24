@@ -128,13 +128,14 @@ const confirm = hide => {
     <button
       type="button"
       data-testid="kanban-card-status-badge"
-      class="inline-flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+      class="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-n-weak px-2 py-0.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
       :class="statusMeta.classes"
       :title="t('KANBAN.CARD.STATUS.CHANGE')"
       :disabled="disabled"
     >
       <i :class="statusMeta.icon" class="size-3" />
       {{ statusMeta.label }}
+      <i class="i-lucide-chevron-down size-3" />
     </button>
 
     <template #content="{ hide }">
