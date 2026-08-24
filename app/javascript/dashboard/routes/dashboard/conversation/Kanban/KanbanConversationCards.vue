@@ -14,6 +14,8 @@ import { SLA_STALE, stageSlaStatus } from 'dashboard/helper/kanbanStageSla';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import KanbanOpportunityPanel from 'dashboard/routes/dashboard/kanban/opportunity/KanbanOpportunityPanel.vue';
+import KanbanConversationMoveDialog from './KanbanConversationMoveDialog.vue';
 import KanbanConversationCardForm from './KanbanConversationCardForm.vue';
 import KanbanConversationCardItem from './KanbanConversationCardItem.vue';
 
@@ -48,8 +50,13 @@ const cardsRequestId = ref(0);
 const boardsRequestId = ref(0);
 const realtimeRefreshQueued = ref(false);
 const deleteDialogRef = ref(null);
+const unsavedDialogRef = ref(null);
 const cardToDelete = ref(null);
 const isDeletingCard = ref(false);
+const moveDialogCard = ref(null);
+const opportunityCard = ref(null);
+const opportunityPanelRef = ref(null);
+const isSavingOpportunityBeforeExit = ref(false);
 const slaNow = useSlaClock();
 let highlightTimer = null;
 
@@ -93,10 +100,10 @@ const normalizeCollection = response =>
 const isAbortError = error =>
   error?.name === 'AbortError' || error?.name === 'CanceledError';
 const cardBoardId = card =>
-  card.kanbanBoardId ||
-  card.kanbanBoard?.id ||
-  card.kanban_board_id ||
-  card.kanban_board?.id;
+  card?.kanbanBoardId ||
+  card?.kanbanBoard?.id ||
+  card?.kanban_board_id ||
+  card?.kanban_board?.id;
 const boardStages = board =>
   board?.stagesSummary || board?.stages_summary || [];
 const boardForCard = card => {
@@ -108,9 +115,33 @@ const boardForCard = card => {
     {}
   );
 };
+const stagesForCard = (card, board = boardForCard(card)) => {
+  const cardStage = card.kanbanStage || card.kanban_stage || {};
+  const cardStageId =
+    card.kanbanStageId ?? card.kanban_stage_id ?? cardStage.id;
+
+  return boardStages(board).map(stage =>
+    Number(stage.id) === Number(cardStageId)
+      ? { ...stage, ...cardStage }
+      : stage
+  );
+};
+const boardValue = (board, camelKey, snakeKey) =>
+  board?.[camelKey] ?? board?.[snakeKey];
+const cardInboxId = card =>
+  card?.inboxId ??
+  card?.inbox_id ??
+  card?.inbox?.id ??
+  currentChat.value?.inboxId ??
+  currentChat.value?.inbox_id;
+const isSameCard = (firstCard, secondCard) =>
+  Number(firstCard?.id) === Number(secondCard?.id);
 const regularStagesFor = card => {
   const board = boardForCard(card);
-  const terminalIds = [board.wonStageId, board.lostStageId]
+  const terminalIds = [
+    boardValue(board, 'wonStageId', 'won_stage_id'),
+    boardValue(board, 'lostStageId', 'lost_stage_id'),
+  ]
     .filter(Boolean)
     .map(Number);
 
@@ -134,6 +165,17 @@ const startAction = cardId => {
   busyCardIds.value = new Set([...busyCardIds.value, Number(cardId)]);
 };
 const isCardBusy = card => busyCardIds.value.has(Number(card.id));
+const moveDialogIsMoving = computed(
+  () => !!moveDialogCard.value && isCardBusy(moveDialogCard.value)
+);
+const opportunityBoard = computed(() =>
+  opportunityCard.value ? boardForCard(opportunityCard.value) : {}
+);
+const opportunityStages = computed(() =>
+  opportunityCard.value
+    ? stagesForCard(opportunityCard.value, opportunityBoard.value)
+    : []
+);
 const setAssigneeState = (cardId, value) => {
   assigneeStates.value = {
     ...assigneeStates.value,
@@ -161,6 +203,18 @@ const loadCards = async () => {
     if (requestId !== cardsRequestId.value || controller.signal.aborted) return;
 
     cards.value = normalizeCollection(response);
+    if (
+      opportunityCard.value &&
+      !cards.value.some(card => isSameCard(card, opportunityCard.value))
+    ) {
+      opportunityCard.value = null;
+    }
+    if (
+      moveDialogCard.value &&
+      !cards.value.some(card => isSameCard(card, moveDialogCard.value))
+    ) {
+      moveDialogCard.value = null;
+    }
   } catch (error) {
     if (isAbortError(error) || requestId !== cardsRequestId.value) return;
 
@@ -317,6 +371,125 @@ const createCard = async payload => {
       isCreating.value = false;
       createAbortController.value = null;
     }
+  }
+};
+
+const openDetails = card => {
+  if (!card || isCardBusy(card)) return;
+
+  opportunityCard.value = card;
+};
+const openMoveDialog = card => {
+  if (!card || isCardBusy(card)) return;
+
+  moveDialogCard.value = card;
+};
+const closeMoveDialog = () => {
+  if (!moveDialogIsMoving.value) moveDialogCard.value = null;
+};
+const closeOpportunityPanel = () => {
+  opportunityCard.value = null;
+};
+const requestCloseOpportunityPanel = () => {
+  if (opportunityPanelRef.value?.hasUnsavedChanges) {
+    unsavedDialogRef.value?.open();
+    return;
+  }
+
+  closeOpportunityPanel();
+};
+const keepEditingOpportunity = () => {
+  unsavedDialogRef.value?.close();
+};
+const onUnsavedDialogClose = () => undefined;
+const discardOpportunityChanges = () => {
+  unsavedDialogRef.value?.close();
+  closeOpportunityPanel();
+};
+const saveAndCloseOpportunity = async () => {
+  if (isSavingOpportunityBeforeExit.value) return;
+
+  isSavingOpportunityBeforeExit.value = true;
+  try {
+    const saved = await opportunityPanelRef.value?.saveCard();
+    if (saved) {
+      unsavedDialogRef.value?.close();
+      closeOpportunityPanel();
+    }
+  } finally {
+    isSavingOpportunityBeforeExit.value = false;
+  }
+};
+const onOpportunityUpdated = () => {
+  loadCards();
+};
+const onOpportunityBoardChanged = async ({ boardName } = {}) => {
+  closeOpportunityPanel();
+  await loadCards();
+  useAlert(
+    t('KANBAN.CARD.MOVE_BOARD_SUCCESS', {
+      board: boardName || t('KANBAN.NO_BOARD_SELECTED'),
+    })
+  );
+};
+
+const moveToStageFromPanel = async (card, targetStageId) => {
+  const board = boardForCard(card);
+  const boardId = Number(board.id);
+  if (!boardId || isCardBusy(card)) return false;
+
+  startAction(card.id);
+  try {
+    await KanbanBoardsAPI.reorderCardById(boardId, card.id, {
+      card: { kanban_stage_id: targetStageId, after_card_id: null },
+    });
+    return true;
+  } catch (error) {
+    useAlert(apiErrorMessage(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR')));
+    return false;
+  } finally {
+    endAction(card.id);
+  }
+};
+
+const moveCardToBoard = async ({ boardId, stageId }) => {
+  const card = moveDialogCard.value;
+  const sourceBoardId = Number(cardBoardId(card));
+  const targetBoard = boards.value.find(
+    board => Number(board.id) === Number(boardId)
+  );
+  if (!card || !sourceBoardId || !targetBoard || isCardBusy(card)) return false;
+
+  startAction(card.id);
+  try {
+    await KanbanBoardsAPI.moveCardToBoard(sourceBoardId, card.id, {
+      target_kanban_board_id: Number(boardId),
+      kanban_stage_id: Number(stageId),
+    });
+    await loadCards();
+    moveDialogCard.value = null;
+    useAlert(t('KANBAN.CARD.MOVE_BOARD_SUCCESS', { board: targetBoard.name }));
+    return true;
+  } catch (error) {
+    const errorCode = error?.response?.data?.error;
+    if (errorCode === 'card_already_in_target_board') {
+      useAlert(
+        t('KANBAN.CARD.MOVE_BOARD_ERROR_DUPLICATE', {
+          board: targetBoard.name,
+        })
+      );
+    } else if (errorCode === 'inbox_not_allowed') {
+      useAlert(
+        t('KANBAN.CARD.MOVE_BOARD_ERROR_INBOX', {
+          board: targetBoard.name,
+        })
+      );
+    } else {
+      useAlert(t('KANBAN.CARD.MOVE_BOARD_ERROR'));
+    }
+    return false;
+  } finally {
+    endAction(card.id);
   }
 };
 
@@ -586,6 +759,10 @@ const openDeleteConfirm = card => {
   cardToDelete.value = card;
   deleteDialogRef.value?.open();
 };
+const onOpportunityRemoveCard = card => {
+  closeOpportunityPanel();
+  openDeleteConfirm(card);
+};
 const confirmDelete = async () => {
   if (!cardToDelete.value || isDeletingCard.value) return;
   isDeletingCard.value = true;
@@ -629,7 +806,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="p-3 text-sm">
+  <div class="relative p-3 text-sm">
     <p v-if="isLoading" class="mb-0 text-n-slate-11">
       {{ t('CONVERSATION_SIDEBAR.KANBAN.LOADING') }}
     </p>
@@ -662,6 +839,8 @@ onBeforeUnmount(() => {
             @change-status="changeStatus"
             @delete="openDeleteConfirm"
             @load-assignees="loadAssignees"
+            @open-details="openDetails"
+            @open-move="openMoveDialog"
             @update-assignees="updateAssignees"
             @update-due-date="updateDueDate"
             @update-labels="updateLabels"
@@ -694,6 +873,117 @@ onBeforeUnmount(() => {
         @open-existing="emit('open-existing', $event)"
       />
     </template>
+
+    <KanbanConversationMoveDialog
+      v-if="moveDialogCard"
+      :card="moveDialogCard"
+      :cards="cards"
+      :boards="boards"
+      :board="boardForCard(moveDialogCard)"
+      :stages="stagesForCard(moveDialogCard)"
+      :won-stage-id="
+        Number(
+          boardValue(boardForCard(moveDialogCard), 'wonStageId', 'won_stage_id')
+        ) || null
+      "
+      :lost-stage-id="
+        Number(
+          boardValue(
+            boardForCard(moveDialogCard),
+            'lostStageId',
+            'lost_stage_id'
+          )
+        ) || null
+      "
+      :inbox-id="cardInboxId(moveDialogCard)"
+      :reasons="boardForCard(moveDialogCard).reasons || []"
+      :is-moving="moveDialogIsMoving"
+      @close="closeMoveDialog"
+      @move="moveCardToBoard"
+    />
+
+    <KanbanOpportunityPanel
+      v-if="opportunityCard"
+      ref="opportunityPanelRef"
+      :board-id="cardBoardId(opportunityCard)"
+      :card-id="opportunityCard.id"
+      :board-name="opportunityBoard.name || ''"
+      :board="opportunityBoard"
+      :boards="boards"
+      :stages="opportunityStages"
+      :won-stage-id="
+        Number(boardValue(opportunityBoard, 'wonStageId', 'won_stage_id')) ||
+        null
+      "
+      :lost-stage-id="
+        Number(boardValue(opportunityBoard, 'lostStageId', 'lost_stage_id')) ||
+        null
+      "
+      :lost-reason-required="
+        Boolean(
+          boardValue(
+            opportunityBoard,
+            'lostReasonRequired',
+            'lost_reason_required'
+          )
+        )
+      "
+      :reasons="opportunityBoard.reasons || []"
+      :custom-fields="
+        boardValue(opportunityBoard, 'customFields', 'custom_fields') || []
+      "
+      :move-to-stage="moveToStageFromPanel"
+      :has-blocking-dialog="false"
+      opened-from-conversation
+      @board-changed="onOpportunityBoardChanged"
+      @close="requestCloseOpportunityPanel"
+      @remove-card="onOpportunityRemoveCard"
+      @updated="onOpportunityUpdated"
+    />
+
+    <Dialog
+      ref="unsavedDialogRef"
+      type="alert"
+      :title="t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_TITLE')"
+      :description="t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_MESSAGE')"
+      :show-cancel-button="false"
+      :show-confirm-button="false"
+      @close="onUnsavedDialogClose"
+    >
+      <template #footer>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            data-testid="kanban-conversation-unsaved-keep-editing"
+            class="rounded-md px-3 py-2 text-sm text-n-slate-11 hover:bg-n-alpha-2"
+            @click="keepEditingOpportunity"
+          >
+            {{ t('KANBAN.OPPORTUNITY_DETAILS.KEEP_EDITING') }}
+          </button>
+          <button
+            type="button"
+            data-testid="kanban-conversation-unsaved-discard"
+            class="rounded-md px-3 py-2 text-sm text-n-ruby-11 hover:bg-n-ruby-2"
+            @click="discardOpportunityChanges"
+          >
+            {{ t('KANBAN.OPPORTUNITY_DETAILS.DISCARD_CHANGES') }}
+          </button>
+          <button
+            type="button"
+            data-testid="kanban-conversation-unsaved-save-and-exit"
+            class="rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white hover:bg-n-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="isSavingOpportunityBeforeExit"
+            @click="saveAndCloseOpportunity"
+          >
+            <i
+              v-if="isSavingOpportunityBeforeExit"
+              class="i-lucide-loader-circle mr-1 inline-block size-4 animate-spin"
+            />
+            {{ t('KANBAN.OPPORTUNITY_DETAILS.SAVE_AND_EXIT') }}
+          </button>
+        </div>
+      </template>
+    </Dialog>
 
     <Dialog
       ref="deleteDialogRef"

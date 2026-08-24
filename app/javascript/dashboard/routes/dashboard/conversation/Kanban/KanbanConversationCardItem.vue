@@ -52,6 +52,8 @@ const emit = defineEmits([
   'changeStatus',
   'delete',
   'loadAssignees',
+  'openDetails',
+  'openMove',
   'updateAssignees',
   'updateDueDate',
   'updateLabels',
@@ -241,22 +243,50 @@ const copyCardId = async hide => {
 };
 
 const showAssignees = () => emit('loadAssignees', props.card);
+const openDetails = () => emit('openDetails', props.card);
+const openMove = hide => {
+  emit('openMove', props.card);
+  if (typeof hide === 'function') hide();
+};
+const onCardKeydown = event => {
+  if (event.target !== event.currentTarget) return;
+
+  event.preventDefault();
+  openDetails();
+};
+const onSubjectKeydown = event => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  openDetails();
+};
 </script>
 
 <template>
   <article
+    tabindex="0"
     data-testid="kanban-conversation-card"
-    class="min-w-0 rounded-lg border border-n-weak bg-n-surface-1 p-3 text-sm transition-colors"
+    class="min-w-0 rounded-lg border border-n-weak bg-n-surface-1 p-3 text-sm transition-colors focus:outline-none focus:ring-1 focus:ring-n-brand"
     :class="{
       'border-n-brand ring-1 ring-n-brand': isHighlighted,
       'border-l-2 border-n-ruby-9': stageSlaStatusValue === 'stale',
     }"
     :data-card-id="cardId"
+    @keydown.enter="onCardKeydown"
+    @keydown.space="onCardKeydown"
   >
     <div class="flex min-w-0 items-center gap-2">
-      <span class="min-w-0 flex-1 truncate font-medium text-n-slate-12">
+      <button
+        type="button"
+        data-testid="kanban-conversation-card-board"
+        class="min-w-0 flex-1 truncate text-left font-medium text-n-slate-12 hover:text-n-brand"
+        :title="t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD')"
+        :disabled="isBusy"
+        @click.stop="openMove"
+      >
         {{ boardName }}
-      </span>
+      </button>
       <span class="flex-shrink-0 text-xs text-n-slate-10">
         {{ t('KANBAN.CARD.CARD_ID', { id: cardId }) }}
       </span>
@@ -277,6 +307,30 @@ const showAssignees = () => emit('loadAssignees', props.card);
             data-testid="kanban-conversation-card-actions-menu"
             class="w-64 max-w-[calc(100vw-2rem)] rounded-xl p-1 text-sm text-n-slate-12"
           >
+            <button
+              type="button"
+              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="isBusy"
+              data-testid="kanban-conversation-card-edit"
+              @click="
+                openDetails();
+                hide();
+              "
+            >
+              <i class="i-lucide-pencil size-4" />
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.EDIT_DETAILS') }}
+            </button>
+            <button
+              type="button"
+              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="isBusy"
+              data-testid="kanban-conversation-card-move"
+              @click="openMove(hide)"
+            >
+              <i class="i-lucide-corner-up-right size-4" />
+              {{ t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD') }}
+            </button>
+            <div class="my-1 border-t border-n-weak" />
             <button
               type="button"
               class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -342,8 +396,13 @@ const showAssignees = () => emit('loadAssignees', props.card);
 
     <p
       data-testid="kanban-conversation-card-subject"
-      class="mt-1 truncate text-sm text-n-slate-11"
+      class="mt-1 cursor-pointer truncate text-sm text-n-slate-11 hover:text-n-brand"
       :title="subject"
+      role="button"
+      tabindex="0"
+      :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.EDIT_DETAILS')"
+      @click.stop="openDetails"
+      @keydown="onSubjectKeydown"
     >
       {{ subject }}
     </p>

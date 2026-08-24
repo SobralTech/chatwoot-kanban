@@ -89,9 +89,12 @@ export function useKanbanMoveTarget({
   // through the summary the index endpoint sends.
   const targetStages = computed(() => {
     const targetBoard = selectedBoard.value;
+    const targetWonStageId = targetBoard.wonStageId ?? targetBoard.won_stage_id;
+    const targetLostStageId =
+      targetBoard.lostStageId ?? targetBoard.lost_stage_id;
     const [terminalWonStageId, terminalLostStageId] = isCurrentBoard.value
       ? [unref(wonStageId), unref(lostStageId)]
-      : [targetBoard.wonStageId, targetBoard.lostStageId];
+      : [targetWonStageId, targetLostStageId];
     const skippedStageIds = [
       terminalWonStageId,
       terminalLostStageId,
@@ -101,8 +104,13 @@ export function useKanbanMoveTarget({
       .map(Number);
 
     return (
-      isCurrentBoard.value ? unref(stages) : targetBoard.stagesSummary || []
-    ).filter(stage => !skippedStageIds.includes(Number(stage.id)));
+      isCurrentBoard.value
+        ? unref(stages)
+        : targetBoard.stagesSummary || targetBoard.stages_summary || []
+    ).filter(
+      stage =>
+        stage.active !== false && !skippedStageIds.includes(Number(stage.id))
+    );
   });
 
   const reset = () => {

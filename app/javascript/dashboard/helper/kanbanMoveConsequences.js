@@ -16,7 +16,9 @@ export const getKanbanMoveConsequences = ({
   reasons = [],
 }) => {
   const sourceStageId = Number(
-    valueFor(card, 'kanbanStageId', 'kanban_stage_id')
+    valueFor(card, 'kanbanStageId', 'kanban_stage_id') ??
+      card?.kanbanStage?.id ??
+      card?.kanban_stage?.id
   );
   const sourceWonStageId = Number(
     valueFor(sourceBoard, 'wonStageId', 'won_stage_id')

@@ -35,6 +35,8 @@ vi.mock('vue-i18n', () => ({
           'CONVERSATION_SIDEBAR.KANBAN.SET_DUE_DATE': 'Set due date',
           'CONVERSATION_SIDEBAR.KANBAN.LABELS': 'Labels',
           'CONVERSATION_SIDEBAR.KANBAN.IN_STAGE_FOR': '{age} in this stage',
+          'CONVERSATION_SIDEBAR.KANBAN.EDIT_DETAILS': 'Edit details',
+          'CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD': 'Move to another funnel',
           'KANBAN.OVERVIEW.EXTRA_COUNT': '+{count}',
         }[key] || key
       ),
@@ -192,5 +194,31 @@ describe('KanbanConversationCardItem', () => {
     expect(options).toEqual(['Qualified', 'Proposal']);
     expect(options).not.toContain('Won');
     expect(options).not.toContain('Lost');
+  });
+
+  it('opens details from the subject and keyboard-focused card', async () => {
+    const wrapper = mountItem();
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-subject"]')
+      .trigger('click');
+    await wrapper
+      .get('[data-testid="kanban-conversation-card"]')
+      .trigger('keydown', { key: 'Enter' });
+
+    expect(wrapper.emitted('openDetails')).toEqual([[card], [card]]);
+  });
+
+  it('opens the move dialog from the funnel name and actions menu', async () => {
+    const wrapper = mountItem();
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-board"]')
+      .trigger('click');
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-move"]')
+      .trigger('click');
+
+    expect(wrapper.emitted('openMove')).toEqual([[card], [card]]);
   });
 });

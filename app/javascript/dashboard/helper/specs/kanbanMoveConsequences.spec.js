@@ -22,7 +22,7 @@ describe('getKanbanMoveConsequences', () => {
   it('describes terminal status, reason and discarded fields', () => {
     const consequences = getKanbanMoveConsequences({
       card: {
-        kanbanStageId: 20,
+        kanbanStage: { id: 20 },
         kanbanReasonId: 9,
         customFieldKeys: ['segment', 'region', 'products'],
       },

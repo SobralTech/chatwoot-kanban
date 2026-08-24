@@ -34,6 +34,7 @@ const translations = {
   'CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_DESCRIPTION':
     'This cannot be undone.',
   'CONVERSATION_SIDEBAR.KANBAN.DELETE_CONFIRM_BUTTON': 'Yes, delete',
+  'KANBAN.CARD.MOVE_BOARD_SUCCESS': 'Opportunity moved to {board}.',
   'CONVERSATION.PRIORITY.OPTIONS.NONE': 'No priority',
   'CONVERSATION.PRIORITY.OPTIONS.URGENT': 'Urgent',
   'CONVERSATION.PRIORITY.OPTIONS.HIGH': 'High',
@@ -64,6 +65,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     getCardAssignees: vi.fn(),
     updateCardAssignees: vi.fn(),
     reorderCardById: vi.fn(),
+    moveCardToBoard: vi.fn(),
     deleteCardById: vi.fn(),
   },
 }));
@@ -155,6 +157,8 @@ const cardItemStub = {
     'changeStatus',
     'delete',
     'loadAssignees',
+    'openDetails',
+    'openMove',
     'updateAssignees',
     'updateDueDate',
     'updateLabels',
@@ -163,9 +167,14 @@ const cardItemStub = {
   ],
   template: `
     <article data-testid="kanban-conversation-card">
-      <span data-testid="card-subject">{{ card.subject }}</span>
       <span v-if="Number(card.value)" data-testid="card-value">{{ card.value }}</span>
       <span data-testid="card-priority-value">{{ card.priority }}</span>
+      <button type="button" data-testid="card-subject" @click="$emit('openDetails', card)">
+        {{ card.subject }}
+      </button>
+      <button type="button" data-testid="card-board" @click="$emit('openMove', card)">
+        board
+      </button>
       <button type="button" data-testid="card-priority" @click="$emit('updatePriority', card, 'urgent')">
         priority
       </button>
@@ -181,6 +190,37 @@ const dialogStub = {
   template: '<div />',
 };
 
+const moveDialogStub = {
+  name: 'KanbanConversationMoveDialog',
+  props: ['card', 'cards', 'boards', 'isMoving'],
+  emits: ['close', 'move'],
+  template: `
+    <div data-testid="kanban-conversation-move-dialog">
+      <button
+        type="button"
+        data-testid="move-card"
+        @click="$emit('move', { boardId: 11, stageId: 30 })"
+      >
+        move
+      </button>
+    </div>
+  `,
+};
+
+const opportunityPanelStub = {
+  name: 'KanbanOpportunityPanel',
+  props: {
+    boardId: [Number, String],
+    cardId: [Number, String],
+    board: Object,
+    boards: Array,
+    stages: Array,
+    openedFromConversation: Boolean,
+  },
+  emits: ['close'],
+  template: '<div data-testid="kanban-conversation-opportunity-panel" />',
+};
+
 let wrapper;
 
 const mountComponent = (props = { conversationId: 456 }) => {
@@ -189,6 +229,8 @@ const mountComponent = (props = { conversationId: 456 }) => {
     global: {
       stubs: {
         KanbanConversationCardItem: cardItemStub,
+        KanbanConversationMoveDialog: moveDialogStub,
+        KanbanOpportunityPanel: opportunityPanelStub,
         Dialog: dialogStub,
       },
     },
@@ -246,6 +288,7 @@ describe('KanbanConversationCards', () => {
     KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
       data: { payload: [], assignable_users: [] },
     });
+    KanbanBoardsAPI.moveCardToBoard.mockResolvedValue({});
     KanbanBoardsAPI.deleteCardById.mockResolvedValue({});
   });
 
@@ -462,5 +505,41 @@ describe('KanbanConversationCards', () => {
       .trigger('click');
 
     expect(mountedWrapper.emitted('open-existing')?.[0][0].id).toBe(123);
+  });
+
+  it('opens the shared opportunity panel from the subject', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+
+    const mountedWrapper = mountComponent();
+    await flushPromises();
+    await mountedWrapper.get('[data-testid="card-subject"]').trigger('click');
+
+    const panel = mountedWrapper.findComponent({
+      name: 'KanbanOpportunityPanel',
+    });
+    expect(panel.exists()).toBe(true);
+    expect(panel.props('openedFromConversation')).toBe(true);
+    expect(panel.props('cardId')).toBe(123);
+  });
+
+  it('opens the three-step move dialog from the funnel name and moves the card', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+
+    const mountedWrapper = mountComponent();
+    await flushPromises();
+    await mountedWrapper.get('[data-testid="card-board"]').trigger('click');
+    await mountedWrapper.get('[data-testid="move-card"]').trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.moveCardToBoard).toHaveBeenCalledWith(10, 123, {
+      target_kanban_board_id: 11,
+      kanban_stage_id: 30,
+    });
+    expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
+    expect(useAlert).toHaveBeenCalledWith('Opportunity moved to Renewals.');
   });
 });
