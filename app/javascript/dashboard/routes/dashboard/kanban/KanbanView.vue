@@ -633,6 +633,7 @@ const {
   isRenamingBoard,
   renameValue,
   renamingBoardId,
+  cancelBoardRename,
   closeBoardDropdown,
   confirmBoardRename,
   fetchBoards,

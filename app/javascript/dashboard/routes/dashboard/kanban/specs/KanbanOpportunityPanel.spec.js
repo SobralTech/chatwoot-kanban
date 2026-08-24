@@ -768,6 +768,27 @@ describe('KanbanOpportunityPanel', () => {
     );
   });
 
+  it('leaves no autosave armed after the description is flushed', async () => {
+    // The server answers with its own copy of the card, which need not carry
+    // back the description that was just sent.
+    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
+      data: buildCard(),
+    });
+    const wrapper = await mountModal();
+
+    vi.useFakeTimers();
+    await descriptionInput(wrapper).setValue('Flushed description');
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 's', ctrlKey: true })
+    );
+    await vi.advanceTimersByTimeAsync(2000);
+    vi.useRealTimers();
+    await flushPromises();
+
+    // The debounce Ctrl+S pre-empted must not fire a second time behind it.
+    expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledTimes(1);
+  });
+
   it('renders linked conversation inbox and open action', async () => {
     const wrapper = await mountModal();
 

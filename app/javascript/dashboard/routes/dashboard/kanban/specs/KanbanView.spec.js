@@ -2055,6 +2055,22 @@ describe('KanbanView header navigation', () => {
     ).toBe(true);
   });
 
+  it('cancels a board rename and leaves the name alone', async () => {
+    const wrapper = await mountView({ role: 'administrator' });
+    const header = wrapper.findComponent({ name: 'KanbanBoardHeader' });
+
+    header.vm.$emit('startBoardRename', { id: 10, name: 'Sales Board' });
+    await nextTick();
+    expect(header.props('renamingBoardId')).toBe(10);
+    expect(header.props('renameValue')).toBe('Sales Board');
+
+    header.vm.$emit('cancelBoardRename');
+    await nextTick();
+
+    expect(header.props('renamingBoardId')).toBe(null);
+    expect(KanbanBoardsAPI.update).not.toHaveBeenCalled();
+  });
+
   it('navigates to the create board form from the dropdown', async () => {
     const wrapper = await mountView();
 

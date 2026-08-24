@@ -7,7 +7,6 @@ import {
   ref,
   watch,
 } from 'vue';
-import { useDebounceFn } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 
@@ -23,6 +22,8 @@ const props = defineProps({
   cardId: { type: [Number, String], required: true },
   customFields: { type: Array, default: () => [] },
 });
+
+const SAVE_DELAY = 800;
 
 const { t } = useI18n();
 
@@ -180,11 +181,19 @@ const saveFieldValues = async () => {
 };
 
 // Values persist once typing settles, so there is no draft to reconcile and no
-// save button to press. A panel closed mid-edit still sends what was typed.
-const queueSave = useDebounceFn(saveFieldValues, 800);
+// save button to press. A panel closed mid-edit still sends what was typed, and
+// leaves no timer armed for a card nobody is looking at any more.
+let saveTimer = null;
+const queueSave = () => {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveFieldValues, SAVE_DELAY);
+};
 
 watch(valuesByFieldId, queueSave, { deep: true });
-onBeforeUnmount(saveFieldValues);
+onBeforeUnmount(() => {
+  clearTimeout(saveTimer);
+  saveFieldValues();
+});
 
 onMounted(fetchData);
 

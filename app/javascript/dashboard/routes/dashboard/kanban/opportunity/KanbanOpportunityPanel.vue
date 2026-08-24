@@ -1,6 +1,5 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useDebounceFn } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
@@ -94,6 +93,10 @@ const emit = defineEmits([
   'boardChanged',
 ]);
 
+// Long enough that typing a sentence is one save, short enough that the value
+// is on the server before the user moves on.
+const DESCRIPTION_SAVE_DELAY = 800;
+
 const { t } = useI18n();
 const accountLabels = useMapGetter('labels/getLabels');
 
@@ -174,10 +177,16 @@ const saveDescription = () => {
 
   return updateDetail(card.value, 'description', description.value);
 };
-const queueDescriptionSave = useDebounceFn(saveDescription, 800);
+let descriptionSaveTimer = null;
+const queueDescriptionSave = () => {
+  clearTimeout(descriptionSaveTimer);
+  descriptionSaveTimer = setTimeout(saveDescription, DESCRIPTION_SAVE_DELAY);
+};
 
-// Anything still queued when the panel goes away is sent on the way out.
+// Anything still queued is sent now, and nothing stays armed behind it: a timer
+// that outlives the panel would fire a save for a card nobody is looking at.
 const flushPendingSaves = () => {
+  clearTimeout(descriptionSaveTimer);
   saveDescription();
   additionalDataTabRef.value?.saveFieldValues();
 };
