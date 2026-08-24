@@ -19,6 +19,7 @@ import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import WootLabel from 'dashboard/components/ui/Label.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import KanbanCardStatusBadge from '../../kanban/KanbanCardStatusBadge.vue';
+import KanbanStageSelect from '../../kanban/KanbanStageSelect.vue';
 import {
   MENU_OPTION_CLASSES,
   MENU_SURFACE_CLASSES,
@@ -140,14 +141,7 @@ const formattedValue = computed(() => formatCurrency(cardValue.value));
 const boardName = computed(
   () => cardBoard.value?.name || t('KANBAN.CARD.UNKNOWN_BOARD')
 );
-const stageName = computed(
-  () => cardStage.value?.name || t('KANBAN.CARD.UNKNOWN_STAGE')
-);
 const stageOptions = computed(() => props.regularStages || []);
-const canChangeStage = computed(() =>
-  stageOptions.value.some(stage => Number(stage.id) === stageId.value)
-);
-const stageSelectValue = computed(() => String(stageId.value || ''));
 const dueDateLabel = computed(() => {
   if (!dueAt.value) return '';
 
@@ -185,10 +179,6 @@ watch(
   },
   { immediate: true }
 );
-
-const onStageChange = event => {
-  emit('updateStage', props.card, Number(event.target.value));
-};
 
 const onPriorityChange = (value, hide) => {
   emit('updatePriority', props.card, value);
@@ -320,7 +310,7 @@ const onSubjectKeydown = event => {
       <button
         type="button"
         data-testid="kanban-conversation-card-board"
-        class="flex min-w-0 flex-1 items-center gap-1 text-left font-medium text-n-slate-12 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+        class="flex min-w-0 flex-1 items-center gap-1 p-0 text-left font-medium text-n-slate-12 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
         :title="t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD')"
         :disabled="isBusy"
         @click.stop="openMove"
@@ -393,39 +383,15 @@ const onSubjectKeydown = event => {
     </div>
 
     <div class="mt-2 flex min-w-0 items-center gap-2">
-      <div
-        v-if="canChangeStage"
-        class="relative flex min-w-0 flex-1 items-center gap-1.5 rounded-md bg-n-alpha-2 px-2 py-1 text-xs font-medium text-n-slate-12"
-      >
-        <span
-          class="size-2 flex-shrink-0 rounded-full bg-n-brand"
-          aria-hidden="true"
-        />
-        <span class="min-w-0 flex-1 truncate">{{ stageName }}</span>
-        <i class="i-lucide-chevron-down size-3 flex-shrink-0 text-n-slate-10" />
-        <select
-          :value="stageSelectValue"
-          data-testid="kanban-conversation-card-stage"
-          class="absolute inset-0 cursor-pointer opacity-0"
-          :aria-label="t('KANBAN.CARD.MOVE_TO_STAGE')"
-          :disabled="isBusy"
-          @change="onStageChange"
-        >
-          <option
-            v-for="stage in stageOptions"
-            :key="stage.id"
-            :value="stage.id"
-          >
-            {{ stage.name }}
-          </option>
-        </select>
-      </div>
-      <span
-        v-else
-        class="min-w-0 flex-1 truncate rounded-md bg-n-alpha-2 px-2 py-1 text-xs font-medium text-n-slate-12"
-      >
-        {{ stageName }}
-      </span>
+      <KanbanStageSelect
+        :model-value="stageId"
+        :stages="stageOptions"
+        :current-stage="cardStage"
+        :disabled="isBusy"
+        class="min-w-0 flex-1"
+        data-testid="kanban-conversation-card-stage"
+        @update:model-value="emit('updateStage', card, $event)"
+      />
 
       <span class="no-drag flex-shrink-0" @click.stop>
         <KanbanCardStatusBadge

@@ -64,12 +64,14 @@ describe('KanbanConversationCardForm', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="kanban-conversation-card-board"]').element
-        .value
+      wrapper
+        .get('[data-testid="kanban-conversation-card-board"]')
+        .find('select').element.value
     ).toBe('10');
     expect(
-      wrapper.get('[data-testid="kanban-conversation-card-stage"]').element
-        .value
+      wrapper
+        .get('[data-testid="kanban-conversation-card-stage"]')
+        .find('select').element.value
     ).toBe('10');
     expect(
       wrapper
@@ -94,12 +96,14 @@ describe('KanbanConversationCardForm', () => {
     await wrapper.vm.$nextTick();
 
     expect(
-      wrapper.get('[data-testid="kanban-conversation-card-board"]').element
-        .value
+      wrapper
+        .get('[data-testid="kanban-conversation-card-board"]')
+        .find('select').element.value
     ).toBe('');
     expect(
-      wrapper.get('[data-testid="kanban-conversation-card-stage"]').element
-        .value
+      wrapper
+        .get('[data-testid="kanban-conversation-card-stage"]')
+        .find('select').element.value
     ).toBe('');
   });
 

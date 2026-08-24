@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import Select from 'dashboard/components-next/select/Select.vue';
 import { boardAcceptsInbox } from 'dashboard/helper/kanbanBoardScope';
 
 const props = defineProps({
@@ -78,6 +79,12 @@ const existingCard = computed(() =>
       Number(board?.id ?? card.kanbanBoardId) === Number(selectedBoardId.value)
     );
   })
+);
+const boardOptions = computed(() =>
+  eligibleBoards.value.map(board => ({ value: board.id, label: board.name }))
+);
+const stageOptions = computed(() =>
+  regularStages.value.map(stage => ({ value: stage.id, label: stage.name }))
 );
 const canSubmit = computed(
   () =>
@@ -178,24 +185,16 @@ const submit = () => {
       class="grid gap-1 text-xs font-medium text-n-slate-11"
     >
       {{ t('CONVERSATION_SIDEBAR.KANBAN.BOARD') }}
-      <select
+      <Select
         v-model="selectedBoardId"
         data-testid="kanban-conversation-card-board"
-        class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm font-normal text-n-slate-12"
+        :options="boardOptions"
+        :placeholder="t('CONVERSATION_SIDEBAR.KANBAN.SELECT_BOARD')"
         :disabled="isLoadingBoards || !eligibleBoards.length || isCreating"
-        @change="onBoardChange"
-      >
-        <option value="" disabled>
-          {{ t('CONVERSATION_SIDEBAR.KANBAN.SELECT_BOARD') }}
-        </option>
-        <option
-          v-for="board in eligibleBoards"
-          :key="board.id"
-          :value="board.id"
-        >
-          {{ board.name }}
-        </option>
-      </select>
+        full-width
+        class="font-normal"
+        @update:model-value="onBoardChange"
+      />
     </label>
 
     <div
@@ -224,23 +223,15 @@ const submit = () => {
       class="grid gap-1 text-xs font-medium text-n-slate-11"
     >
       {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
-      <select
+      <Select
         v-model="selectedStageId"
         data-testid="kanban-conversation-card-stage"
-        class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm font-normal text-n-slate-12"
+        :options="stageOptions"
+        :placeholder="t('CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE')"
         :disabled="!selectedBoard || !regularStages.length || isCreating"
-      >
-        <option value="" disabled>
-          {{ t('CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE') }}
-        </option>
-        <option
-          v-for="stage in regularStages"
-          :key="stage.id"
-          :value="stage.id"
-        >
-          {{ stage.name }}
-        </option>
-      </select>
+        full-width
+        class="font-normal"
+      />
       <span
         v-if="selectedBoard && !regularStages.length"
         class="font-normal text-n-slate-10"

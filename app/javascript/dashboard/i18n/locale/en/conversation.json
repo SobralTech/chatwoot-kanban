@@ -478,6 +478,7 @@
       "OPEN_DETAILS": "Open details",
       "SET_DUE_DATE": "Set due date",
       "IN_STAGE_FOR": "{age} in this stage",
+      "STAGE_SELECT": "Change stage",
       "CREATE_ERROR": "Failed to create opportunity",
       "CREATED": "Opportunity created",
       "CANCEL": "Cancel",

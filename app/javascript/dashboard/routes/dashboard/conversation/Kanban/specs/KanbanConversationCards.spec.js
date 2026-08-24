@@ -446,11 +446,12 @@ describe('KanbanConversationCards', () => {
     const boardSelect = mountedWrapper.get(
       '[data-testid="kanban-conversation-card-board"]'
     );
-    expect(boardSelect.element.value).toBe('');
+    expect(boardSelect.find('select').element.value).toBe('');
 
-    await boardSelect.setValue('10');
+    await boardSelect.find('select').setValue('10');
     await mountedWrapper
       .get('[data-testid="kanban-conversation-card-stage"]')
+      .find('select')
       .setValue('20');
     await mountedWrapper
       .get('[data-testid="kanban-conversation-card-form"]')
@@ -480,8 +481,9 @@ describe('KanbanConversationCards', () => {
     await openCreateForm(mountedWrapper);
 
     expect(
-      mountedWrapper.get('[data-testid="kanban-conversation-card-board"]')
-        .element.value
+      mountedWrapper
+        .get('[data-testid="kanban-conversation-card-board"]')
+        .find('select').element.value
     ).toBe('10');
     const stageOptions = mountedWrapper
       .get('[data-testid="kanban-conversation-card-stage"]')
@@ -500,6 +502,7 @@ describe('KanbanConversationCards', () => {
     await openCreateForm(mountedWrapper);
     await mountedWrapper
       .get('[data-testid="kanban-conversation-card-board"]')
+      .find('select')
       .setValue('10');
 
     expect(

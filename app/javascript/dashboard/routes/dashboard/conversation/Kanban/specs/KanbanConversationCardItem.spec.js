@@ -173,16 +173,36 @@ describe('KanbanConversationCardItem', () => {
     ]);
   });
 
-  it('shows only regular stages in the stage select', () => {
+  it('shows only regular stages in the stage select', async () => {
     const wrapper = mountItem();
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-stage"]')
+      .get('[data-testid="kanban-stage-select-trigger"]')
+      .trigger('click');
+
     const options = wrapper
       .get('[data-testid="kanban-conversation-card-stage"]')
-      .findAll('option')
+      .findAll('[data-testid="kanban-stage-select-option"]')
       .map(option => option.text());
 
     expect(options).toEqual(['Qualified', 'Proposal']);
-    expect(options).not.toContain('Won');
-    expect(options).not.toContain('Lost');
+    expect(options.join(' ')).not.toContain('Won');
+    expect(options.join(' ')).not.toContain('Lost');
+  });
+
+  it('emits the picked numeric stage id from the stage select', async () => {
+    const wrapper = mountItem();
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-stage"]')
+      .get('[data-testid="kanban-stage-select-trigger"]')
+      .trigger('click');
+    await wrapper
+      .findAll('[data-testid="kanban-stage-select-option"]')[1]
+      .trigger('click');
+
+    expect(wrapper.emitted('updateStage')?.[0]).toEqual([card, 25]);
   });
 
   it('opens details from the subject and keyboard-focused card', async () => {
