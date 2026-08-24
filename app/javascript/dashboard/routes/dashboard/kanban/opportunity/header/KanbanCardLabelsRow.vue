@@ -48,7 +48,7 @@ const labelDropdownProps = computed(() => ({
 <template>
   <div
     data-testid="kanban-opportunity-labels-row"
-    class="flex min-w-0 flex-wrap items-center gap-2"
+    class="flex min-w-0 flex-wrap items-center gap-3"
   >
     <Popover align="start" disable-mobile-view>
       <button

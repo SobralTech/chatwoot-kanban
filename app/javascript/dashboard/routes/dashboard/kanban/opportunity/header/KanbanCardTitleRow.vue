@@ -230,13 +230,17 @@ const onTitleKeydown = event => {
 
       <div
         data-testid="kanban-opportunity-subtitle"
-        class="mt-1.5 flex min-w-0 items-center overflow-hidden text-sm leading-5 text-n-slate-11"
+        class="mt-2 flex min-w-0 items-center overflow-hidden text-sm leading-5 text-n-slate-11"
       >
         <template v-for="(item, index) in subtitleItems" :key="item.key">
           <span v-if="index" class="mx-1 flex-shrink-0">·</span>
           <span
             class="flex min-w-0 max-w-[12rem] flex-shrink items-center gap-1.5 truncate"
-            :class="item.key === 'stageTime' ? stageSlaClasses : ''"
+            :class="
+              item.key === 'stageTime'
+                ? [stageSlaClasses, 'gap-1 text-xs leading-4']
+                : ''
+            "
             :title="item.key === 'stageTime' ? stageTimeTitle : item.label"
             :data-testid="
               item.key === 'stageTime' ? 'kanban-opportunity-stage-sla' : null
@@ -249,7 +253,7 @@ const onTitleKeydown = event => {
           >
             <i
               v-if="item.key === 'stageTime'"
-              class="i-lucide-clock size-4 flex-shrink-0"
+              class="i-lucide-clock size-3 flex-shrink-0"
             />
             <Avatar
               v-else-if="item.key === 'contact' && hasContact"

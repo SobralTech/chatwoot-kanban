@@ -108,7 +108,7 @@ const selectedAssigneeIds = computed(() =>
   <!-- Every control in this row is 28px tall so the header reads as one strip. -->
   <div
     data-testid="kanban-opportunity-quick-controls"
-    class="flex min-w-0 flex-wrap items-center gap-2"
+    class="flex min-w-0 flex-wrap items-center gap-3"
   >
     <KanbanCardStatusBadge
       v-if="wonStageId && lostStageId"

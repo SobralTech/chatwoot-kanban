@@ -103,7 +103,7 @@ const dueAt = defineModel('dueAt', {
 <template>
   <header
     data-testid="kanban-opportunity-header"
-    class="flex flex-none flex-col gap-2 border-b border-n-weak px-4 py-3"
+    class="flex flex-none flex-col gap-3 border-b border-n-weak px-4 py-4"
   >
     <KanbanCardTitleRow
       v-if="card"
