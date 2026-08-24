@@ -23,7 +23,6 @@ import KanbanBoardSummary from './board/KanbanBoardSummary.vue';
 import KanbanStageDraft from './board/KanbanStageDraft.vue';
 import KanbanBulkActions from './KanbanBulkActions.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
-import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
 import {
@@ -1018,7 +1017,6 @@ const {
   stopBoardAutoScroll,
   suppressNextCardClick,
   t,
-  toIso8601,
   useAlert,
 });
 

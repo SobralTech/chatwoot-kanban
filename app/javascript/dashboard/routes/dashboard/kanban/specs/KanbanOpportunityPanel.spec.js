@@ -595,7 +595,8 @@ describe('KanbanOpportunityPanel', () => {
     expect(descriptionInput(wrapper).element.value).toBe(
       'Preserved description'
     );
-    expect(useAlert).toHaveBeenCalledWith('Could not update the description.');
+    // The endpoint said why; that beats the generic fallback.
+    expect(useAlert).toHaveBeenCalledWith('Save failed');
   });
 
   it('persists due date without touching start date', async () => {
@@ -690,7 +691,7 @@ describe('KanbanOpportunityPanel', () => {
     await flushPromises();
 
     expect(subjectTitle(wrapper).text()).toContain('Enterprise expansion');
-    expect(useAlert).toHaveBeenCalledWith('Could not update the subject.');
+    expect(useAlert).toHaveBeenCalledWith('Subject failed');
   });
 
   it('disables a quick field while its update is pending', async () => {
@@ -1072,7 +1073,7 @@ describe('KanbanOpportunityPanel', () => {
 
     expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledTimes(1);
     expect(labelButtons(wrapper)).toHaveLength(1);
-    expect(useAlert).toHaveBeenCalledWith('Could not update the card labels.');
+    expect(useAlert).toHaveBeenCalledWith('Labels failed');
   });
 
   it('preserves scalar form state when toggling a label without saving', async () => {

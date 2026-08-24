@@ -1,4 +1,5 @@
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import { useKanbanCardFields } from 'dashboard/composables/useKanbanCardFields';
 import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 import {
   getCardStatusChangeErrorMessage,
@@ -32,9 +33,35 @@ export function useKanbanCardActions({
   stopBoardAutoScroll,
   suppressNextCardClick,
   t,
-  toIso8601,
   useAlert,
 }) {
+  const cardFields = useKanbanCardFields({
+    t,
+    boardIdFor: () => selectedBoard.value?.id,
+    // The board holds its cards inside paginated stage lists rather than in one
+    // object, so a field update lands through the same patch realtime uses.
+    patchCard: (card, partial) =>
+      patchVisibleCard({
+        id: card.id,
+        kanbanStageId: card.kanbanStageId,
+        ...partial,
+      }),
+  });
+
+  // Field updates keep going through the board's own busy tracking so a card
+  // still greys out and refuses a second action while one is in flight.
+  const withCardAction = async (card, run) => {
+    const actionKey = cardActionKey(card);
+    if (!selectedBoard.value?.id || isActionActive(actionKey)) return false;
+
+    startAction(actionKey);
+    try {
+      return await run();
+    } finally {
+      endAction(actionKey);
+    }
+  };
+
   const onCardDragStart = () => {
     isCardDragging.value = true;
     hasCardDragChanged.value = false;
@@ -172,25 +199,14 @@ export function useKanbanCardActions({
     await removeCard(card);
   };
 
-  const updateCardPriority = async (card, priorityValue) => {
-    const actionKey = cardActionKey(card);
-    if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
-
-    startAction(actionKey);
-
-    try {
-      await KanbanBoardsAPI.updateCardDetailsById(
-        selectedBoard.value.id,
-        card.id,
-        { priority: priorityValue || null }
-      );
-      patchVisibleCard({ id: card.id, card_priority: priorityValue });
-    } catch (error) {
-      showActionError(error, t('KANBAN.CARD.PRIORITY_UPDATE_ERROR'));
-    } finally {
-      endAction(actionKey);
-    }
-  };
+  const updateCardPriority = (card, priorityValue) =>
+    withCardAction(card, () =>
+      // The compact card spends `priority` on the conversation's priority, so
+      // the card's own value has to land on its own key.
+      cardFields.updateDetail(card, 'priority', priorityValue || '', {
+        patchKey: 'cardPriority',
+      })
+    );
 
   const moveCardToStage = async (card, targetStageId) => {
     const targetStage = stages.value.find(
@@ -272,9 +288,6 @@ export function useKanbanCardActions({
   };
 
   const assignAgent = async (card, userId) => {
-    const actionKey = cardActionKey(card);
-    if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
-
     const numericUserId = Number(userId);
     const currentAssigneeIds = (card.assignees || []).map(assignee =>
       Number(assignee.id)
@@ -283,76 +296,21 @@ export function useKanbanCardActions({
       ? currentAssigneeIds.filter(id => id !== numericUserId)
       : [...currentAssigneeIds, numericUserId];
 
-    startAction(actionKey);
-
-    try {
-      const response = await KanbanBoardsAPI.updateCardAssignees(
-        selectedBoard.value.id,
-        card.id,
-        nextAssigneeIds
-      );
-      patchVisibleCard({
-        id: card.id,
-        kanbanStageId: card.kanbanStageId,
-        assignees: normalizePayload(response.data.payload),
-      });
-      useAlert(t('KANBAN.CARD.ASSIGN_SUCCESS'));
-    } catch (error) {
-      showActionError(error, t('KANBAN.CARD.ASSIGN_ERROR'));
-    } finally {
-      endAction(actionKey);
-    }
+    const assigned = await withCardAction(card, () =>
+      cardFields.updateAssignees(card, nextAssigneeIds)
+    );
+    if (assigned) useAlert(t('KANBAN.CARD.ASSIGN_SUCCESS'));
   };
 
   const updateCardDueDate = async (card, dueDate) => {
-    const actionKey = cardActionKey(card);
-    if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
-
-    const dueAt = toIso8601(dueDate);
-    startAction(actionKey);
-
-    try {
-      await KanbanBoardsAPI.updateCardDetailsById(
-        selectedBoard.value.id,
-        card.id,
-        { due_at: dueAt }
-      );
-      patchVisibleCard({
-        id: card.id,
-        kanbanStageId: card.kanbanStageId,
-        due_at: dueAt,
-      });
-      useAlert(t('KANBAN.CARD.DUE_DATE_UPDATE_SUCCESS'));
-    } catch (error) {
-      showActionError(error, t('KANBAN.CARD.DUE_DATE_UPDATE_ERROR'));
-    } finally {
-      endAction(actionKey);
-    }
+    const updated = await withCardAction(card, () =>
+      cardFields.updateDetail(card, 'dueAt', dueDate)
+    );
+    if (updated) useAlert(t('KANBAN.CARD.DUE_DATE_UPDATE_SUCCESS'));
   };
 
-  const updateCardLabels = async (card, labelTitles) => {
-    const actionKey = cardActionKey(card);
-    if (!selectedBoard.value?.id || isActionActive(actionKey)) return;
-
-    startAction(actionKey);
-
-    try {
-      const response = await KanbanBoardsAPI.updateCardLabels(
-        selectedBoard.value.id,
-        card.id,
-        labelTitles
-      );
-      patchVisibleCard({
-        id: card.id,
-        kanbanStageId: card.kanbanStageId,
-        labels: normalizePayload(response.data.payload),
-      });
-    } catch (error) {
-      showActionError(error, t('KANBAN.CARD.LABELS_UPDATE_ERROR'));
-    } finally {
-      endAction(actionKey);
-    }
-  };
+  const updateCardLabels = (card, labelTitles) =>
+    withCardAction(card, () => cardFields.updateLabels(card, labelTitles));
 
   const onChangeCardStatus = async (
     card,

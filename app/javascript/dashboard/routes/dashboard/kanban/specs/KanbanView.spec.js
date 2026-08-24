@@ -68,6 +68,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     getStageCards: vi.fn(),
     deleteCardById: vi.fn(),
     updateCardAssignees: vi.fn(),
+    updateCardDetailsById: vi.fn(),
     showCardById: vi.fn(),
   },
 }));
@@ -1676,6 +1677,57 @@ describe('KanbanView drag and drop', () => {
     ]);
     expect(KanbanBoardsAPI.show).not.toHaveBeenCalled();
     expect(useAlert).toHaveBeenCalledWith('KANBAN.CARD.ASSIGN_SUCCESS');
+  });
+
+  it('patches the card priority without touching the conversation priority', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValueOnce({
+      data: { id: 501, priority: 'urgent' },
+    });
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit(
+      'updatePriority',
+      { id: 501, kanbanStageId: 100, priority: 'low' },
+      'urgent'
+    );
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
+      10,
+      501,
+      { priority: 'urgent' }
+    );
+    const patchedCard = findCardDraggables(wrapper)[0].props('list')[0];
+    expect(patchedCard.cardPriority).toBe('urgent');
+    expect(patchedCard.priority).toBeUndefined();
+  });
+
+  it('rolls the card priority back when the update fails', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockRejectedValueOnce(
+      new Error('nope')
+    );
+    const wrapper = await mountView(
+      buildBoardResponse([
+        buildCard({ id: 501, kanban_stage_id: 100, card_priority: 'low' }),
+      ])
+    );
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit(
+      'updatePriority',
+      { id: 501, kanbanStageId: 100, cardPriority: 'low' },
+      'urgent'
+    );
+    await flushPromises();
+
+    expect(findCardDraggables(wrapper)[0].props('list')[0].cardPriority).toBe(
+      'low'
+    );
   });
 
   it('only marks the card with an active action as busy', async () => {

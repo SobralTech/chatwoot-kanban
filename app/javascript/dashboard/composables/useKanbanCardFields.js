@@ -3,6 +3,7 @@ import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
 
 const normalize = value => camelcaseKeys(value || {}, { deep: true });
@@ -88,25 +89,33 @@ export function useKanbanCardFields({
       return true;
     } catch (error) {
       patchCard(card, previousValues);
-      useAlert(typeof errorKey === 'function' ? errorKey(error) : t(errorKey));
+      // The endpoints answer with a reason often enough to be worth showing.
+      useAlert(
+        typeof errorKey === 'function'
+          ? errorKey(error)
+          : apiErrorMessage(error, t(errorKey))
+      );
       return false;
     } finally {
       setPending(card, field, false);
     }
   };
 
-  const updateDetail = (card, field, value) => {
+  // `patchKey` is for surfaces that hold the value under a different name than
+  // the details endpoint uses: the board's compact card spends `priority` on the
+  // conversation's priority and keeps the card's own under `cardPriority`.
+  const updateDetail = (card, field, value, { patchKey = field } = {}) => {
     const { payloadKey, serialize, errorKey } = DETAIL_FIELDS[field];
 
     return run(card, field, {
-      optimistic: { [field]: value },
+      optimistic: { [patchKey]: value },
       request: boardId =>
         KanbanBoardsAPI.updateCardDetailsById(boardId, card.id, {
           [payloadKey]: serialize(value),
         }),
       apply: response => {
         const saved = cardFromResponse(response)[field];
-        return { [field]: saved === undefined ? value : saved };
+        return { [patchKey]: saved === undefined ? value : saved };
       },
       errorKey,
     });
