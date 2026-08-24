@@ -45,13 +45,13 @@ const onToggle = () => {
       ]"
       @click.stop="onToggle"
     >
-      <div class="flex justify-between">
+      <div class="flex items-center justify-between">
         <EmojiOrIcon class="inline-block w-5" :icon="icon" :emoji="emoji" />
         <h5 class="text-n-slate-12 text-sm mb-0 py-0 pr-2 pl-0">
           {{ title }}
         </h5>
       </div>
-      <div class="flex flex-row">
+      <div class="flex flex-row items-center">
         <slot name="button" />
         <div class="flex justify-end w-3 text-n-blue-11 cursor-pointer">
           <fluent-icon v-if="isOpen" size="24" icon="subtract" type="solid" />

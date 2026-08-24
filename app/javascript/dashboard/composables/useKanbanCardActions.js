@@ -348,7 +348,7 @@ export function useKanbanCardActions({
         labels: normalizePayload(response.data.payload),
       });
     } catch (error) {
-      showActionError(error, t('CONTACT_PANEL.LABELS.CONVERSATION.ERROR'));
+      showActionError(error, t('KANBAN.CARD.LABELS_UPDATE_ERROR'));
     } finally {
       endAction(actionKey);
     }

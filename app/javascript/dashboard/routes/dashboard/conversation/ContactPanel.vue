@@ -67,6 +67,12 @@ const kanbanSummary = ref({ count: 0, staleCount: 0 });
 const updateKanbanSummary = summary => {
   kanbanSummary.value = summary;
 };
+watch(
+  () => props.conversationId,
+  () => {
+    kanbanSummary.value = { count: 0, staleCount: 0 };
+  }
+);
 
 const shopifyIntegration = useFunctionGetter(
   'integrations/getIntegration',
