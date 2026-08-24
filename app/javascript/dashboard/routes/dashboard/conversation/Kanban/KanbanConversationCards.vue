@@ -16,7 +16,7 @@ import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import KanbanOpportunityPanel from 'dashboard/routes/dashboard/kanban/opportunity/KanbanOpportunityPanel.vue';
-import KanbanConversationMoveDialog from './KanbanConversationMoveDialog.vue';
+import KanbanCardMoveDialog from '../../kanban/KanbanCardMoveDialog.vue';
 import KanbanConversationCardForm from './KanbanConversationCardForm.vue';
 import KanbanConversationCardItem from './KanbanConversationCardItem.vue';
 
@@ -764,10 +764,10 @@ onBeforeUnmount(() => {
       />
     </template>
 
-    <KanbanConversationMoveDialog
+    <KanbanCardMoveDialog
       v-if="moveDialogCard"
       :card="moveDialogCard"
-      :cards="cards"
+      :existing-cards="cards"
       :boards="boards"
       :board="boardForCard(moveDialogCard)"
       :stages="stagesForCard(moveDialogCard)"

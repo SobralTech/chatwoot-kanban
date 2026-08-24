@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, toRef } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Select from 'dashboard/components-next/select/Select.vue';
@@ -19,16 +19,23 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  // Opportunities the same conversation already has. A conversation gets one
+  // card per funnel, so the funnels holding one are off limits; the board page
+  // moves a lone card and passes nothing.
+  existingCards: {
+    type: Array,
+    default: () => [],
+  },
   stages: {
     type: Array,
     default: () => [],
   },
   wonStageId: {
-    type: Number,
+    type: [Number, String],
     default: null,
   },
   lostStageId: {
-    type: Number,
+    type: [Number, String],
     default: null,
   },
   inboxId: {
@@ -48,12 +55,30 @@ const props = defineProps({
 const emit = defineEmits(['move', 'close']);
 const { t } = useI18n();
 
+// A lookup instead of an interpolated key: the linter cannot follow a dynamic
+// one, and every consequence the helper can raise is listed here.
+const CONSEQUENCE_LABELS = {
+  MOVE_CONFIRM_REOPEN: params => t('KANBAN.CARD.MOVE_CONFIRM_REOPEN', params),
+  MOVE_CONFIRM_REASON: params => t('KANBAN.CARD.MOVE_CONFIRM_REASON', params),
+  MOVE_CONFIRM_FIELDS: params => t('KANBAN.CARD.MOVE_CONFIRM_FIELDS', params),
+  MOVE_CONFIRM_RECURRENCE_REFERENCE_LEAVES: params =>
+    t('KANBAN.CARD.MOVE_CONFIRM_RECURRENCE_REFERENCE_LEAVES', params),
+  MOVE_CONFIRM_RECURRENCE_MAY_RECREATE: params =>
+    t('KANBAN.CARD.MOVE_CONFIRM_RECURRENCE_MAY_RECREATE', params),
+};
+
 const view = ref('destination');
 const selectedStage = ref(null);
-const currentBoardId = computed(() => Number(props.board?.id));
+
+const currentBoardId = computed(() =>
+  Number(
+    props.board?.id ?? props.card.kanbanBoardId ?? props.card.kanbanBoard?.id
+  )
+);
+
 const {
-  boardId: moveBoardId,
-  boardOptions: moveBoardOptions,
+  boardId: targetBoardId,
+  boardOptions,
   isCurrentBoard,
   reset: resetMoveTarget,
   selectedBoard,
@@ -69,6 +94,44 @@ const {
   stages: toRef(props, 'stages'),
   wonStageId: toRef(props, 'wonStageId'),
 });
+
+const existingCardForBoard = boardId =>
+  props.existingCards.find(
+    card =>
+      Number(card.kanbanBoardId ?? card.kanbanBoard?.id) === Number(boardId)
+  );
+const takenByAnotherCard = boardId => {
+  const existingCard = existingCardForBoard(boardId);
+  if (!existingCard || Number(existingCard.id) === Number(props.card.id)) {
+    return null;
+  }
+
+  return existingCard;
+};
+
+const boardOptionsWithStatus = computed(() =>
+  boardOptions.value.map(option => {
+    const otherCard = takenByAnotherCard(option.value);
+    const alreadyThere = t('CONVERSATION_SIDEBAR.KANBAN.ALREADY_IN_BOARD', {
+      id: otherCard?.id,
+    });
+
+    return {
+      ...option,
+      // The funnel the card already sits in is only off limits when the card
+      // cannot be alone there, which is what existingCards says.
+      disabled: !!existingCardForBoard(option.value),
+      label: otherCard ? `${option.label} — ${alreadyThere}` : option.label,
+    };
+  })
+);
+const blockedTargetCard = computed(() =>
+  existingCardForBoard(targetBoardId.value)
+);
+const hasSelectableBoard = computed(() =>
+  boardOptionsWithStatus.value.some(option => !option.disabled)
+);
+const hasNoStages = computed(() => !targetStages.value.length);
 
 const moveConsequences = computed(() => {
   if (isCurrentBoard.value) return [];
@@ -88,12 +151,12 @@ const reset = () => {
 };
 
 const close = () => {
-  emit('close');
+  if (!props.isMoving) emit('close');
 };
 
-const onBoardChanged = () => {
+watch(targetBoardId, () => {
   selectedStage.value = null;
-};
+});
 
 const chooseStage = stage => {
   selectedStage.value = stage;
@@ -106,10 +169,17 @@ const goBack = () => {
 };
 
 const submit = () => {
-  if (!selectedStage.value || !moveBoardId.value || props.isMoving) return;
+  if (
+    !selectedStage.value ||
+    !targetBoardId.value ||
+    !!blockedTargetCard.value ||
+    props.isMoving
+  ) {
+    return;
+  }
 
   emit('move', {
-    boardId: Number(moveBoardId.value),
+    boardId: Number(targetBoardId.value),
     stageId: Number(selectedStage.value.id),
   });
 };
@@ -124,8 +194,6 @@ const stageLabel = stage => {
 
   return stage.name;
 };
-
-const hasNoStages = computed(() => !targetStages.value.length);
 
 reset();
 </script>
@@ -153,8 +221,9 @@ reset();
         <button
           type="button"
           data-testid="kanban-card-move-dialog-close"
-          class="flex size-7 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+          class="flex size-7 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
           :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.CLOSE_PANEL')"
+          :disabled="isMoving"
           @click="close"
         >
           <i class="i-lucide-x size-4" />
@@ -163,23 +232,40 @@ reset();
 
       <div v-if="view === 'destination'" class="space-y-3 p-4">
         <label
-          v-if="moveBoardOptions.length"
+          v-if="boardOptionsWithStatus.length"
           class="block text-xs font-medium text-n-slate-11"
         >
           {{ t('KANBAN.CARD.MOVE_BOARD_LABEL') }}
           <Select
-            v-model="moveBoardId"
+            v-model="targetBoardId"
             data-testid="kanban-card-move-dialog-board"
-            :options="moveBoardOptions"
+            :options="boardOptionsWithStatus"
             full-width
             class="mt-1 font-normal"
             :disabled="isMoving"
-            @update:model-value="onBoardChanged"
           />
         </label>
 
         <p
-          v-if="hasNoStages"
+          v-if="!hasSelectableBoard"
+          data-testid="kanban-card-move-dialog-no-board"
+          class="mb-0 text-sm text-n-slate-10"
+        >
+          {{ t('CONVERSATION_SIDEBAR.KANBAN.NO_OTHER_BOARDS') }}
+        </p>
+        <p
+          v-else-if="blockedTargetCard"
+          data-testid="kanban-card-move-dialog-taken"
+          class="mb-0 text-sm text-n-slate-10"
+        >
+          {{
+            t('CONVERSATION_SIDEBAR.KANBAN.ALREADY_IN_BOARD', {
+              id: blockedTargetCard.id,
+            })
+          }}
+        </p>
+        <p
+          v-else-if="hasNoStages"
           data-testid="kanban-card-move-dialog-empty"
           class="mb-0 text-sm text-n-slate-10"
         >
@@ -220,7 +306,7 @@ reset();
           class="m-0 grid list-disc gap-2 pl-5 text-sm text-n-slate-11"
         >
           <li v-for="consequence in moveConsequences" :key="consequence.key">
-            {{ t(`KANBAN.CARD.${consequence.key}`, consequence.params) }}
+            {{ CONSEQUENCE_LABELS[consequence.key](consequence.params) }}
           </li>
         </ul>
         <p
@@ -232,6 +318,15 @@ reset();
         </p>
 
         <div class="flex items-center justify-end gap-2">
+          <button
+            v-if="!isMoving"
+            type="button"
+            data-testid="kanban-card-move-dialog-back"
+            class="rounded-md px-3 py-2 text-sm text-n-slate-11 hover:bg-n-alpha-2"
+            @click="goBack"
+          >
+            {{ t('KANBAN.MENU.BACK') }}
+          </button>
           <button
             type="button"
             data-testid="kanban-card-move-dialog-cancel"
@@ -253,15 +348,6 @@ reset();
               class="i-lucide-loader-circle mr-1 inline-block size-4 animate-spin"
             />
             {{ t('KANBAN.CARD.MOVE_CONFIRM_SUBMIT') }}
-          </button>
-          <button
-            v-if="!isMoving"
-            type="button"
-            data-testid="kanban-card-move-dialog-back"
-            class="rounded-md px-3 py-2 text-sm text-n-slate-11 hover:bg-n-alpha-2"
-            @click="goBack"
-          >
-            {{ t('KANBAN.MENU.BACK') }}
           </button>
         </div>
       </div>

@@ -198,11 +198,11 @@ const dialogStub = {
 };
 
 const moveDialogStub = {
-  name: 'KanbanConversationMoveDialog',
-  props: ['card', 'cards', 'boards', 'isMoving'],
+  name: 'KanbanCardMoveDialog',
+  props: ['card', 'existingCards', 'boards', 'isMoving'],
   emits: ['close', 'move'],
   template: `
-    <div data-testid="kanban-conversation-move-dialog">
+    <div data-testid="kanban-card-move-dialog">
       <button
         type="button"
         data-testid="move-card"
@@ -236,7 +236,7 @@ const mountComponent = (props = { conversationId: 456 }) => {
     global: {
       stubs: {
         KanbanConversationCardItem: cardItemStub,
-        KanbanConversationMoveDialog: moveDialogStub,
+        KanbanCardMoveDialog: moveDialogStub,
         KanbanOpportunityPanel: opportunityPanelStub,
         Dialog: dialogStub,
       },
@@ -531,7 +531,7 @@ describe('KanbanConversationCards', () => {
     expect(panel.props('cardId')).toBe(123);
   });
 
-  it('opens the three-step move dialog from the funnel name and moves the card', async () => {
+  it('opens the move dialog from the funnel name and moves the card', async () => {
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [buildCard()] },
     });
