@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref, toRef } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
@@ -18,10 +19,7 @@ import KanbanCardItemsTab from './tabs/KanbanCardItemsTab.vue';
 import KanbanCardTimelineTab from './tabs/KanbanCardTimelineTab.vue';
 import KanbanCardMoveDialog from '../KanbanCardMoveDialog.vue';
 import KanbanOpportunityHeader from './KanbanOpportunityHeader.vue';
-import KanbanOpportunitySaveBar from './KanbanOpportunitySaveBar.vue';
 import { normalizePayload } from './opportunityPayload';
-import { useOpportunityForm } from './composables/useOpportunityForm';
-import { useOpportunitySave } from './composables/useOpportunitySave';
 import { usePanelKeyboard } from './composables/usePanelKeyboard';
 import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
@@ -109,21 +107,13 @@ const showMoveDialog = ref(false);
 const isMovingCard = ref(false);
 const productsTotalValue = ref(null);
 
-const isAdditionalDataDirty = () =>
-  !!additionalDataTabRef.value?.hasUnsavedChanges;
+const card = ref(null);
+const description = ref('');
+const assignableUsers = ref([]);
 
-const form = useOpportunityForm({ isAdditionalDataDirty });
-const {
-  card,
-  description,
-  assignableUsers,
-  savedAt,
-  savedTimeLabel,
-  hasGeneralChanges,
-  hasUnsavedChanges,
-  unsavedFields,
-  patchCard,
-} = form;
+const patchCard = partial => {
+  card.value = { ...(card.value || {}), ...partial };
+};
 
 // The header edits these straight through the card: they persist on change, so
 // mirroring them into their own refs only created two things to keep in sync.
@@ -134,20 +124,6 @@ const selectedLabelTitles = computed(() =>
   (card.value?.labels || []).map(label => label.title || label).filter(Boolean)
 );
 const assignedUsers = computed(() => card.value?.assignees || []);
-
-const {
-  isSaving,
-  saveError,
-  saveCard: persistCard,
-} = useOpportunitySave({
-  boardId: toRef(props, 'boardId'),
-  cardId: toRef(props, 'cardId'),
-  form,
-  additionalData: {
-    isDirty: isAdditionalDataDirty,
-    save: () => additionalDataTabRef.value?.saveFieldValues() ?? true,
-  },
-});
 
 // Bumped on every server side change so views rebuilt from the card, like the
 // timeline, remount instead of showing what they fetched before the change.
@@ -188,6 +164,29 @@ const {
 
 // The header only ever asks about the card the panel is showing.
 const isPending = field => isCardFieldPending(card.value, field);
+
+// The description is the last field that used to wait for a save button. It now
+// persists once typing settles, which is what let the whole draft apparatus go.
+const saveDescription = () => {
+  if (!card.value || description.value === (card.value.description || '')) {
+    return false;
+  }
+
+  return updateDetail(card.value, 'description', description.value);
+};
+const queueDescriptionSave = useDebounceFn(saveDescription, 800);
+
+// Anything still queued when the panel goes away is sent on the way out.
+const flushPendingSaves = () => {
+  saveDescription();
+  additionalDataTabRef.value?.saveFieldValues();
+};
+
+onBeforeUnmount(flushPendingSaves);
+
+const isSaving = computed(
+  () => isPending('description') || !!additionalDataTabRef.value?.isSavingFields
+);
 
 const cardDisplayId = computed(() => card.value?.id || props.cardId);
 const totalValue = computed(
@@ -397,9 +396,7 @@ const openProducts = () => {
 const tabItems = computed(() => [
   {
     key: 'details',
-    label: `${t('KANBAN.OPPORTUNITY_DETAILS.TABS.DETAILS')}${
-      hasGeneralChanges.value ? ' •' : ''
-    }`,
+    label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.DETAILS'),
   },
   { key: 'products', label: t('KANBAN.OPPORTUNITY_DETAILS.TABS.PRODUCTS') },
   {
@@ -426,8 +423,9 @@ const loadCard = async () => {
       props.cardId
     );
     const cardPayload = normalizePayload(response.data);
-    form.setFormState(cardPayload);
-    form.captureSnapshot();
+    card.value = cardPayload;
+    description.value = cardPayload.description || '';
+    assignableUsers.value = cardPayload.assignableUsers || [];
   } catch (error) {
     loadError.value = apiErrorMessage(
       error,
@@ -436,13 +434,6 @@ const loadCard = async () => {
   } finally {
     isLoading.value = false;
   }
-};
-
-const saveCard = async () => {
-  const saved = await persistCard();
-  if (saved) notifyCardUpdated();
-
-  return saved;
 };
 
 const copyCardId = async () => {
@@ -471,17 +462,12 @@ const copyCardLink = () => {
 usePanelKeyboard({
   panelRef,
   isBlocked: () => props.hasBlockingDialog || showMoveDialog.value,
-  onSave: saveCard,
+  // Ctrl+S is reflex, not need: it just stops waiting for the debounce.
+  onSave: flushPendingSaves,
   onClose: () => emit('close'),
 });
 
 onMounted(loadCard);
-
-defineExpose({
-  saveCard,
-  hasUnsavedChanges,
-  unsavedFields,
-});
 </script>
 
 <template>
@@ -504,7 +490,7 @@ defineExpose({
         :card-display-id="cardDisplayId"
         :board-name="boardName"
         :opened-from-conversation="openedFromConversation"
-        :has-unsaved-changes="hasUnsavedChanges"
+        :is-saving="isSaving"
         :is-pending="isPending"
         :subject="subject"
         :priority="priority"
@@ -584,19 +570,15 @@ defineExpose({
                 v-show="activeTabKey === 'details'"
                 data-testid="kanban-opportunity-details-tab"
               >
-                <form
+                <KanbanCardDetailsTab
+                  ref="additionalDataTabRef"
+                  v-model:description="description"
                   data-testid="kanban-opportunity-form"
-                  class="grid gap-5"
-                  @submit.prevent="saveCard"
-                >
-                  <KanbanCardDetailsTab
-                    ref="additionalDataTabRef"
-                    v-model:description="description"
-                    :board-id="boardId"
-                    :card-id="cardId"
-                    :custom-fields="customFields"
-                  />
-                </form>
+                  :board-id="boardId"
+                  :card-id="cardId"
+                  :custom-fields="customFields"
+                  @update:description="queueDescriptionSave"
+                />
               </section>
 
               <KanbanCardItemsTab
@@ -620,24 +602,8 @@ defineExpose({
               />
             </div>
           </div>
-          <p
-            v-if="saveError"
-            data-testid="kanban-opportunity-save-error"
-            class="mb-0 mt-4 text-sm text-n-ruby-11"
-          >
-            {{ saveError }}
-          </p>
         </template>
       </div>
-
-      <KanbanOpportunitySaveBar
-        :is-saving="isSaving"
-        :has-unsaved-changes="hasUnsavedChanges"
-        :saved-at="savedAt"
-        :saved-time-label="savedTimeLabel"
-        @save="saveCard"
-        @close="emit('close')"
-      />
     </aside>
   </div>
 </template>

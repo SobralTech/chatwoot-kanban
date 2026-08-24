@@ -28,13 +28,11 @@ const emit = defineEmits(['update:description']);
 
 const { t } = useI18n();
 const additionalDataTabRef = ref(null);
-const hasUnsavedChanges = computed(
-  () => !!additionalDataTabRef.value?.hasUnsavedChanges
-);
+const isSavingFields = computed(() => !!additionalDataTabRef.value?.isSaving);
 const saveFieldValues = () =>
   additionalDataTabRef.value?.saveFieldValues() ?? true;
 
-defineExpose({ hasUnsavedChanges, saveFieldValues });
+defineExpose({ isSavingFields, saveFieldValues });
 </script>
 
 <template>

@@ -9,8 +9,8 @@ const normalize = value => camelcaseKeys(value || {}, { deep: true });
 const cardFromResponse = response =>
   normalize(response?.data?.payload ?? response?.data);
 
-// subject, priority and dueAt are one key each on the card details endpoint,
-// so they only differ by wire name, serialization and error message.
+// subject, priority, dueAt and description are one key each on the card details
+// endpoint, so they only differ by wire name, serialization and error message.
 const DETAIL_FIELDS = {
   subject: {
     payloadKey: 'subject',
@@ -26,6 +26,11 @@ const DETAIL_FIELDS = {
     payloadKey: 'due_at',
     serialize: toIso8601,
     errorKey: 'KANBAN.CARD.DUE_DATE_UPDATE_ERROR',
+  },
+  description: {
+    payloadKey: 'description',
+    serialize: value => value.trim() || null,
+    errorKey: 'KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_UPDATE_ERROR',
   },
 };
 

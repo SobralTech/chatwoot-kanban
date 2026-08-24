@@ -20,7 +20,7 @@ defineProps({
     type: Boolean,
     default: false,
   },
-  hasUnsavedChanges: {
+  isSaving: {
     type: Boolean,
     default: false,
   },
@@ -113,7 +113,7 @@ const dueAt = defineModel('dueAt', {
       :board-name="boardName"
       :stages="stages"
       :opened-from-conversation="openedFromConversation"
-      :has-unsaved-changes="hasUnsavedChanges"
+      :is-saving="isSaving"
       :is-pending="isPending('subject')"
       @open-conversation="emit('openConversation', $event)"
       @open-conversation-in-new-tab="emit('openConversationInNewTab', $event)"

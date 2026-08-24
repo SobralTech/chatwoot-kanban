@@ -30,7 +30,7 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  hasUnsavedChanges: {
+  isSaving: {
     type: Boolean,
     default: false,
   },
@@ -216,13 +216,15 @@ const onTitleKeydown = event => {
         >
           {{ subject || t('KANBAN.OPPORTUNITY_DETAILS.TITLE') }}
         </h2>
+        <!-- Nothing waits for a save button any more, so the only state left to
+        report is that a change is on its way to the server. -->
         <span
-          v-if="hasUnsavedChanges"
-          data-testid="kanban-opportunity-unsaved-indicator"
-          class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-n-amber-2 px-2 py-0.5 text-xs font-medium text-n-amber-11"
+          v-if="isSaving"
+          data-testid="kanban-opportunity-saving-indicator"
+          class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
         >
-          <span class="size-1.5 rounded-full bg-n-amber-9" />
-          {{ t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_INDICATOR') }}
+          <i class="i-lucide-loader-circle size-3 animate-spin" />
+          {{ t('KANBAN.OPPORTUNITY_DETAILS.SAVING_STATE') }}
         </span>
       </div>
 

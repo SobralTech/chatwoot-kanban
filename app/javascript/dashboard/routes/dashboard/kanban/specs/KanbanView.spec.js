@@ -323,18 +323,6 @@ const mountView = async (
             'moveToStage',
             'hasBlockingDialog',
           ],
-          data: () => ({ unsavedChanges: false }),
-          computed: {
-            hasUnsavedChanges() {
-              return this.unsavedChanges;
-            },
-            unsavedFields() {
-              return ['description'];
-            },
-          },
-          methods: {
-            saveCard: () => Promise.resolve(true),
-          },
           template:
             '<div class="kanban-opportunity-modal-stub" data-board-id="{{ boardId }}" data-card-id="{{ cardId }}" />',
         },
@@ -1818,9 +1806,7 @@ describe('KanbanView drag and drop', () => {
     expect(
       wrapper.findComponent({ name: 'KanbanOpportunityPanel' }).exists()
     ).toBe(true);
-    expect(wrapper.findComponent({ name: 'WootModal' }).props('show')).toBe(
-      false
-    );
+    expect(wrapper.findComponent({ name: 'WootModal' }).exists()).toBe(false);
   });
 
   it('closes opportunity panel and clears selected card', async () => {
@@ -1926,7 +1912,7 @@ describe('KanbanView drag and drop', () => {
     });
   });
 
-  it('guards modal conversation navigation when the opportunity has unsaved changes', async () => {
+  it('navigates straight to the conversation without asking to save', async () => {
     const wrapper = await mountView();
     const cardComponent = wrapper.findComponent({
       name: 'KanbanConversationCard',
@@ -1935,16 +1921,15 @@ describe('KanbanView drag and drop', () => {
     cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
     await nextTick();
     const modal = wrapper.findComponent({ name: 'KanbanOpportunityPanel' });
-    modal.vm.unsavedChanges = true;
     modal.vm.$emit('openConversation', { conversationId: 123 });
     await nextTick();
 
-    expect(mockPush).not.toHaveBeenCalledWith(
+    expect(mockPush).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'kanban_board_conversation' })
     );
-    expect(wrapper.findComponent({ name: 'WootModal' }).props('show')).toBe(
-      true
-    );
+    expect(
+      wrapper.findComponent({ name: 'KanbanOpportunityPanel' }).exists()
+    ).toBe(false);
   });
 
   it('opens a card deep link from the opportunity menu', async () => {

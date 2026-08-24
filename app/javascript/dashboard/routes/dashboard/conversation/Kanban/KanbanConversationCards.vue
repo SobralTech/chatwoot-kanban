@@ -53,14 +53,11 @@ const cardsRequestId = ref(0);
 const boardsRequestId = ref(0);
 const realtimeRefreshQueued = ref(false);
 const deleteDialogRef = ref(null);
-const unsavedDialogRef = ref(null);
-const afterOpportunityExit = ref(null);
 const cardToDelete = ref(null);
 const isDeletingCard = ref(false);
 const moveDialogCard = ref(null);
 const opportunityCard = ref(null);
 const opportunityPanelRef = ref(null);
-const isSavingOpportunityBeforeExit = ref(false);
 const slaNow = useSlaClock();
 let highlightTimer = null;
 
@@ -240,7 +237,6 @@ const loadCards = async () => {
       !cards.value.some(card => isSameCard(card, opportunityCard.value))
     ) {
       opportunityCard.value = null;
-      afterOpportunityExit.value = null;
     }
     if (
       moveDialogCard.value &&
@@ -427,54 +423,19 @@ const closeMoveDialog = () => {
 };
 const closeOpportunityPanel = () => {
   opportunityCard.value = null;
-  const afterExit = afterOpportunityExit.value;
-  afterOpportunityExit.value = null;
-  afterExit?.();
 };
-const requestOpportunityExit = (afterExit = null) => {
-  afterOpportunityExit.value = afterExit;
-  if (opportunityPanelRef.value?.hasUnsavedChanges) {
-    unsavedDialogRef.value?.open();
-    return;
-  }
-
-  closeOpportunityPanel();
-};
-const requestCloseOpportunityPanel = () => requestOpportunityExit();
-const keepEditingOpportunity = () => {
-  afterOpportunityExit.value = null;
-  unsavedDialogRef.value?.close();
-};
-const onUnsavedDialogClose = () => undefined;
-const discardOpportunityChanges = () => {
-  unsavedDialogRef.value?.close();
-  closeOpportunityPanel();
-};
-const saveAndCloseOpportunity = async () => {
-  if (isSavingOpportunityBeforeExit.value) return;
-
-  isSavingOpportunityBeforeExit.value = true;
-  try {
-    const saved = await opportunityPanelRef.value?.saveCard();
-    if (saved) {
-      unsavedDialogRef.value?.close();
-      closeOpportunityPanel();
-    }
-  } finally {
-    isSavingOpportunityBeforeExit.value = false;
-  }
-};
+// The panel persists every field as it changes, so leaving it never asks and
+// the exit has nothing to defer.
 const openOpportunityInFunnel = card => {
   const boardId = Number(cardBoardId(card));
   if (!boardId || !card?.id) return;
 
-  requestOpportunityExit(() =>
-    router.push({
-      name: 'kanban_board_show',
-      params: { accountId: route.params.accountId, boardId },
-      query: { card_id: card.id },
-    })
-  );
+  closeOpportunityPanel();
+  router.push({
+    name: 'kanban_board_show',
+    params: { accountId: route.params.accountId, boardId },
+    query: { card_id: card.id },
+  });
 };
 const onOpportunityUpdated = () => {
   loadCards();
@@ -865,55 +826,11 @@ onBeforeUnmount(() => {
       :has-blocking-dialog="false"
       opened-from-conversation
       @board-changed="onOpportunityBoardChanged"
-      @close="requestCloseOpportunityPanel"
+      @close="closeOpportunityPanel"
       @open-funnel="openOpportunityInFunnel"
       @remove-card="onOpportunityRemoveCard"
       @updated="onOpportunityUpdated"
     />
-
-    <Dialog
-      ref="unsavedDialogRef"
-      type="alert"
-      :title="t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_TITLE')"
-      :description="t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_MESSAGE')"
-      :show-cancel-button="false"
-      :show-confirm-button="false"
-      @close="onUnsavedDialogClose"
-    >
-      <template #footer>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <button
-            type="button"
-            data-testid="kanban-conversation-unsaved-keep-editing"
-            class="rounded-md px-3 py-2 text-sm text-n-slate-11 hover:bg-n-alpha-2"
-            @click="keepEditingOpportunity"
-          >
-            {{ t('KANBAN.OPPORTUNITY_DETAILS.KEEP_EDITING') }}
-          </button>
-          <button
-            type="button"
-            data-testid="kanban-conversation-unsaved-discard"
-            class="rounded-md px-3 py-2 text-sm text-n-ruby-11 hover:bg-n-ruby-2"
-            @click="discardOpportunityChanges"
-          >
-            {{ t('KANBAN.OPPORTUNITY_DETAILS.DISCARD_CHANGES') }}
-          </button>
-          <button
-            type="button"
-            data-testid="kanban-conversation-unsaved-save-and-exit"
-            class="rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white hover:bg-n-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="isSavingOpportunityBeforeExit"
-            @click="saveAndCloseOpportunity"
-          >
-            <i
-              v-if="isSavingOpportunityBeforeExit"
-              class="i-lucide-loader-circle mr-1 inline-block size-4 animate-spin"
-            />
-            {{ t('KANBAN.OPPORTUNITY_DETAILS.SAVE_AND_EXIT') }}
-          </button>
-        </div>
-      </template>
-    </Dialog>
 
     <Dialog
       ref="deleteDialogRef"

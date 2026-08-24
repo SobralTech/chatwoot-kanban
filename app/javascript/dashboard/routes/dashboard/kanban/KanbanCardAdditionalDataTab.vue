@@ -1,5 +1,13 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from 'vue';
+import { useDebounceFn } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 
@@ -147,7 +155,12 @@ const buildPayload = () => {
   return { field_values: fieldValues };
 };
 
+const isSaving = ref(false);
+
 const saveFieldValues = async () => {
+  if (!hasUnsavedChanges.value) return true;
+
+  isSaving.value = true;
   try {
     await KanbanBoardsAPI.updateCardFieldValues(
       props.boardId,
@@ -155,19 +168,27 @@ const saveFieldValues = async () => {
       buildPayload()
     );
     captureSnapshot();
-    useAlert(t('KANBAN.CARD_ADDITIONAL_DATA.SAVE_SUCCESS'));
     return true;
   } catch (error) {
     useAlert(
       apiErrorMessage(error, t('KANBAN.CARD_ADDITIONAL_DATA.SAVE_ERROR'))
     );
     return false;
+  } finally {
+    isSaving.value = false;
   }
 };
 
+// Values persist once typing settles, so there is no draft to reconcile and no
+// save button to press. A panel closed mid-edit still sends what was typed.
+const queueSave = useDebounceFn(saveFieldValues, 800);
+
+watch(valuesByFieldId, queueSave, { deep: true });
+onBeforeUnmount(saveFieldValues);
+
 onMounted(fetchData);
 
-defineExpose({ hasUnsavedChanges, saveFieldValues });
+defineExpose({ isSaving, saveFieldValues });
 </script>
 
 <template>

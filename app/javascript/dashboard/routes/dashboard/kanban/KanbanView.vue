@@ -17,7 +17,6 @@ import { useKanbanCardSelection } from 'dashboard/composables/useKanbanCardSelec
 import { useKanbanBulkActions } from 'dashboard/composables/useKanbanBulkActions';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
-import NextButton from 'dashboard/components-next/button/Button.vue';
 import KanbanStageColumn from './board/KanbanStageColumn.vue';
 import KanbanBoardHeader from './board/KanbanBoardHeader.vue';
 import KanbanBoardSummary from './board/KanbanBoardSummary.vue';
@@ -66,9 +65,6 @@ const isCreatingStageDraft = ref(false);
 const selectedOpportunityCardId = ref(null);
 const opportunityModalRef = ref(null);
 const opportunityTriggerRef = ref(null);
-const showUnsavedOpportunityChangesConfirm = ref(false);
-const isSavingOpportunityBeforeExit = ref(false);
-const pendingExitAction = ref(null);
 // Keyed by the thing being acted on, not by the verb, so a new action never has
 // to be registered anywhere for its spinner to work.
 const activeActionKeys = ref(new Set());
@@ -1229,29 +1225,16 @@ const navigateToConversation = card => {
 
 const closeOpportunityDetails = () => {
   selectedOpportunityCardId.value = null;
-  showUnsavedOpportunityChangesConfirm.value = false;
-  pendingExitAction.value = null;
   nextTick(() => {
     opportunityTriggerRef.value?.focus?.();
     opportunityTriggerRef.value = null;
   });
 };
 
-const executePendingExitAction = () => {
-  const action = pendingExitAction.value;
-  pendingExitAction.value = null;
+// The panel persists every field as it changes, so leaving it never asks.
+const requestOpportunityExit = action => {
   closeOpportunityDetails();
   action?.();
-};
-
-const requestOpportunityExit = action => {
-  pendingExitAction.value = action;
-  if (opportunityModalRef.value?.hasUnsavedChanges) {
-    showUnsavedOpportunityChangesConfirm.value = true;
-    return;
-  }
-
-  executePendingExitAction();
 };
 
 const openConversationInNewTab = card => {
@@ -1336,44 +1319,6 @@ const openCardFromQuery = () => {
 };
 
 watch([selectedBoard, () => route.query?.card_id], openCardFromQuery);
-
-const attemptCloseOpportunityDetails = () => {
-  if (opportunityModalRef.value?.hasUnsavedChanges) {
-    showUnsavedOpportunityChangesConfirm.value = true;
-    return;
-  }
-
-  closeOpportunityDetails();
-};
-
-const keepEditingOpportunity = () => {
-  showUnsavedOpportunityChangesConfirm.value = false;
-};
-
-const discardOpportunityChanges = () => {
-  if (pendingExitAction.value) {
-    executePendingExitAction();
-    return;
-  }
-
-  closeOpportunityDetails();
-};
-
-const saveAndCloseOpportunity = async () => {
-  if (isSavingOpportunityBeforeExit.value) return;
-
-  isSavingOpportunityBeforeExit.value = true;
-
-  try {
-    const saved = await opportunityModalRef.value?.saveCard();
-    if (saved) {
-      if (pendingExitAction.value) executePendingExitAction();
-      else closeOpportunityDetails();
-    }
-  } finally {
-    isSavingOpportunityBeforeExit.value = false;
-  }
-};
 
 const onOpportunityUpdated = updatedCard => {
   if (hasActiveFilters.value) {
@@ -1800,8 +1745,7 @@ watch(searchInput, () => {
       :custom-fields="selectedBoard.customFields || []"
       :move-to-stage="moveCardToStage"
       :opened-from-conversation="false"
-      :has-blocking-dialog="showUnsavedOpportunityChangesConfirm"
-      @close="attemptCloseOpportunityDetails"
+      @close="closeOpportunityDetails"
       @updated="onOpportunityUpdated"
       @open-conversation="openConversation"
       @open-conversation-in-new-tab="openConversationInNewTab"
@@ -1810,47 +1754,6 @@ watch(searchInput, () => {
       @board-changed="onOpportunityBoardChanged"
       @remove-card="onOpportunityRemoveCard"
     />
-
-    <woot-modal
-      :show="showUnsavedOpportunityChangesConfirm"
-      :show-close-button="false"
-      size="modal-narrow"
-      :on-close="keepEditingOpportunity"
-    >
-      <div class="p-6">
-        <h2 class="mb-2 text-base font-semibold text-n-slate-12">
-          {{ t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_CHANGES_TITLE') }}
-        </h2>
-        <p class="mb-6 text-sm text-n-slate-11">
-          {{
-            t('KANBAN.OPPORTUNITY_DETAILS.UNSAVED_FIELDS_MESSAGE', {
-              fields: opportunityModalRef?.unsavedFields?.join(', '),
-            })
-          }}
-        </p>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <NextButton
-            outline
-            slate
-            sm
-            :label="t('KANBAN.OPPORTUNITY_DETAILS.KEEP_EDITING')"
-            @click="keepEditingOpportunity"
-          />
-          <NextButton
-            ruby
-            sm
-            :label="t('KANBAN.OPPORTUNITY_DETAILS.DISCARD_CHANGES')"
-            @click="discardOpportunityChanges"
-          />
-          <NextButton
-            sm
-            :is-loading="isSavingOpportunityBeforeExit"
-            :label="t('KANBAN.OPPORTUNITY_DETAILS.SAVE_AND_EXIT')"
-            @click="saveAndCloseOpportunity"
-          />
-        </div>
-      </div>
-    </woot-modal>
 
     <woot-modal
       v-if="activeAddItemStageId && selectedBoard"

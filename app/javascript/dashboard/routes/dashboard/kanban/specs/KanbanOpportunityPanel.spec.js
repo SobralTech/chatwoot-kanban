@@ -1,120 +1,43 @@
-import { flushPromises, mount } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import camelcaseKeys from 'camelcase-keys';
 import { nextTick } from 'vue';
 import KanbanOpportunityPanel from '../opportunity/KanbanOpportunityPanel.vue';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import kanbanLocale from 'dashboard/i18n/locale/en/kanban.json';
+import conversationLocale from 'dashboard/i18n/locale/en/conversation.json';
 
 const storeMocks = vi.hoisted(() => ({
   labels: [],
   dispatch: vi.fn(),
 }));
 
-vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key, params = {}) => {
-      const translations = {
-        'KANBAN.OPPORTUNITY_DETAILS.TABS.PRODUCTS': 'Products',
-        'KANBAN.OPPORTUNITY_DETAILS.TABS.DETAILS': 'Details',
-        'KANBAN.OPPORTUNITY_DETAILS.AUTOSAVED_TAB': 'Saved automatically',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVED_AGO': 'Saved {time}',
-        'KANBAN.OPPORTUNITY_DETAILS.UNSAVED_STATE': 'Unsaved',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVING_STATE': 'Saving...',
-        'KANBAN.OPPORTUNITY_DETAILS.NO_CHANGES': 'No changes to save',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_CARD':
-          'Could not save the opportunity fields.',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_FIELDS':
-          'The opportunity was saved, but the additional data was not.',
-        'KANBAN.OPPORTUNITY_DETAILS.UNSAVED_FIELDS_MESSAGE':
-          'You changed: {fields}.',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_CHANGES': 'Save changes',
-        'KANBAN.OPPORTUNITY_DETAILS.TITLE': 'Edit Opportunity',
-        'KANBAN.OPPORTUNITY_DETAILS.COPY_CARD_ID_WITH_ID': 'Copy ID (#{id})',
-        'KANBAN.OPPORTUNITY_DETAILS.CARD_ID_COPIED': 'Card ID copied.',
-        'KANBAN.OPPORTUNITY_DETAILS.OPEN_IN_BOARD': 'Open in funnel',
-        'KANBAN.OPPORTUNITY_DETAILS.COPY_CARD_LINK': 'Copy card link',
-        'KANBAN.OPPORTUNITY_DETAILS.CARD_LINK_COPIED': 'Card link copied.',
-        'KANBAN.OPPORTUNITY_DETAILS.EDIT_SUBJECT': 'Edit subject',
-        'KANBAN.OPPORTUNITY_DETAILS.SUBJECT_UPDATE_ERROR':
-          'Could not update the subject.',
-        'KANBAN.OPPORTUNITY_DETAILS.QUICK_UPDATE_ERROR':
-          'Could not update the opportunity.',
-        'KANBAN.CARD.LABELS_UPDATE_ERROR': 'Could not update the card labels.',
-        'KANBAN.CARD.PRIORITY_UPDATE_ERROR':
-          'Could not update the card priority.',
-        'KANBAN.CARD.DUE_DATE_UPDATE_ERROR': 'Could not update the due date.',
-        'KANBAN.CARD.ASSIGN_ERROR': 'Could not update the assignees.',
-        'KANBAN.OPPORTUNITY_DETAILS.MORE_ITEMS': '+{count}',
-        'KANBAN.OPPORTUNITY_DETAILS.REASON_LABEL': 'Reason: {reason}',
-        'KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION': 'Description',
-        'KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_PLACEHOLDER':
-          'Add a single note for this card',
-        'KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE': 'Agent',
-        'KANBAN.OPPORTUNITY_DETAILS.UNASSIGNED': 'Unassigned',
-        'KANBAN.OPPORTUNITY_DETAILS.NO_ASSIGNABLE_USERS': 'No agents available',
-        'KANBAN.OPPORTUNITY_DETAILS.LOAD_ASSIGNEES_ERROR':
-          'Could not load assignees.',
-        'KANBAN.ACTIONS.REMOVE_CARD': 'Remove',
-        'KANBAN.OPPORTUNITY_DETAILS.PRIORITY': 'Priority',
-        'KANBAN.OPPORTUNITY_DETAILS.PRIORITY_NONE': 'No priority',
-        'CONVERSATION.PRIORITY.OPTIONS.URGENT': 'Urgent',
-        'CONVERSATION.PRIORITY.OPTIONS.HIGH': 'High',
-        'CONVERSATION.PRIORITY.OPTIONS.MEDIUM': 'Medium',
-        'CONVERSATION.PRIORITY.OPTIONS.LOW': 'Low',
-        'KANBAN.OPPORTUNITY_DETAILS.DUE_DATE': 'Due date',
-        'KANBAN.OPPORTUNITY_DETAILS.CHOOSE_DATE': 'Escolha a data',
-        'KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE': 'Clear due date',
-        'KANBAN.OPPORTUNITY_DETAILS.CANCEL': 'Cancel',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE': 'Save',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVING': 'Saving...',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_SUCCESS': 'Opportunity saved.',
-        'KANBAN.OPPORTUNITY_DETAILS.LABELS': 'Labels',
-        'KANBAN.OPPORTUNITY_DETAILS.LOAD_LABELS_ERROR':
-          'Could not load labels.',
-        'KANBAN.OPPORTUNITY_DETAILS.OPEN_CONVERSATION': 'Open conversation',
-        'KANBAN.OPPORTUNITY_DETAILS.LOADING': 'Loading opportunity details...',
-        'KANBAN.OPPORTUNITY_DETAILS.LOAD_ERROR':
-          'Could not load opportunity details.',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_ERROR':
-          'Could not save opportunity details.',
-        'KANBAN.OPPORTUNITY_DETAILS.REQUIRED_TITLE': 'Subject is required.',
-        'KANBAN.OPPORTUNITY_DETAILS.CLOSE': 'Close opportunity details',
-        'KANBAN.OPPORTUNITY_DETAILS.CLOSE_PANEL': 'Close opportunity details',
-        'KANBAN.CARD.SLA_STALE': 'SLA exceeded',
-        'KANBAN.CARD.SLA_TOOLTIP': '{age} / {hours} hours',
-        'KANBAN.CARD.ACTIONS_MENU': 'Card actions',
-        'KANBAN.CARD.UNKNOWN_CONTACT': 'Unknown contact',
-        'KANBAN.CARD.UNKNOWN_INBOX': 'Unknown inbox',
-        'KANBAN.CARD.OPEN_IN_NEW_TAB': 'Open in a new tab',
-        'KANBAN.CARD.MOVE_TO': 'Move to',
-        'KANBAN.CARD.MOVE_BOARD_LABEL': 'Funnel',
-        'KANBAN.CARD.MOVE_CURRENT_STAGE': '{name} (current) — move to top',
-        'KANBAN.CARD.NO_REGULAR_STAGES': 'No other stages available.',
-        'KANBAN.CARD.MOVE_CONFIRM_CLEAN': 'The opportunity keeps all its data.',
-        'KANBAN.CARD.MOVE_CONFIRM_REOPEN': 'The opportunity will be reopened.',
-        'KANBAN.CARD.MOVE_CONFIRM_REASON':
-          'The reason "{reason}" will be removed.',
-        'KANBAN.CARD.MOVE_CONFIRM_FIELDS':
-          '{count} of {total} custom fields do not exist in {board} and will be discarded: {keys}.',
-        'KANBAN.CARD.MOVE_CONFIRM_CANCEL': 'Cancel',
-        'KANBAN.CARD.MOVE_CONFIRM_SUBMIT': 'Move',
-        'KANBAN.CARD.MOVE_SUCCESS': 'Card moved.',
-        'KANBAN.CARD.MOVE_BOARD_ERROR': 'Could not move the opportunity.',
-        'KANBAN.CARD.MOVE_BOARD_ERROR_DUPLICATE':
-          '{board} already has an opportunity for this conversation.',
-        'KANBAN.CARD.MOVE_BOARD_ERROR_INBOX':
-          '{board} does not accept this inbox.',
-        'KANBAN.MENU.BACK': 'Back',
-      };
+// Resolve against the real locale files: a hand written dictionary here would
+// happily translate keys that do not exist in en.json.
+const localeMessages = {
+  ...kanbanLocale,
+  ...conversationLocale,
+};
+const translate = (key, values = {}) => {
+  const message = key
+    .split('.')
+    .reduce((node, part) => (node == null ? node : node[part]), localeMessages);
+  if (typeof message !== 'string') {
+    throw new Error(`Missing translation for ${key}`);
+  }
 
-      return Object.entries(params).reduce(
-        (message, [name, value]) =>
-          message.replace(`{${name}}`, value).replace(`#{${name}}`, value),
-        translations[key] || key
-      );
-    },
-  }),
+  return Object.entries(values).reduce(
+    (text, [name, value]) =>
+      text
+        .replaceAll(`{${name}}`, String(value))
+        .replaceAll(`#{${name}}`, String(value)),
+    message
+  );
+};
+
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({ t: (key, values) => translate(key, values) }),
 }));
 
 vi.mock('dashboard/api/kanbanBoards', () => ({
@@ -404,6 +327,15 @@ const editSubject = async (wrapper, value) => {
 };
 const descriptionInput = wrapper =>
   wrapper.find('[data-testid="kanban-opportunity-description"]');
+// The description persists on its own once typing settles, so the debounce has
+// to elapse before the request goes out.
+const typeDescription = async (wrapper, value) => {
+  vi.useFakeTimers();
+  await descriptionInput(wrapper).setValue(value);
+  await vi.advanceTimersByTimeAsync(900);
+  vi.useRealTimers();
+  await flushPromises();
+};
 const dueAtInput = wrapper =>
   wrapper.find('[data-testid="kanban-opportunity-due-at"]');
 const dueAtPicker = wrapper =>
@@ -412,8 +344,6 @@ const setDueAt = async (wrapper, value) => {
   dueAtPicker(wrapper).vm.$emit('update:modelValue', value);
   await nextTick();
 };
-const saveButton = wrapper =>
-  wrapper.find('[data-testid="kanban-opportunity-save"]');
 const labelButtons = wrapper =>
   wrapper.findAll('[data-testid="kanban-opportunity-label"]');
 const labelDropdownOptions = wrapper =>
@@ -447,6 +377,10 @@ describe('KanbanOpportunityPanel', () => {
       .trigger('click');
     await flushPromises();
   };
+
+  // Autosave timers outlive a test otherwise, firing against a still mounted
+  // panel while a later test is asserting on the same mocks.
+  enableAutoUnmount(afterEach);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -618,18 +552,15 @@ describe('KanbanOpportunityPanel', () => {
       501,
       { priority: 'urgent' }
     );
-    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
   });
 
-  it('saves description with existing scalar fields', async () => {
+  it('persists the description once typing settles', async () => {
     KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
       data: buildCard({ description: 'Updated card note' }),
     });
     const wrapper = await mountModal();
 
-    await descriptionInput(wrapper).setValue('Updated card note');
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
+    await typeDescription(wrapper, 'Updated card note');
 
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
       10,
@@ -644,9 +575,7 @@ describe('KanbanOpportunityPanel', () => {
     });
     const wrapper = await mountModal();
 
-    await descriptionInput(wrapper).setValue('');
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
+    await typeDescription(wrapper, '');
 
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
       10,
@@ -661,16 +590,12 @@ describe('KanbanOpportunityPanel', () => {
     });
     const wrapper = await mountModal();
 
-    await descriptionInput(wrapper).setValue('Preserved description');
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
+    await typeDescription(wrapper, 'Preserved description');
 
     expect(descriptionInput(wrapper).element.value).toBe(
       'Preserved description'
     );
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-save-error"]').text()
-    ).toContain('Could not save the opportunity fields.');
+    expect(useAlert).toHaveBeenCalledWith('Could not update the description.');
   });
 
   it('persists due date without touching start date', async () => {
@@ -725,7 +650,7 @@ describe('KanbanOpportunityPanel', () => {
     expect(subjectInput(wrapper).exists()).toBe(true);
   });
 
-  it('persists the subject immediately without dirtying the save bar', async () => {
+  it('persists the subject immediately', async () => {
     KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
       data: { subject: 'Updated subject' },
     });
@@ -740,7 +665,6 @@ describe('KanbanOpportunityPanel', () => {
       { subject: 'Updated subject' }
     );
     expect(subjectTitle(wrapper).text()).toContain('Updated subject');
-    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
   });
 
   it('discards inline subject edits with Escape', async () => {
@@ -784,7 +708,7 @@ describe('KanbanOpportunityPanel', () => {
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledTimes(1);
   });
 
-  it('emits updated on successful save', async () => {
+  it('emits updated once the description is persisted', async () => {
     const updatedCard = buildCard({
       description: 'Updated note',
     });
@@ -793,36 +717,35 @@ describe('KanbanOpportunityPanel', () => {
     });
     const wrapper = await mountModal();
 
-    await descriptionInput(wrapper).setValue('Updated note');
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
+    await typeDescription(wrapper, 'Updated note');
 
     expect(wrapper.emitted('updated')[0][0]).toMatchObject(
       camelcaseKeys(updatedCard, { deep: true })
     );
-    expect(useAlert).toHaveBeenCalledWith('Opportunity saved.');
   });
-  it('keeps the savebar visible and disables saving without changes', async () => {
+  it('reports a field in flight instead of asking for a save', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockReturnValue(
+      new Promise(() => {})
+    );
     const wrapper = await mountModal();
 
     expect(
       wrapper.find('[data-testid="kanban-opportunity-savebar"]').exists()
+    ).toBe(false);
+    expect(
+      wrapper
+        .find('[data-testid="kanban-opportunity-saving-indicator"]')
+        .exists()
+    ).toBe(false);
+
+    await editSubject(wrapper, 'Pending subject');
+    await typeDescription(wrapper, 'Pending description');
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-opportunity-saving-indicator"]')
+        .exists()
     ).toBe(true);
-    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
-    expect(saveButton(wrapper).attributes('title')).toBe('No changes to save');
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-save-state"]').text()
-    ).toContain('Saved');
-  });
-
-  it('marks the Details tab when description is dirty', async () => {
-    const wrapper = await mountModal();
-
-    await descriptionInput(wrapper).setValue('Updated description');
-
-    expect(
-      wrapper.findComponent({ name: 'TabBar' }).props('tabs')[0].label
-    ).toBe('Details •');
   });
 
   it('saves with the Ctrl+S shortcut', async () => {
@@ -1026,11 +949,10 @@ describe('KanbanOpportunityPanel', () => {
       .find(input => input.element.value === 'Enterprise');
 
     expect(fieldInput).toBeTruthy();
+    vi.useFakeTimers();
     await fieldInput.setValue('SMB');
-    await nextTick();
-
-    expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
-    await wrapper.vm.saveCard();
+    await vi.advanceTimersByTimeAsync(900);
+    vi.useRealTimers();
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardFieldValues).toHaveBeenCalledWith(
@@ -1177,12 +1099,11 @@ describe('KanbanOpportunityPanel', () => {
     expect(wrapper.text()).not.toContain('Add note');
   });
 
-  it('emits close from cancel action', async () => {
+  it('emits close from the header close button', async () => {
     const wrapper = await mountModal();
 
-    await editSubject(wrapper, 'Changed subject');
     await wrapper
-      .find('[data-testid="kanban-opportunity-cancel"]')
+      .find('[data-testid="kanban-opportunity-close"]')
       .trigger('click');
 
     expect(wrapper.emitted('close')).toHaveLength(1);
@@ -1327,11 +1248,6 @@ describe('KanbanOpportunityPanel', () => {
       card: { kanban_stage_id: 20, kanban_reason_id: null },
     });
     expect(descriptionInput(wrapper).element.value).toBe('Edited description');
-    expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-unsaved-indicator"]')
-        .exists()
-    ).toBe(true);
     expect(wrapper.emitted('updated')).toBeTruthy();
   });
   it('stands down from keyboard shortcuts while a blocking dialog is open', async () => {
@@ -1353,11 +1269,7 @@ describe('KanbanOpportunityPanel', () => {
 
     expect(wrapper.emitted('updated')).toBeUndefined();
     expect(wrapper.emitted('close')).toBeUndefined();
-    expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-unsaved-indicator"]')
-        .exists()
-    ).toBe(true);
+    expect(KanbanBoardsAPI.updateCardDetailsById).not.toHaveBeenCalled();
   });
 
   it('does not trap tab while a blocking dialog is open', async () => {
