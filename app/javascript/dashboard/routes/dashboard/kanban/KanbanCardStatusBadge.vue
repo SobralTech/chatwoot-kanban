@@ -22,6 +22,12 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  // 'md' matches the 28px control height the opportunity header row uses.
+  size: {
+    type: String,
+    default: 'sm',
+    validator: value => ['sm', 'md'].includes(value),
+  },
   lostReasonRequired: {
     type: Boolean,
     default: false,
@@ -128,8 +134,8 @@ const confirm = hide => {
     <button
       type="button"
       data-testid="kanban-card-status-badge"
-      class="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-n-weak px-2 py-0.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
-      :class="statusMeta.classes"
+      class="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-n-weak px-2 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+      :class="[statusMeta.classes, size === 'md' ? 'h-7' : 'py-0.5']"
       :title="t('KANBAN.CARD.STATUS.CHANGE')"
       :disabled="disabled"
     >

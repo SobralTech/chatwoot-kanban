@@ -1,84 +1,60 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
-
 const SAVED_TIME_REFRESH_INTERVAL = 60000;
 
 /**
- * Editable state of a single opportunity plus its per-field dirtiness.
- * Knows nothing about requests or the DOM: the panel loads the card, this
- * decides what changed and what the save bar should say.
+ * Draft state of a single opportunity plus its dirtiness. Every other field is
+ * persisted the moment it changes, so only the description is held here.
+ * Knows nothing about requests or the DOM.
  */
 export function useOpportunityForm({ isAdditionalDataDirty = () => false }) {
   const { t } = useI18n();
 
   const card = ref(null);
-  const subject = ref('');
   const description = ref('');
-  const dueAt = ref('');
-  const priority = ref('');
-  const selectedLabelTitles = ref([]);
-  const assignedUsers = ref([]);
   const assignableUsers = ref([]);
   const savedAt = ref(null);
   const currentTime = ref(Date.now());
 
   const setFormState = payload => {
     card.value = payload;
-    subject.value = payload.subject || '';
     description.value = payload.description || '';
-    dueAt.value = formatDateInput(payload.dueAt);
-    priority.value = payload.priority || '';
+    assignableUsers.value = payload.assignableUsers || [];
   };
 
   const patchCard = partial => {
     card.value = { ...(card.value || {}), ...partial };
   };
 
-  const setEmbeddedContext = payload => {
-    selectedLabelTitles.value = (payload.labels || []).map(
-      label => label.title || label
-    );
-    assignedUsers.value = payload.assignees || [];
-    assignableUsers.value = payload.assignableUsers || [];
-  };
-
-  const buildFormState = () => ({ description: description.value });
-
-  const initial = ref(buildFormState());
+  const initial = ref({ description: description.value });
 
   const captureSnapshot = () => {
-    initial.value = buildFormState();
+    initial.value = { description: description.value };
     savedAt.value = Date.now();
   };
 
-  const dirtyFields = computed(() => {
-    const current = buildFormState();
-    const changed = field => current[field] !== initial.value[field];
+  const dirtyFields = computed(() => ({
+    description: description.value !== initial.value.description,
+    additionalData: !!isAdditionalDataDirty(),
+  }));
 
-    return {
-      description: changed('description'),
-      additionalData: !!isAdditionalDataDirty(),
-    };
-  });
-
-  const hasGeneralChanges = computed(
-    () => dirtyFields.value.description || dirtyFields.value.additionalData
+  const hasGeneralChanges = computed(() =>
+    Object.values(dirtyFields.value).some(Boolean)
   );
 
   const hasUnsavedChanges = computed(
-    () => !!card.value && Object.values(dirtyFields.value).some(Boolean)
+    () => !!card.value && hasGeneralChanges.value
   );
 
-  const unsavedFields = computed(() => {
-    const dirty = dirtyFields.value;
-
-    return [
-      dirty.description && t('KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION'),
-      dirty.additionalData && t('KANBAN.OPPORTUNITY_DETAILS.TABS.DETAILS'),
-    ].filter(Boolean);
-  });
+  const unsavedFields = computed(() =>
+    [
+      dirtyFields.value.description &&
+        t('KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION'),
+      dirtyFields.value.additionalData &&
+        t('KANBAN.OPPORTUNITY_DETAILS.TABS.DETAILS'),
+    ].filter(Boolean)
+  );
 
   const savedTimeLabel = computed(() => {
     if (!savedAt.value) return '';
@@ -114,12 +90,7 @@ export function useOpportunityForm({ isAdditionalDataDirty = () => false }) {
 
   return {
     card,
-    subject,
     description,
-    dueAt,
-    priority,
-    selectedLabelTitles,
-    assignedUsers,
     assignableUsers,
     savedAt,
     savedTimeLabel,
@@ -128,7 +99,6 @@ export function useOpportunityForm({ isAdditionalDataDirty = () => false }) {
     hasUnsavedChanges,
     unsavedFields,
     setFormState,
-    setEmbeddedContext,
     patchCard,
     captureSnapshot,
   };

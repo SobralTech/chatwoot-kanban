@@ -6,11 +6,12 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
+import { useKanbanCardFields } from 'dashboard/composables/useKanbanCardFields';
 import {
   getCardStatusChangeErrorMessage,
   isDirectWonLostTransitionError,
 } from 'dashboard/helper/kanbanCardStatus';
-import { formatDateInput, toIso8601 } from 'dashboard/helper/kanbanDueDate';
+import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import KanbanCardDetailsTab from './tabs/KanbanCardDetailsTab.vue';
 import KanbanCardItemsTab from './tabs/KanbanCardItemsTab.vue';
@@ -20,7 +21,6 @@ import KanbanOpportunityHeader from './KanbanOpportunityHeader.vue';
 import KanbanOpportunitySaveBar from './KanbanOpportunitySaveBar.vue';
 import { normalizePayload } from './opportunityPayload';
 import { useOpportunityForm } from './composables/useOpportunityForm';
-import { useOpportunityQuickActions } from './composables/useOpportunityQuickActions';
 import { useOpportunitySave } from './composables/useOpportunitySave';
 import { usePanelKeyboard } from './composables/usePanelKeyboard';
 import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
@@ -115,12 +115,7 @@ const isAdditionalDataDirty = () =>
 const form = useOpportunityForm({ isAdditionalDataDirty });
 const {
   card,
-  subject,
   description,
-  dueAt,
-  priority,
-  selectedLabelTitles,
-  assignedUsers,
   assignableUsers,
   savedAt,
   savedTimeLabel,
@@ -129,6 +124,16 @@ const {
   unsavedFields,
   patchCard,
 } = form;
+
+// The header edits these straight through the card: they persist on change, so
+// mirroring them into their own refs only created two things to keep in sync.
+const subject = computed(() => card.value?.subject || '');
+const priority = computed(() => card.value?.priority || '');
+const dueAt = computed(() => formatDateInput(card.value?.dueAt));
+const selectedLabelTitles = computed(() =>
+  (card.value?.labels || []).map(label => label.title || label).filter(Boolean)
+);
+const assignedUsers = computed(() => card.value?.assignees || []);
 
 const {
   isSaving,
@@ -152,11 +157,37 @@ const notifyCardUpdated = () => {
   emit('updated', card.value);
 };
 
-const { isPending, run: runQuickAction } = useOpportunityQuickActions({
-  patchCard,
-  getCard: () => card.value,
+const {
+  isPending: isCardFieldPending,
+  run: runQuickAction,
+  updateDetail,
+  updateLabels,
+  updateAssignees,
+} = useKanbanCardFields({
+  t,
+  boardIdFor: () => Number(props.boardId),
+  patchCard: (targetCard, partial) => patchCard(partial),
   onUpdated: notifyCardUpdated,
+  onAssignableUsers: (targetCard, users) => {
+    assignableUsers.value = users;
+  },
+  resolveLabels: titles =>
+    titles.map(
+      title =>
+        accountLabels.value.find(label => label.title === title) || { title }
+    ),
+  resolveAssignees: ids =>
+    ids.map(
+      id =>
+        assignedUsers.value.find(user => Number(user.id) === Number(id)) ||
+        assignableUsers.value.find(user => Number(user.id) === Number(id)) || {
+          id,
+        }
+    ),
 });
+
+// The header only ever asks about the card the panel is showing.
+const isPending = field => isCardFieldPending(card.value, field);
 
 const cardDisplayId = computed(() => card.value?.id || props.cardId);
 const totalValue = computed(
@@ -195,126 +226,19 @@ const onProductsCardChanged = updatedCard => {
   notifyCardUpdated();
 };
 
-const cardResponse = response => normalizePayload(response?.data);
-
 const onSubjectChanged = subjectValue => {
   const nextSubject = subjectValue.trim();
-  const previousSubject = subject.value;
-  if (!nextSubject || nextSubject === previousSubject) return false;
+  if (!nextSubject || nextSubject === subject.value) return false;
 
-  return runQuickAction('subject', {
-    optimistic: () => {
-      subject.value = nextSubject;
-      patchCard({ subject: nextSubject });
-    },
-    request: () =>
-      KanbanBoardsAPI.updateCardDetailsById(props.boardId, props.cardId, {
-        subject: nextSubject,
-      }),
-    revert: () => {
-      subject.value = previousSubject;
-      patchCard({ subject: previousSubject });
-    },
-    apply: response => {
-      const updated = cardResponse(response);
-      const savedSubject = updated.subject ?? nextSubject;
-      subject.value = savedSubject;
-      return { subject: savedSubject };
-    },
-    errorMessage: t('KANBAN.OPPORTUNITY_DETAILS.SUBJECT_UPDATE_ERROR'),
-  });
+  return updateDetail(card.value, 'subject', nextSubject);
 };
 
-const onPriorityChanged = priorityValue => {
-  const nextPriority = priorityValue || '';
-  const previousPriority = priority.value;
+const onPriorityChanged = value =>
+  updateDetail(card.value, 'priority', value || '');
 
-  return runQuickAction('priority', {
-    optimistic: () => {
-      priority.value = nextPriority;
-      patchCard({ priority: nextPriority });
-    },
-    request: () =>
-      KanbanBoardsAPI.updateCardDetailsById(props.boardId, props.cardId, {
-        priority: nextPriority || null,
-      }),
-    revert: () => {
-      priority.value = previousPriority;
-      patchCard({ priority: previousPriority });
-    },
-    apply: response => {
-      const updated = cardResponse(response);
-      const savedPriority = updated.priority ?? nextPriority;
-      priority.value = savedPriority || '';
-      return { priority: savedPriority || '' };
-    },
-    errorMessage: t('KANBAN.OPPORTUNITY_DETAILS.QUICK_UPDATE_ERROR'),
-  });
-};
+const onDueAtChanged = value => updateDetail(card.value, 'dueAt', value || '');
 
-const onDueAtChanged = dueDate => {
-  const nextDueAt = dueDate || '';
-  const previousDueAt = dueAt.value;
-
-  return runQuickAction('dueAt', {
-    optimistic: () => {
-      dueAt.value = nextDueAt;
-      patchCard({ dueAt: nextDueAt });
-    },
-    request: () =>
-      KanbanBoardsAPI.updateCardDetailsById(props.boardId, props.cardId, {
-        due_at: toIso8601(nextDueAt),
-      }),
-    revert: () => {
-      dueAt.value = previousDueAt;
-      patchCard({ dueAt: previousDueAt });
-    },
-    apply: response => {
-      const updated = cardResponse(response);
-      const savedDueAt = updated.dueAt ?? nextDueAt;
-      dueAt.value = savedDueAt ? formatDateInput(savedDueAt) : '';
-      return { dueAt: savedDueAt || '' };
-    },
-    errorMessage: t('KANBAN.OPPORTUNITY_DETAILS.QUICK_UPDATE_ERROR'),
-  });
-};
-
-const labelsForTitles = titles =>
-  titles.map(
-    title =>
-      accountLabels.value.find(label => label.title === title) || { title }
-  );
-
-const setLabels = titles => {
-  selectedLabelTitles.value = [...titles];
-  patchCard({ labels: labelsForTitles(titles) });
-};
-
-const onLabelsChanged = titles => {
-  const nextTitles = [...titles];
-  const previousTitles = [...selectedLabelTitles.value];
-
-  return runQuickAction('labels', {
-    optimistic: () => setLabels(nextTitles),
-    request: () =>
-      KanbanBoardsAPI.updateCardLabels(props.boardId, props.cardId, nextTitles),
-    revert: () => setLabels(previousTitles),
-    apply: response => {
-      const responseLabels = normalizePayload(
-        response?.data?.payload ?? response?.data ?? []
-      );
-      const savedLabels = Array.isArray(responseLabels)
-        ? responseLabels
-        : labelsForTitles(nextTitles);
-      const savedTitles = savedLabels
-        .map(label => label.title || label)
-        .filter(Boolean);
-      setLabels(savedTitles);
-      return { labels: savedLabels };
-    },
-    errorMessage: t('KANBAN.OPPORTUNITY_DETAILS.QUICK_UPDATE_ERROR'),
-  });
-};
+const onLabelsChanged = titles => updateLabels(card.value, titles);
 
 const onAddLabel = label => {
   const title = label?.title || label;
@@ -328,58 +252,13 @@ const onRemoveLabel = title =>
     selectedLabelTitles.value.filter(selectedTitle => selectedTitle !== title)
   );
 
-const setAssignedUsers = users => {
-  assignedUsers.value = [...users];
-  patchCard({ assignees: [...users] });
-};
-
 const onToggleAssignee = user => {
-  const previousUsers = [...assignedUsers.value];
-  const isAssigned = previousUsers.some(
-    assignedUser => Number(assignedUser.id) === Number(user.id)
-  );
-  const nextUsers = isAssigned
-    ? previousUsers.filter(
-        assignedUser => Number(assignedUser.id) !== Number(user.id)
-      )
-    : [...previousUsers, user];
-  const nextAssigneeIds = nextUsers.map(assignedUser =>
-    Number(assignedUser.id)
-  );
+  const assignedIds = assignedUsers.value.map(assigned => Number(assigned.id));
+  const nextIds = assignedIds.includes(Number(user.id))
+    ? assignedIds.filter(id => id !== Number(user.id))
+    : [...assignedIds, Number(user.id)];
 
-  return runQuickAction('assignees', {
-    optimistic: () => setAssignedUsers(nextUsers),
-    request: () =>
-      KanbanBoardsAPI.updateCardAssignees(
-        props.boardId,
-        props.cardId,
-        nextAssigneeIds
-      ),
-    revert: () => setAssignedUsers(previousUsers),
-    apply: response => {
-      const payload = normalizePayload(response?.data || {});
-      const savedUsers = payload.payload || nextUsers;
-      assignedUsers.value = savedUsers;
-      assignableUsers.value = payload.assignableUsers || assignableUsers.value;
-      return {
-        assignees: savedUsers,
-        assignableUsers: assignableUsers.value,
-      };
-    },
-    errorMessage: t('KANBAN.OPPORTUNITY_DETAILS.QUICK_UPDATE_ERROR'),
-  });
-};
-
-const moveToStage = (targetCard, targetStageId) => {
-  const previousStageId = card.value?.kanbanStageId;
-
-  return runQuickAction('stage', {
-    optimistic: () => patchCard({ kanbanStageId: targetStageId }),
-    request: () => props.moveToStage(targetCard, Number(targetStageId)),
-    revert: () => patchCard({ kanbanStageId: previousStageId }),
-    apply: () => ({ kanbanStageId: Number(targetStageId) }),
-    errorMessage: t('KANBAN.OPPORTUNITY_DETAILS.QUICK_UPDATE_ERROR'),
-  });
+  return updateAssignees(card.value, nextIds);
 };
 
 const isLostReasonRequiredError = error =>
@@ -395,6 +274,14 @@ const moveStageErrorMessage = error => {
 
   return apiErrorMessage(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
 };
+
+const moveToStage = (targetCard, targetStageId) =>
+  runQuickAction(card.value, 'stage', {
+    optimistic: { kanbanStageId: Number(targetStageId) },
+    request: () => props.moveToStage(targetCard, Number(targetStageId)),
+    apply: () => ({ kanbanStageId: Number(targetStageId) }),
+    errorKey: moveStageErrorMessage,
+  });
 
 const closeMoveDialog = () => {
   if (isMovingCard.value) return;
@@ -414,23 +301,21 @@ const onMoveRequested = async ({ boardId, stageId }) => {
   if (!sourceBoardId || !targetBoardId || !targetStageId || !targetBoard)
     return;
 
+  if (sourceBoardId === targetBoardId) {
+    isMovingCard.value = true;
+    const moved = await moveToStage(card.value, targetStageId);
+    isMovingCard.value = false;
+    if (moved) {
+      showMoveDialog.value = false;
+      useAlert(t('KANBAN.CARD.MOVE_SUCCESS'));
+    }
+
+    return;
+  }
+
   isMovingCard.value = true;
 
   try {
-    if (sourceBoardId === targetBoardId) {
-      await KanbanBoardsAPI.reorderCardById(sourceBoardId, card.value.id, {
-        card: {
-          kanban_stage_id: targetStageId,
-          after_card_id: null,
-        },
-      });
-      patchCard({ kanbanStageId: targetStageId });
-      notifyCardUpdated();
-      showMoveDialog.value = false;
-      useAlert(t('KANBAN.CARD.MOVE_SUCCESS'));
-      return;
-    }
-
     await KanbanBoardsAPI.moveCardToBoard(sourceBoardId, card.value.id, {
       target_kanban_board_id: targetBoardId,
       kanban_stage_id: targetStageId,
@@ -441,11 +326,6 @@ const onMoveRequested = async ({ boardId, stageId }) => {
       boardName: targetBoard.name,
     });
   } catch (error) {
-    if (sourceBoardId === targetBoardId) {
-      useAlert(moveStageErrorMessage(error));
-      return;
-    }
-
     const errorCode = error?.response?.data?.error;
     if (errorCode === 'card_already_in_target_board') {
       useAlert(
@@ -469,15 +349,13 @@ const onMoveRequested = async ({ boardId, stageId }) => {
 
 const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
   const previousStageId = card.value?.kanbanStageId;
-  const previousReasonId = card.value?.kanbanReasonId;
   const nextReasonId = reopen ? null : reasonId || null;
 
-  const changed = await runQuickAction('status', {
-    optimistic: () =>
-      patchCard({
-        ...(reopen ? {} : { kanbanStageId: targetStageId }),
-        kanbanReasonId: nextReasonId,
-      }),
+  const changed = await runQuickAction(card.value, 'status', {
+    optimistic: {
+      kanbanStageId: reopen ? previousStageId : targetStageId,
+      kanbanReasonId: nextReasonId,
+    },
     request: () =>
       reopen
         ? KanbanBoardsAPI.reopenCardById(props.boardId, props.cardId)
@@ -487,21 +365,15 @@ const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
               kanban_reason_id: nextReasonId,
             },
           }),
-    revert: () =>
-      patchCard({
-        kanbanStageId: previousStageId,
-        kanbanReasonId: previousReasonId,
-      }),
     apply: response => {
-      const updated = cardResponse(response);
+      const updated = normalizePayload(response?.data);
       return {
         kanbanStageId:
           updated.kanbanStageId ?? (reopen ? previousStageId : targetStageId),
         kanbanReasonId: updated.kanbanReasonId ?? nextReasonId,
       };
     },
-    errorMessage: error =>
-      getCardStatusChangeErrorMessage(error, { reopen, t }),
+    errorKey: error => getCardStatusChangeErrorMessage(error, { reopen, t }),
   });
 
   if (changed) {
@@ -555,7 +427,6 @@ const loadCard = async () => {
     );
     const cardPayload = normalizePayload(response.data);
     form.setFormState(cardPayload);
-    form.setEmbeddedContext(cardPayload);
     form.captureSnapshot();
   } catch (error) {
     loadError.value = apiErrorMessage(
@@ -643,7 +514,6 @@ defineExpose({
         :lost-stage-id="lostStageId"
         :lost-reason-required="lostReasonRequired"
         :reasons="reasons"
-        :move-to-stage="moveToStage"
         :account-labels="accountLabels"
         :selected-label-titles="selectedLabelTitles"
         :assigned-users="assignedUsers"
@@ -653,7 +523,6 @@ defineExpose({
         @update:priority="onPriorityChanged"
         @update:due-at="onDueAtChanged"
         @change-status="onChangeCardStatus"
-        @stage-moved="patchCard({ kanbanStageId: $event })"
         @copy-card-id="copyCardId"
         @copy-card-link="copyCardLink"
         @add-label="onAddLabel"

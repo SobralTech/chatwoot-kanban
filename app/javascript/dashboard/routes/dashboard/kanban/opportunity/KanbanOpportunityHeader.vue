@@ -68,15 +68,10 @@ defineProps({
     type: Array,
     default: () => [],
   },
-  moveToStage: {
-    type: Function,
-    required: true,
-  },
 });
 
 const emit = defineEmits([
   'changeStatus',
-  'stageMoved',
   'addLabel',
   'removeLabel',
   'toggleAssignee',
@@ -116,13 +111,13 @@ const dueAt = defineModel('dueAt', {
       :card="card"
       :card-display-id="cardDisplayId"
       :board-name="boardName"
+      :stages="stages"
       :opened-from-conversation="openedFromConversation"
       :has-unsaved-changes="hasUnsavedChanges"
       :is-pending="isPending('subject')"
       @open-conversation="emit('openConversation', $event)"
       @open-conversation-in-new-tab="emit('openConversationInNewTab', $event)"
       @open-funnel="emit('openFunnel', $event)"
-      @open-move="emit('openMove')"
       @copy-card-id="emit('copyCardId')"
       @copy-card-link="emit('copyCardLink', $event)"
       @remove-card="emit('removeCard', $event)"
@@ -138,13 +133,12 @@ const dueAt = defineModel('dueAt', {
       :lost-stage-id="lostStageId"
       :lost-reason-required="lostReasonRequired"
       :reasons="reasons"
-      :move-to-stage="moveToStage"
       :total-value="totalValue"
       :assigned-users="assignedUsers"
       :assignable-users="assignableUsers"
       :is-pending="isPending"
       @change-status="emit('changeStatus', $event)"
-      @stage-moved="emit('stageMoved', $event)"
+      @open-move="emit('openMove')"
       @toggle-assignee="emit('toggleAssignee', $event)"
       @open-products="emit('openProducts')"
     />

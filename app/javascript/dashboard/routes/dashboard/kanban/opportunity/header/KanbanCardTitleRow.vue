@@ -2,6 +2,8 @@
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { useKanbanCardSla } from 'dashboard/composables/useKanbanCardSla';
+
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import InlineInput from 'dashboard/components-next/inline-input/InlineInput.vue';
@@ -19,6 +21,10 @@ const props = defineProps({
   boardName: {
     type: String,
     default: '',
+  },
+  stages: {
+    type: Array,
+    default: () => [],
   },
   openedFromConversation: {
     type: Boolean,
@@ -38,7 +44,6 @@ const emit = defineEmits([
   'openConversation',
   'openConversationInNewTab',
   'openFunnel',
-  'openMove',
   'copyCardId',
   'copyCardLink',
   'removeCard',
@@ -72,6 +77,16 @@ const contactName = computed(
 const inboxName = computed(
   () => inboxObject.value?.name || t('KANBAN.CARD.UNKNOWN_INBOX')
 );
+const currentStage = computed(() =>
+  props.stages.find(
+    stage => Number(stage.id) === Number(props.card.kanbanStageId)
+  )
+);
+const { stageSlaStatusValue, stageSlaClasses, stageTime, stageTimeTitle } =
+  useKanbanCardSla(
+    computed(() => props.card),
+    computed(() => currentStage.value?.slaHours)
+  );
 const subtitleItems = computed(() =>
   [
     { key: 'contact', label: contactName.value },
@@ -79,6 +94,8 @@ const subtitleItems = computed(() =>
       ? { key: 'inbox', label: inboxName.value }
       : null,
     props.boardName ? { key: 'board', label: props.boardName } : null,
+    // How long the card has sat in its stage belongs next to the funnel name.
+    stageTime.value ? { key: 'stageTime', label: stageTime.value } : null,
   ].filter(Boolean)
 );
 const errorMessage = computed(() => localError.value);
@@ -135,19 +152,46 @@ const onTitleKeydown = event => {
     <div class="min-w-0 flex-1">
       <div class="flex min-w-0 items-center gap-2">
         <div v-if="isEditing" class="min-w-0 flex-1">
-          <InlineInput
-            ref="titleInput"
-            :model-value="draftSubject"
-            focus-on-mount
-            data-testid="kanban-opportunity-title-input"
-            :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.EDIT_SUBJECT')"
-            custom-input-class="font-semibold"
-            :disabled="isPending"
-            @update:model-value="updateDraft"
-            @enter-press="commitEditing"
-            @escape-press="cancelEditing"
-            @blur="commitEditing"
-          />
+          <div class="flex min-w-0 items-center gap-1">
+            <InlineInput
+              ref="titleInput"
+              :model-value="draftSubject"
+              focus-on-mount
+              class="min-w-0 flex-1"
+              data-testid="kanban-opportunity-title-input"
+              :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.EDIT_SUBJECT')"
+              custom-input-class="font-semibold"
+              :disabled="isPending"
+              @update:model-value="updateDraft"
+              @enter-press="commitEditing"
+              @escape-press="cancelEditing"
+              @blur="commitEditing"
+            />
+            <button
+              type="button"
+              data-testid="kanban-opportunity-title-confirm"
+              class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-n-weak text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-teal-11 disabled:cursor-not-allowed disabled:opacity-50"
+              :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.CONFIRM_SUBJECT')"
+              :title="t('KANBAN.OPPORTUNITY_DETAILS.CONFIRM_SUBJECT')"
+              :disabled="isPending"
+              @mousedown.prevent
+              @click="commitEditing"
+            >
+              <i class="i-lucide-check size-4" />
+            </button>
+            <button
+              type="button"
+              data-testid="kanban-opportunity-title-cancel"
+              class="flex size-8 flex-shrink-0 items-center justify-center rounded-md border border-n-weak text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-ruby-11 disabled:cursor-not-allowed disabled:opacity-50"
+              :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.CANCEL_SUBJECT')"
+              :title="t('KANBAN.OPPORTUNITY_DETAILS.CANCEL_SUBJECT')"
+              :disabled="isPending"
+              @mousedown.prevent
+              @click="cancelEditing"
+            >
+              <i class="i-lucide-x size-4" />
+            </button>
+          </div>
           <p
             v-if="errorMessage"
             data-testid="kanban-opportunity-subject-error"
@@ -184,33 +228,46 @@ const onTitleKeydown = event => {
 
       <div
         data-testid="kanban-opportunity-subtitle"
-        class="mt-1 flex min-w-0 items-center overflow-hidden text-xs text-n-slate-11"
+        class="mt-1.5 flex min-w-0 items-center overflow-hidden text-sm leading-5 text-n-slate-11"
       >
         <template v-for="(item, index) in subtitleItems" :key="item.key">
           <span v-if="index" class="mx-1 flex-shrink-0">·</span>
           <span
-            class="flex min-w-0 max-w-[12rem] flex-shrink items-center gap-1 truncate"
-            :title="item.label"
+            class="flex min-w-0 max-w-[12rem] flex-shrink items-center gap-1.5 truncate"
+            :class="item.key === 'stageTime' ? stageSlaClasses : ''"
+            :title="item.key === 'stageTime' ? stageTimeTitle : item.label"
+            :data-testid="
+              item.key === 'stageTime' ? 'kanban-opportunity-stage-sla' : null
+            "
+            :aria-label="
+              item.key === 'stageTime' && stageSlaStatusValue === 'stale'
+                ? t('KANBAN.CARD.SLA_STALE')
+                : null
+            "
           >
+            <i
+              v-if="item.key === 'stageTime'"
+              class="i-lucide-clock size-4 flex-shrink-0"
+            />
             <Avatar
-              v-if="item.key === 'contact' && hasContact"
+              v-else-if="item.key === 'contact' && hasContact"
               :name="item.label"
               :src="contact.thumbnail"
-              :size="16"
+              :size="20"
               rounded-full
             />
             <i
               v-else-if="item.key === 'contact'"
-              class="i-lucide-user-round size-3.5 flex-shrink-0"
+              class="i-lucide-user-round size-4 flex-shrink-0"
             />
             <ChannelIcon
               v-else-if="item.key === 'inbox' && inboxObject"
               :inbox="inboxObject"
-              class="size-3.5 flex-shrink-0"
+              class="size-4 flex-shrink-0"
             />
             <i
               v-else-if="item.key === 'inbox'"
-              class="i-lucide-inbox size-3.5 flex-shrink-0"
+              class="i-lucide-inbox size-4 flex-shrink-0"
             />
             <span class="min-w-0 truncate">{{ item.label }}</span>
           </span>
@@ -226,7 +283,6 @@ const onTitleKeydown = event => {
         @open-conversation="emit('openConversation', $event)"
         @open-conversation-in-new-tab="emit('openConversationInNewTab', $event)"
         @open-funnel="emit('openFunnel', $event)"
-        @open-move="emit('openMove')"
         @copy-card-id="emit('copyCardId')"
         @copy-card-link="emit('copyCardLink', $event)"
         @remove-card="emit('removeCard', $event)"

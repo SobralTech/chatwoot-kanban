@@ -736,6 +736,8 @@
         }
       },
       "EDIT_SUBJECT": "Edit subject",
+      "CONFIRM_SUBJECT": "Save title",
+      "CANCEL_SUBJECT": "Discard title changes",
       "MOVE_TO_STAGE": "Move to stage",
       "COPY_CARD_ID_WITH_ID": "Copy ID (#{id})",
       "CARD_ID_COPIED": "Card ID copied.",

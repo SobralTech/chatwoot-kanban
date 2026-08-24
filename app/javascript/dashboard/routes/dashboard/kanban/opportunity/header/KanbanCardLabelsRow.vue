@@ -47,17 +47,19 @@ const labelDropdownProps = computed(() => ({
 <template>
   <div
     data-testid="kanban-opportunity-labels-row"
-    class="flex min-w-0 flex-wrap items-center gap-1.5"
+    class="flex min-w-0 flex-wrap items-center gap-2"
   >
     <Popover align="start" disable-mobile-view :show-content-border="false">
       <button
         type="button"
         data-testid="kanban-opportunity-labels-menu"
-        class="flex size-6 flex-shrink-0 items-center justify-center rounded-md border border-n-weak text-sm font-medium text-n-slate-11 hover:bg-n-alpha-2"
+        class="inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-n-weak px-2 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
         :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.LABELS')"
+        :title="t('KANBAN.OPPORTUNITY_DETAILS.LABELS')"
         :disabled="disabled"
       >
-        <i class="i-lucide-plus size-4" />
+        <i class="i-lucide-tag size-3 flex-shrink-0" />
+        {{ t('KANBAN.OPPORTUNITY_DETAILS.LABELS') }}
       </button>
       <template #content>
         <div
@@ -94,7 +96,7 @@ const labelDropdownProps = computed(() => ({
       <button
         type="button"
         data-testid="kanban-opportunity-more-labels"
-        class="flex h-6 flex-shrink-0 items-center rounded-full border border-n-weak px-2 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-2"
+        class="flex h-7 flex-shrink-0 items-center rounded-full border border-n-weak px-2 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
         :aria-label="
           t('KANBAN.OPPORTUNITY_DETAILS.MORE_ITEMS', {
             count: remainingLabelCount,

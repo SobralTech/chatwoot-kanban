@@ -1,13 +1,10 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
-import Select from 'dashboard/components-next/select/Select.vue';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
-import { SLA_STALE } from 'dashboard/helper/kanbanStageSla';
-import { useKanbanCardSla } from 'dashboard/composables/useKanbanCardSla';
 import KanbanCardStatusBadge from '../../KanbanCardStatusBadge.vue';
 import KanbanDueDatePicker from '../../KanbanDueDatePicker.vue';
 import KanbanPriorityDropdown from '../../KanbanPriorityDropdown.vue';
@@ -37,10 +34,6 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
-  moveToStage: {
-    type: Function,
-    required: true,
-  },
   totalValue: {
     type: Number,
     default: 0,
@@ -61,7 +54,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'changeStatus',
-  'stageMoved',
+  'openMove',
   'openProducts',
   'toggleAssignee',
 ]);
@@ -76,48 +69,28 @@ const dueAt = defineModel('dueAt', {
 });
 
 const { t } = useI18n();
-const isMovingStage = ref(false);
-const stageSelection = ref(props.card.kanbanStageId || '');
 
 const isTerminalStage = stage =>
   Number(stage.id) === Number(props.wonStageId) ||
   Number(stage.id) === Number(props.lostStageId);
-
-const stageOptions = computed(() => {
-  const options = props.stages
-    .filter(stage => !isTerminalStage(stage))
-    .map(stage => ({ value: stage.id, label: stage.name }));
-  const currentStage = props.stages.find(
-    stage => Number(stage.id) === Number(props.card.kanbanStageId)
-  );
-
-  if (currentStage && isTerminalStage(currentStage)) {
-    options.push({
-      value: currentStage.id,
-      label: currentStage.name,
-      disabled: true,
-    });
-  }
-
-  return options;
-});
 
 const currentStage = computed(() =>
   props.stages.find(
     stage => Number(stage.id) === Number(props.card.kanbanStageId)
   )
 );
+const stageName = computed(
+  () => currentStage.value?.name || t('KANBAN.CARD.UNKNOWN_STAGE')
+);
 const terminal = computed(() =>
   isTerminalStage({ id: props.card.kanbanStageId })
 );
-const reasonId = computed(
-  () => props.card.kanbanReasonId ?? props.card.kanban_reason_id
-);
 const reasonTitle = computed(() => {
-  if (!terminal.value || !reasonId.value) return '';
+  if (!terminal.value || !props.card.kanbanReasonId) return '';
 
-  return props.reasons.find(item => Number(item.id) === Number(reasonId.value))
-    ?.title;
+  return props.reasons.find(
+    item => Number(item.id) === Number(props.card.kanbanReasonId)
+  )?.title;
 });
 const hasValue = computed(() => Number(props.totalValue) > 0);
 const formattedTotalValue = computed(() => formatCurrency(props.totalValue));
@@ -128,57 +101,44 @@ const extraAssigneeCount = computed(() =>
 const selectedAssigneeIds = computed(() =>
   props.assignedUsers.map(user => Number(user.id))
 );
-const { stageSlaStatusValue, stageSlaClasses, stageTime, stageTimeTitle } =
-  useKanbanCardSla(
-    computed(() => props.card),
-    computed(() => currentStage.value?.slaHours)
-  );
-
-watch(
-  () => props.card.kanbanStageId,
-  stageId => {
-    stageSelection.value = stageId || '';
-  }
-);
-
-const onStageChanged = async stageId => {
-  const targetStageId = Number(stageId);
-  const currentStageId = Number(props.card.kanbanStageId);
-  if (!targetStageId || targetStageId === currentStageId) return;
-
-  isMovingStage.value = true;
-  const moved = await props.moveToStage(props.card, targetStageId);
-  isMovingStage.value = false;
-
-  if (moved === false) {
-    stageSelection.value = currentStageId || '';
-    return;
-  }
-
-  emit('stageMoved', targetStageId);
-};
 </script>
 
 <template>
+  <!-- Every control in this row is 28px tall so the header reads as one strip. -->
   <div
     data-testid="kanban-opportunity-quick-controls"
     class="flex min-w-0 flex-wrap items-center gap-2"
   >
     <KanbanCardStatusBadge
       v-if="wonStageId && lostStageId"
+      size="md"
       :kanban-stage-id="card.kanbanStageId"
       :won-stage-id="wonStageId"
       :lost-stage-id="lostStageId"
       :reasons="reasons"
       :lost-reason-required="lostReasonRequired"
-      :disabled="isPending('status') || isMovingStage"
+      :disabled="isPending('status') || isPending('stage')"
       @change="emit('changeStatus', $event)"
     />
+
+    <button
+      type="button"
+      data-testid="kanban-opportunity-move-to"
+      class="inline-flex h-7 min-w-0 items-center gap-1.5 rounded-md border border-n-weak bg-n-surface-1 px-2 text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+      :title="t('KANBAN.CARD.MOVE_TO')"
+      :aria-label="t('KANBAN.CARD.MOVE_TO')"
+      :disabled="isPending('stage')"
+      @click="emit('openMove')"
+    >
+      <i class="i-lucide-corner-up-right size-3 flex-shrink-0" />
+      <span class="min-w-0 max-w-[10rem] truncate">{{ stageName }}</span>
+      <i class="i-lucide-chevron-down size-3 flex-shrink-0 text-n-slate-11" />
+    </button>
 
     <span
       v-if="reasonTitle"
       data-testid="kanban-opportunity-reason"
-      class="max-w-[14rem] truncate rounded-full border border-n-weak px-2 py-1 text-xs text-n-slate-11"
+      class="inline-flex h-7 max-w-[14rem] items-center truncate rounded-full border border-n-weak px-2 text-xs text-n-slate-11"
       :title="
         t('KANBAN.OPPORTUNITY_DETAILS.REASON_LABEL', { reason: reasonTitle })
       "
@@ -186,31 +146,6 @@ const onStageChanged = async stageId => {
       {{
         t('KANBAN.OPPORTUNITY_DETAILS.REASON_LABEL', { reason: reasonTitle })
       }}
-    </span>
-
-    <Select
-      v-if="stageOptions.length"
-      v-model="stageSelection"
-      data-testid="kanban-opportunity-stage-select"
-      :options="stageOptions"
-      :disabled="isMovingStage || isPending('stage')"
-      :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.MOVE_TO_STAGE')"
-      @update:model-value="onStageChanged"
-    />
-    <span
-      v-if="stageTime"
-      data-testid="kanban-opportunity-stage-sla"
-      class="inline-flex min-w-0 items-center gap-1 truncate text-xs"
-      :class="stageSlaClasses"
-      :title="stageTimeTitle"
-      :aria-label="
-        stageSlaStatusValue === SLA_STALE
-          ? t('KANBAN.CARD.SLA_STALE')
-          : undefined
-      "
-    >
-      <i class="i-lucide-clock size-3 flex-shrink-0" />
-      <span class="truncate">{{ stageTime }}</span>
     </span>
 
     <KanbanPriorityDropdown
@@ -234,7 +169,7 @@ const onStageChanged = async stageId => {
         v-if="hasValue"
         type="button"
         data-testid="kanban-opportunity-total-value"
-        class="max-w-[10rem] truncate rounded-full border border-n-weak px-2 py-1 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-2"
+        class="inline-flex h-7 max-w-[10rem] items-center truncate rounded-full border border-n-weak px-2 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-2"
         :title="formattedTotalValue"
         @click="emit('openProducts')"
       >
@@ -245,7 +180,7 @@ const onStageChanged = async stageId => {
         <button
           type="button"
           data-testid="kanban-opportunity-assignees-menu"
-          class="flex min-h-7 items-center gap-1 rounded-md px-1 text-n-slate-11 hover:bg-n-alpha-2"
+          class="flex h-7 items-center gap-1 rounded-md px-1 text-n-slate-11 hover:bg-n-alpha-2"
           :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE')"
           :disabled="isPending('assignees')"
         >

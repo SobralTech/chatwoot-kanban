@@ -40,6 +40,11 @@ vi.mock('vue-i18n', () => ({
           'Could not update the subject.',
         'KANBAN.OPPORTUNITY_DETAILS.QUICK_UPDATE_ERROR':
           'Could not update the opportunity.',
+        'KANBAN.CARD.LABELS_UPDATE_ERROR': 'Could not update the card labels.',
+        'KANBAN.CARD.PRIORITY_UPDATE_ERROR':
+          'Could not update the card priority.',
+        'KANBAN.CARD.DUE_DATE_UPDATE_ERROR': 'Could not update the due date.',
+        'KANBAN.CARD.ASSIGN_ERROR': 'Could not update the assignees.',
         'KANBAN.OPPORTUNITY_DETAILS.MORE_ITEMS': '+{count}',
         'KANBAN.OPPORTUNITY_DETAILS.REASON_LABEL': 'Reason: {reason}',
         'KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION': 'Description',
@@ -415,6 +420,34 @@ const labelDropdownOptions = wrapper =>
   wrapper.findAll('[data-testid="kanban-label-dropdown-option"]');
 
 describe('KanbanOpportunityPanel', () => {
+  const openHeaderMenu = async wrapper => {
+    await wrapper
+      .find('[data-testid="kanban-opportunity-more-actions"]')
+      .trigger('click');
+  };
+
+  const headerMenuItems = wrapper =>
+    wrapper.findAll('[data-testid="kanban-opportunity-actions-menu"] button');
+
+  const headerMenuItem = (wrapper, label) =>
+    headerMenuItems(wrapper).find(button => button.text().includes(label));
+
+  const openMoveDialogFromHeader = async wrapper => {
+    await wrapper
+      .find('[data-testid="kanban-opportunity-move-to"]')
+      .trigger('click');
+  };
+
+  const submitMoveToStage = async (wrapper, stageIndex) => {
+    await wrapper
+      .findAll('[data-testid="kanban-card-move-dialog-stage"]')
+      [stageIndex].trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-card-move-dialog-submit"]')
+      .trigger('click');
+    await flushPromises();
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     storeMocks.labels = [];
@@ -483,9 +516,8 @@ describe('KanbanOpportunityPanel', () => {
     expect(
       wrapper.find('[data-testid="kanban-opportunity-card-id"]').exists()
     ).toBe(false);
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-copy-card-id"]').text()
-    ).toContain('Copy ID (#501)');
+    await openHeaderMenu(wrapper);
+    expect(headerMenuItem(wrapper, 'Copy ID (#501)')).toBeTruthy();
     expect(
       wrapper.find('[data-testid="kanban-opportunity-close"]').exists()
     ).toBe(true);
@@ -494,9 +526,8 @@ describe('KanbanOpportunityPanel', () => {
   it('copies card ID from the header', async () => {
     const wrapper = await mountModal();
 
-    await wrapper
-      .find('[data-testid="kanban-opportunity-copy-card-id"]')
-      .trigger('click');
+    await openHeaderMenu(wrapper);
+    await headerMenuItem(wrapper, 'Copy ID (#501)').trigger('click');
 
     expect(copyTextToClipboard).toHaveBeenCalledWith(501);
     expect(useAlert).toHaveBeenCalledWith('Card ID copied.');
@@ -825,20 +856,16 @@ describe('KanbanOpportunityPanel', () => {
         .findComponent({ name: 'ChannelIcon' })
         .props('inbox')
     ).toEqual(camelcaseKeys(buildCard().inbox, { deep: true }));
-    expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-open-conversation"]')
-        .text()
-    ).toContain('Open conversation');
+    await openHeaderMenu(wrapper);
+    expect(headerMenuItem(wrapper, 'Open conversation')).toBeTruthy();
   });
 
   it('emits open conversation with card payload', async () => {
     const card = buildCard();
     const wrapper = await mountModal({ card });
 
-    await wrapper
-      .find('[data-testid="kanban-opportunity-open-conversation"]')
-      .trigger('click');
+    await openHeaderMenu(wrapper);
+    await headerMenuItem(wrapper, 'Open conversation').trigger('click');
 
     expect(wrapper.emitted('openConversation')[0][0]).toMatchObject(
       camelcaseKeys(card, { deep: true })
@@ -853,11 +880,8 @@ describe('KanbanOpportunityPanel', () => {
     expect(
       wrapper.find('[data-testid="kanban-opportunity-subtitle"]').text()
     ).not.toContain('No inbox linked');
-    expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-open-conversation"]')
-        .exists()
-    ).toBe(false);
+    await openHeaderMenu(wrapper);
+    expect(headerMenuItem(wrapper, 'Open conversation')).toBeUndefined();
   });
 
   it('renders linked contact', async () => {
@@ -1126,7 +1150,7 @@ describe('KanbanOpportunityPanel', () => {
 
     expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledTimes(1);
     expect(labelButtons(wrapper)).toHaveLength(1);
-    expect(useAlert).toHaveBeenCalledWith('Could not update the opportunity.');
+    expect(useAlert).toHaveBeenCalledWith('Could not update the card labels.');
   });
 
   it('preserves scalar form state when toggling a label without saving', async () => {
@@ -1168,9 +1192,8 @@ describe('KanbanOpportunityPanel', () => {
     const card = buildCard();
     const wrapper = await mountModal({ card });
 
-    await wrapper
-      .find('[data-testid="kanban-opportunity-remove-card"]')
-      .trigger('click');
+    await openHeaderMenu(wrapper);
+    await headerMenuItem(wrapper, 'Remove').trigger('click');
 
     expect(wrapper.emitted('removeCard')[0][0]).toMatchObject(
       camelcaseKeys(card, { deep: true })
@@ -1349,9 +1372,10 @@ describe('KanbanOpportunityPanel', () => {
     expect(tabEvent.defaultPrevented).toBe(false);
   });
 
-  it('moves the card to another stage through the injected action', async () => {
+  it('moves the card to another stage through the header move button', async () => {
     const moveToStage = vi.fn().mockResolvedValue(true);
     const wrapper = await mountModal({
+      board: { id: 10, name: 'Sales', customFields: [] },
       card: buildCard({ kanbanStageId: 15 }),
       stages: [
         { id: 15, name: 'Prospecting' },
@@ -1360,21 +1384,22 @@ describe('KanbanOpportunityPanel', () => {
       moveToStage,
     });
 
-    wrapper
-      .findComponent('[data-testid="kanban-opportunity-stage-select"]')
-      .vm.$emit('update:modelValue', 16);
-    await flushPromises();
+    await openMoveDialogFromHeader(wrapper);
+    await submitMoveToStage(wrapper, 1);
 
     expect(moveToStage).toHaveBeenCalledWith(
       expect.objectContaining({ id: 501 }),
       16
     );
-    expect(wrapper.emitted('moveToStage')).toBeUndefined();
+    expect(
+      wrapper.find('[data-testid="kanban-card-move-dialog"]').exists()
+    ).toBe(false);
   });
 
-  it('reverts the stage select when the move is rejected', async () => {
+  it('keeps the current stage when the move is rejected', async () => {
     const moveToStage = vi.fn().mockResolvedValue(false);
     const wrapper = await mountModal({
+      board: { id: 10, name: 'Sales', customFields: [] },
       card: buildCard({ kanbanStageId: 15 }),
       stages: [
         { id: 15, name: 'Prospecting' },
@@ -1382,22 +1407,22 @@ describe('KanbanOpportunityPanel', () => {
       ],
       moveToStage,
     });
-    const select = wrapper.findComponent(
-      '[data-testid="kanban-opportunity-stage-select"]'
-    );
 
-    select.vm.$emit('update:modelValue', 16);
-    await flushPromises();
+    await openMoveDialogFromHeader(wrapper);
+    await submitMoveToStage(wrapper, 1);
 
-    expect(select.props('modelValue')).toBe(15);
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-move-to"]').text()
+    ).toContain('Prospecting');
   });
 
   it('opens the shared move dialog with the current stage at the top', async () => {
     const board = { id: 10, name: 'Sales', customFields: [] };
-    KanbanBoardsAPI.reorderCardById.mockResolvedValue({});
+    const moveToStage = vi.fn().mockResolvedValue(true);
     const wrapper = await mountModal({
       board,
       boards: [board],
+      moveToStage,
       card: buildCard({ kanbanStageId: 15 }),
       stages: [
         { id: 15, name: 'Prospecting' },
@@ -1409,9 +1434,7 @@ describe('KanbanOpportunityPanel', () => {
       lostStageId: 30,
     });
 
-    await wrapper
-      .find('[data-testid="kanban-opportunity-move"]')
-      .trigger('click');
+    await openMoveDialogFromHeader(wrapper);
 
     const stages = wrapper.findAll(
       '[data-testid="kanban-card-move-dialog-stage"]'
@@ -1425,9 +1448,10 @@ describe('KanbanOpportunityPanel', () => {
       .trigger('click');
     await flushPromises();
 
-    expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
-      card: { kanban_stage_id: 15, after_card_id: null },
-    });
+    expect(moveToStage).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 501 }),
+      15
+    );
     expect(wrapper.emitted('updated')).toBeTruthy();
     expect(
       wrapper.find('[data-testid="kanban-card-move-dialog"]').exists()
@@ -1467,9 +1491,7 @@ describe('KanbanOpportunityPanel', () => {
       reasons: [{ id: 9, title: 'Budget rejected' }],
     });
 
-    await wrapper
-      .find('[data-testid="kanban-opportunity-move"]')
-      .trigger('click');
+    await openMoveDialogFromHeader(wrapper);
     const boardSelect = wrapper
       .findAllComponents({ name: 'Select' })
       .find(select =>
@@ -1507,17 +1529,10 @@ describe('KanbanOpportunityPanel', () => {
   it('hides conversation navigation and inbox context when opened from conversation', async () => {
     const wrapper = await mountModal({ openedFromConversation: true });
 
-    expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-open-conversation"]')
-        .exists()
-    ).toBe(false);
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-open-new-tab"]').exists()
-    ).toBe(false);
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-open-funnel"]').exists()
-    ).toBe(true);
+    await openHeaderMenu(wrapper);
+    expect(headerMenuItem(wrapper, 'Open conversation')).toBeUndefined();
+    expect(headerMenuItem(wrapper, 'Open in a new tab')).toBeUndefined();
+    expect(headerMenuItem(wrapper, 'Open in funnel')).toBeTruthy();
     expect(
       wrapper.find('[data-testid="kanban-opportunity-subtitle"]').text()
     ).not.toContain('Sales Inbox');
