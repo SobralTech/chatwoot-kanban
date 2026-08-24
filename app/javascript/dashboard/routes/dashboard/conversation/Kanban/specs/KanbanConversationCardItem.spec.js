@@ -3,44 +3,33 @@ import { computed } from 'vue';
 
 import KanbanConversationCardItem from '../KanbanConversationCardItem.vue';
 import { useMapGetter } from 'dashboard/composables/store';
+import kanbanLocale from 'dashboard/i18n/locale/en/kanban.json';
+import conversationLocale from 'dashboard/i18n/locale/en/conversation.json';
+import contactLocale from 'dashboard/i18n/locale/en/contact.json';
+
+// Resolve against the real locale files: a hand written dictionary here would
+// happily translate keys that do not exist in en.json.
+const localeMessages = {
+  ...kanbanLocale,
+  ...conversationLocale,
+  ...contactLocale,
+};
+const translate = (key, values = {}) => {
+  const message = key
+    .split('.')
+    .reduce((node, part) => (node == null ? node : node[part]), localeMessages);
+  if (typeof message !== 'string') {
+    throw new Error(`Missing translation for ${key}`);
+  }
+
+  return Object.entries(values).reduce(
+    (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+    message
+  );
+};
 
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({
-    t: (key, values = {}) =>
-      Object.entries(values).reduce(
-        (message, [name, value]) =>
-          message.replaceAll(`{${name}}`, String(value)),
-        {
-          'KANBAN.CARD.UNKNOWN_BOARD': 'Unknown funnel',
-          'KANBAN.CARD.UNKNOWN_STAGE': 'Unknown stage',
-          'KANBAN.CARD.CARD_ID': '#{id}',
-          'KANBAN.CARD.ACTIONS_MENU': 'Card actions',
-          'KANBAN.CARD.MOVE_TO_STAGE': 'Move to stage',
-          'KANBAN.CARD.CHANGE_PRIORITY': 'Change priority',
-          'KANBAN.CARD.DUE_DATE': 'Due date',
-          'KANBAN.CARD.COPY_CARD_ID': 'Copy card ID',
-          'KANBAN.CARD.ASSIGN_TO': 'Assign to',
-          'KANBAN.CARD.NO_ASSIGNABLE_USERS': 'No agents available',
-          'KANBAN.CARD.SLA_STALE': 'Stalled',
-          'KANBAN.CARD.SLA_TOOLTIP': 'In this stage for {age} · limit {hours}h',
-          'KANBAN.ACTIONS.REMOVE_CARD': 'Delete opportunity',
-          'KANBAN.OPPORTUNITY_DETAILS.CARD_ID_COPIED': 'Card ID copied',
-          'KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE': 'Clear due date',
-          'CONVERSATION.PRIORITY.OPTIONS.NONE': 'No priority',
-          'CONVERSATION.PRIORITY.OPTIONS.URGENT': 'Urgent',
-          'CONVERSATION.PRIORITY.OPTIONS.HIGH': 'High',
-          'CONVERSATION.PRIORITY.OPTIONS.MEDIUM': 'Medium',
-          'CONVERSATION.PRIORITY.OPTIONS.LOW': 'Low',
-          'CONTACT_PANEL.LABELS.LABEL_SELECT.TITLE': 'Labels',
-          'CONVERSATION_SIDEBAR.KANBAN.SET_DUE_DATE': 'Set due date',
-          'CONVERSATION_SIDEBAR.KANBAN.LABELS': 'Labels',
-          'CONVERSATION_SIDEBAR.KANBAN.IN_STAGE_FOR': '{age} in this stage',
-          'CONVERSATION_SIDEBAR.KANBAN.EDIT_DETAILS': 'Edit details',
-          'CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD': 'Move to another funnel',
-          'KANBAN.OVERVIEW.EXTRA_COUNT': '+{count}',
-        }[key] || key
-      ),
-  }),
+  useI18n: () => ({ t: (key, values) => translate(key, values) }),
 }));
 
 vi.mock('dashboard/composables', () => ({
@@ -216,7 +205,11 @@ describe('KanbanConversationCardItem', () => {
       .get('[data-testid="kanban-conversation-card-board"]')
       .trigger('click');
     await wrapper
-      .get('[data-testid="kanban-conversation-card-move"]')
+      .get('[data-testid="kanban-conversation-card-actions"]')
+      .trigger('click');
+    await wrapper
+      .findAll('[data-testid="kanban-conversation-card-actions-menu"] button')
+      .find(button => button.text().includes('Move to another funnel'))
       .trigger('click');
 
     expect(wrapper.emitted('openMove')).toEqual([[card], [card]]);

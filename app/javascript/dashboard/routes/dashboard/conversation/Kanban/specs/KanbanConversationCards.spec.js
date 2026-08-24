@@ -53,6 +53,13 @@ vi.mock('vue-i18n', () => ({
   }),
 }));
 
+const routerPush = vi.fn();
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ params: { accountId: '1' } }),
+  useRouter: () => ({ push: routerPush }),
+}));
+
 vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     getConversationCards: vi.fn(),
@@ -541,5 +548,30 @@ describe('KanbanConversationCards', () => {
     });
     expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledTimes(2);
     expect(useAlert).toHaveBeenCalledWith('Opportunity moved to Renewals.');
+  });
+
+  it('navigates to the funnel and closes the panel on openFunnel', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard()] },
+    });
+
+    const mountedWrapper = mountComponent();
+    await flushPromises();
+    await mountedWrapper.get('[data-testid="card-subject"]').trigger('click');
+
+    const panel = mountedWrapper.findComponent({
+      name: 'KanbanOpportunityPanel',
+    });
+    panel.vm.$emit('openFunnel', buildCard());
+    await nextTick();
+
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'kanban_board_show',
+      params: { accountId: '1', boardId: 10 },
+      query: { card_id: 123 },
+    });
+    expect(
+      mountedWrapper.findComponent({ name: 'KanbanOpportunityPanel' }).exists()
+    ).toBe(false);
   });
 });

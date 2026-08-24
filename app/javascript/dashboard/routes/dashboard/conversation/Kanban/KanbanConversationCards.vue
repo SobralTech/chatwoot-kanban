@@ -1,15 +1,16 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
+import { useKanbanCardFields } from 'dashboard/composables/useKanbanCardFields';
 import { useSlaClock } from 'dashboard/composables/useSlaClock';
 import { getCardStatusChangeErrorMessage } from 'dashboard/helper/kanbanCardStatus';
 import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
-import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
 import { SLA_STALE, stageSlaStatus } from 'dashboard/helper/kanbanStageSla';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -29,6 +30,8 @@ const props = defineProps({
 const emit = defineEmits(['open-existing', 'summary']);
 const { t } = useI18n();
 const store = useStore();
+const route = useRoute();
+const router = useRouter();
 const currentChat = useMapGetter('getSelectedChat');
 const accountLabels = useMapGetter('labels/getLabels');
 const cards = ref([]);
@@ -51,6 +54,7 @@ const boardsRequestId = ref(0);
 const realtimeRefreshQueued = ref(false);
 const deleteDialogRef = ref(null);
 const unsavedDialogRef = ref(null);
+const afterOpportunityExit = ref(null);
 const cardToDelete = ref(null);
 const isDeletingCard = ref(false);
 const moveDialogCard = ref(null);
@@ -77,7 +81,6 @@ const defaultSubject = computed(() => {
   return `${contactName} - ${inboxName}`;
 });
 const hasCards = computed(() => cards.value.length > 0);
-const hasBusyCards = computed(() => busyCardIds.value.size > 0);
 const staleCardCount = computed(
   () =>
     cards.value.filter(card => {
@@ -154,20 +157,9 @@ const patchCard = (cardId, updater) => {
     Number(card.id) === Number(cardId) ? updater(card) : card
   );
 };
-const snapshotCard = card => ({
-  ...card,
-  kanbanBoard: card.kanbanBoard ? { ...card.kanbanBoard } : card.kanbanBoard,
-  kanbanStage: card.kanbanStage ? { ...card.kanbanStage } : card.kanbanStage,
-  labels: (card.labels || []).map(label => ({ ...label })),
-  assignees: (card.assignees || []).map(assignee => ({ ...assignee })),
-});
 const startAction = cardId => {
   busyCardIds.value = new Set([...busyCardIds.value, Number(cardId)]);
 };
-const isCardBusy = card => busyCardIds.value.has(Number(card.id));
-const moveDialogIsMoving = computed(
-  () => !!moveDialogCard.value && isCardBusy(moveDialogCard.value)
-);
 const opportunityBoard = computed(() =>
   opportunityCard.value ? boardForCard(opportunityCard.value) : {}
 );
@@ -183,6 +175,46 @@ const setAssigneeState = (cardId, value) => {
   };
 };
 const assigneeStateFor = card => assigneeStates.value[card.id] || {};
+
+const labelsForTitles = titles =>
+  titles.map(
+    title =>
+      (accountLabels?.value || []).find(label => label.title === title) || {
+        title,
+      }
+  );
+const assigneesForIds = (ids, card) => {
+  const knownUsers = assigneeStateFor(card).assignableUsers || [];
+
+  return ids.map(
+    id =>
+      knownUsers.find(user => Number(user.id) === Number(id)) ||
+      card.assignees?.find(assignee => Number(assignee.id) === Number(id)) || {
+        id,
+      }
+  );
+};
+const cardFields = useKanbanCardFields({
+  t,
+  boardIdFor: card => Number(boardForCard(card).id),
+  patchCard: (card, partial) =>
+    patchCard(card.id, current => ({ ...current, ...partial })),
+  resolveLabels: labelsForTitles,
+  resolveAssignees: assigneesForIds,
+  onAssignableUsers: (card, users) =>
+    setAssigneeState(card.id, { loaded: true, assignableUsers: users }),
+});
+
+// Busy covers both whole-card operations (create, move, delete) and the
+// per-field updates the shared composable tracks.
+const hasBusyCards = computed(
+  () => busyCardIds.value.size > 0 || cardFields.hasPendingUpdates.value
+);
+const isCardBusy = card =>
+  busyCardIds.value.has(Number(card.id)) || cardFields.isCardPending(card);
+const moveDialogIsMoving = computed(
+  () => !!moveDialogCard.value && isCardBusy(moveDialogCard.value)
+);
 
 const loadCards = async () => {
   if (!props.conversationId) return;
@@ -208,6 +240,7 @@ const loadCards = async () => {
       !cards.value.some(card => isSameCard(card, opportunityCard.value))
     ) {
       opportunityCard.value = null;
+      afterOpportunityExit.value = null;
     }
     if (
       moveDialogCard.value &&
@@ -294,6 +327,11 @@ const endAction = cardId => {
   busyCardIds.value = next;
   flushRealtimeRefresh();
 };
+// Field updates settle inside the shared composable, so a queued realtime
+// refresh has to wait on its pending set too.
+watch(hasBusyCards, busy => {
+  if (!busy) flushRealtimeRefresh();
+});
 const realtimeEvents = new Set([
   'kanban.card.created',
   'kanban.card.updated',
@@ -389,8 +427,12 @@ const closeMoveDialog = () => {
 };
 const closeOpportunityPanel = () => {
   opportunityCard.value = null;
+  const afterExit = afterOpportunityExit.value;
+  afterOpportunityExit.value = null;
+  afterExit?.();
 };
-const requestCloseOpportunityPanel = () => {
+const requestOpportunityExit = (afterExit = null) => {
+  afterOpportunityExit.value = afterExit;
   if (opportunityPanelRef.value?.hasUnsavedChanges) {
     unsavedDialogRef.value?.open();
     return;
@@ -398,7 +440,9 @@ const requestCloseOpportunityPanel = () => {
 
   closeOpportunityPanel();
 };
+const requestCloseOpportunityPanel = () => requestOpportunityExit();
 const keepEditingOpportunity = () => {
+  afterOpportunityExit.value = null;
   unsavedDialogRef.value?.close();
 };
 const onUnsavedDialogClose = () => undefined;
@@ -419,6 +463,18 @@ const saveAndCloseOpportunity = async () => {
   } finally {
     isSavingOpportunityBeforeExit.value = false;
   }
+};
+const openOpportunityInFunnel = card => {
+  const boardId = Number(cardBoardId(card));
+  if (!boardId || !card?.id) return;
+
+  requestOpportunityExit(() =>
+    router.push({
+      name: 'kanban_board_show',
+      params: { accountId: route.params.accountId, boardId },
+      query: { card_id: card.id },
+    })
+  );
 };
 const onOpportunityUpdated = () => {
   loadCards();
@@ -493,81 +549,59 @@ const moveCardToBoard = async ({ boardId, stageId }) => {
   }
 };
 
-const runCardAction = async ({ card, optimistic, request, apply, error }) => {
-  if (isCardBusy(card)) return;
-  const previousCard = snapshotCard(card);
-  startAction(card.id);
-  optimistic?.();
-
-  try {
-    const response = await request();
-    apply?.(response);
-  } catch (actionError) {
-    patchCard(card.id, () => previousCard);
-    useAlert(typeof error === 'function' ? error(actionError) : error);
-  } finally {
-    endAction(card.id);
-  }
-};
+const { run: runCardAction } = cardFields;
 
 const updateStage = (card, targetStageId) => {
-  const board = boardForCard(card);
   const stage = regularStagesFor(card).find(
     item => Number(item.id) === Number(targetStageId)
   );
-  if (!board.id || !stage) return;
+  if (!stage) return false;
 
-  runCardAction({
-    card,
-    optimistic: () =>
-      patchCard(card.id, current => ({
-        ...current,
-        kanbanStageId: stage.id,
-        kanbanStage: { ...current.kanbanStage, ...stage },
-      })),
-    request: () =>
-      KanbanBoardsAPI.reorderCardById(board.id, card.id, {
+  return runCardAction(card, 'stage', {
+    optimistic: {
+      kanbanStageId: stage.id,
+      kanbanStage: { ...(card.kanbanStage || {}), ...stage },
+    },
+    request: boardId =>
+      KanbanBoardsAPI.reorderCardById(boardId, card.id, {
         card: { kanban_stage_id: stage.id, after_card_id: null },
       }),
     apply: response => {
       const updated = normalizeCard(response);
-      patchCard(card.id, current => ({
-        ...current,
+      return {
         ...(updated?.id ? updated : {}),
         kanbanStageId: updated?.kanbanStageId ?? stage.id,
         kanbanStage: {
-          ...current.kanbanStage,
+          ...(card.kanbanStage || {}),
           ...stage,
           ...(updated?.kanbanStage || {}),
         },
-      }));
+      };
     },
-    error: t('KANBAN.ACTIONS.REORDER_CARD_ERROR'),
+    errorKey: 'KANBAN.ACTIONS.REORDER_CARD_ERROR',
   });
 };
 
 const changeStatus = (card, { targetStageId, reasonId, reopen }) => {
   const board = boardForCard(card);
-  if (!board.id) return;
   const targetStage = boardStages(board).find(
     stage => Number(stage.id) === Number(targetStageId)
   );
+  const currentStageId =
+    card.kanbanStageId ?? card.kanban_stage_id ?? card.kanbanStage?.id;
 
-  runCardAction({
-    card,
-    optimistic: () => {
-      if (reopen || !targetStage) return;
-      patchCard(card.id, current => ({
-        ...current,
-        kanbanStageId: targetStage.id,
-        kanbanReasonId: reasonId || null,
-        kanbanStage: { ...current.kanbanStage, ...targetStage },
-      }));
+  return runCardAction(card, 'status', {
+    optimistic: {
+      kanbanStageId: reopen ? currentStageId : targetStageId,
+      kanbanReasonId: reopen ? null : reasonId || null,
+      kanbanStage: reopen
+        ? card.kanbanStage
+        : { ...(card.kanbanStage || {}), ...targetStage },
     },
-    request: () =>
+    request: boardId =>
       reopen
-        ? KanbanBoardsAPI.reopenCardById(board.id, card.id)
-        : KanbanBoardsAPI.updateCardById(board.id, card.id, {
+        ? KanbanBoardsAPI.reopenCardById(boardId, card.id)
+        : KanbanBoardsAPI.updateCardById(boardId, card.id, {
             card: {
               kanban_stage_id: targetStageId,
               kanban_reason_id: reasonId || null,
@@ -575,104 +609,36 @@ const changeStatus = (card, { targetStageId, reasonId, reopen }) => {
           }),
     apply: response => {
       const updated = normalizeCard(response);
-      const currentStageId =
-        card.kanbanStageId ?? card.kanban_stage_id ?? card.kanbanStage?.id;
       const nextStageId =
         updated?.kanbanStageId ?? (reopen ? currentStageId : targetStageId);
       const nextStage =
         boardStages(board).find(
           stage => Number(stage.id) === Number(nextStageId)
         ) || targetStage;
-      patchCard(card.id, current => ({
-        ...current,
+
+      return {
         ...(updated?.id ? updated : {}),
         kanbanStageId: nextStageId,
         kanbanReasonId:
           updated?.kanbanReasonId ?? (reopen ? null : reasonId || null),
         kanbanStage: {
-          ...current.kanbanStage,
+          ...(card.kanbanStage || {}),
           ...nextStage,
           ...(updated?.kanbanStage || {}),
         },
-      }));
+      };
     },
-    error: actionError =>
+    errorKey: actionError =>
       getCardStatusChangeErrorMessage(actionError, { reopen, t }),
   });
 };
 
-const updatePriority = (card, value) => {
-  const board = boardForCard(card);
-  if (!board.id) return;
-  runCardAction({
-    card,
-    optimistic: () =>
-      patchCard(card.id, current => ({ ...current, priority: value || '' })),
-    request: () =>
-      KanbanBoardsAPI.updateCardDetailsById(board.id, card.id, {
-        priority: value || null,
-      }),
-    apply: response => {
-      const updated = normalizeCard(response);
-      if (updated?.priority !== undefined) {
-        patchCard(card.id, current => ({
-          ...current,
-          priority: updated.priority,
-        }));
-      }
-    },
-    error: t('KANBAN.CARD.PRIORITY_UPDATE_ERROR'),
-  });
-};
-
-const updateDueDate = (card, value) => {
-  const board = boardForCard(card);
-  if (!board.id) return;
-  const dueAt = toIso8601(value);
-  runCardAction({
-    card,
-    optimistic: () => patchCard(card.id, current => ({ ...current, dueAt })),
-    request: () =>
-      KanbanBoardsAPI.updateCardDetailsById(board.id, card.id, {
-        due_at: dueAt,
-      }),
-    apply: response => {
-      const updated = normalizeCard(response);
-      if (updated?.dueAt !== undefined) {
-        patchCard(card.id, current => ({ ...current, dueAt: updated.dueAt }));
-      }
-    },
-    error: t('KANBAN.CARD.DUE_DATE_UPDATE_ERROR'),
-  });
-};
-
-const labelsForTitles = titles =>
-  titles.map(
-    title =>
-      (accountLabels?.value || []).find(label => label.title === title) || {
-        title,
-      }
-  );
-const updateLabels = (card, titles) => {
-  const board = boardForCard(card);
-  if (!board.id) return;
-  runCardAction({
-    card,
-    optimistic: () =>
-      patchCard(card.id, current => ({
-        ...current,
-        labels: labelsForTitles(titles),
-      })),
-    request: () => KanbanBoardsAPI.updateCardLabels(board.id, card.id, titles),
-    apply: response => {
-      const labels = normalize(response?.data?.payload || response?.data || []);
-      if (Array.isArray(labels)) {
-        patchCard(card.id, current => ({ ...current, labels }));
-      }
-    },
-    error: t('CONTACT_PANEL.LABELS.CONVERSATION.ERROR'),
-  });
-};
+const updatePriority = (card, value) =>
+  cardFields.updateDetail(card, 'priority', value || '');
+const updateDueDate = (card, value) =>
+  cardFields.updateDetail(card, 'dueAt', value || '');
+const updateLabels = (card, titles) => cardFields.updateLabels(card, titles);
+const updateAssignees = (card, ids) => cardFields.updateAssignees(card, ids);
 
 const loadAssignees = async card => {
   const state = assigneeStateFor(card);
@@ -702,40 +668,6 @@ const loadAssignees = async card => {
     setAssigneeState(card.id, { loading: false, error: message });
     useAlert(message);
   }
-};
-
-const updateAssignees = (card, ids) => {
-  const board = boardForCard(card);
-  if (!board.id) return;
-  const state = assigneeStateFor(card);
-  const users = state.assignableUsers || [];
-  runCardAction({
-    card,
-    optimistic: () =>
-      patchCard(card.id, current => ({
-        ...current,
-        assignees: ids.map(
-          id =>
-            users.find(user => Number(user.id) === Number(id)) ||
-            current.assignees?.find(
-              assignee => Number(assignee.id) === Number(id)
-            ) || { id }
-        ),
-      })),
-    request: () => KanbanBoardsAPI.updateCardAssignees(board.id, card.id, ids),
-    apply: response => {
-      const data = normalize(response?.data || {});
-      patchCard(card.id, current => ({
-        ...current,
-        assignees: data.payload || [],
-      }));
-      setAssigneeState(card.id, {
-        loaded: true,
-        assignableUsers: data.assignableUsers || users,
-      });
-    },
-    error: t('KANBAN.CARD.ASSIGN_ERROR'),
-  });
 };
 
 const deleteCard = async card => {
@@ -774,14 +706,11 @@ const confirmDelete = async () => {
   }
 };
 
-watch(
-  [cards, staleCardCount],
-  () =>
-    emit('summary', {
-      count: cards.value.length,
-      staleCount: staleCardCount.value,
-    }),
-  { immediate: true }
+watch([cards, staleCardCount], () =>
+  emit('summary', {
+    count: cards.value.length,
+    staleCount: staleCardCount.value,
+  })
 );
 watch(
   () => props.conversationId,
@@ -937,6 +866,7 @@ onBeforeUnmount(() => {
       opened-from-conversation
       @board-changed="onOpportunityBoardChanged"
       @close="requestCloseOpportunityPanel"
+      @open-funnel="openOpportunityInFunnel"
       @remove-card="onOpportunityRemoveCard"
       @updated="onOpportunityUpdated"
     />

@@ -1,5 +1,6 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { vOnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 import { format } from 'date-fns';
 
@@ -12,6 +13,7 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
@@ -63,11 +65,8 @@ const emit = defineEmits([
 
 const { t } = useI18n();
 const accountLabels = useMapGetter('labels/getLabels');
-const priorityPopover = ref(null);
-const dueDatePopover = ref(null);
-const labelsPopover = ref(null);
-const assigneesPopover = ref(null);
 const dueDateInput = ref('');
+const isActionsMenuOpen = ref(false);
 
 const accountLabelList = computed(() => accountLabels?.value || []);
 const cardBoard = computed(
@@ -193,12 +192,6 @@ watch(
   { immediate: true }
 );
 
-const openPopover = async (popover, hide) => {
-  hide?.();
-  await nextTick();
-  popover.value?.show();
-};
-
 const onStageChange = event => {
   emit('updateStage', props.card, Number(event.target.value));
 };
@@ -236,17 +229,70 @@ const onAssigneeToggle = user => {
   emit('updateAssignees', props.card, nextIds);
 };
 
-const copyCardId = async hide => {
+const copyCardId = async () => {
   await copyTextToClipboard(cardId.value);
   useAlert(t('KANBAN.OPPORTUNITY_DETAILS.CARD_ID_COPIED'));
-  hide?.();
 };
 
 const showAssignees = () => emit('loadAssignees', props.card);
 const openDetails = () => emit('openDetails', props.card);
-const openMove = hide => {
-  emit('openMove', props.card);
-  if (typeof hide === 'function') hide();
+const openMove = () => emit('openMove', props.card);
+
+const closeActionsMenu = () => {
+  isActionsMenuOpen.value = false;
+};
+
+const actionMenuSections = computed(() => [
+  {
+    items: [
+      {
+        action: 'openDetails',
+        value: 'openDetails',
+        icon: 'i-lucide-pencil',
+        label: t('CONVERSATION_SIDEBAR.KANBAN.EDIT_DETAILS'),
+        disabled: props.isBusy,
+      },
+      {
+        action: 'openMove',
+        value: 'openMove',
+        icon: 'i-lucide-corner-up-right',
+        label: t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD'),
+        disabled: props.isBusy,
+      },
+      {
+        action: 'copyCardId',
+        value: 'copyCardId',
+        icon: 'i-lucide-copy',
+        label: t('KANBAN.OPPORTUNITY_DETAILS.COPY_CARD_ID_WITH_ID', {
+          id: cardId.value,
+        }),
+        disabled: props.isBusy,
+      },
+    ],
+  },
+  {
+    items: [
+      {
+        action: 'delete',
+        value: 'delete',
+        icon: 'i-lucide-trash-2',
+        label: t('KANBAN.ACTIONS.REMOVE_CARD'),
+        disabled: props.isBusy,
+      },
+    ],
+  },
+]);
+
+const menuActions = {
+  openDetails,
+  openMove,
+  copyCardId,
+  delete: () => emit('delete', props.card),
+};
+
+const onMenuAction = ({ value }) => {
+  closeActionsMenu();
+  menuActions[value]();
 };
 const onCardKeydown = event => {
   if (event.target !== event.currentTarget) return;
@@ -287,111 +333,30 @@ const onSubjectKeydown = event => {
       >
         {{ boardName }}
       </button>
-      <span class="flex-shrink-0 text-xs text-n-slate-10">
-        {{ t('KANBAN.CARD.CARD_ID', { id: cardId }) }}
-      </span>
-      <Popover align="end" disable-mobile-view>
+      <div
+        v-on-click-outside="closeActionsMenu"
+        class="relative flex flex-shrink-0 items-center"
+      >
         <button
           type="button"
           data-testid="kanban-conversation-card-actions"
           class="flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
           :aria-label="t('KANBAN.CARD.ACTIONS_MENU')"
           :disabled="isBusy"
+          @click.stop="isActionsMenuOpen = !isActionsMenuOpen"
         >
           <i v-if="isBusy" class="i-lucide-loader-circle size-4 animate-spin" />
           <i v-else class="i-lucide-more-vertical size-4" />
         </button>
 
-        <template #content="{ hide }">
-          <div
-            data-testid="kanban-conversation-card-actions-menu"
-            class="w-64 max-w-[calc(100vw-2rem)] rounded-xl p-1 text-sm text-n-slate-12"
-          >
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              data-testid="kanban-conversation-card-edit"
-              @click="
-                openDetails();
-                hide();
-              "
-            >
-              <i class="i-lucide-pencil size-4" />
-              {{ t('CONVERSATION_SIDEBAR.KANBAN.EDIT_DETAILS') }}
-            </button>
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              data-testid="kanban-conversation-card-move"
-              @click="openMove(hide)"
-            >
-              <i class="i-lucide-corner-up-right size-4" />
-              {{ t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD') }}
-            </button>
-            <div class="my-1 border-t border-n-weak" />
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="openPopover(priorityPopover, hide)"
-            >
-              <i class="i-lucide-signal size-4" />
-              {{ t('KANBAN.CARD.CHANGE_PRIORITY') }}
-            </button>
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="openPopover(dueDatePopover, hide)"
-            >
-              <i class="i-lucide-calendar size-4" />
-              {{ t('KANBAN.CARD.DUE_DATE') }}
-            </button>
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="openPopover(labelsPopover, hide)"
-            >
-              <i class="i-lucide-tags size-4" />
-              {{ t('CONTACT_PANEL.LABELS.LABEL_SELECT.TITLE') }}
-            </button>
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="openPopover(assigneesPopover, hide)"
-            >
-              <i class="i-lucide-users size-4" />
-              {{ t('KANBAN.CARD.ASSIGN_TO') }}
-            </button>
-            <div class="my-1 border-t border-n-weak" />
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="copyCardId(hide)"
-            >
-              <i class="i-lucide-copy size-4" />
-              {{ t('KANBAN.CARD.COPY_CARD_ID') }}
-            </button>
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="isBusy"
-              @click="
-                emit('delete', card);
-                hide();
-              "
-            >
-              <i class="i-lucide-trash-2 size-4" />
-              {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
-            </button>
-          </div>
-        </template>
-      </Popover>
+        <DropdownMenu
+          v-if="isActionsMenuOpen"
+          data-testid="kanban-conversation-card-actions-menu"
+          :menu-sections="actionMenuSections"
+          class="top-full mt-1 ltr:right-0 rtl:left-0"
+          @action="onMenuAction"
+        />
+      </div>
     </div>
 
     <p
@@ -465,7 +430,7 @@ const onSubjectKeydown = event => {
       >
         {{ formattedValue }}
       </span>
-      <Popover ref="priorityPopover" align="start" disable-mobile-view>
+      <Popover align="start" disable-mobile-view>
         <button
           type="button"
           class="inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -500,7 +465,7 @@ const onSubjectKeydown = event => {
           </div>
         </template>
       </Popover>
-      <Popover ref="dueDatePopover" align="start" disable-mobile-view>
+      <Popover align="start" disable-mobile-view>
         <button
           type="button"
           class="inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -534,7 +499,7 @@ const onSubjectKeydown = event => {
           </div>
         </template>
       </Popover>
-      <Popover ref="labelsPopover" align="start" disable-mobile-view>
+      <Popover align="start" disable-mobile-view>
         <button
           type="button"
           class="inline-flex items-center gap-1 rounded-md px-1 py-0.5 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -557,12 +522,7 @@ const onSubjectKeydown = event => {
           </div>
         </template>
       </Popover>
-      <Popover
-        ref="assigneesPopover"
-        align="start"
-        disable-mobile-view
-        @show="showAssignees"
-      >
+      <Popover align="start" disable-mobile-view @show="showAssignees">
         <button
           type="button"
           class="inline-flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
