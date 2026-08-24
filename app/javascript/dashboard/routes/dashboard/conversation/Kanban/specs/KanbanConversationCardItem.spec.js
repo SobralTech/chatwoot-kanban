@@ -205,6 +205,32 @@ describe('KanbanConversationCardItem', () => {
     expect(wrapper.emitted('updateStage')?.[0]).toEqual([card, 25]);
   });
 
+  it('closes the opportunity in one click from the sidebar menu', async () => {
+    const wrapper = mountItem();
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-menu-won"]')
+      .trigger('click');
+
+    expect(wrapper.emitted('changeStatus')?.[0]).toEqual([
+      card,
+      { targetStageId: 30, reasonId: null },
+    ]);
+  });
+
+  it('shows the reopen action for terminal cards in the menu', () => {
+    const wrapper = mountItem({ kanbanStageId: 40 });
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-conversation-card-menu-reopen"]')
+        .exists()
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="kanban-conversation-card-menu-won"]').exists()
+    ).toBe(false);
+  });
+
   it('opens details from the subject and keyboard-focused card', async () => {
     const wrapper = mountItem();
 

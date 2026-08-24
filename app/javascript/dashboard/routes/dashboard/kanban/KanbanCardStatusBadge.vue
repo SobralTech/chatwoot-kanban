@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Popover from 'dashboard/components-next/popover/Popover.vue';
-import KanbanReasonPicker from './KanbanReasonPicker.vue';
+import KanbanStatusReasonForm from './KanbanStatusReasonForm.vue';
 import { MENU_OPTION_CLASSES, MENU_SURFACE_CLASSES } from './menuClasses';
 
 const props = defineProps({
@@ -44,7 +44,6 @@ const emit = defineEmits(['change']);
 const { t } = useI18n();
 
 const chosenType = ref(null);
-const selectedReasonId = ref('');
 
 const status = computed(() => {
   if (props.wonStageId && props.kanbanStageId === props.wonStageId) {
@@ -80,31 +79,16 @@ const isReasonRequired = computed(
   () => chosenType.value === 'lost' && props.lostReasonRequired
 );
 
-const canConfirm = computed(
-  () => !isReasonRequired.value || !!selectedReasonId.value
-);
-
-const isReopenConfirmation = computed(() => chosenType.value === 'reopen');
-
 const resetSelection = () => {
   chosenType.value = null;
-  selectedReasonId.value = '';
 };
 
 const chooseType = type => {
   chosenType.value = type;
-  selectedReasonId.value = '';
 };
 
-const backToChoices = () => {
-  chosenType.value = null;
-  selectedReasonId.value = '';
-};
-
-const confirm = hide => {
-  if (!canConfirm.value) return;
-
-  if (isReopenConfirmation.value) {
+const confirm = (hide, reasonId) => {
+  if (chosenType.value === 'reopen') {
     emit('change', { reopen: true });
     hide?.();
     resetSelection();
@@ -116,7 +100,7 @@ const confirm = hide => {
 
   emit('change', {
     targetStageId,
-    reasonId: selectedReasonId.value || null,
+    reasonId,
   });
 
   hide?.();
@@ -179,61 +163,14 @@ const confirm = hide => {
           </button>
         </div>
 
-        <div v-else-if="isReopenConfirmation" class="grid gap-2">
-          <p class="mb-0 text-sm text-n-slate-12">
-            {{ t('KANBAN.CARD.STATUS.REOPEN_CONFIRMATION') }}
-          </p>
-
-          <div class="flex items-center justify-between gap-2 pt-1">
-            <button
-              type="button"
-              data-testid="kanban-card-status-back"
-              class="text-xs font-medium text-n-slate-11 hover:text-n-slate-12"
-              @click="backToChoices"
-            >
-              {{ t('KANBAN.CARD.STATUS.BACK') }}
-            </button>
-            <button
-              type="button"
-              data-testid="kanban-card-status-confirm"
-              class="rounded-md bg-n-brand px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="!canConfirm"
-              @click="confirm(hide)"
-            >
-              {{ t('KANBAN.CARD.STATUS.CONFIRM') }}
-            </button>
-          </div>
-        </div>
-
-        <div v-else class="grid gap-2">
-          <KanbanReasonPicker
-            v-model="selectedReasonId"
-            :reasons="reasons"
-            :reason-type="chosenType"
-            :required="isReasonRequired"
-            testid="kanban-card-status-reason-select"
-          />
-
-          <div class="flex items-center justify-between gap-2 pt-1">
-            <button
-              type="button"
-              data-testid="kanban-card-status-back"
-              class="text-xs font-medium text-n-slate-11 hover:text-n-slate-12"
-              @click="backToChoices"
-            >
-              {{ t('KANBAN.CARD.STATUS.BACK') }}
-            </button>
-            <button
-              type="button"
-              data-testid="kanban-card-status-confirm"
-              class="rounded-md bg-n-brand px-3 py-1.5 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="!canConfirm"
-              @click="confirm(hide)"
-            >
-              {{ t('KANBAN.CARD.STATUS.CONFIRM') }}
-            </button>
-          </div>
-        </div>
+        <KanbanStatusReasonForm
+          v-else
+          :reason-type="chosenType"
+          :reasons="reasons"
+          :required="isReasonRequired"
+          @back="resetSelection"
+          @confirm="reasonId => confirm(hide, reasonId)"
+        />
       </div>
     </template>
   </Popover>

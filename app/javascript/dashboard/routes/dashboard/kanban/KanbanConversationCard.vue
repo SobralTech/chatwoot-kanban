@@ -23,6 +23,7 @@ import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
 import KanbanMenuHeader from './KanbanMenuHeader.vue';
+import KanbanStatusReasonForm from './KanbanStatusReasonForm.vue';
 import {
   MENU_DIVIDER_CLASSES,
   MENU_OPTION_CLASSES,
@@ -209,6 +210,12 @@ const moveConsequences = computed(() => {
 });
 const viewTitle = computed(() => {
   switch (view.value) {
+    case 'won':
+      return t('KANBAN.CARD.STATUS.MARK_AS_WON');
+    case 'lost':
+      return t('KANBAN.CARD.STATUS.MARK_AS_LOST');
+    case 'reopen':
+      return t('KANBAN.CARD.STATUS.REOPEN_OPPORTUNITY');
     case 'move':
       return t('KANBAN.CARD.MOVE_TO');
     case 'move-confirm':
@@ -382,6 +389,55 @@ const onChangeStatus = payload => {
   emit('changeStatus', props.card, payload);
 };
 
+const hasTerminals = computed(() => !!props.wonStageId && !!props.lostStageId);
+const isOpenCard = computed(
+  () =>
+    Number(props.card.kanbanStageId) !== Number(props.wonStageId) &&
+    Number(props.card.kanbanStageId) !== Number(props.lostStageId)
+);
+
+// Asking for a reason when there is none to pick is an empty dialog: close in
+// one step instead of drilling into a sub-view.
+const reasonsFor = type =>
+  props.reasons.filter(
+    reason => (reason.reason_type ?? reason.reasonType) === type
+  );
+
+const canSkipReason = type =>
+  !reasonsFor(type).length && !(type === 'lost' && props.lostReasonRequired);
+
+const onWonClick = hide => {
+  if (canSkipReason('won')) {
+    onChangeStatus({ targetStageId: props.wonStageId, reasonId: null });
+    closeMenu(hide);
+    return;
+  }
+
+  openView('won');
+};
+
+const onLostClick = hide => {
+  if (canSkipReason('lost')) {
+    onChangeStatus({ targetStageId: props.lostStageId, reasonId: null });
+    closeMenu(hide);
+    return;
+  }
+
+  openView('lost');
+};
+
+const onConfirmStatus = (type, reasonId, hide) => {
+  if (type === 'reopen') {
+    onChangeStatus({ reopen: true });
+  } else {
+    onChangeStatus({
+      targetStageId: type === 'won' ? props.wonStageId : props.lostStageId,
+      reasonId: reasonId || null,
+    });
+  }
+  closeMenu(hide);
+};
+
 const openCard = event => {
   event.currentTarget?.focus?.();
   if (hasConversation.value) {
@@ -458,6 +514,43 @@ const toggleSelection = async event => {
             />
 
             <div v-if="view === 'root'" class="p-2">
+              <template v-if="hasTerminals">
+                <button
+                  v-if="isOpenCard"
+                  type="button"
+                  data-testid="kanban-card-mark-won"
+                  class="text-n-teal-11"
+                  :class="MENU_OPTION_CLASSES"
+                  :disabled="isBusy"
+                  @click="onWonClick(hide)"
+                >
+                  <i class="i-lucide-check-circle-2 size-4" />
+                  {{ t('KANBAN.CARD.STATUS.MARK_AS_WON') }}
+                </button>
+                <button
+                  v-if="isOpenCard"
+                  type="button"
+                  data-testid="kanban-card-mark-lost"
+                  class="text-n-ruby-11"
+                  :class="MENU_OPTION_CLASSES"
+                  :disabled="isBusy"
+                  @click="onLostClick(hide)"
+                >
+                  <i class="i-lucide-x-circle size-4" />
+                  {{ t('KANBAN.CARD.STATUS.MARK_AS_LOST') }}
+                </button>
+                <button
+                  v-if="!isOpenCard"
+                  type="button"
+                  data-testid="kanban-card-reopen"
+                  :class="MENU_OPTION_CLASSES"
+                  :disabled="isBusy"
+                  @click="openView('reopen')"
+                >
+                  <i class="i-lucide-rotate-ccw size-4" />
+                  {{ t('KANBAN.CARD.STATUS.REOPEN_OPPORTUNITY') }}
+                </button>
+              </template>
               <button
                 v-if="hasConversation"
                 type="button"
@@ -593,6 +686,34 @@ const toggleSelection = async event => {
                 <i class="i-lucide-trash size-4" />
                 {{ t('KANBAN.ACTIONS.REMOVE_CARD') }}
               </button>
+            </div>
+
+            <div v-else-if="view === 'won'" class="p-3">
+              <KanbanStatusReasonForm
+                reason-type="won"
+                :reasons="reasons"
+                :required="false"
+                @back="goBack"
+                @confirm="reasonId => onConfirmStatus('won', reasonId, hide)"
+              />
+            </div>
+
+            <div v-else-if="view === 'lost'" class="p-3">
+              <KanbanStatusReasonForm
+                reason-type="lost"
+                :reasons="reasons"
+                :required="lostReasonRequired"
+                @back="goBack"
+                @confirm="reasonId => onConfirmStatus('lost', reasonId, hide)"
+              />
+            </div>
+
+            <div v-else-if="view === 'reopen'" class="p-3">
+              <KanbanStatusReasonForm
+                reason-type="reopen"
+                @back="goBack"
+                @confirm="onConfirmStatus('reopen', null, hide)"
+              />
             </div>
 
             <div v-else-if="view === 'move'" class="p-2">

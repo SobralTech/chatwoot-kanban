@@ -532,6 +532,92 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.emitted('changeStatus')).toEqual([[card, payload]]);
   });
 
+  it('offers won, lost, and reopen actions in the menu', async () => {
+    const card = buildCard({ kanbanStageId: 1 });
+    const wrapper = mountCard({
+      card,
+      wonStageId: 3,
+      lostStageId: 4,
+    });
+
+    expect(wrapper.find('[data-testid="kanban-card-mark-won"]').exists()).toBe(
+      true
+    );
+    expect(wrapper.find('[data-testid="kanban-card-mark-lost"]').exists()).toBe(
+      true
+    );
+    expect(wrapper.find('[data-testid="kanban-card-reopen"]').exists()).toBe(
+      false
+    );
+
+    // No won reasons configured: closing as won takes one click.
+    await wrapper.find('[data-testid="kanban-card-mark-won"]').trigger('click');
+    expect(wrapper.emitted('changeStatus')).toEqual([
+      [card, { targetStageId: 3, reasonId: null }],
+    ]);
+  });
+
+  it('hides the menu status actions on funnels without terminal stages', () => {
+    const wrapper = mountCard();
+
+    expect(wrapper.find('[data-testid="kanban-card-mark-won"]').exists()).toBe(
+      false
+    );
+    expect(wrapper.find('[data-testid="kanban-card-mark-lost"]').exists()).toBe(
+      false
+    );
+    expect(wrapper.find('[data-testid="kanban-card-reopen"]').exists()).toBe(
+      false
+    );
+  });
+
+  it('asks for the loss reason before closing as lost from the menu', async () => {
+    const card = buildCard({ kanbanStageId: 1 });
+    const wrapper = mountCard({
+      card,
+      wonStageId: 3,
+      lostStageId: 4,
+      reasons: [{ id: 9, title: 'Price', reason_type: 'lost' }],
+      lostReasonRequired: true,
+    });
+
+    await wrapper
+      .find('[data-testid="kanban-card-mark-lost"]')
+      .trigger('click');
+
+    const form = wrapper.findComponent({ name: 'KanbanStatusReasonForm' });
+    expect(form.exists()).toBe(true);
+    expect(form.props('required')).toBe(true);
+
+    form.vm.$emit('confirm', 9);
+    expect(wrapper.emitted('changeStatus')).toEqual([
+      [card, { targetStageId: 4, reasonId: 9 }],
+    ]);
+  });
+
+  it('confirms reopening from the menu for terminal cards', async () => {
+    const card = buildCard({ kanbanStageId: 4 });
+    const wrapper = mountCard({
+      card,
+      wonStageId: 3,
+      lostStageId: 4,
+    });
+
+    expect(wrapper.find('[data-testid="kanban-card-mark-won"]').exists()).toBe(
+      false
+    );
+    expect(wrapper.find('[data-testid="kanban-card-mark-lost"]').exists()).toBe(
+      false
+    );
+
+    await wrapper.find('[data-testid="kanban-card-reopen"]').trigger('click');
+    wrapper
+      .findComponent({ name: 'KanbanStatusReasonForm' })
+      .vm.$emit('confirm', null);
+
+    expect(wrapper.emitted('changeStatus')).toEqual([[card, { reopen: true }]]);
+  });
+
   it('shows the formatted card value when value is present', () => {
     const wrapper = mountCard({ card: buildCard({ value: 1234.5 }) });
 

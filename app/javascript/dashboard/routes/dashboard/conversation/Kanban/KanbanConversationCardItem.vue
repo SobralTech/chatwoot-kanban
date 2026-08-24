@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { vOnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 import { format } from 'date-fns';
 
@@ -13,13 +12,13 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
-import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import WootLabel from 'dashboard/components/ui/Label.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import KanbanCardStatusBadge from '../../kanban/KanbanCardStatusBadge.vue';
 import KanbanStageSelect from '../../kanban/KanbanStageSelect.vue';
+import KanbanConversationCardMenu from './KanbanConversationCardMenu.vue';
 import {
   MENU_OPTION_CLASSES,
   MENU_SURFACE_CLASSES,
@@ -74,7 +73,6 @@ const emit = defineEmits([
 const { t } = useI18n();
 const accountLabels = useMapGetter('labels/getLabels');
 const dueDateInput = ref('');
-const isActionsMenuOpen = ref(false);
 
 const accountLabelList = computed(() => accountLabels?.value || []);
 const cardBoard = computed(() => props.card.kanbanBoard || props.board);
@@ -222,62 +220,6 @@ const showAssignees = () => emit('loadAssignees', props.card);
 const openDetails = () => emit('openDetails', props.card);
 const openMove = () => emit('openMove', props.card);
 
-const closeActionsMenu = () => {
-  isActionsMenuOpen.value = false;
-};
-
-const actionMenuSections = computed(() => [
-  {
-    items: [
-      {
-        action: 'openDetails',
-        value: 'openDetails',
-        icon: 'i-lucide-pencil',
-        label: t('CONVERSATION_SIDEBAR.KANBAN.EDIT_DETAILS'),
-        disabled: props.isBusy,
-      },
-      {
-        action: 'openMove',
-        value: 'openMove',
-        icon: 'i-lucide-corner-up-right',
-        label: t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD'),
-        disabled: props.isBusy,
-      },
-      {
-        action: 'copyCardId',
-        value: 'copyCardId',
-        icon: 'i-lucide-copy',
-        label: t('KANBAN.OPPORTUNITY_DETAILS.COPY_CARD_ID_WITH_ID', {
-          id: cardId.value,
-        }),
-        disabled: props.isBusy,
-      },
-    ],
-  },
-  {
-    items: [
-      {
-        action: 'delete',
-        value: 'delete',
-        icon: 'i-lucide-trash-2',
-        label: t('KANBAN.ACTIONS.REMOVE_CARD'),
-        disabled: props.isBusy,
-      },
-    ],
-  },
-]);
-
-const menuActions = {
-  openDetails,
-  openMove,
-  copyCardId,
-  delete: () => emit('delete', props.card),
-};
-
-const onMenuAction = ({ value }) => {
-  closeActionsMenu();
-  menuActions[value]();
-};
 const onCardKeydown = event => {
   if (event.target !== event.currentTarget) return;
 
@@ -319,30 +261,24 @@ const onSubjectKeydown = event => {
         <!-- Without the chevron nothing tells the user the funnel can change. -->
         <i class="i-lucide-chevron-down size-3 flex-shrink-0 text-n-slate-10" />
       </button>
-      <div
-        v-on-click-outside="closeActionsMenu"
-        class="relative flex flex-shrink-0 items-center"
-      >
-        <button
-          type="button"
-          data-testid="kanban-conversation-card-actions"
-          class="flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-          :aria-label="t('KANBAN.CARD.ACTIONS_MENU')"
-          :disabled="isBusy"
-          @click.stop="isActionsMenuOpen = !isActionsMenuOpen"
-        >
-          <i v-if="isBusy" class="i-lucide-loader-circle size-4 animate-spin" />
-          <i v-else class="i-lucide-more-vertical size-4" />
-        </button>
-
-        <DropdownMenu
-          v-if="isActionsMenuOpen"
-          data-testid="kanban-conversation-card-actions-menu"
-          :menu-sections="actionMenuSections"
-          class="top-full mt-1 ltr:right-0 rtl:left-0"
-          @action="onMenuAction"
-        />
-      </div>
+      <KanbanConversationCardMenu
+        :card="card"
+        :board="cardBoard"
+        :account-labels="accountLabelList"
+        :assignable-users="assignableUsers"
+        :is-assignees-loading="isAssigneesLoading"
+        :is-busy="isBusy"
+        @change-status="emit('changeStatus', card, $event)"
+        @copy-id="copyCardId"
+        @delete="emit('delete', card)"
+        @load-assignees="showAssignees"
+        @open-details="openDetails"
+        @open-move="openMove"
+        @update-priority="value => emit('updatePriority', card, value)"
+        @update-due-date="value => emit('updateDueDate', card, value)"
+        @update-labels="titles => emit('updateLabels', card, titles)"
+        @update-assignees="ids => emit('updateAssignees', card, ids)"
+      />
     </div>
 
     <p
