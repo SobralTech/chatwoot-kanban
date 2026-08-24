@@ -18,6 +18,7 @@ import {
 
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
+import { MENU_SURFACE_CLASSES } from './menuClasses';
 
 const props = defineProps({
   label: {
@@ -173,7 +174,7 @@ const dayClasses = day => ({
       {{ label }}
     </span>
 
-    <Popover align="start" disable-mobile-view :show-content-border="false">
+    <Popover align="start" disable-mobile-view>
       <div :class="compact ? 'flex min-w-0' : 'flex w-full gap-2'">
         <button
           type="button"
@@ -206,9 +207,7 @@ const dayClasses = day => ({
       </div>
 
       <template #content="{ hide }">
-        <div
-          class="w-80 select-none rounded-xl border border-n-strong bg-n-alpha-3 p-3 shadow-xl backdrop-blur-[100px]"
-        >
+        <div class="w-80 select-none" :class="[MENU_SURFACE_CLASSES]">
           <div class="mb-3 flex items-center gap-2">
             <button
               type="button"

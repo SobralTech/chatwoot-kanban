@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import WootLabel from 'dashboard/components/ui/Label.vue';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
+import { MENU_SURFACE_CLASSES } from '../../menuClasses';
 
 const props = defineProps({
   accountLabels: {
@@ -49,7 +50,7 @@ const labelDropdownProps = computed(() => ({
     data-testid="kanban-opportunity-labels-row"
     class="flex min-w-0 flex-wrap items-center gap-2"
   >
-    <Popover align="start" disable-mobile-view :show-content-border="false">
+    <Popover align="start" disable-mobile-view>
       <button
         type="button"
         data-testid="kanban-opportunity-labels-menu"
@@ -63,7 +64,8 @@ const labelDropdownProps = computed(() => ({
       </button>
       <template #content>
         <div
-          class="block visible w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
+          class="w-80 max-w-[calc(100vw-2rem)]"
+          :class="[MENU_SURFACE_CLASSES]"
         >
           <LabelDropdown
             v-bind="labelDropdownProps"
@@ -87,12 +89,7 @@ const labelDropdownProps = computed(() => ({
       @remove="emit('removeLabel', $event)"
     />
 
-    <Popover
-      v-if="remainingLabelCount"
-      align="start"
-      disable-mobile-view
-      :show-content-border="false"
-    >
+    <Popover v-if="remainingLabelCount" align="start" disable-mobile-view>
       <button
         type="button"
         data-testid="kanban-opportunity-more-labels"
@@ -112,7 +109,8 @@ const labelDropdownProps = computed(() => ({
       </button>
       <template #content>
         <div
-          class="block visible w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
+          class="w-80 max-w-[calc(100vw-2rem)]"
+          :class="[MENU_SURFACE_CLASSES]"
         >
           <LabelDropdown
             v-bind="labelDropdownProps"

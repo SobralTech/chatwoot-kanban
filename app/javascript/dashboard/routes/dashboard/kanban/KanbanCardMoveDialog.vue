@@ -281,7 +281,10 @@ reset();
             :disabled="isMoving"
             @click="chooseStage(stage)"
           >
-            <span class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9" />
+            <span
+              class="size-2.5 flex-shrink-0 rounded-full bg-n-slate-9"
+              :style="stage.color ? { backgroundColor: stage.color } : null"
+            />
             <span class="min-w-0 truncate">{{ stageLabel(stage) }}</span>
           </button>
         </div>

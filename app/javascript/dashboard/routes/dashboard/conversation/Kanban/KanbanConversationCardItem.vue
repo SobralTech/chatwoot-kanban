@@ -19,6 +19,10 @@ import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import WootLabel from 'dashboard/components/ui/Label.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import KanbanCardStatusBadge from '../../kanban/KanbanCardStatusBadge.vue';
+import {
+  MENU_OPTION_CLASSES,
+  MENU_SURFACE_CLASSES,
+} from '../../kanban/menuClasses';
 
 const props = defineProps({
   card: {
@@ -457,13 +461,13 @@ const onSubjectKeydown = event => {
           <CardPriorityIcon :priority="priority" show-empty class="!size-3.5" />
         </button>
         <template #content="{ hide }">
-          <div class="grid w-52 gap-0.5 rounded-xl p-1">
+          <div class="grid w-52 gap-1" :class="[MENU_SURFACE_CLASSES]">
             <button
               v-for="option in priorityOptions"
               :key="option.value"
               type="button"
               data-testid="kanban-conversation-card-priority-option"
-              class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+              :class="MENU_OPTION_CLASSES"
               :disabled="isBusy"
               @click="onPriorityChange(option.value, hide)"
             >
@@ -493,7 +497,7 @@ const onSubjectKeydown = event => {
           <span v-if="dueDateLabel">{{ dueDateLabel }}</span>
         </button>
         <template #content="{ hide }">
-          <div class="grid w-56 gap-2 rounded-xl p-3">
+          <div class="grid w-56 gap-2" :class="[MENU_SURFACE_CLASSES]">
             <label class="grid gap-1 text-xs font-medium text-n-slate-12">
               {{ t('KANBAN.CARD.DUE_DATE') }}
               <input
@@ -526,7 +530,7 @@ const onSubjectKeydown = event => {
           <i class="i-lucide-tags size-3" />
         </button>
         <template #content>
-          <div class="w-80 rounded-xl p-2">
+          <div class="w-80" :class="[MENU_SURFACE_CLASSES]">
             <LabelDropdown
               :account-labels="accountLabelList"
               :selected-labels="labelTitles"
@@ -567,12 +571,12 @@ const onSubjectKeydown = event => {
           </template>
         </button>
         <template #content>
-          <div class="w-72 rounded-xl p-2">
+          <div class="w-72" :class="[MENU_SURFACE_CLASSES]">
             <ul class="grid gap-1">
               <li v-for="user in assignableUsers" :key="user.id">
                 <button
                   type="button"
-                  class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+                  :class="MENU_OPTION_CLASSES"
                   :disabled="isBusy"
                   @click="onAssigneeToggle(user)"
                 >

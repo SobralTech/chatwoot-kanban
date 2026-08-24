@@ -23,6 +23,11 @@ import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
 import KanbanMenuHeader from './KanbanMenuHeader.vue';
+import {
+  MENU_DIVIDER_CLASSES,
+  MENU_OPTION_CLASSES,
+  MENU_OPTION_DESTRUCTIVE_CLASSES,
+} from './menuClasses';
 
 const props = defineProps({
   card: {
@@ -452,12 +457,12 @@ const toggleSelection = async event => {
               @close="closeMenu(hide)"
             />
 
-            <div v-if="view === 'root'" class="p-1">
+            <div v-if="view === 'root'" class="p-2">
               <button
                 v-if="hasConversation"
                 type="button"
                 data-testid="kanban-card-open-conversation"
-                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :class="MENU_OPTION_CLASSES"
                 :disabled="isBusy"
                 @click="openConversationFromMenu(hide)"
               >
@@ -468,7 +473,7 @@ const toggleSelection = async event => {
                 v-if="hasConversation"
                 type="button"
                 data-testid="kanban-card-open-new-tab"
-                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :class="MENU_OPTION_CLASSES"
                 :disabled="isBusy"
                 @click="openConversationInNewTab(hide)"
               >
@@ -478,7 +483,7 @@ const toggleSelection = async event => {
               <button
                 type="button"
                 data-testid="kanban-card-edit"
-                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :class="MENU_OPTION_CLASSES"
                 :disabled="isBusy"
                 @click="
                   closeMenu(hide);
@@ -491,7 +496,8 @@ const toggleSelection = async event => {
               <button
                 type="button"
                 data-testid="kanban-card-move"
-                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="justify-between"
+                :class="[MENU_OPTION_CLASSES]"
                 :disabled="isBusy"
                 @click="openView('move')"
               >
@@ -504,7 +510,8 @@ const toggleSelection = async event => {
               <button
                 type="button"
                 data-testid="kanban-card-labels"
-                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="justify-between"
+                :class="[MENU_OPTION_CLASSES]"
                 :disabled="isBusy"
                 @click="openView('labels')"
               >
@@ -527,7 +534,8 @@ const toggleSelection = async event => {
               <button
                 type="button"
                 data-testid="kanban-card-assign"
-                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="justify-between"
+                :class="[MENU_OPTION_CLASSES]"
                 :disabled="isBusy"
                 @click="openView('assign')"
               >
@@ -540,7 +548,8 @@ const toggleSelection = async event => {
               <button
                 type="button"
                 data-testid="kanban-card-priority"
-                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="justify-between"
+                :class="[MENU_OPTION_CLASSES]"
                 :disabled="isBusy"
                 @click="openView('priority')"
               >
@@ -555,7 +564,8 @@ const toggleSelection = async event => {
               <button
                 type="button"
                 data-testid="kanban-card-due-date"
-                class="flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                class="justify-between"
+                :class="[MENU_OPTION_CLASSES]"
                 :disabled="isBusy"
                 @click="openView('due')"
               >
@@ -570,13 +580,13 @@ const toggleSelection = async event => {
                   <i class="i-lucide-chevron-right size-4" />
                 </span>
               </button>
-              <div class="my-1 border-t border-n-weak" />
+              <div :class="MENU_DIVIDER_CLASSES" />
               <button
                 type="button"
                 data-testid="kanban-card-remove"
                 :aria-label="t('KANBAN.ACTIONS.REMOVE_CARD')"
                 :title="t('KANBAN.ACTIONS.REMOVE_CARD')"
-                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :class="[MENU_OPTION_CLASSES, MENU_OPTION_DESTRUCTIVE_CLASSES]"
                 :disabled="isBusy"
                 @click="removeCard(hide)"
               >
@@ -585,7 +595,7 @@ const toggleSelection = async event => {
               </button>
             </div>
 
-            <div v-else-if="view === 'move'" class="p-1">
+            <div v-else-if="view === 'move'" class="p-2">
               <label
                 v-if="moveBoardOptions.length"
                 class="block px-3 py-2 text-xs font-medium text-n-slate-11"
@@ -601,7 +611,7 @@ const toggleSelection = async event => {
               </label>
               <div
                 v-if="moveBoardOptions.length"
-                class="mx-2 border-t border-n-weak"
+                :class="MENU_DIVIDER_CLASSES"
               />
               <p
                 v-if="!moveStages.length"
@@ -619,7 +629,7 @@ const toggleSelection = async event => {
                 :key="stage.id"
                 type="button"
                 data-testid="kanban-card-move-stage"
-                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :class="MENU_OPTION_CLASSES"
                 :disabled="isBusy"
                 @click="onMoveToStage(stage, hide)"
               >
@@ -678,7 +688,7 @@ const toggleSelection = async event => {
               </div>
             </div>
 
-            <div v-else-if="view === 'assign'" class="p-1">
+            <div v-else-if="view === 'assign'" class="p-2">
               <p
                 v-if="!assignableUsers.length"
                 class="px-3 py-2 text-sm text-n-slate-10"
@@ -690,7 +700,7 @@ const toggleSelection = async event => {
                 :key="user.id"
                 type="button"
                 data-testid="kanban-card-assign-agent"
-                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :class="MENU_OPTION_CLASSES"
                 :disabled="isBusy"
                 @click="onAssignAgent(user, hide)"
               >
@@ -704,14 +714,14 @@ const toggleSelection = async event => {
               </button>
             </div>
 
-            <div v-else-if="view === 'priority'" class="p-1">
+            <div v-else-if="view === 'priority'" class="p-2">
               <button
                 v-for="option in priorityOptions"
                 :key="option.value"
                 type="button"
                 data-testid="kanban-card-priority-option"
                 :data-selected="option.value === priority"
-                class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :class="MENU_OPTION_CLASSES"
                 :disabled="isBusy"
                 @click="onSelectPriority(option, hide)"
               >

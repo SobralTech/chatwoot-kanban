@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import KanbanReasonPicker from './KanbanReasonPicker.vue';
+import { MENU_OPTION_CLASSES, MENU_SURFACE_CLASSES } from './menuClasses';
 
 const props = defineProps({
   kanbanStageId: {
@@ -128,7 +129,6 @@ const confirm = hide => {
     v-if="wonStageId && lostStageId"
     align="start"
     disable-mobile-view
-    :show-content-border="false"
     @hide="resetSelection"
   >
     <button
@@ -145,14 +145,12 @@ const confirm = hide => {
     </button>
 
     <template #content="{ hide }">
-      <div
-        class="block visible w-56 rounded-lg border border-n-strong bg-n-alpha-3 p-3 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
-      >
+      <div class="w-56" :class="[MENU_SURFACE_CLASSES]">
         <div v-if="!chosenType && status === 'open'" class="grid gap-1.5">
           <button
             type="button"
             data-testid="kanban-card-status-option-won"
-            class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+            :class="MENU_OPTION_CLASSES"
             @click="chooseType('won')"
           >
             <i class="i-lucide-check-circle-2 size-4 text-n-teal-11" />
@@ -161,7 +159,7 @@ const confirm = hide => {
           <button
             type="button"
             data-testid="kanban-card-status-option-lost"
-            class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+            :class="MENU_OPTION_CLASSES"
             @click="chooseType('lost')"
           >
             <i class="i-lucide-x-circle size-4 text-n-ruby-11" />
@@ -173,7 +171,7 @@ const confirm = hide => {
           <button
             type="button"
             data-testid="kanban-card-status-option-reopen"
-            class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+            :class="MENU_OPTION_CLASSES"
             @click="chooseType('reopen')"
           >
             <i class="i-lucide-rotate-ccw size-4 text-n-brand" />

@@ -8,6 +8,7 @@ import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import KanbanCardStatusBadge from '../../KanbanCardStatusBadge.vue';
 import KanbanDueDatePicker from '../../KanbanDueDatePicker.vue';
 import KanbanPriorityDropdown from '../../KanbanPriorityDropdown.vue';
+import { MENU_OPTION_CLASSES, MENU_SURFACE_CLASSES } from '../../menuClasses';
 
 const props = defineProps({
   card: {
@@ -176,7 +177,7 @@ const selectedAssigneeIds = computed(() =>
         {{ formattedTotalValue }}
       </button>
 
-      <Popover align="end" disable-mobile-view :show-content-border="false">
+      <Popover align="end" disable-mobile-view>
         <button
           type="button"
           data-testid="kanban-opportunity-assignees-menu"
@@ -218,9 +219,7 @@ const selectedAssigneeIds = computed(() =>
         </button>
 
         <template #content>
-          <div
-            class="block visible w-72 rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
-          >
+          <div class="w-72" :class="[MENU_SURFACE_CLASSES]">
             <ul class="grid gap-1">
               <li v-for="user in assignableUsers" :key="user.id">
                 <button
@@ -228,7 +227,7 @@ const selectedAssigneeIds = computed(() =>
                   data-testid="kanban-opportunity-assignee-option"
                   :data-selected="selectedAssigneeIds.includes(Number(user.id))"
                   :disabled="isPending('assignees')"
-                  class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+                  :class="MENU_OPTION_CLASSES"
                   @click="emit('toggleAssignee', user)"
                 >
                   <input

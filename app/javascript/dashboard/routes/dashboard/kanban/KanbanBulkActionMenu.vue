@@ -3,9 +3,9 @@ import { ref } from 'vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import {
   BULK_ACTION_BUTTON_CLASSES,
-  BULK_ACTION_MENU_CLASSES,
-  BULK_ACTION_OPTION_CLASSES,
-} from './bulkActionClasses';
+  MENU_OPTION_CLASSES,
+  MENU_SURFACE_CLASSES,
+} from './menuClasses';
 
 const props = defineProps({
   label: {
@@ -100,7 +100,10 @@ const reset = () => {
       {{ label }}
     </button>
     <template #content="{ hide }">
-      <div :class="[BULK_ACTION_MENU_CLASSES, menuClass]">
+      <div
+        class="w-64 max-w-[calc(100vw-2rem)]"
+        :class="[MENU_SURFACE_CLASSES, menuClass]"
+      >
         <slot name="header" />
         <p
           v-if="emptyText && !options.length"
@@ -115,7 +118,7 @@ const reset = () => {
           :data-testid="optionTestid"
           :role="multiple ? 'menuitemcheckbox' : undefined"
           :aria-checked="multiple ? isSelected(option.value) : undefined"
-          :class="BULK_ACTION_OPTION_CLASSES"
+          :class="MENU_OPTION_CLASSES"
           @click="choose(option.value, hide)"
         >
           <i

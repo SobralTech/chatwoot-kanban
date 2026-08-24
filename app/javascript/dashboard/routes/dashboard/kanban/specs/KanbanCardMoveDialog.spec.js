@@ -200,6 +200,19 @@ describe('KanbanCardMoveDialog', () => {
     ).toContain('keeps all its data');
   });
 
+  it('paints each stage with its own colour', () => {
+    const wrapper = mountDialog({
+      card: { ...card, kanbanStageId: 80 },
+      stages: [
+        { id: 80, name: 'Qualification', active: true, color: '#2781F6' },
+      ],
+    });
+
+    expect(stageButtons(wrapper)[0].get('span').attributes('style')).toContain(
+      'rgb(39, 129, 246)'
+    );
+  });
+
   it('says so when no other funnel is available', () => {
     const wrapper = mountDialog({
       boards: [sourceBoard],

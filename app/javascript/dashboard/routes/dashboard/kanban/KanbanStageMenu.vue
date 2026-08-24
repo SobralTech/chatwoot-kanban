@@ -7,6 +7,11 @@ import Input from 'dashboard/components-next/input/Input.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import KanbanMenuHeader from './KanbanMenuHeader.vue';
+import {
+  MENU_DIVIDER_CLASSES,
+  MENU_OPTION_CLASSES,
+  MENU_OPTION_DESTRUCTIVE_CLASSES,
+} from './menuClasses';
 
 const props = defineProps({
   stage: {
@@ -273,11 +278,11 @@ watch(stageMoveBoardId, () => {
           @close="closeMenu(hide)"
         />
 
-        <div v-if="view === 'root'" class="p-1">
+        <div v-if="view === 'root'" class="p-2">
           <button
             v-if="!isCurrentStageTerminal"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="MENU_OPTION_CLASSES"
             :disabled="isBusy"
             @click="emitAction('addCard', undefined, hide)"
           >
@@ -287,7 +292,7 @@ watch(stageMoveBoardId, () => {
           <button
             v-if="isAdmin"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="MENU_OPTION_CLASSES"
             :disabled="isBusy"
             @click="emitAction('edit', undefined, hide)"
           >
@@ -297,7 +302,7 @@ watch(stageMoveBoardId, () => {
           <button
             v-if="isAdmin"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="MENU_OPTION_CLASSES"
             :disabled="isBusy"
             @click="openView('copy')"
           >
@@ -307,7 +312,7 @@ watch(stageMoveBoardId, () => {
           <button
             v-if="isAdmin && !isCurrentStageTerminal"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="MENU_OPTION_CLASSES"
             :disabled="isBusy"
             @click="openView('move')"
           >
@@ -317,7 +322,7 @@ watch(stageMoveBoardId, () => {
           <button
             v-if="!isCurrentStageTerminal && hasCards"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="MENU_OPTION_CLASSES"
             :disabled="isBusy"
             @click="openView('moveCards')"
           >
@@ -327,7 +332,7 @@ watch(stageMoveBoardId, () => {
           <button
             v-if="hasCards"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="MENU_OPTION_CLASSES"
             :disabled="isBusy"
             @click="openView('sort')"
           >
@@ -336,12 +341,12 @@ watch(stageMoveBoardId, () => {
           </button>
           <div
             v-if="isAdmin && (canDeleteStage || hasCards)"
-            class="my-1 border-t border-n-weak"
+            :class="MENU_DIVIDER_CLASSES"
           />
           <button
             v-if="isAdmin && canDeleteStage"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="[MENU_OPTION_CLASSES, MENU_OPTION_DESTRUCTIVE_CLASSES]"
             :disabled="isBusy"
             @click="emitAction('deleteStage', undefined, hide)"
           >
@@ -351,7 +356,7 @@ watch(stageMoveBoardId, () => {
           <button
             v-if="isAdmin && hasCards"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-n-ruby-11 hover:bg-n-ruby-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="[MENU_OPTION_CLASSES, MENU_OPTION_DESTRUCTIVE_CLASSES]"
             :disabled="isBusy"
             @click="emitAction('deleteCards', undefined, hide)"
           >
@@ -422,7 +427,7 @@ watch(stageMoveBoardId, () => {
               class="mt-1 font-normal"
             />
           </label>
-          <div class="border-t border-n-weak" />
+          <div :class="MENU_DIVIDER_CLASSES" />
           <p
             v-if="cardMoveTargets.length === 0"
             class="px-2 py-3 text-sm text-n-slate-10"
@@ -433,7 +438,7 @@ watch(stageMoveBoardId, () => {
             v-for="targetStage in cardMoveTargets"
             :key="targetStage.id"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="MENU_OPTION_CLASSES"
             :disabled="isBusy"
             @click="submitMoveCards(targetStage, hide)"
           >
@@ -454,7 +459,7 @@ watch(stageMoveBoardId, () => {
             v-for="option in sortOptions"
             :key="option.value"
             type="button"
-            class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+            :class="MENU_OPTION_CLASSES"
             :disabled="isBusy"
             @click="emitAction('sort', { sortBy: option.value }, hide)"
           >

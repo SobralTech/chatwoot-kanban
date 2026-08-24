@@ -5,6 +5,7 @@ import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
+import { MENU_OPTION_CLASSES, MENU_SURFACE_CLASSES } from './menuClasses';
 
 const props = defineProps({
   modelValue: {
@@ -68,7 +69,7 @@ const onSelect = option => {
 </script>
 
 <template>
-  <Popover align="start" disable-mobile-view :show-content-border="false">
+  <Popover align="start" disable-mobile-view>
     <button
       type="button"
       :data-testid="testId"
@@ -93,16 +94,14 @@ const onSelect = option => {
     </button>
 
     <template #content>
-      <div
-        class="block visible w-64 rounded-lg border border-n-strong bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px] dark:border-n-strong"
-      >
+      <div class="w-64" :class="[MENU_SURFACE_CLASSES]">
         <ul class="grid gap-1">
           <li v-for="option in priorityOptions" :key="option.value">
             <button
               type="button"
               data-testid="kanban-priority-option"
               :data-selected="option.value === modelValue"
-              class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+              :class="MENU_OPTION_CLASSES"
               @click="onSelect(option)"
             >
               <CardPriorityIcon

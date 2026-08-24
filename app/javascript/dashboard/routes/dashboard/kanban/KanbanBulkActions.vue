@@ -13,8 +13,9 @@ import KanbanBulkActionMenu from './KanbanBulkActionMenu.vue';
 import KanbanReasonPicker from './KanbanReasonPicker.vue';
 import {
   BULK_ACTION_BUTTON_CLASSES,
-  BULK_ACTION_MENU_CLASSES,
-} from './bulkActionClasses';
+  MENU_OPTION_CLASSES,
+  MENU_SURFACE_CLASSES,
+} from './menuClasses';
 
 const props = defineProps({
   selectedCount: {
@@ -252,7 +253,7 @@ const resetReason = () => {
           v-if="hasAssignedSelectedCards"
           type="button"
           data-testid="kanban-bulk-unassign"
-          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-11 hover:bg-n-alpha-2"
+          :class="MENU_OPTION_CLASSES"
           :disabled="isBusy"
           @click="chooseAction('assign', { assignee_ids: [] }, hide)"
         >
@@ -290,7 +291,7 @@ const resetReason = () => {
           v-if="hasLabeledSelectedCards"
           type="button"
           data-testid="kanban-bulk-remove-labels"
-          class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-11 hover:bg-n-alpha-2"
+          :class="MENU_OPTION_CLASSES"
           :disabled="isBusy"
           @click="chooseAction('clear_labels', {}, hide)"
         >
@@ -326,7 +327,10 @@ const resetReason = () => {
         {{ t('KANBAN.BULK.LOSE') }}
       </button>
       <template #content="{ hide }">
-        <div :class="BULK_ACTION_MENU_CLASSES">
+        <div
+          class="w-64 max-w-[calc(100vw-2rem)]"
+          :class="[MENU_SURFACE_CLASSES]"
+        >
           <KanbanReasonPicker
             v-model="selectedReasonId"
             :reasons="reasons"
