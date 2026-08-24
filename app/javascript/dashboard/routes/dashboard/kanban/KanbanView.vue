@@ -6,7 +6,10 @@ import Draggable from 'vuedraggable';
 
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
-import { useKanbanRealtimeBuffer } from 'dashboard/composables/useKanbanRealtimeBuffer';
+import { useKanbanBoardRealtime } from 'dashboard/composables/useKanbanBoardRealtime';
+import { useKanbanBoardSession } from 'dashboard/composables/useKanbanBoardSession';
+import { useKanbanBoardSwitcher } from 'dashboard/composables/useKanbanBoardSwitcher';
+import { useKanbanOpportunityPanel } from 'dashboard/composables/useKanbanOpportunityPanel';
 import { useKanbanDragAutoScroll } from 'dashboard/composables/useKanbanDragAutoScroll';
 import { useKanbanBoardFiltersState } from 'dashboard/composables/useKanbanBoardFiltersState';
 import { useKanbanBoardData } from 'dashboard/composables/useKanbanBoardData';
@@ -16,32 +19,22 @@ import { useKanbanCardActions } from 'dashboard/composables/useKanbanCardActions
 import { useKanbanCardSelection } from 'dashboard/composables/useKanbanCardSelection';
 import { useKanbanBulkActions } from 'dashboard/composables/useKanbanBulkActions';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
-import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import KanbanStageColumn from './board/KanbanStageColumn.vue';
 import KanbanBoardHeader from './board/KanbanBoardHeader.vue';
 import KanbanBoardSummary from './board/KanbanBoardSummary.vue';
 import KanbanStageDraft from './board/KanbanStageDraft.vue';
 import KanbanBulkActions from './KanbanBulkActions.vue';
-import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
-import { copyTextToClipboard } from 'shared/helpers/clipboard';
-import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
-import {
-  getKanbanBoardPrefs,
-  getKanbanBoardSnapshot,
-  removeKanbanBoardSnapshot,
-  saveKanbanBoardPrefs,
-  saveKanbanBoardSnapshot,
-} from 'dashboard/helper/kanbanBoardSnapshot';
 import {
   ALL_TIME_TERMINAL_PERIOD,
   normalizeTerminalPeriod,
 } from 'dashboard/helper/kanbanBoardFilters';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
-import { emitter } from 'shared/helpers/mitt';
-import { BUS_EVENTS } from 'shared/constants/busEvents';
 import KanbanOpportunityPanel from './opportunity/KanbanOpportunityPanel.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
-import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
+import {
+  isLostReasonRequiredError,
+  kanbanActionErrorMessage,
+} from 'dashboard/helper/kanbanStageError';
 
 const route = useRoute();
 const router = useRouter();
@@ -61,9 +54,7 @@ const isSummaryCollapsed = ref(false);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
 const isCreatingStageDraft = ref(false);
-const selectedOpportunityCardId = ref(null);
 const opportunityModalRef = ref(null);
-const opportunityTriggerRef = ref(null);
 // Keyed by the thing being acted on, not by the verb, so a new action never has
 // to be registered anywhere for its spinner to work.
 const activeActionKeys = ref(new Set());
@@ -76,7 +67,6 @@ const cardActionKey = card => `card-${card.id}`;
 const isCardBusy = (card, stage) =>
   isActionActive(cardActionKey(card)) || isActionActive(stageActionKey(stage));
 const hasError = ref(false);
-const isBoardDropdownOpen = ref(false);
 const editingStageId = ref(null);
 const stageNames = ref({});
 const stageColors = ref({});
@@ -95,13 +85,9 @@ const showRemoveStageConfirmation = ref(false);
 const showRemoveStageCardsConfirmation = ref(false);
 const showMoveStageConfirmation = ref(false);
 const isCardDragging = ref(false);
-const pendingRealtimeKanbanEvents = ref([]);
 const hasCardDragChanged = ref(false);
 const suppressNextCardClick = ref(false);
 const isPersistingCardDrag = ref(false);
-const renamingBoardId = ref(null);
-const renameValue = ref('');
-const isRenamingBoard = ref(false);
 const defaultStageColor = DEFAULT_KANBAN_STAGE_COLOR;
 const newStageColor = ref(defaultStageColor);
 const newStageName = ref('');
@@ -119,13 +105,6 @@ const preSearchScrollLeft = ref(null);
 
 const interactiveDragFilter =
   'button,a,input,textarea,select,[contenteditable="true"],.no-drag';
-const boardRefreshEvents = new Set([
-  'kanban.board.updated',
-  'kanban.stage.created',
-  'kanban.stage.updated',
-  'kanban.stage.deleted',
-  'kanban.stage.reordered',
-]);
 
 const activeBoardId = computed(() => Number(route.params.boardId) || null);
 const stages = computed(() => selectedBoard.value?.stages || []);
@@ -292,284 +271,43 @@ const emptyCardsLabel = stage =>
     ? t('KANBAN.EMPTY_CARDS_FILTERED')
     : t('KANBAN.EMPTY_CARDS');
 
-const isNameTakenError = error => {
-  const errorMessage = String(apiErrorMessage(error, '')).toLowerCase();
-  return errorMessage.includes('name') && errorMessage.includes('taken');
-};
-
-const isSpecialStageOrderError = error =>
-  error?.response?.data?.error === 'special_stages_must_be_last';
-
-const stageCardsBlockedMessage = error => {
-  const blocked = error?.response?.data?.blocked || {};
-  const duplicateCount = Number(blocked.card_already_in_target_board || 0);
-  const inboxCount = Number(blocked.inbox_not_allowed || 0);
-  const count = duplicateCount + inboxCount;
-  const details = [
-    duplicateCount
-      ? t('KANBAN.STAGE_MENU.ERRORS.STAGE_CARDS_BLOCKED_DUPLICATE', {
-          count: duplicateCount,
-        })
-      : null,
-    inboxCount
-      ? t('KANBAN.STAGE_MENU.ERRORS.STAGE_CARDS_BLOCKED_INBOX', {
-          count: inboxCount,
-        })
-      : null,
-  ].filter(Boolean);
-
-  return [
-    t('KANBAN.STAGE_MENU.ERRORS.STAGE_CARDS_BLOCKED', { count }),
-    ...details,
-  ].join(' ');
-};
-
-const stageActionErrorMessage = error => {
-  switch (error?.response?.data?.error) {
-    case 'stage_not_empty':
-      return t('KANBAN.STAGE_MENU.ERRORS.STAGE_NOT_EMPTY');
-    case 'stage_cards_blocked':
-      return stageCardsBlockedMessage(error);
-    case 'stage_name_taken':
-      return t('KANBAN.STAGE_MENU.ERRORS.STAGE_NAME_TAKEN');
-    case 'last_stage_cannot_move_board':
-      return t('KANBAN.STAGE_MENU.ERRORS.LAST_STAGE_CANNOT_MOVE_BOARD');
-    case 'special_stage_cannot_move_board':
-      return t('KANBAN.STAGE_MENU.ERRORS.SPECIAL_STAGE_CANNOT_MOVE_BOARD');
-    case 'special_stage_cannot_be_deleted':
-      return t('KANBAN.ACTIONS.REMOVE_STAGE_TERMINAL');
-    case 'terminal_stage_not_allowed':
-      return t('KANBAN.STAGE_MENU.ERRORS.TERMINAL_STAGE_NOT_ALLOWED');
-    case 'bulk_action_limit_exceeded':
-      return t('KANBAN.STAGE_MENU.ERRORS.MOVE_CARDS_LIMIT', {
-        count: selectionLimit.value,
-      });
-    default:
-      return null;
-  }
-};
-
-const showActionError = (error, fallbackMessage) => {
-  let message = apiErrorMessage(error, fallbackMessage);
-  const stageActionMessage = stageActionErrorMessage(error);
-  if (isNameTakenError(error)) message = t('KANBAN.ACTIONS.STAGE_NAME_TAKEN');
-  if (isSpecialStageOrderError(error))
-    message = t('KANBAN.ACTIONS.STAGE_ORDER_INVALID');
-  if (stageActionMessage) message = stageActionMessage;
-
-  useAlert(message);
-};
-
-const isLostReasonRequiredError = error =>
-  error?.response?.data?.error === 'lost_reason_required';
-
-const boardPrefsUserId = () => currentUserId.value ?? 'unknown';
-
-const loadBoardPrefs = boardId => {
-  const prefs = getKanbanBoardPrefs({
-    accountId: route.params.accountId,
-    boardId,
-    userId: boardPrefsUserId(),
-  });
-  const storedStageIds = Array.isArray(prefs?.collapsedStageIds)
-    ? prefs.collapsedStageIds.map(Number).filter(Boolean)
-    : [];
-
-  collapsedStageIds.value = new Set(storedStageIds);
-  terminalPeriod.value = normalizeTerminalPeriod(prefs?.terminalPeriod);
-  isSummaryCollapsed.value = prefs?.summaryCollapsed === true;
-
-  return prefs;
-};
-
-const getStageScrollElement = stageId =>
-  boardScrollContainer.value?.querySelector(
-    `[data-stage-scroll-id="${stageId}"]`
-  );
-
-const saveBoardSnapshot = () => {
-  if (!selectedBoard.value?.id) return;
-
-  saveKanbanBoardSnapshot({
-    accountId: route.params.accountId,
-    boardId: selectedBoard.value.id,
-    snapshot: {
-      scrollLeft: boardScrollContainer.value?.scrollLeft ?? 0,
-      stages: Object.fromEntries(
-        stages.value.map(stage => [
-          stage.id,
-          {
-            loadedCount: stage.cards.length,
-            scrollTop: getStageScrollElement(stage.id)?.scrollTop ?? 0,
-          },
-        ])
-      ),
-      filters: {
-        boardFilters: { ...boardFilters.value },
-        searchTerm: activeSearchTerm.value,
-      },
-    },
-  });
-};
-
-const applyBoardSnapshot = async (snapshot, boardId, generation) => {
-  if (
-    generation !== requestGeneration.value ||
-    selectedBoard.value?.id !== boardId
-  ) {
-    return;
-  }
-
-  // showBoard already loaded every stage's first page, so only the stages
-  // that had been paged past it need to be re-fetched.
-  await Promise.all(
-    stages.value.map(async stage => {
-      if (
-        generation !== requestGeneration.value ||
-        selectedBoard.value?.id !== boardId
-      ) {
-        return;
-      }
-
-      if (isStageCollapsed(stage.id)) return;
-
-      const { loadedCount } = snapshot.stages[stage.id] ?? {};
-      if (!loadedCount || loadedCount <= stage.cards.length) return;
-
-      const page = await fetchStageCardsPage(
-        stage.id,
-        { limit: loadedCount },
-        generation
-      );
-      if (
-        page === staleRequest ||
-        generation !== requestGeneration.value ||
-        selectedBoard.value?.id !== boardId
-      ) {
-        return;
-      }
-      applyStageFirstPage(stage.id, page);
+const showActionError = (error, fallbackMessage) =>
+  useAlert(
+    kanbanActionErrorMessage(error, fallbackMessage, {
+      t,
+      selectionLimit: selectionLimit.value,
     })
   );
 
-  if (
-    generation !== requestGeneration.value ||
-    selectedBoard.value?.id !== boardId
-  ) {
-    return;
-  }
-  await nextTick();
-
-  if (
-    generation !== requestGeneration.value ||
-    selectedBoard.value?.id !== boardId
-  ) {
-    return;
-  }
-  if (boardScrollContainer.value) {
-    boardScrollContainer.value.scrollLeft = snapshot.scrollLeft;
-  }
-
-  stages.value.forEach(stage => {
-    const stageScrollElement = getStageScrollElement(stage.id);
-    if (stageScrollElement) {
-      stageScrollElement.scrollTop = snapshot.stages[stage.id]?.scrollTop ?? 0;
-    }
-  });
-};
-
-const showBoardWithSnapshot = async (boardId, restoreSnapshot = true) => {
-  const generation = requestGeneration.value;
-  const prefs = loadBoardPrefs(boardId);
-  const snapshot = restoreSnapshot
-    ? getKanbanBoardSnapshot({
-        accountId: route.params.accountId,
-        boardId,
-      })
-    : null;
-
-  if (!restoreSnapshot) {
-    removeKanbanBoardSnapshot({
-      accountId: route.params.accountId,
-      boardId,
-    });
-  }
-
-  if (!snapshot || !restoreSnapshot) {
-    if (prefs) {
-      const initialFilters = emptyBoardFilters();
-      if (prefs.mine && currentUserId.value) {
-        initialFilters.assigneeIds = [currentUserId.value];
-        initialFilters.matchMode = 'all';
-      }
-      if (prefs.today) {
-        initialFilters.dueDates = ['overdue', 'day'];
-        initialFilters.cardStatuses = ['open'];
-        initialFilters.matchMode = 'all';
-      }
-      boardFilters.value = normalizeBoardFilters(initialFilters);
-    }
-    await showBoard(boardId, generation);
-    return;
-  }
-
-  boardFilters.value = normalizeBoardFilters(
-    snapshot.filters?.boardFilters || {
-      inboxIds: snapshot.filters?.inboxIds,
-      assigneeIds: snapshot.filters?.assigneeIds,
-    }
-  );
-  searchInput.value = snapshot.filters?.searchTerm || '';
-  activeSearchTerm.value = snapshot.filters?.searchTerm || '';
-
-  if (generation !== requestGeneration.value) return;
-  await showBoard(boardId, generation);
-  if (
-    generation !== requestGeneration.value ||
-    selectedBoard.value?.id !== boardId
-  ) {
-    return;
-  }
-
-  await applyBoardSnapshot(snapshot, boardId, generation);
-  if (
-    generation !== requestGeneration.value ||
-    selectedBoard.value?.id !== boardId
-  ) {
-    return;
-  }
-  removeKanbanBoardSnapshot({
-    accountId: route.params.accountId,
-    boardId,
-  });
-};
-
-const refreshSelectedBoard = async () => {
-  if (!selectedBoard.value?.id) return;
-
-  const scrollEl = boardScrollContainer.value;
-  const savedScrollLeft = scrollEl?.scrollLeft ?? 0;
-  const targetStageId = pendingScrollToStageId.value;
-
-  const generation = requestGeneration.value;
-  await showBoard(selectedBoard.value.id, generation);
-  if (generation !== requestGeneration.value) return;
-  await nextTick();
-
-  const scrollElAfter = boardScrollContainer.value;
-  if (targetStageId) {
-    pendingScrollToStageId.value = null;
-    scrollElAfter
-      ?.querySelector(`[data-stage-id="${targetStageId}"]`)
-      ?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'start',
-      });
-  } else if (savedScrollLeft > 0 && scrollElAfter) {
-    scrollElAfter.scrollLeft = savedScrollLeft;
-  }
-};
+const {
+  persistBoardPrefs,
+  refreshSelectedBoard,
+  saveBoardSnapshot,
+  showBoardWithSnapshot,
+} = useKanbanBoardSession({
+  activeSearchTerm,
+  applyStageFirstPage,
+  boardFilters,
+  boardScrollContainer,
+  collapsedStageIds,
+  currentUserId,
+  emptyBoardFilters,
+  fetchStageCardsPage,
+  isMineActive,
+  isStageCollapsed,
+  isSummaryCollapsed,
+  isTodayActive,
+  normalizeBoardFilters,
+  pendingScrollToStageId,
+  requestGeneration,
+  route,
+  searchInput,
+  selectedBoard,
+  showBoard,
+  staleRequest,
+  stages,
+  terminalPeriod,
+});
 
 const scrollToFirstMatchingStage = async () => {
   await nextTick();
@@ -614,25 +352,6 @@ const onSearchKeydown = event => {
   if (event.key !== 'Escape' || searchInput.value === '') return;
   event.preventDefault();
   clearSearch();
-};
-
-// Every stored preference is derived from live board state, so persisting is
-// always a full snapshot taken after that state has been updated.
-const persistBoardPrefs = () => {
-  if (!selectedBoard.value?.id) return;
-
-  saveKanbanBoardPrefs({
-    accountId: route.params.accountId,
-    boardId: selectedBoard.value.id,
-    userId: boardPrefsUserId(),
-    prefs: {
-      collapsedStageIds: [...collapsedStageIds.value],
-      terminalPeriod: terminalPeriod.value,
-      summaryCollapsed: isSummaryCollapsed.value,
-      mine: isMineActive.value,
-      today: isTodayActive.value,
-    },
-  });
 };
 
 const toggleStageCollapsed = async stage => {
@@ -851,130 +570,19 @@ const onManualCardCreated = async card => {
   }
 };
 
-const patchCardById = async cardId => {
-  const generation = requestGeneration.value;
-  const boardId = selectedBoard.value?.id;
-  if (!boardId) return;
-  const localStageId = findCardStageId({ id: cardId });
-
-  try {
-    const response = await KanbanBoardsAPI.showCardById(boardId, cardId);
-    if (
-      generation !== requestGeneration.value ||
-      selectedBoard.value?.id !== boardId
-    ) {
-      return;
-    }
-    const card = normalizePayload(response.data);
-    const updatedStageId = findCardStageId(card);
-
-    if (card.active === false || !patchVisibleCard(card)) {
-      await refreshStageFirstPages([localStageId, updatedStageId]);
-    }
-  } catch {
-    if (
-      generation !== requestGeneration.value ||
-      selectedBoard.value?.id !== boardId
-    ) {
-      return;
-    }
-    await refreshStageFirstPage(localStageId);
-  }
-};
-
-// Beyond this many buffered cards, refreshing whole stages costs less than
-// fetching each card on its own.
-const MAX_INDIVIDUAL_CARDS = 5;
-
-const applyRealtimeFlush = async ({
-  board,
-  stageIds,
-  cardIds,
-  cardStageIds,
-}) => {
-  if (!selectedBoard.value?.id) return;
-  if (board) {
-    await refreshSelectedBoard();
-    return;
-  }
-
-  if (cardIds.length > MAX_INDIVIDUAL_CARDS) {
-    await refreshStageFirstPages([
-      ...stageIds,
-      ...cardStageIds,
-      ...cardIds.map(cardId => findCardStageId({ id: cardId })),
-    ]);
-    return;
-  }
-
-  if (stageIds.length) await refreshStageFirstPages(stageIds);
-  await Promise.all(cardIds.map(patchCardById));
-};
-
-const realtimeBuffer = useKanbanRealtimeBuffer({
-  onFlush: applyRealtimeFlush,
-});
-
-const processRealtimeKanbanEvent = (event, data) => {
-  if (boardRefreshEvents.has(event)) {
-    realtimeBuffer.push({ board: true });
-    return;
-  }
-
-  if (event === 'kanban.card.created' || event === 'kanban.card.deleted') {
-    realtimeBuffer.push({ stageIds: [data.stage_id] });
-    return;
-  }
-
-  if (event === 'kanban.card.reordered') {
-    realtimeBuffer.push({
-      stageIds: [data.source_stage_id, data.target_stage_id],
-    });
-    return;
-  }
-
-  if (event === 'kanban.card.updated') {
-    if (hasActiveFilters.value) {
-      realtimeBuffer.push({
-        stageIds: [data.stage_id, findCardStageId({ id: data.card_id })],
-      });
-      return;
-    }
-
-    realtimeBuffer.push({
-      cardIds: [data.card_id],
-      cardStageIds: [data.stage_id],
-    });
-  }
-};
-
-const flushPendingRealtimeKanbanEvents = () => {
-  if (!pendingRealtimeKanbanEvents.value.length) return;
-
-  const events = pendingRealtimeKanbanEvents.value;
-  pendingRealtimeKanbanEvents.value = [];
-
-  events.forEach(({ event, data }) => {
-    if (!selectedBoard.value?.id || data?.board_id !== selectedBoard.value.id) {
-      return;
-    }
-
-    processRealtimeKanbanEvent(event, data);
+const { flushPendingEvents: flushPendingRealtimeKanbanEvents } =
+  useKanbanBoardRealtime({
+    findCardStageId,
+    hasActiveFilters,
+    isCardDragging,
+    normalizePayload,
+    patchVisibleCard,
+    refreshSelectedBoard,
+    refreshStageFirstPage,
+    refreshStageFirstPages,
+    requestGeneration,
+    selectedBoard,
   });
-};
-
-const handleRealtimeKanbanEvent = ({ event, data } = {}) => {
-  if (!selectedBoard.value?.id || data?.board_id !== selectedBoard.value.id) {
-    return;
-  }
-
-  if (isCardDragging.value) {
-    pendingRealtimeKanbanEvents.value.push({ event, data });
-    return;
-  }
-
-  processRealtimeKanbanEvent(event, data);
-};
 
 const {
   assignAgent,
@@ -1020,110 +628,33 @@ const {
   useAlert,
 });
 
-const cancelBoardRename = () => {
-  renamingBoardId.value = null;
-  renameValue.value = '';
-};
-
-const startBoardRename = board => {
-  renamingBoardId.value = board.id;
-  renameValue.value = board.name || '';
-};
-
-const confirmBoardRename = async () => {
-  const board = boards.value.find(item => item.id === renamingBoardId.value);
-  const name = renameValue.value.trim();
-  if (!board || !name || isRenamingBoard.value) return;
-
-  if (name === board.name) {
-    cancelBoardRename();
-    return;
-  }
-
-  isRenamingBoard.value = true;
-  try {
-    await KanbanBoardsAPI.update(board.id, { kanban_board: { name } });
-    await store.dispatch('kanbanBoards/refreshBoards');
-    // The header title reads from selectedBoard, which is loaded by showBoard
-    // rather than from the board list, so patch it instead of refetching.
-    if (selectedBoard.value?.id === board.id) selectedBoard.value.name = name;
-    cancelBoardRename();
-  } catch (error) {
-    // Keep the row in edit mode so the name can be corrected in place, most
-    // commonly after the per-account uniqueness check rejects a duplicate.
-    useAlert(apiErrorMessage(error, t('KANBAN.ACTIONS.RENAME_BOARD_ERROR')));
-  } finally {
-    isRenamingBoard.value = false;
-  }
-};
-
-const closeBoardDropdown = () => {
-  isBoardDropdownOpen.value = false;
-  cancelBoardRename();
-};
-const toggleBoardDropdown = () => {
-  isBoardDropdownOpen.value = hasBoards.value && !isBoardDropdownOpen.value;
-};
-
-const goToOverview = () => {
-  router.push({
-    name: 'kanban_boards',
-    params: { accountId: route.params.accountId },
-  });
-};
-
-const selectBoard = boardId => {
-  if (boardId === activeBoardId.value) return;
-
-  closeBoardDropdown();
-  router.push({
-    name: 'kanban_board_show',
-    params: {
-      accountId: route.params.accountId,
-      boardId,
-    },
-  });
-};
-
-const goToCreateBoard = () => {
-  closeBoardDropdown();
-  router.push({
-    name: 'kanban_board_create_form',
-    params: { accountId: route.params.accountId },
-  });
-};
-
-const fetchBoards = async () => {
-  hasError.value = false;
-
-  try {
-    await Promise.all([
-      store.dispatch('kanbanBoards/fetchBoards'),
-      inboxes.value.length ? Promise.resolve() : store.dispatch('inboxes/get'),
-      agents.value.length ? Promise.resolve() : store.dispatch('agents/get'),
-      store.dispatch('labels/get'),
-    ]);
-
-    const nextBoardId = activeBoardId.value || boards.value[0]?.id;
-    if (nextBoardId && !activeBoardId.value) {
-      router.replace({
-        name: 'kanban_board_show',
-        params: {
-          accountId: route.params.accountId,
-          boardId: nextBoardId,
-        },
-      });
-      return;
-    }
-
-    if (nextBoardId) {
-      await showBoardWithSnapshot(nextBoardId);
-    }
-  } catch {
-    hasError.value = true;
-    selectedBoard.value = null;
-  }
-};
+const {
+  isBoardDropdownOpen,
+  isRenamingBoard,
+  renameValue,
+  renamingBoardId,
+  closeBoardDropdown,
+  confirmBoardRename,
+  fetchBoards,
+  goToCreateBoard,
+  goToOverview,
+  selectBoard,
+  startBoardRename,
+  toggleBoardDropdown,
+} = useKanbanBoardSwitcher({
+  activeBoardId,
+  agents,
+  boards,
+  hasBoards,
+  hasError,
+  inboxes,
+  route,
+  router,
+  selectedBoard,
+  showBoardWithSnapshot,
+  store,
+  t,
+});
 
 const getContactName = card =>
   card.contact?.name ||
@@ -1190,167 +721,32 @@ const moveStageConfirmationDroppedFields = computed(() => {
   })}`;
 });
 
-const navigateToConversationInNewTab = card => {
-  if (!card?.conversationId) return;
-
-  // A standalone tab opens the conversation on its own inbox route rather than
-  // the board-embedded one. The board stays mounted in this tab and the new tab
-  // gets its own sessionStorage, so there is no snapshot to save here.
-  const path = frontendURL(
-    conversationUrl({
-      accountId: route.params.accountId,
-      id: card.conversationId,
-    })
-  );
-  window.open(
-    `${window.chatwootConfig.hostURL}${path}`,
-    '_blank',
-    'noopener,noreferrer'
-  );
-};
-
-const navigateToConversation = card => {
-  saveBoardSnapshot();
-  pushEmbedded(router, {
-    name: 'kanban_board_conversation',
-    params: {
-      accountId: route.params.accountId,
-      boardId: selectedBoard.value.id,
-      conversationId: card.conversationId,
-    },
-  });
-};
-
-const closeOpportunityDetails = () => {
-  selectedOpportunityCardId.value = null;
-  nextTick(() => {
-    opportunityTriggerRef.value?.focus?.();
-    opportunityTriggerRef.value = null;
-  });
-};
-
-// The panel persists every field as it changes, so leaving it never asks.
-const requestOpportunityExit = action => {
-  closeOpportunityDetails();
-  action?.();
-};
-
-const openConversationInNewTab = card => {
-  if (!card?.conversationId) return;
-
-  requestOpportunityExit(() => navigateToConversationInNewTab(card));
-};
-
-const openConversation = (card, event = {}) => {
-  if (!card?.conversationId) return;
-
-  if (suppressNextCardClick.value) {
-    suppressNextCardClick.value = false;
-    return;
-  }
-
-  if (event.metaKey || event.ctrlKey) {
-    openConversationInNewTab(card);
-    return;
-  }
-
-  requestOpportunityExit(() => navigateToConversation(card));
-};
-
-const navigateToOpportunityInFunnel = card => {
-  const boardId = Number(
-    card?.kanbanBoardId ?? card?.kanban_board_id ?? selectedBoard.value?.id
-  );
-  if (!boardId || !card?.id) return;
-
-  saveBoardSnapshot();
-  router.push({
-    name: 'kanban_board_show',
-    params: {
-      accountId: route.params.accountId,
-      boardId,
-    },
-    query: { card_id: card.id },
-  });
-};
-
-const openOpportunityInFunnel = card => {
-  requestOpportunityExit(() => navigateToOpportunityInFunnel(card));
-};
-
-const copyOpportunityLink = async card => {
-  const boardId = Number(
-    card?.kanbanBoardId ?? card?.kanban_board_id ?? selectedBoard.value?.id
-  );
-  if (!boardId || !card?.id) return;
-
-  const path = frontendURL(
-    `accounts/${route.params.accountId}/kanban/${boardId}`,
-    { card_id: card.id }
-  );
-  await copyTextToClipboard(`${window.chatwootConfig.hostURL}${path}`);
-  useAlert(t('KANBAN.OPPORTUNITY_DETAILS.CARD_LINK_COPIED'));
-};
-
-const openDetails = card => {
-  if (suppressNextCardClick.value) {
-    suppressNextCardClick.value = false;
-    return;
-  }
-
-  const cardElement = document.querySelector(`[data-card-id="${card.id}"]`);
-  const activeElement = document.activeElement;
-  opportunityTriggerRef.value =
-    cardElement ||
-    (activeElement && activeElement !== document.body ? activeElement : null);
-  selectedOpportunityCardId.value = card.id;
-};
-
-const openCardFromQuery = () => {
-  const cardId = Number(route.query?.card_id);
-  if (!selectedBoard.value || !Number.isInteger(cardId) || cardId <= 0) {
-    return;
-  }
-
-  openDetails({ id: cardId });
-  router.replace({ query: { ...route.query, card_id: undefined } });
-};
-
-watch([selectedBoard, () => route.query?.card_id], openCardFromQuery);
-
-const onOpportunityUpdated = updatedCard => {
-  if (hasActiveFilters.value) {
-    const originStageId = findCardStageId({
-      id: selectedOpportunityCardId.value,
-    });
-    const destinationStageId = updatedCard?.kanbanStageId;
-    refreshStageFirstPages([originStageId, destinationStageId]);
-    return;
-  }
-  if (patchVisibleCard(updatedCard)) return;
-
-  refreshStageFirstPage(
-    findCardStageId({
-      id: selectedOpportunityCardId.value,
-      kanbanStageId: updatedCard?.kanbanStageId,
-    })
-  );
-};
-
-const onOpportunityBoardChanged = async ({ boardName } = {}) => {
-  closeOpportunityDetails();
-  await refreshSelectedBoard();
-  useAlert(
-    t('KANBAN.CARD.MOVE_BOARD_SUCCESS', {
-      board: boardName || t('KANBAN.NO_BOARD_SELECTED'),
-    })
-  );
-};
-
-const onOpportunityRemoveCard = card => {
-  closeOpportunityDetails();
-  openRemoveCardConfirmation(card);
-};
+const {
+  selectedOpportunityCardId,
+  closeOpportunityDetails,
+  copyOpportunityLink,
+  onOpportunityBoardChanged,
+  onOpportunityRemoveCard,
+  onOpportunityUpdated,
+  openConversation,
+  openConversationInNewTab,
+  openDetails,
+  openOpportunityInFunnel,
+} = useKanbanOpportunityPanel({
+  findCardStageId,
+  hasActiveFilters,
+  openRemoveCardConfirmation,
+  patchVisibleCard,
+  refreshSelectedBoard,
+  refreshStageFirstPage,
+  refreshStageFirstPages,
+  route,
+  router,
+  saveBoardSnapshot,
+  selectedBoard,
+  suppressNextCardClick,
+  t,
+});
 
 const {
   applyBulkAction,
@@ -1398,17 +794,13 @@ watch(activeBoardId, (boardId, previousBoardId) => {
   );
 });
 
-onMounted(() => {
-  emitter.on(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
-  fetchBoards();
-});
+onMounted(fetchBoards);
 
 onUnmounted(() => {
   clearTimeout(createdCardHighlightTimer);
   stopBoardAutoScroll();
   cancelEditingStage();
   cancelStageDraft();
-  emitter.off(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
 });
 
 watch(searchInput, () => {
