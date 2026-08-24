@@ -675,9 +675,7 @@
     },
     "OPPORTUNITY_DETAILS": {
       "TABS": {
-        "GENERAL": "General",
         "PRODUCTS": "Products",
-        "ADDITIONAL_DATA": "Additional data",
         "ACTIVITY": "Activity",
         "DETAILS": "Details"
       },
@@ -689,8 +687,6 @@
       "SAVING_STATE": "Saving...",
       "NO_CHANGES": "No changes to save",
       "SAVE_STEP_ERROR_CARD": "Could not save the opportunity fields.",
-      "SAVE_STEP_ERROR_LABELS": "The opportunity was saved, but the labels were not.",
-      "SAVE_STEP_ERROR_ASSIGNEES": "The opportunity was saved, but the agents were not.",
       "SAVE_STEP_ERROR_FIELDS": "The opportunity was saved, but the additional data was not.",
       "UNSAVED_FIELDS_MESSAGE": "You changed: {fields}.",
       "TIMELINE": {
@@ -746,7 +742,6 @@
       "CARD_ID_COPIED": "Card ID copied.",
       "REASON_LABEL": "Reason: {reason}",
       "MORE_ITEMS": "+{count}",
-      "FIELD_TITLE": "Subject",
       "FIELD_SUMMARY": "Summary",
       "FIELD_DESCRIPTION": "Description",
       "DESCRIPTION_PLACEHOLDER": "Add a summary of this opportunity",
@@ -854,7 +849,8 @@
       "OPEN_CONVERSATION": "Open conversation",
       "LOADING": "Loading opportunity details...",
       "LOAD_ERROR": "Could not load opportunity details.",
-      "SAVE_ERROR": "Could not save opportunity details.",
+      "SUBJECT_UPDATE_ERROR": "Could not update the subject.",
+      "QUICK_UPDATE_ERROR": "Could not update the opportunity.",
       "REQUIRED_TITLE": "Subject is required.",
       "CLOSE": "Close opportunity details"
     },
@@ -980,7 +976,6 @@
     "CARD_ADDITIONAL_DATA": {
       "LOADING": "Loading additional data...",
       "LOAD_ERROR": "Could not load additional data.",
-      "EMPTY": "No custom fields configured for this funnel.",
       "TAG_PLACEHOLDER": "Type a value and press Enter",
       "ADD_DATE": "Add date",
       "REMOVE_VALUE": "Remove value",

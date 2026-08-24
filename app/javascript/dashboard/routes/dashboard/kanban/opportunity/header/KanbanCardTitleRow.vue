@@ -24,15 +24,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  subjectError: {
-    type: String,
-    default: '',
+  isPending: {
+    type: Boolean,
+    default: false,
   },
 });
 
 const emit = defineEmits([
-  'clearSubjectError',
-  'subjectError',
   'openConversation',
   'copyCardId',
   'removeCard',
@@ -73,17 +71,17 @@ const subtitleItems = computed(() =>
     props.boardName ? { key: 'board', label: props.boardName } : null,
   ].filter(Boolean)
 );
-const errorMessage = computed(() => props.subjectError || localError.value);
+const errorMessage = computed(() => localError.value);
 
 const clearError = () => {
   localError.value = '';
-  emit('clearSubjectError');
 };
 
 const startEditing = () => {
+  if (props.isPending) return;
+
   draftSubject.value = subject.value;
   localError.value = '';
-  emit('clearSubjectError');
   isEditing.value = true;
 };
 
@@ -99,7 +97,6 @@ const updateDraft = value => {
 const commitEditing = () => {
   if (!draftSubject.value.trim()) {
     localError.value = t('KANBAN.OPPORTUNITY_DETAILS.REQUIRED_TITLE');
-    emit('subjectError', localError.value);
     focusTitleInput();
     return;
   }
@@ -135,6 +132,7 @@ const onTitleKeydown = event => {
             data-testid="kanban-opportunity-title-input"
             :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.EDIT_SUBJECT')"
             custom-input-class="font-semibold"
+            :disabled="isPending"
             @update:model-value="updateDraft"
             @enter-press="commitEditing"
             @escape-press="cancelEditing"
@@ -157,6 +155,8 @@ const onTitleKeydown = event => {
           tabindex="0"
           :title="subject || t('KANBAN.OPPORTUNITY_DETAILS.TITLE')"
           :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.EDIT_SUBJECT')"
+          :aria-disabled="isPending"
+          :class="{ 'cursor-not-allowed opacity-60': isPending }"
           @click="startEditing"
           @keydown="onTitleKeydown"
         >

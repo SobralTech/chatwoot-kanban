@@ -18,7 +18,7 @@ const props = defineProps({
 
 const { t } = useI18n();
 
-const isLoading = ref(true);
+const isLoading = ref(props.customFields.length > 0);
 const loadError = ref('');
 const valuesByFieldId = reactive({});
 const tagDrafts = reactive({});
@@ -50,6 +50,11 @@ const normalizeValues = (field, rawValues) => {
 };
 
 const fetchData = async () => {
+  if (!props.customFields.length) {
+    isLoading.value = false;
+    return;
+  }
+
   isLoading.value = true;
   loadError.value = '';
 
@@ -184,15 +189,7 @@ defineExpose({ hasUnsavedChanges, saveFieldValues });
     </div>
 
     <template v-else>
-      <p
-        v-if="customFields.length === 0"
-        data-testid="kanban-card-additional-data-empty"
-        class="rounded-md border border-dashed border-n-weak px-3 py-4 text-sm text-n-slate-11"
-      >
-        {{ t('KANBAN.CARD_ADDITIONAL_DATA.EMPTY') }}
-      </p>
-
-      <div v-else class="grid gap-4">
+      <div v-if="customFields.length" class="grid gap-4">
         <div
           v-for="field in customFields"
           :key="field.id"

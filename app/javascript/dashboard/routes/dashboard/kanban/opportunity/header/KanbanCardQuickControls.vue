@@ -53,6 +53,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  isPending: {
+    type: Function,
+    default: () => false,
+  },
 });
 
 const emit = defineEmits([
@@ -167,7 +171,7 @@ const onStageChanged = async stageId => {
       :lost-stage-id="lostStageId"
       :reasons="reasons"
       :lost-reason-required="lostReasonRequired"
-      :disabled="isMovingStage"
+      :disabled="isPending('status') || isMovingStage"
       @change="emit('changeStatus', $event)"
     />
 
@@ -189,7 +193,7 @@ const onStageChanged = async stageId => {
       v-model="stageSelection"
       data-testid="kanban-opportunity-stage-select"
       :options="stageOptions"
-      :disabled="isMovingStage"
+      :disabled="isMovingStage || isPending('stage')"
       :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.MOVE_TO_STAGE')"
       @update:model-value="onStageChanged"
     />
@@ -213,6 +217,7 @@ const onStageChanged = async stageId => {
       v-model="priority"
       compact
       test-id="kanban-opportunity-priority"
+      :disabled="isPending('priority')"
     />
 
     <KanbanDueDatePicker
@@ -221,6 +226,7 @@ const onStageChanged = async stageId => {
       data-testid="kanban-opportunity-due-at"
       :placeholder="t('KANBAN.OPPORTUNITY_DETAILS.CHOOSE_DATE')"
       :clear-label="t('KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE')"
+      :disabled="isPending('dueAt')"
     />
 
     <div class="ms-auto flex min-w-0 items-center gap-2">
@@ -241,6 +247,7 @@ const onStageChanged = async stageId => {
           data-testid="kanban-opportunity-assignees-menu"
           class="flex min-h-7 items-center gap-1 rounded-md px-1 text-n-slate-11 hover:bg-n-alpha-2"
           :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE')"
+          :disabled="isPending('assignees')"
         >
           <template v-if="visibleAssignees.length">
             <span
@@ -285,6 +292,7 @@ const onStageChanged = async stageId => {
                   type="button"
                   data-testid="kanban-opportunity-assignee-option"
                   :data-selected="selectedAssigneeIds.includes(Number(user.id))"
+                  :disabled="isPending('assignees')"
                   class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
                   @click="emit('toggleAssignee', user)"
                 >

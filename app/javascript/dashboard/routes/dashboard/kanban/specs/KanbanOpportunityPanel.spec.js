@@ -41,6 +41,10 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.OPPORTUNITY_DETAILS.COPY_CARD_ID_WITH_ID': 'Copy ID (#{id})',
         'KANBAN.OPPORTUNITY_DETAILS.CARD_ID_COPIED': 'Card ID copied.',
         'KANBAN.OPPORTUNITY_DETAILS.EDIT_SUBJECT': 'Edit subject',
+        'KANBAN.OPPORTUNITY_DETAILS.SUBJECT_UPDATE_ERROR':
+          'Could not update the subject.',
+        'KANBAN.OPPORTUNITY_DETAILS.QUICK_UPDATE_ERROR':
+          'Could not update the opportunity.',
         'KANBAN.OPPORTUNITY_DETAILS.MORE_ITEMS': '+{count}',
         'KANBAN.OPPORTUNITY_DETAILS.REASON_LABEL': 'Reason: {reason}',
         'KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE': 'Subject',
@@ -104,6 +108,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     showCardById: vi.fn(),
     updateCardById: vi.fn(),
+    reopenCardById: vi.fn(),
     updateCardDetailsById: vi.fn(),
     getCardLabels: vi.fn(),
     updateCardLabels: vi.fn(),
@@ -111,6 +116,7 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     updateCardAssignees: vi.fn(),
     getCardProducts: vi.fn(),
     getCardFieldValues: vi.fn(),
+    updateCardFieldValues: vi.fn(),
     createCardProduct: vi.fn(),
     updateCardProduct: vi.fn(),
     deleteCardProduct: vi.fn(),
@@ -301,6 +307,7 @@ const mountModal = async ({
   assignedUsers = [assignableUsers[0]],
   availableAssignableUsers = assignableUsers,
   cardProducts = [],
+  cardFieldValues = [],
   customFields = [],
   wonStageId = null,
   lostStageId = null,
@@ -321,7 +328,7 @@ const mountModal = async ({
   };
 
   KanbanBoardsAPI.getCardFieldValues.mockResolvedValue({
-    data: { payload: [] },
+    data: { payload: cardFieldValues },
   });
 
   if (resolveProducts) {
@@ -442,7 +449,7 @@ describe('KanbanOpportunityPanel', () => {
       wrapper.find('[data-testid="kanban-opportunity-header"]').exists()
     ).toBe(true);
     expect(
-      wrapper.find('[data-testid="kanban-opportunity-general-tab"]').isVisible()
+      wrapper.find('[data-testid="kanban-opportunity-details-tab"]').isVisible()
     ).toBe(false);
   });
 
@@ -547,7 +554,7 @@ describe('KanbanOpportunityPanel', () => {
     ).toContain('High');
   });
 
-  it('saves priority', async () => {
+  it('persists priority immediately', async () => {
     KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
       data: buildCard({ priority: 'urgent' }),
     });
@@ -557,14 +564,14 @@ describe('KanbanOpportunityPanel', () => {
       .findAll('[data-testid="kanban-priority-option"]')
       .find(option => option.text().includes('Urgent'))
       .trigger('click');
-    await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
       10,
       501,
-      expect.objectContaining({ priority: 'urgent' })
+      { priority: 'urgent' }
     );
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
   });
 
   it('saves description with existing scalar fields', async () => {
@@ -580,10 +587,7 @@ describe('KanbanOpportunityPanel', () => {
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
       10,
       501,
-      expect.objectContaining({
-        subject: 'Enterprise expansion',
-        description: 'Updated card note',
-      })
+      { description: 'Updated card note' }
     );
   });
 
@@ -604,18 +608,16 @@ describe('KanbanOpportunityPanel', () => {
     );
   });
 
-  it('preserves edited text on save error', async () => {
+  it('preserves description text on save error', async () => {
     KanbanBoardsAPI.updateCardDetailsById.mockRejectedValue({
       response: { data: { message: 'Save failed' } },
     });
     const wrapper = await mountModal();
 
-    await editSubject(wrapper, 'Preserved subject');
     await descriptionInput(wrapper).setValue('Preserved description');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
 
-    expect(subjectTitle(wrapper).text()).toContain('Preserved subject');
     expect(descriptionInput(wrapper).element.value).toBe(
       'Preserved description'
     );
@@ -624,14 +626,13 @@ describe('KanbanOpportunityPanel', () => {
     ).toContain('Could not save the opportunity fields.');
   });
 
-  it('saves due date without touching start date', async () => {
+  it('persists due date without touching start date', async () => {
     KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
       data: buildCard(),
     });
     const wrapper = await mountModal();
 
     await setDueAt(wrapper, '2026-06-04');
-    await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
@@ -646,14 +647,13 @@ describe('KanbanOpportunityPanel', () => {
     ).not.toHaveProperty('starts_at');
   });
 
-  it('clears due date with null', async () => {
+  it('clears due date immediately with null', async () => {
     KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
       data: buildCard({ dueAt: null }),
     });
     const wrapper = await mountModal();
 
     await setDueAt(wrapper, '');
-    await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
@@ -678,6 +678,24 @@ describe('KanbanOpportunityPanel', () => {
     expect(subjectInput(wrapper).exists()).toBe(true);
   });
 
+  it('persists the subject immediately without dirtying the save bar', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
+      data: { subject: 'Updated subject' },
+    });
+    const wrapper = await mountModal();
+
+    await editSubject(wrapper, 'Updated subject');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
+      10,
+      501,
+      { subject: 'Updated subject' }
+    );
+    expect(subjectTitle(wrapper).text()).toContain('Updated subject');
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+  });
+
   it('discards inline subject edits with Escape', async () => {
     const wrapper = await mountModal();
 
@@ -691,24 +709,36 @@ describe('KanbanOpportunityPanel', () => {
     expect(KanbanBoardsAPI.updateCardDetailsById).not.toHaveBeenCalled();
   });
 
-  it('disables save while pending', async () => {
+  it('rolls back the subject when its immediate update fails', async () => {
+    KanbanBoardsAPI.updateCardDetailsById.mockRejectedValue({
+      response: { data: { message: 'Subject failed' } },
+    });
+    const wrapper = await mountModal();
+
+    await editSubject(wrapper, 'Rejected subject');
+    await flushPromises();
+
+    expect(subjectTitle(wrapper).text()).toContain('Enterprise expansion');
+    expect(useAlert).toHaveBeenCalledWith('Could not update the subject.');
+  });
+
+  it('disables a quick field while its update is pending', async () => {
     KanbanBoardsAPI.updateCardDetailsById.mockReturnValue(
       new Promise(() => {})
     );
     const wrapper = await mountModal();
 
     await editSubject(wrapper, 'Pending subject');
-    await wrapper.find('form').trigger('submit');
 
-    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(subjectTitle(wrapper).attributes('aria-disabled')).toBe('true');
+    await subjectTitle(wrapper).trigger('click');
+    expect(subjectInput(wrapper).exists()).toBe(false);
 
-    await wrapper.find('form').trigger('submit');
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledTimes(1);
   });
 
   it('emits updated on successful save', async () => {
     const updatedCard = buildCard({
-      subject: 'Updated subject',
       description: 'Updated note',
     });
     KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
@@ -716,7 +746,7 @@ describe('KanbanOpportunityPanel', () => {
     });
     const wrapper = await mountModal();
 
-    await editSubject(wrapper, 'Updated subject');
+    await descriptionInput(wrapper).setValue('Updated note');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
 
@@ -738,46 +768,14 @@ describe('KanbanOpportunityPanel', () => {
     ).toContain('Saved');
   });
 
-  it('saves in order and stops when the labels step fails', async () => {
-    const calls = [];
-    KanbanBoardsAPI.updateCardDetailsById.mockImplementation(async () => {
-      calls.push('card');
-      return { data: buildCard({ subject: 'Updated subject' }) };
-    });
-    KanbanBoardsAPI.updateCardLabels.mockImplementation(async () => {
-      calls.push('labels');
-      throw new Error('Labels failed');
-    });
-    KanbanBoardsAPI.updateCardAssignees.mockImplementation(async () => {
-      calls.push('assignees');
-      return { data: { payload: assignableUsers } };
-    });
+  it('marks the Details tab when description is dirty', async () => {
     const wrapper = await mountModal();
 
-    await editSubject(wrapper, 'Updated subject');
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
-
-    expect(calls).toEqual(['card', 'labels']);
-    expect(KanbanBoardsAPI.updateCardAssignees).not.toHaveBeenCalled();
-    expect(
-      wrapper.find('[data-testid="kanban-opportunity-save-error"]').text()
-    ).toContain('the labels were not');
-    expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-unsaved-indicator"]')
-        .exists()
-    ).toBe(true);
-  });
-
-  it('marks the general tab when a card field is dirty', async () => {
-    const wrapper = await mountModal();
-
-    await editSubject(wrapper, 'Updated subject');
+    await descriptionInput(wrapper).setValue('Updated description');
 
     expect(
       wrapper.findComponent({ name: 'TabBar' }).props('tabs')[0].label
-    ).toBe('General •');
+    ).toBe('Details •');
   });
 
   it('saves with the Ctrl+S shortcut', async () => {
@@ -786,7 +784,7 @@ describe('KanbanOpportunityPanel', () => {
     });
     const wrapper = await mountModal();
 
-    await editSubject(wrapper, 'Shortcut subject');
+    await descriptionInput(wrapper).setValue('Shortcut description');
     document.dispatchEvent(
       new KeyboardEvent('keydown', { key: 's', ctrlKey: true })
     );
@@ -795,7 +793,7 @@ describe('KanbanOpportunityPanel', () => {
     expect(KanbanBoardsAPI.updateCardDetailsById).toHaveBeenCalledWith(
       10,
       501,
-      expect.objectContaining({ subject: 'Shortcut subject' })
+      { description: 'Shortcut description' }
     );
   });
 
@@ -938,29 +936,7 @@ describe('KanbanOpportunityPanel', () => {
     expect(options[1].attributes('data-selected')).toBe('false');
   });
 
-  it('toggles an assignee locally without saving immediately', async () => {
-    const wrapper = await mountModal();
-
-    await wrapper
-      .findAll('[data-testid="kanban-opportunity-assignee-option"]')[1]
-      .trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.updateCardAssignees).not.toHaveBeenCalled();
-    expect(
-      wrapper
-        .findAll('[data-testid="kanban-opportunity-assignee-option"]')[1]
-        .attributes('data-selected')
-    ).toBe('true');
-  });
-
-  it('saves toggled assignees through updateCardAssignees on submit', async () => {
-    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
-      data: buildCard(),
-    });
-    KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
-      data: { payload: [labels[0]] },
-    });
+  it('persists an assignee toggle immediately', async () => {
     KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
       data: {
         payload: [assignableUsers[0], assignableUsers[1]],
@@ -972,7 +948,6 @@ describe('KanbanOpportunityPanel', () => {
     await wrapper
       .findAll('[data-testid="kanban-opportunity-assignee-option"]')[1]
       .trigger('click');
-    await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardAssignees).toHaveBeenCalledWith(
@@ -980,21 +955,53 @@ describe('KanbanOpportunityPanel', () => {
       501,
       [7, 8]
     );
+    expect(
+      wrapper
+        .findAll('[data-testid="kanban-opportunity-assignee-option"]')[1]
+        .attributes('data-selected')
+    ).toBe('true');
   });
 
-  it('does not load deferred tab data before a tab is opened', async () => {
+  it('does not load custom field data when the board has no fields', async () => {
     const wrapper = await mountModal();
 
     expect(KanbanBoardsAPI.getCardProducts).not.toHaveBeenCalled();
     expect(KanbanBoardsAPI.getCardFieldValues).not.toHaveBeenCalled();
     expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-additional-data-tab"]')
-        .exists()
-    ).toBe(false);
+      wrapper.find('[data-testid="kanban-opportunity-details-tab"]').exists()
+    ).toBe(true);
   });
 
-  it('loads each deferred tab once and preserves its mounted state', async () => {
+  it('loads and saves custom fields inside Details', async () => {
+    const customFields = [
+      { id: 9, key: 'Segment', fieldType: 'text', multiple: false },
+    ];
+    const wrapper = await mountModal({
+      customFields,
+      cardFieldValues: [{ kanban_custom_field_id: 9, value: ['Enterprise'] }],
+    });
+    await flushPromises();
+    const fieldInput = wrapper
+      .findAll('input')
+      .find(input => input.element.value === 'Enterprise');
+
+    expect(fieldInput).toBeTruthy();
+    await fieldInput.setValue('SMB');
+    await nextTick();
+
+    expect(saveButton(wrapper).attributes('disabled')).toBeUndefined();
+    await wrapper.vm.saveCard();
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardFieldValues).toHaveBeenCalledWith(
+      10,
+      501,
+      { field_values: { 9: ['SMB'] } }
+    );
+    expect(KanbanBoardsAPI.updateCardDetailsById).not.toHaveBeenCalled();
+  });
+
+  it('loads Products on demand and keeps the Details tab available', async () => {
     const wrapper = await mountModal();
 
     await wrapper
@@ -1018,24 +1025,13 @@ describe('KanbanOpportunityPanel', () => {
     expect(KanbanBoardsAPI.getCardProducts).toHaveBeenCalledTimes(1);
 
     await wrapper
-      .find('[data-testid="kanban-opportunity-tab-2"]')
-      .trigger('click');
-    await flushPromises();
-    expect(KanbanBoardsAPI.getCardFieldValues).toHaveBeenCalledTimes(1);
-    expect(
-      wrapper
-        .find('[data-testid="kanban-opportunity-additional-data-tab"]')
-        .exists()
-    ).toBe(true);
-
-    await wrapper
       .find('[data-testid="kanban-opportunity-tab-0"]')
       .trigger('click');
-    await wrapper
-      .find('[data-testid="kanban-opportunity-tab-2"]')
-      .trigger('click');
     await flushPromises();
-    expect(KanbanBoardsAPI.getCardFieldValues).toHaveBeenCalledTimes(1);
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-details-tab"]').exists()
+    ).toBe(true);
+    expect(KanbanBoardsAPI.getCardFieldValues).not.toHaveBeenCalled();
   });
 
   it('normalizes linked product payloads before rendering', async () => {
@@ -1087,39 +1083,34 @@ describe('KanbanOpportunityPanel', () => {
     );
   });
 
-  it('toggles a label locally without saving immediately', async () => {
-    const wrapper = await mountModal();
-
-    await labelDropdownOptions(wrapper)[1].trigger('click');
-    await flushPromises();
-
-    expect(KanbanBoardsAPI.updateCardLabels).not.toHaveBeenCalled();
-    expect(labelButtons(wrapper)).toHaveLength(2);
-  });
-
-  it('saves toggled labels through updateCardLabels on submit', async () => {
-    KanbanBoardsAPI.updateCardDetailsById.mockResolvedValue({
-      data: buildCard(),
-    });
+  it('persists a label toggle immediately', async () => {
     KanbanBoardsAPI.updateCardLabels.mockResolvedValue({
       data: { payload: labels },
     });
-    KanbanBoardsAPI.updateCardAssignees.mockResolvedValue({
-      data: {
-        payload: [assignableUsers[0]],
-        assignable_users: assignableUsers,
-      },
-    });
     const wrapper = await mountModal();
 
     await labelDropdownOptions(wrapper)[1].trigger('click');
-    await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledWith(10, 501, [
       'hot',
       'enterprise',
     ]);
+    expect(labelButtons(wrapper)).toHaveLength(2);
+  });
+
+  it('rolls back a label toggle when its immediate update fails', async () => {
+    KanbanBoardsAPI.updateCardLabels.mockRejectedValue(
+      new Error('Labels failed')
+    );
+    const wrapper = await mountModal();
+
+    await labelDropdownOptions(wrapper)[1].trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.updateCardLabels).toHaveBeenCalledTimes(1);
+    expect(labelButtons(wrapper)).toHaveLength(1);
+    expect(useAlert).toHaveBeenCalledWith('Could not update the opportunity.');
   });
 
   it('preserves scalar form state when toggling a label without saving', async () => {
@@ -1279,7 +1270,7 @@ describe('KanbanOpportunityPanel', () => {
       lostStageId: 30,
       reasons: [{ id: 1, title: 'Good fit', reason_type: 'won' }],
     });
-    await editSubject(wrapper, 'Edited subject');
+    await descriptionInput(wrapper).setValue('Edited description');
 
     expect(
       wrapper.find('[data-testid="kanban-card-status-badge"]').exists()
@@ -1296,7 +1287,7 @@ describe('KanbanOpportunityPanel', () => {
     expect(KanbanBoardsAPI.updateCardById).toHaveBeenCalledWith(10, 501, {
       card: { kanban_stage_id: 20, kanban_reason_id: null },
     });
-    expect(subjectTitle(wrapper).text()).toContain('Edited subject');
+    expect(descriptionInput(wrapper).element.value).toBe('Edited description');
     expect(
       wrapper
         .find('[data-testid="kanban-opportunity-unsaved-indicator"]')
@@ -1314,7 +1305,7 @@ describe('KanbanOpportunityPanel', () => {
     });
     const wrapper = await mountModal({ hasBlockingDialog: true });
 
-    await editSubject(wrapper, 'Updated subject');
+    await descriptionInput(wrapper).setValue('Updated description');
     document.dispatchEvent(
       new KeyboardEvent('keydown', { key: 's', ctrlKey: true })
     );

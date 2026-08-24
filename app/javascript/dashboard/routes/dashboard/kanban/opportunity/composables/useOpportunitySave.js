@@ -3,11 +3,7 @@ import { useI18n } from 'vue-i18n';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
-import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
 import { normalizePayload } from '../opportunityPayload';
-
-const labelsPayload = response =>
-  response?.data?.payload || response?.data || [];
 
 /**
  * Runs the steps in order and stops at the first failure, returning its
@@ -19,7 +15,8 @@ const runSteps = async ([step, ...remainingSteps]) => {
   if (step.when && !step.when()) return runSteps(remainingSteps);
 
   try {
-    step.apply?.(await step.run());
+    const result = await step.run();
+    step.apply?.(result);
   } catch {
     return step.errorMessage;
   }
@@ -32,53 +29,22 @@ export function useOpportunitySave({ boardId, cardId, form, additionalData }) {
 
   const isSaving = ref(false);
   const saveError = ref('');
-  const subjectError = ref('');
-
-  const buildSteps = subject => [
+  const buildSteps = () => [
     {
       errorMessage: t('KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_CARD'),
+      when: () => form.dirtyFields.value.description,
       run: () =>
         KanbanBoardsAPI.updateCardDetailsById(boardId.value, cardId.value, {
-          subject,
           description: form.description.value.trim()
             ? form.description.value
             : null,
-          due_at: toIso8601(form.dueAt.value),
-          priority: form.priority.value || null,
         }),
-      apply: response =>
-        form.setFormState({
-          ...(form.card.value || {}),
-          ...normalizePayload(response.data),
-        }),
-    },
-    {
-      errorMessage: t('KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_LABELS'),
-      run: () =>
-        KanbanBoardsAPI.updateCardLabels(
-          boardId.value,
-          cardId.value,
-          form.selectedLabelTitles.value
-        ),
       apply: response => {
-        form.selectedLabelTitles.value = normalizePayload(
-          labelsPayload(response)
-        ).map(label => label.title || label);
-      },
-    },
-    {
-      errorMessage: t('KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_ASSIGNEES'),
-      run: () =>
-        KanbanBoardsAPI.updateCardAssignees(
-          boardId.value,
-          cardId.value,
-          form.selectedAssigneeIds.value
-        ),
-      apply: response => {
-        const payload = normalizePayload(response?.data);
-        form.assignedUsers.value = payload.payload || [];
-        form.assignableUsers.value =
-          payload.assignableUsers || form.assignableUsers.value;
+        const updatedCard = normalizePayload(response.data);
+        form.patchCard(updatedCard);
+        if (updatedCard.description !== undefined) {
+          form.description.value = updatedCard.description || '';
+        }
       },
     },
     {
@@ -94,19 +60,12 @@ export function useOpportunitySave({ boardId, cardId, form, additionalData }) {
   const saveCard = async () => {
     if (isSaving.value || !form.hasUnsavedChanges.value) return false;
 
-    const subject = form.subject.value.trim();
-    subjectError.value = '';
     saveError.value = '';
-
-    if (!subject) {
-      subjectError.value = t('KANBAN.OPPORTUNITY_DETAILS.REQUIRED_TITLE');
-      return false;
-    }
 
     isSaving.value = true;
 
     try {
-      saveError.value = (await runSteps(buildSteps(subject))) || '';
+      saveError.value = (await runSteps(buildSteps())) || '';
       if (saveError.value) return false;
 
       form.captureSnapshot();
@@ -117,5 +76,5 @@ export function useOpportunitySave({ boardId, cardId, form, additionalData }) {
     }
   };
 
-  return { isSaving, saveError, subjectError, saveCard };
+  return { isSaving, saveError, saveCard };
 }

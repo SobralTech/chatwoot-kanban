@@ -20,9 +20,9 @@ defineProps({
     type: Boolean,
     default: false,
   },
-  subjectError: {
-    type: String,
-    default: '',
+  isPending: {
+    type: Function,
+    default: () => false,
   },
   accountLabels: {
     type: Array,
@@ -80,8 +80,6 @@ const emit = defineEmits([
   'openConversation',
   'copyCardId',
   'removeCard',
-  'subjectError',
-  'clearSubjectError',
   'close',
 ]);
 
@@ -111,9 +109,7 @@ const dueAt = defineModel('dueAt', {
       :card-display-id="cardDisplayId"
       :board-name="boardName"
       :has-unsaved-changes="hasUnsavedChanges"
-      :subject-error="subjectError"
-      @subject-error="emit('subjectError', $event)"
-      @clear-subject-error="emit('clearSubjectError')"
+      :is-pending="isPending('subject')"
       @open-conversation="emit('openConversation', $event)"
       @copy-card-id="emit('copyCardId')"
       @remove-card="emit('removeCard', $event)"
@@ -133,6 +129,7 @@ const dueAt = defineModel('dueAt', {
       :total-value="totalValue"
       :assigned-users="assignedUsers"
       :assignable-users="assignableUsers"
+      :is-pending="isPending"
       @change-status="emit('changeStatus', $event)"
       @stage-moved="emit('stageMoved', $event)"
       @toggle-assignee="emit('toggleAssignee', $event)"
@@ -142,6 +139,7 @@ const dueAt = defineModel('dueAt', {
       v-if="card"
       :account-labels="accountLabels"
       :selected-label-titles="selectedLabelTitles"
+      :disabled="isPending('labels')"
       @add-label="emit('addLabel', $event)"
       @remove-label="emit('removeLabel', $event)"
     />

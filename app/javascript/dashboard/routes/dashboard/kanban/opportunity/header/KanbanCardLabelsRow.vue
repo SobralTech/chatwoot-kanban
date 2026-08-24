@@ -15,6 +15,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  disabled: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['addLabel', 'removeLabel']);
@@ -51,6 +55,7 @@ const labelDropdownProps = computed(() => ({
         data-testid="kanban-opportunity-labels-menu"
         class="flex size-6 flex-shrink-0 items-center justify-center rounded-md border border-n-weak text-sm font-medium text-n-slate-11 hover:bg-n-alpha-2"
         :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.LABELS')"
+        :disabled="disabled"
       >
         <i class="i-lucide-plus size-4" />
       </button>
@@ -74,7 +79,7 @@ const labelDropdownProps = computed(() => ({
       data-testid="kanban-opportunity-label"
       :title="label.title"
       :color="label.color"
-      show-close
+      :show-close="!disabled"
       variant="smooth"
       class="max-w-[10rem] truncate"
       @remove="emit('removeLabel', $event)"
@@ -95,6 +100,7 @@ const labelDropdownProps = computed(() => ({
             count: remainingLabelCount,
           })
         "
+        :disabled="disabled"
       >
         {{
           t('KANBAN.OPPORTUNITY_DETAILS.MORE_ITEMS', {

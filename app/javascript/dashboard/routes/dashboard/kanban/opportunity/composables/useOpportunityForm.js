@@ -24,10 +24,6 @@ export function useOpportunityForm({ isAdditionalDataDirty = () => false }) {
   const savedAt = ref(null);
   const currentTime = ref(Date.now());
 
-  const selectedAssigneeIds = computed(() =>
-    assignedUsers.value.map(user => user.id)
-  );
-
   const setFormState = payload => {
     card.value = payload;
     subject.value = payload.subject || '';
@@ -48,36 +44,7 @@ export function useOpportunityForm({ isAdditionalDataDirty = () => false }) {
     assignableUsers.value = payload.assignableUsers || [];
   };
 
-  const addLabel = label => {
-    const title = label?.title || label;
-    if (!title || selectedLabelTitles.value.includes(title)) return;
-
-    selectedLabelTitles.value = [...selectedLabelTitles.value, title];
-  };
-
-  const removeLabel = title => {
-    selectedLabelTitles.value = selectedLabelTitles.value.filter(
-      selectedTitle => selectedTitle !== title
-    );
-  };
-
-  const toggleAssignee = user => {
-    assignedUsers.value = selectedAssigneeIds.value.includes(user.id)
-      ? assignedUsers.value.filter(existing => existing.id !== user.id)
-      : [...assignedUsers.value, user];
-  };
-
-  const buildFormState = () => ({
-    subject: subject.value,
-    description: description.value,
-    dueAt: dueAt.value,
-    priority: priority.value,
-    labels: [...selectedLabelTitles.value].sort().join('|'),
-    assigneeIds: [...selectedAssigneeIds.value]
-      .map(Number)
-      .sort((a, b) => a - b)
-      .join('|'),
-  });
+  const buildFormState = () => ({ description: description.value });
 
   const initial = ref(buildFormState());
 
@@ -91,20 +58,13 @@ export function useOpportunityForm({ isAdditionalDataDirty = () => false }) {
     const changed = field => current[field] !== initial.value[field];
 
     return {
-      subject: changed('subject'),
       description: changed('description'),
-      dueAt: changed('dueAt'),
-      priority: changed('priority'),
-      labels: changed('labels'),
-      assignees: changed('assigneeIds'),
       additionalData: !!isAdditionalDataDirty(),
     };
   });
 
-  const hasGeneralChanges = computed(() =>
-    Object.entries(dirtyFields.value).some(
-      ([field, isDirty]) => field !== 'additionalData' && isDirty
-    )
+  const hasGeneralChanges = computed(
+    () => dirtyFields.value.description || dirtyFields.value.additionalData
   );
 
   const hasUnsavedChanges = computed(
@@ -115,14 +75,8 @@ export function useOpportunityForm({ isAdditionalDataDirty = () => false }) {
     const dirty = dirtyFields.value;
 
     return [
-      dirty.subject && t('KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE'),
       dirty.description && t('KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION'),
-      dirty.priority && t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY'),
-      dirty.dueAt && t('KANBAN.OPPORTUNITY_DETAILS.DUE_DATE'),
-      dirty.labels && t('KANBAN.OPPORTUNITY_DETAILS.LABELS'),
-      dirty.assignees && t('KANBAN.OPPORTUNITY_DETAILS.ASSIGNEE'),
-      dirty.additionalData &&
-        t('KANBAN.OPPORTUNITY_DETAILS.TABS.ADDITIONAL_DATA'),
+      dirty.additionalData && t('KANBAN.OPPORTUNITY_DETAILS.TABS.DETAILS'),
     ].filter(Boolean);
   });
 
@@ -167,7 +121,6 @@ export function useOpportunityForm({ isAdditionalDataDirty = () => false }) {
     selectedLabelTitles,
     assignedUsers,
     assignableUsers,
-    selectedAssigneeIds,
     savedAt,
     savedTimeLabel,
     dirtyFields,
@@ -177,9 +130,6 @@ export function useOpportunityForm({ isAdditionalDataDirty = () => false }) {
     setFormState,
     setEmbeddedContext,
     patchCard,
-    addLabel,
-    removeLabel,
-    toggleAssignee,
     captureSnapshot,
   };
 }

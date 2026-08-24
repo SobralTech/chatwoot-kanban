@@ -36,6 +36,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  disabled: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['change']);
@@ -180,6 +184,7 @@ const dayClasses = day => ({
               : 'min-h-10 flex-1 px-3 py-2 text-sm',
           ]"
           :aria-label="props.label || props.placeholder"
+          :disabled="disabled"
         >
           <i class="i-lucide-calendar size-3 flex-shrink-0 text-n-slate-11" />
           <span class="min-w-0 truncate">{{ buttonLabel }}</span>
@@ -193,6 +198,7 @@ const dayClasses = day => ({
           :class="compact ? 'size-7' : 'min-h-10 w-10'"
           class="flex flex-shrink-0 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
           :aria-label="clearLabel"
+          :disabled="disabled"
           @click.stop="clearDate"
         >
           <i class="i-lucide-x size-4" />
@@ -207,6 +213,7 @@ const dayClasses = day => ({
             <button
               type="button"
               class="flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+              :disabled="disabled"
               @click="currentMonth = addMonths(currentMonth, -1)"
             >
               <i class="i-lucide-chevron-left size-4" />
@@ -215,6 +222,7 @@ const dayClasses = day => ({
             <Select
               :model-value="currentMonth.getMonth()"
               :options="monthOptions"
+              :disabled="disabled"
               full-width
               class="flex-1"
               @update:model-value="setCurrentMonth"
@@ -224,6 +232,7 @@ const dayClasses = day => ({
               <Select
                 :model-value="currentMonth.getFullYear()"
                 :options="yearSelectOptions"
+                :disabled="disabled"
                 full-width
                 @update:model-value="setCurrentYear"
               />
@@ -232,6 +241,7 @@ const dayClasses = day => ({
             <button
               type="button"
               class="flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+              :disabled="disabled"
               @click="currentMonth = addMonths(currentMonth, 1)"
             >
               <i class="i-lucide-chevron-right size-4" />
@@ -252,6 +262,7 @@ const dayClasses = day => ({
               type="button"
               class="flex h-9 items-center justify-center rounded-lg text-sm font-medium"
               :class="dayClasses(day)"
+              :disabled="disabled"
               @click="selectDate(day, hide)"
             >
               {{ day.getDate() }}
