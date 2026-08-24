@@ -214,4 +214,40 @@ describe('KanbanConversationCardItem', () => {
 
     expect(wrapper.emitted('openMove')).toEqual([[card], [card]]);
   });
+
+  it('points out that the funnel can be changed', () => {
+    const wrapper = mountItem();
+
+    expect(
+      wrapper.get('[data-testid="kanban-conversation-card-board"] i').classes()
+    ).toContain('i-lucide-chevron-down');
+  });
+
+  it('renders label chips under the subject with an overflow counter', () => {
+    const wrapper = mountItem({
+      labels: [
+        { id: 1, title: 'vip', color: '#ff0000' },
+        { id: 2, title: 'billing' },
+        { id: 3, title: 'urgent' },
+        { id: 4, title: 'renewal' },
+      ],
+    });
+
+    expect(
+      wrapper
+        .findAll('[data-testid="kanban-conversation-card-label"]')
+        .map(chip => chip.text())
+    ).toEqual(['vip', 'billing', 'urgent']);
+    expect(
+      wrapper.get('[data-testid="kanban-conversation-card-labels"]').text()
+    ).toContain('+1');
+  });
+
+  it('drops the label row when the card has none', () => {
+    const wrapper = mountItem();
+
+    expect(
+      wrapper.find('[data-testid="kanban-conversation-card-labels"]').exists()
+    ).toBe(false);
+  });
 });

@@ -16,6 +16,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
+import WootLabel from 'dashboard/components/ui/Label.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import KanbanCardStatusBadge from '../../kanban/KanbanCardStatusBadge.vue';
 
@@ -139,6 +140,11 @@ const labels = computed(() => {
 });
 const labelTitles = computed(() =>
   labels.value.map(label => label.title).filter(Boolean)
+);
+// Chips read at a glance; the rest stay behind the counter next to them.
+const visibleLabels = computed(() => labels.value.slice(0, 3));
+const extraLabelCount = computed(() =>
+  Math.max(labels.value.length - visibleLabels.value.length, 0)
 );
 const assignees = computed(() => props.card.assignees || []);
 const cardValue = computed(() => Number(props.card.value) || 0);
@@ -326,12 +332,14 @@ const onSubjectKeydown = event => {
       <button
         type="button"
         data-testid="kanban-conversation-card-board"
-        class="min-w-0 flex-1 truncate text-left font-medium text-n-slate-12 hover:text-n-brand"
+        class="flex min-w-0 flex-1 items-center gap-1 text-left font-medium text-n-slate-12 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
         :title="t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD')"
         :disabled="isBusy"
         @click.stop="openMove"
       >
-        {{ boardName }}
+        <span class="min-w-0 truncate">{{ boardName }}</span>
+        <!-- Without the chevron nothing tells the user the funnel can change. -->
+        <i class="i-lucide-chevron-down size-3 flex-shrink-0 text-n-slate-10" />
       </button>
       <div
         v-on-click-outside="closeActionsMenu"
@@ -371,6 +379,30 @@ const onSubjectKeydown = event => {
     >
       {{ subject }}
     </p>
+
+    <div
+      v-if="visibleLabels.length"
+      data-testid="kanban-conversation-card-labels"
+      class="-mb-1 mt-1.5 flex min-w-0 flex-wrap items-center"
+    >
+      <WootLabel
+        v-for="label in visibleLabels"
+        :key="label.id || label.title"
+        data-testid="kanban-conversation-card-label"
+        :title="label.title"
+        :color="label.color"
+        variant="smooth"
+        small
+        class="max-w-[8rem]"
+      />
+      <span
+        v-if="extraLabelCount"
+        class="mb-1 text-xs text-n-slate-10"
+        :title="labelTitles.join(', ')"
+      >
+        {{ t('KANBAN.OVERVIEW.EXTRA_COUNT', { count: extraLabelCount }) }}
+      </span>
+    </div>
 
     <div class="mt-2 flex min-w-0 items-center gap-2">
       <div
@@ -508,7 +540,6 @@ const onSubjectKeydown = event => {
           :disabled="isBusy"
         >
           <i class="i-lucide-tags size-3" />
-          <span>{{ labelTitles.length }}</span>
         </button>
         <template #content>
           <div class="w-80 rounded-xl p-2">
