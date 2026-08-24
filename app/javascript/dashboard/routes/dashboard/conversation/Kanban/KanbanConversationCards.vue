@@ -61,9 +61,7 @@ const opportunityPanelRef = ref(null);
 const slaNow = useSlaClock();
 let highlightTimer = null;
 
-const inboxId = computed(
-  () => currentChat.value?.inbox_id || currentChat.value?.inboxId
-);
+const inboxId = computed(() => currentChat.value?.inbox_id);
 const inbox = computed(() => {
   const getInboxById = store.getters?.['inboxes/getInboxById'];
   return getInboxById?.(inboxId.value) || {};
@@ -81,11 +79,11 @@ const hasCards = computed(() => cards.value.length > 0);
 const staleCardCount = computed(
   () =>
     cards.value.filter(card => {
-      const stage = card.kanbanStage || card.kanban_stage || {};
+      const stage = card.kanbanStage || {};
       return (
         stageSlaStatus({
-          stageEnteredAt: card.stageEnteredAt ?? card.stage_entered_at,
-          slaHours: stage.slaHours ?? stage.sla_hours,
+          stageEnteredAt: card.stageEnteredAt,
+          slaHours: stage.slaHours,
           now: slaNow.value,
         }) === SLA_STALE
       );
@@ -99,26 +97,22 @@ const normalizeCollection = response =>
   normalize(response?.data?.payload || response?.data || []);
 const isAbortError = error =>
   error?.name === 'AbortError' || error?.name === 'CanceledError';
-const cardBoardId = card =>
-  card?.kanbanBoardId ||
-  card?.kanbanBoard?.id ||
-  card?.kanban_board_id ||
-  card?.kanban_board?.id;
-const boardStages = board =>
-  board?.stagesSummary || board?.stages_summary || [];
+// Every payload this component holds went through camelcaseKeys on the way in,
+// so the wire's snake_case never reaches here.
+const cardBoardId = card => card?.kanbanBoardId || card?.kanbanBoard?.id;
+const boardStages = board => board?.stagesSummary || [];
 const boardForCard = card => {
   const boardId = cardBoardId(card);
   return (
     boards.value.find(board => Number(board.id) === Number(boardId)) ||
     card.kanbanBoard ||
-    card.kanban_board ||
     {}
   );
 };
 const stagesForCard = (card, board = boardForCard(card)) => {
-  const cardStage = card.kanbanStage || card.kanban_stage || {};
-  const cardStageId =
-    card.kanbanStageId ?? card.kanban_stage_id ?? cardStage.id;
+  const cardStage = card.kanbanStage || {};
+  // The sidebar payload nests the stage instead of sending its id on the card.
+  const cardStageId = card.kanbanStageId ?? cardStage.id;
 
   return boardStages(board).map(stage =>
     Number(stage.id) === Number(cardStageId)
@@ -126,22 +120,14 @@ const stagesForCard = (card, board = boardForCard(card)) => {
       : stage
   );
 };
-const boardValue = (board, camelKey, snakeKey) =>
-  board?.[camelKey] ?? board?.[snakeKey];
+// The conversation comes from the store, which keeps the API's own shape.
 const cardInboxId = card =>
-  card?.inboxId ??
-  card?.inbox_id ??
-  card?.inbox?.id ??
-  currentChat.value?.inboxId ??
-  currentChat.value?.inbox_id;
+  card?.inboxId ?? card?.inbox?.id ?? currentChat.value?.inbox_id;
 const isSameCard = (firstCard, secondCard) =>
   Number(firstCard?.id) === Number(secondCard?.id);
 const regularStagesFor = card => {
   const board = boardForCard(card);
-  const terminalIds = [
-    boardValue(board, 'wonStageId', 'won_stage_id'),
-    boardValue(board, 'lostStageId', 'lost_stage_id'),
-  ]
+  const terminalIds = [board?.wonStageId, board?.lostStageId]
     .filter(Boolean)
     .map(Number);
 
@@ -548,8 +534,7 @@ const changeStatus = (card, { targetStageId, reasonId, reopen }) => {
   const targetStage = boardStages(board).find(
     stage => Number(stage.id) === Number(targetStageId)
   );
-  const currentStageId =
-    card.kanbanStageId ?? card.kanban_stage_id ?? card.kanbanStage?.id;
+  const currentStageId = card.kanbanStageId ?? card.kanbanStage?.id;
 
   return runCardAction(card, 'status', {
     optimistic: {
@@ -771,20 +756,8 @@ onBeforeUnmount(() => {
       :boards="boards"
       :board="boardForCard(moveDialogCard)"
       :stages="stagesForCard(moveDialogCard)"
-      :won-stage-id="
-        Number(
-          boardValue(boardForCard(moveDialogCard), 'wonStageId', 'won_stage_id')
-        ) || null
-      "
-      :lost-stage-id="
-        Number(
-          boardValue(
-            boardForCard(moveDialogCard),
-            'lostStageId',
-            'lost_stage_id'
-          )
-        ) || null
-      "
+      :won-stage-id="Number(boardForCard(moveDialogCard).wonStageId) || null"
+      :lost-stage-id="Number(boardForCard(moveDialogCard).lostStageId) || null"
       :inbox-id="cardInboxId(moveDialogCard)"
       :reasons="boardForCard(moveDialogCard).reasons || []"
       :is-moving="moveDialogIsMoving"
@@ -801,27 +774,11 @@ onBeforeUnmount(() => {
       :board="opportunityBoard"
       :boards="boards"
       :stages="opportunityStages"
-      :won-stage-id="
-        Number(boardValue(opportunityBoard, 'wonStageId', 'won_stage_id')) ||
-        null
-      "
-      :lost-stage-id="
-        Number(boardValue(opportunityBoard, 'lostStageId', 'lost_stage_id')) ||
-        null
-      "
-      :lost-reason-required="
-        Boolean(
-          boardValue(
-            opportunityBoard,
-            'lostReasonRequired',
-            'lost_reason_required'
-          )
-        )
-      "
+      :won-stage-id="Number(opportunityBoard.wonStageId) || null"
+      :lost-stage-id="Number(opportunityBoard.lostStageId) || null"
+      :lost-reason-required="Boolean(opportunityBoard.lostReasonRequired)"
       :reasons="opportunityBoard.reasons || []"
-      :custom-fields="
-        boardValue(opportunityBoard, 'customFields', 'custom_fields') || []
-      "
+      :custom-fields="opportunityBoard.customFields || []"
       :move-to-stage="moveToStageFromPanel"
       :has-blocking-dialog="false"
       opened-from-conversation

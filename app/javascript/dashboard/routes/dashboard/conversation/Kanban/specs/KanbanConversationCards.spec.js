@@ -562,7 +562,8 @@ describe('KanbanConversationCards', () => {
     const panel = mountedWrapper.findComponent({
       name: 'KanbanOpportunityPanel',
     });
-    panel.vm.$emit('openFunnel', buildCard());
+    // The panel hands back the card it loaded, already camelized.
+    panel.vm.$emit('openFunnel', { id: 123, kanbanBoardId: 10 });
     await nextTick();
 
     expect(routerPush).toHaveBeenCalledWith({

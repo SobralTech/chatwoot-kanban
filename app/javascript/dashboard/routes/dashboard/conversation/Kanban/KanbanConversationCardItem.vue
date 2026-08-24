@@ -64,43 +64,27 @@ const emit = defineEmits([
   'updateStage',
 ]);
 
+// The container camelizes every payload before it gets here, so the wire's
+// snake_case never reaches this component.
 const { t } = useI18n();
 const accountLabels = useMapGetter('labels/getLabels');
 const dueDateInput = ref('');
 const isActionsMenuOpen = ref(false);
 
 const accountLabelList = computed(() => accountLabels?.value || []);
-const cardBoard = computed(
-  () => props.card.kanbanBoard || props.card.kanban_board || props.board
-);
-const wonStageId = computed(
-  () => cardBoard.value.wonStageId ?? cardBoard.value.won_stage_id
-);
-const lostStageId = computed(
-  () => cardBoard.value.lostStageId ?? cardBoard.value.lost_stage_id
-);
-const lostReasonRequired = computed(
-  () =>
-    cardBoard.value.lostReasonRequired ?? cardBoard.value.lost_reason_required
-);
-const cardStage = computed(
-  () => props.card.kanbanStage || props.card.kanban_stage || {}
-);
+const cardBoard = computed(() => props.card.kanbanBoard || props.board);
+const wonStageId = computed(() => cardBoard.value.wonStageId);
+const lostStageId = computed(() => cardBoard.value.lostStageId);
+const lostReasonRequired = computed(() => cardBoard.value.lostReasonRequired);
+const cardStage = computed(() => props.card.kanbanStage || {});
 const cardId = computed(() => props.card.id);
+// The sidebar payload nests the stage instead of sending its id on the card.
 const stageId = computed(() =>
-  Number(
-    props.card.kanbanStageId ?? props.card.kanban_stage_id ?? cardStage.value.id
-  )
+  Number(props.card.kanbanStageId ?? cardStage.value.id)
 );
 const subject = computed(() => props.card.subject || '');
-const priority = computed(
-  () =>
-    props.card.priority ??
-    props.card.cardPriority ??
-    props.card.card_priority ??
-    ''
-);
-const dueAt = computed(() => props.card.dueAt ?? props.card.due_at ?? null);
+const priority = computed(() => props.card.priority ?? '');
+const dueAt = computed(() => props.card.dueAt ?? null);
 const priorityOptions = computed(() => [
   {
     value: '',
@@ -124,7 +108,7 @@ const priorityOptions = computed(() => [
   },
 ]);
 const labels = computed(() => {
-  const cardLabels = props.card.labels || props.card.label_list || [];
+  const cardLabels = props.card.labels || [];
 
   return cardLabels.map(label => {
     if (typeof label !== 'string') return label;
@@ -187,7 +171,7 @@ const extraAssigneeCount = computed(() =>
 const { stageSlaStatusValue, stageSlaClasses, stageTime, stageTimeTitle } =
   useKanbanCardSla(
     computed(() => props.card),
-    computed(() => cardStage.value.slaHours ?? cardStage.value.sla_hours)
+    computed(() => cardStage.value.slaHours)
   );
 
 watch(
@@ -570,7 +554,7 @@ const onSubjectKeydown = event => {
               v-for="assignee in primaryAssignees"
               :key="assignee.id"
               :name="assignee.name"
-              :src="assignee.avatarUrl || assignee.avatar_url"
+              :src="assignee.avatarUrl"
               :size="18"
               rounded-full
             />
@@ -600,7 +584,7 @@ const onSubjectKeydown = event => {
                   />
                   <Avatar
                     :name="user.name"
-                    :src="user.avatarUrl || user.avatar_url"
+                    :src="user.avatarUrl"
                     :size="20"
                     rounded-full
                   />
