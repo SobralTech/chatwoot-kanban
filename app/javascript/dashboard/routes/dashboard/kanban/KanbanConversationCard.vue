@@ -8,6 +8,7 @@ import { format, differenceInCalendarDays } from 'date-fns';
 import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import { SLA_STALE } from 'dashboard/helper/kanbanStageSla';
+import { getKanbanMoveConsequences } from 'dashboard/helper/kanbanMoveConsequences';
 import { useKanbanCardSla } from 'dashboard/composables/useKanbanCardSla';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
@@ -193,80 +194,13 @@ const moveBoardName = computed(
     selectedMoveBoard.value?.name ||
     t('KANBAN.CARD.MOVE_CURRENT_BOARD', { name: '' })
 );
-const sourceCustomFields = computed(() => sourceBoard.value.customFields || []);
-const targetCustomFields = computed(
-  () => selectedMoveBoard.value.customFields || []
-);
-const cardCustomFieldKeys = computed(() =>
-  (props.card.customFieldKeys || []).filter(Boolean)
-);
-const droppedFieldKeys = computed(() =>
-  cardCustomFieldKeys.value.filter(key => {
-    const sourceField = sourceCustomFields.value.find(
-      field => field.key === key
-    );
-    if (!sourceField) return true;
-
-    return !targetCustomFields.value.some(
-      targetField =>
-        targetField.key === key &&
-        targetField.fieldType === sourceField.fieldType &&
-        Boolean(targetField.multiple) === Boolean(sourceField.multiple)
-    );
-  })
-);
 const moveConsequences = computed(() => {
-  const sourceStageId = Number(props.card.kanbanStageId);
-  const sourceWonStageId = Number(sourceBoard.value.wonStageId);
-  const sourceLostStageId = Number(sourceBoard.value.lostStageId);
-  const consequences = [];
-
-  if ([sourceWonStageId, sourceLostStageId].includes(sourceStageId)) {
-    consequences.push({ key: 'MOVE_CONFIRM_REOPEN', params: {} });
-  }
-
-  const reasonId = Number(props.card.kanbanReasonId);
-  if (reasonId) {
-    const reason = props.reasons.find(item => Number(item.id) === reasonId);
-    consequences.push({
-      key: 'MOVE_CONFIRM_REASON',
-      params: { reason: reason?.title || reasonId },
-    });
-  }
-
-  if (droppedFieldKeys.value.length) {
-    consequences.push({
-      key: 'MOVE_CONFIRM_FIELDS',
-      params: {
-        count: droppedFieldKeys.value.length,
-        total: cardCustomFieldKeys.value.length,
-        board: moveBoardName.value,
-        keys: droppedFieldKeys.value.join(', '),
-      },
-    });
-  }
-
-  const isTerminal = [sourceWonStageId, sourceLostStageId].includes(
-    sourceStageId
-  );
-  const { wonRecurrenceEnabled, lostRecurrenceEnabled } = sourceBoard.value;
-  const recurrenceEnabledForSourceStage =
-    (sourceStageId === sourceWonStageId && Boolean(wonRecurrenceEnabled)) ||
-    (sourceStageId === sourceLostStageId && Boolean(lostRecurrenceEnabled));
-
-  if (isTerminal && recurrenceEnabledForSourceStage) {
-    consequences.push({
-      key: 'MOVE_CONFIRM_RECURRENCE_REFERENCE_LEAVES',
-      params: { board: sourceBoard.value.name },
-    });
-  } else if (!isTerminal && (wonRecurrenceEnabled || lostRecurrenceEnabled)) {
-    consequences.push({
-      key: 'MOVE_CONFIRM_RECURRENCE_MAY_RECREATE',
-      params: { board: sourceBoard.value.name },
-    });
-  }
-
-  return consequences;
+  return getKanbanMoveConsequences({
+    card: props.card,
+    sourceBoard: sourceBoard.value,
+    targetBoard: selectedMoveBoard.value,
+    reasons: props.reasons,
+  });
 });
 const viewTitle = computed(() => {
   switch (view.value) {

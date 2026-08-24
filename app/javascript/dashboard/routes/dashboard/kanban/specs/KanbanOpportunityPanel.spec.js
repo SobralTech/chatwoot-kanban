@@ -15,9 +15,7 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key, params = {}) => {
       const translations = {
-        'KANBAN.OPPORTUNITY_DETAILS.TABS.GENERAL': 'General',
         'KANBAN.OPPORTUNITY_DETAILS.TABS.PRODUCTS': 'Products',
-        'KANBAN.OPPORTUNITY_DETAILS.TABS.ADDITIONAL_DATA': 'Additional data',
         'KANBAN.OPPORTUNITY_DETAILS.TABS.DETAILS': 'Details',
         'KANBAN.OPPORTUNITY_DETAILS.AUTOSAVED_TAB': 'Saved automatically',
         'KANBAN.OPPORTUNITY_DETAILS.SAVED_AGO': 'Saved {time}',
@@ -26,20 +24,17 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.OPPORTUNITY_DETAILS.NO_CHANGES': 'No changes to save',
         'KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_CARD':
           'Could not save the opportunity fields.',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_LABELS':
-          'The opportunity was saved, but the labels were not.',
-        'KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_ASSIGNEES':
-          'The opportunity was saved, but the agents were not.',
         'KANBAN.OPPORTUNITY_DETAILS.SAVE_STEP_ERROR_FIELDS':
           'The opportunity was saved, but the additional data was not.',
         'KANBAN.OPPORTUNITY_DETAILS.UNSAVED_FIELDS_MESSAGE':
           'You changed: {fields}.',
         'KANBAN.OPPORTUNITY_DETAILS.SAVE_CHANGES': 'Save changes',
         'KANBAN.OPPORTUNITY_DETAILS.TITLE': 'Edit Opportunity',
-        'KANBAN.OPPORTUNITY_DETAILS.CARD_ID': '#{id}',
-        'KANBAN.OPPORTUNITY_DETAILS.COPY_CARD_ID': 'Copy card ID',
         'KANBAN.OPPORTUNITY_DETAILS.COPY_CARD_ID_WITH_ID': 'Copy ID (#{id})',
         'KANBAN.OPPORTUNITY_DETAILS.CARD_ID_COPIED': 'Card ID copied.',
+        'KANBAN.OPPORTUNITY_DETAILS.OPEN_IN_BOARD': 'Open in funnel',
+        'KANBAN.OPPORTUNITY_DETAILS.COPY_CARD_LINK': 'Copy card link',
+        'KANBAN.OPPORTUNITY_DETAILS.CARD_LINK_COPIED': 'Card link copied.',
         'KANBAN.OPPORTUNITY_DETAILS.EDIT_SUBJECT': 'Edit subject',
         'KANBAN.OPPORTUNITY_DETAILS.SUBJECT_UPDATE_ERROR':
           'Could not update the subject.',
@@ -47,7 +42,6 @@ vi.mock('vue-i18n', () => ({
           'Could not update the opportunity.',
         'KANBAN.OPPORTUNITY_DETAILS.MORE_ITEMS': '+{count}',
         'KANBAN.OPPORTUNITY_DETAILS.REASON_LABEL': 'Reason: {reason}',
-        'KANBAN.OPPORTUNITY_DETAILS.FIELD_TITLE': 'Subject',
         'KANBAN.OPPORTUNITY_DETAILS.FIELD_DESCRIPTION': 'Description',
         'KANBAN.OPPORTUNITY_DETAILS.DESCRIPTION_PLACEHOLDER':
           'Add a single note for this card',
@@ -63,12 +57,6 @@ vi.mock('vue-i18n', () => ({
         'CONVERSATION.PRIORITY.OPTIONS.HIGH': 'High',
         'CONVERSATION.PRIORITY.OPTIONS.MEDIUM': 'Medium',
         'CONVERSATION.PRIORITY.OPTIONS.LOW': 'Low',
-        'KANBAN.OPPORTUNITY_DETAILS.CONVERSATION': 'Conversation',
-        'KANBAN.OPPORTUNITY_DETAILS.CONVERSATION_ID': 'Conversation #{id}',
-        'KANBAN.OPPORTUNITY_DETAILS.NO_INBOX': 'No inbox linked',
-        'KANBAN.OPPORTUNITY_DETAILS.CONTACT': 'Contact',
-        'KANBAN.OPPORTUNITY_DETAILS.NO_CONTACT': 'No contact linked',
-        'KANBAN.OPPORTUNITY_DETAILS.DATES': 'Dates',
         'KANBAN.OPPORTUNITY_DETAILS.DUE_DATE': 'Due date',
         'KANBAN.OPPORTUNITY_DETAILS.CHOOSE_DATE': 'Escolha a data',
         'KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE': 'Clear due date',
@@ -77,12 +65,9 @@ vi.mock('vue-i18n', () => ({
         'KANBAN.OPPORTUNITY_DETAILS.SAVING': 'Saving...',
         'KANBAN.OPPORTUNITY_DETAILS.SAVE_SUCCESS': 'Opportunity saved.',
         'KANBAN.OPPORTUNITY_DETAILS.LABELS': 'Labels',
-        'KANBAN.OPPORTUNITY_DETAILS.NO_LABELS_SELECTED': 'No labels selected',
         'KANBAN.OPPORTUNITY_DETAILS.LOAD_LABELS_ERROR':
           'Could not load labels.',
         'KANBAN.OPPORTUNITY_DETAILS.OPEN_CONVERSATION': 'Open conversation',
-        'KANBAN.OPPORTUNITY_DETAILS.NO_LINKED_CONVERSATION':
-          'No linked conversation',
         'KANBAN.OPPORTUNITY_DETAILS.LOADING': 'Loading opportunity details...',
         'KANBAN.OPPORTUNITY_DETAILS.LOAD_ERROR':
           'Could not load opportunity details.',
@@ -90,9 +75,32 @@ vi.mock('vue-i18n', () => ({
           'Could not save opportunity details.',
         'KANBAN.OPPORTUNITY_DETAILS.REQUIRED_TITLE': 'Subject is required.',
         'KANBAN.OPPORTUNITY_DETAILS.CLOSE': 'Close opportunity details',
-        'KANBAN.OPPORTUNITY_DETAILS.MORE_ACTIONS': 'More actions',
+        'KANBAN.OPPORTUNITY_DETAILS.CLOSE_PANEL': 'Close opportunity details',
         'KANBAN.CARD.SLA_STALE': 'SLA exceeded',
         'KANBAN.CARD.SLA_TOOLTIP': '{age} / {hours} hours',
+        'KANBAN.CARD.ACTIONS_MENU': 'Card actions',
+        'KANBAN.CARD.UNKNOWN_CONTACT': 'Unknown contact',
+        'KANBAN.CARD.UNKNOWN_INBOX': 'Unknown inbox',
+        'KANBAN.CARD.OPEN_IN_NEW_TAB': 'Open in a new tab',
+        'KANBAN.CARD.MOVE_TO': 'Move to',
+        'KANBAN.CARD.MOVE_BOARD_LABEL': 'Funnel',
+        'KANBAN.CARD.MOVE_CURRENT_STAGE': '{name} (current) — move to top',
+        'KANBAN.CARD.NO_REGULAR_STAGES': 'No other stages available.',
+        'KANBAN.CARD.MOVE_CONFIRM_CLEAN': 'The opportunity keeps all its data.',
+        'KANBAN.CARD.MOVE_CONFIRM_REOPEN': 'The opportunity will be reopened.',
+        'KANBAN.CARD.MOVE_CONFIRM_REASON':
+          'The reason "{reason}" will be removed.',
+        'KANBAN.CARD.MOVE_CONFIRM_FIELDS':
+          '{count} of {total} custom fields do not exist in {board} and will be discarded: {keys}.',
+        'KANBAN.CARD.MOVE_CONFIRM_CANCEL': 'Cancel',
+        'KANBAN.CARD.MOVE_CONFIRM_SUBMIT': 'Move',
+        'KANBAN.CARD.MOVE_SUCCESS': 'Card moved.',
+        'KANBAN.CARD.MOVE_BOARD_ERROR': 'Could not move the opportunity.',
+        'KANBAN.CARD.MOVE_BOARD_ERROR_DUPLICATE':
+          '{board} already has an opportunity for this conversation.',
+        'KANBAN.CARD.MOVE_BOARD_ERROR_INBOX':
+          '{board} does not accept this inbox.',
+        'KANBAN.MENU.BACK': 'Back',
       };
 
       return Object.entries(params).reduce(
@@ -107,6 +115,8 @@ vi.mock('vue-i18n', () => ({
 vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     showCardById: vi.fn(),
+    reorderCardById: vi.fn(),
+    moveCardToBoard: vi.fn(),
     updateCardById: vi.fn(),
     reopenCardById: vi.fn(),
     updateCardDetailsById: vi.fn(),
@@ -316,6 +326,9 @@ const mountModal = async ({
   stages = [],
   moveToStage = vi.fn().mockResolvedValue(true),
   hasBlockingDialog = false,
+  board = {},
+  boards = [],
+  openedFromConversation = false,
 } = {}) => {
   storeMocks.labels = accountLabels;
   storeMocks.dispatch.mockResolvedValue();
@@ -344,6 +357,8 @@ const mountModal = async ({
       boardId: 10,
       cardId: 501,
       boardName: 'Sales',
+      board,
+      boards,
       customFields,
       wonStageId,
       lostStageId,
@@ -352,6 +367,7 @@ const mountModal = async ({
       stages,
       moveToStage,
       hasBlockingDialog,
+      openedFromConversation,
     },
     global: {
       stubs: {
@@ -1374,5 +1390,136 @@ describe('KanbanOpportunityPanel', () => {
     await flushPromises();
 
     expect(select.props('modelValue')).toBe(15);
+  });
+
+  it('opens the shared move dialog with the current stage at the top', async () => {
+    const board = { id: 10, name: 'Sales', customFields: [] };
+    KanbanBoardsAPI.reorderCardById.mockResolvedValue({});
+    const wrapper = await mountModal({
+      board,
+      boards: [board],
+      card: buildCard({ kanbanStageId: 15 }),
+      stages: [
+        { id: 15, name: 'Prospecting' },
+        { id: 16, name: 'Negotiation' },
+        { id: 20, name: 'Won' },
+        { id: 30, name: 'Lost' },
+      ],
+      wonStageId: 20,
+      lostStageId: 30,
+    });
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-move"]')
+      .trigger('click');
+
+    const stages = wrapper.findAll(
+      '[data-testid="kanban-card-move-dialog-stage"]'
+    );
+    expect(stages).toHaveLength(2);
+    expect(stages[0].text()).toContain('Prospecting (current) — move to top');
+
+    await stages[0].trigger('click');
+    await wrapper
+      .find('[data-testid="kanban-card-move-dialog-submit"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
+      card: { kanban_stage_id: 15, after_card_id: null },
+    });
+    expect(wrapper.emitted('updated')).toBeTruthy();
+    expect(
+      wrapper.find('[data-testid="kanban-card-move-dialog"]').exists()
+    ).toBe(false);
+  });
+
+  it('shows shared move consequences and moves across funnels', async () => {
+    const sourceBoard = {
+      id: 10,
+      name: 'Sales',
+      wonStageId: 20,
+      lostStageId: 30,
+      customFields: [
+        { key: 'segment', fieldType: 'text', multiple: false },
+        { key: 'region', fieldType: 'text', multiple: false },
+        { key: 'products', fieldType: 'list', multiple: true },
+      ],
+    };
+    const targetBoard = {
+      id: 11,
+      name: 'Support',
+      stagesSummary: [{ id: 40, name: 'Triage' }],
+      customFields: [{ key: 'segment', fieldType: 'text', multiple: false }],
+    };
+    KanbanBoardsAPI.moveCardToBoard.mockResolvedValue({});
+    const wrapper = await mountModal({
+      board: sourceBoard,
+      boards: [sourceBoard, targetBoard],
+      card: buildCard({
+        kanbanStageId: 30,
+        kanbanReasonId: 9,
+        customFieldKeys: ['segment', 'region', 'products'],
+      }),
+      stages: [{ id: 30, name: 'Lost' }],
+      wonStageId: 20,
+      lostStageId: 30,
+      reasons: [{ id: 9, title: 'Budget rejected' }],
+    });
+
+    await wrapper
+      .find('[data-testid="kanban-opportunity-move"]')
+      .trigger('click');
+    const boardSelect = wrapper
+      .findAllComponents({ name: 'Select' })
+      .find(select =>
+        select.props('options').some(option => option.value === 11)
+      );
+    await boardSelect.vm.$emit('update:modelValue', 11);
+    await wrapper
+      .find('[data-testid="kanban-card-move-dialog-stage"]')
+      .trigger('click');
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-card-move-dialog-consequences"]')
+        .text()
+    ).toContain('The opportunity will be reopened.');
+    expect(wrapper.text()).toContain(
+      'The reason "Budget rejected" will be removed.'
+    );
+    expect(wrapper.text()).toContain('2 of 3 custom fields');
+
+    await wrapper
+      .find('[data-testid="kanban-card-move-dialog-submit"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.moveCardToBoard).toHaveBeenCalledWith(10, 501, {
+      target_kanban_board_id: 11,
+      kanban_stage_id: 40,
+    });
+    expect(wrapper.emitted('boardChanged')).toEqual([
+      [{ boardId: 11, boardName: 'Support' }],
+    ]);
+  });
+
+  it('hides conversation navigation and inbox context when opened from conversation', async () => {
+    const wrapper = await mountModal({ openedFromConversation: true });
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-opportunity-open-conversation"]')
+        .exists()
+    ).toBe(false);
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-open-new-tab"]').exists()
+    ).toBe(false);
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-open-funnel"]').exists()
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="kanban-opportunity-subtitle"]').text()
+    ).not.toContain('Sales Inbox');
   });
 });

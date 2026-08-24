@@ -6,12 +6,16 @@ import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
-import { getCardStatusChangeErrorMessage } from 'dashboard/helper/kanbanCardStatus';
+import {
+  getCardStatusChangeErrorMessage,
+  isDirectWonLostTransitionError,
+} from 'dashboard/helper/kanbanCardStatus';
 import { formatDateInput, toIso8601 } from 'dashboard/helper/kanbanDueDate';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import KanbanCardDetailsTab from './tabs/KanbanCardDetailsTab.vue';
 import KanbanCardItemsTab from './tabs/KanbanCardItemsTab.vue';
 import KanbanCardTimelineTab from './tabs/KanbanCardTimelineTab.vue';
+import KanbanCardMoveDialog from '../KanbanCardMoveDialog.vue';
 import KanbanOpportunityHeader from './KanbanOpportunityHeader.vue';
 import KanbanOpportunitySaveBar from './KanbanOpportunitySaveBar.vue';
 import { normalizePayload } from './opportunityPayload';
@@ -33,6 +37,14 @@ const props = defineProps({
   boardName: {
     type: String,
     default: '',
+  },
+  board: {
+    type: Object,
+    default: () => ({}),
+  },
+  boards: {
+    type: Array,
+    default: () => [],
   },
   wonStageId: {
     type: Number,
@@ -67,13 +79,21 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  openedFromConversation: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits([
   'close',
   'updated',
   'openConversation',
+  'openConversationInNewTab',
+  'openFunnel',
+  'copyCardLink',
   'removeCard',
+  'boardChanged',
 ]);
 
 const { t } = useI18n();
@@ -85,6 +105,8 @@ const activeTabKey = ref('details');
 const loadedTabKeys = ref(['details']);
 const isLoading = ref(false);
 const loadError = ref('');
+const showMoveDialog = ref(false);
+const isMovingCard = ref(false);
 const productsTotalValue = ref(null);
 
 const isAdditionalDataDirty = () =>
@@ -139,6 +161,28 @@ const { isPending, run: runQuickAction } = useOpportunityQuickActions({
 const cardDisplayId = computed(() => card.value?.id || props.cardId);
 const totalValue = computed(
   () => productsTotalValue.value ?? Number(card.value?.value || 0)
+);
+const moveBoard = computed(() =>
+  props.board?.id
+    ? props.board
+    : {
+        id: Number(props.boardId),
+        name: props.boardName,
+        stages: props.stages,
+        wonStageId: props.wonStageId,
+        lostStageId: props.lostStageId,
+        customFields: props.customFields,
+      }
+);
+const moveBoards = computed(() =>
+  props.boards.length ? props.boards : [moveBoard.value]
+);
+const cardInboxId = computed(
+  () =>
+    card.value?.inboxId ??
+    card.value?.inbox?.id ??
+    card.value?.conversation?.inboxId ??
+    null
 );
 
 const onProductsTotalChanged = value => {
@@ -338,6 +382,91 @@ const moveToStage = (targetCard, targetStageId) => {
   });
 };
 
+const isLostReasonRequiredError = error =>
+  error?.response?.data?.error === 'lost_reason_required';
+
+const moveStageErrorMessage = error => {
+  if (isLostReasonRequiredError(error)) {
+    return t('KANBAN.ACTIONS.DRAG_LOST_REASON_REQUIRED');
+  }
+  if (isDirectWonLostTransitionError(error)) {
+    return t('KANBAN.ACTIONS.DRAG_DIRECT_WON_LOST_TRANSITION_NOT_ALLOWED');
+  }
+
+  return apiErrorMessage(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
+};
+
+const closeMoveDialog = () => {
+  if (isMovingCard.value) return;
+
+  showMoveDialog.value = false;
+};
+
+const onMoveRequested = async ({ boardId, stageId }) => {
+  if (isMovingCard.value || !card.value?.id) return;
+
+  const sourceBoardId = Number(props.boardId);
+  const targetBoardId = Number(boardId);
+  const targetStageId = Number(stageId);
+  const targetBoard = moveBoards.value.find(
+    item => Number(item.id) === targetBoardId
+  );
+  if (!sourceBoardId || !targetBoardId || !targetStageId || !targetBoard)
+    return;
+
+  isMovingCard.value = true;
+
+  try {
+    if (sourceBoardId === targetBoardId) {
+      await KanbanBoardsAPI.reorderCardById(sourceBoardId, card.value.id, {
+        card: {
+          kanban_stage_id: targetStageId,
+          after_card_id: null,
+        },
+      });
+      patchCard({ kanbanStageId: targetStageId });
+      notifyCardUpdated();
+      showMoveDialog.value = false;
+      useAlert(t('KANBAN.CARD.MOVE_SUCCESS'));
+      return;
+    }
+
+    await KanbanBoardsAPI.moveCardToBoard(sourceBoardId, card.value.id, {
+      target_kanban_board_id: targetBoardId,
+      kanban_stage_id: targetStageId,
+    });
+    showMoveDialog.value = false;
+    emit('boardChanged', {
+      boardId: targetBoardId,
+      boardName: targetBoard.name,
+    });
+  } catch (error) {
+    if (sourceBoardId === targetBoardId) {
+      useAlert(moveStageErrorMessage(error));
+      return;
+    }
+
+    const errorCode = error?.response?.data?.error;
+    if (errorCode === 'card_already_in_target_board') {
+      useAlert(
+        t('KANBAN.CARD.MOVE_BOARD_ERROR_DUPLICATE', {
+          board: targetBoard.name,
+        })
+      );
+    } else if (errorCode === 'inbox_not_allowed') {
+      useAlert(
+        t('KANBAN.CARD.MOVE_BOARD_ERROR_INBOX', {
+          board: targetBoard.name,
+        })
+      );
+    } else {
+      useAlert(t('KANBAN.CARD.MOVE_BOARD_ERROR'));
+    }
+  } finally {
+    isMovingCard.value = false;
+  }
+};
+
 const onChangeCardStatus = async ({ targetStageId, reasonId, reopen }) => {
   const previousStageId = card.value?.kanbanStageId;
   const previousReasonId = card.value?.kanbanReasonId;
@@ -454,9 +583,23 @@ const openConversation = () => {
   if (card.value?.conversationId) emit('openConversation', card.value);
 };
 
+const openConversationInNewTab = () => {
+  if (card.value?.conversationId) {
+    emit('openConversationInNewTab', card.value);
+  }
+};
+
+const openFunnel = () => {
+  if (card.value?.id) emit('openFunnel', card.value);
+};
+
+const copyCardLink = () => {
+  if (card.value?.id) emit('copyCardLink', card.value);
+};
+
 usePanelKeyboard({
   panelRef,
-  isBlocked: () => props.hasBlockingDialog,
+  isBlocked: () => props.hasBlockingDialog || showMoveDialog.value,
   onSave: saveCard,
   onClose: () => emit('close'),
 });
@@ -483,12 +626,13 @@ defineExpose({
       aria-modal="true"
       aria-labelledby="kanban-opportunity-title"
       tabindex="-1"
-      class="flex h-full w-full max-w-full flex-col overflow-hidden border-n-weak bg-n-background shadow-xl outline-none ltr:ml-auto ltr:border-l rtl:mr-auto rtl:border-r md:w-[min(40rem,100vw)]"
+      class="relative flex h-full w-full max-w-full flex-col overflow-hidden border-n-weak bg-n-background shadow-xl outline-none ltr:ml-auto ltr:border-l rtl:mr-auto rtl:border-r md:w-[min(40rem,100vw)]"
     >
       <KanbanOpportunityHeader
         :card="card"
         :card-display-id="cardDisplayId"
         :board-name="boardName"
+        :opened-from-conversation="openedFromConversation"
         :has-unsaved-changes="hasUnsavedChanges"
         :is-pending="isPending"
         :subject="subject"
@@ -511,13 +655,32 @@ defineExpose({
         @change-status="onChangeCardStatus"
         @stage-moved="patchCard({ kanbanStageId: $event })"
         @copy-card-id="copyCardId"
+        @copy-card-link="copyCardLink"
         @add-label="onAddLabel"
         @remove-label="onRemoveLabel"
         @toggle-assignee="onToggleAssignee"
         @open-products="openProducts"
         @open-conversation="openConversation"
+        @open-conversation-in-new-tab="openConversationInNewTab"
+        @open-funnel="openFunnel"
+        @open-move="showMoveDialog = true"
         @remove-card="emit('removeCard', $event)"
         @close="emit('close')"
+      />
+
+      <KanbanCardMoveDialog
+        v-if="showMoveDialog && card"
+        :card="card"
+        :boards="moveBoards"
+        :board="moveBoard"
+        :stages="stages"
+        :won-stage-id="wonStageId"
+        :lost-stage-id="lostStageId"
+        :inbox-id="cardInboxId"
+        :reasons="reasons"
+        :is-moving="isMovingCard"
+        @move="onMoveRequested"
+        @close="closeMoveDialog"
       />
 
       <div class="flex-none border-b border-n-weak px-4 py-3">

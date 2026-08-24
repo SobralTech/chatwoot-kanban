@@ -20,6 +20,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  openedFromConversation: {
+    type: Boolean,
+    default: false,
+  },
   hasUnsavedChanges: {
     type: Boolean,
     default: false,
@@ -32,7 +36,11 @@ const props = defineProps({
 
 const emit = defineEmits([
   'openConversation',
+  'openConversationInNewTab',
+  'openFunnel',
+  'openMove',
   'copyCardId',
+  'copyCardLink',
   'removeCard',
   'close',
 ]);
@@ -59,15 +67,17 @@ const contactName = computed(
     contact.value.name ||
     contact.value.email ||
     contact.value.phoneNumber ||
-    t('KANBAN.OPPORTUNITY_DETAILS.NO_CONTACT')
+    t('KANBAN.CARD.UNKNOWN_CONTACT')
 );
 const inboxName = computed(
-  () => inboxObject.value?.name || t('KANBAN.OPPORTUNITY_DETAILS.NO_INBOX')
+  () => inboxObject.value?.name || t('KANBAN.CARD.UNKNOWN_INBOX')
 );
 const subtitleItems = computed(() =>
   [
     { key: 'contact', label: contactName.value },
-    hasConversation.value ? { key: 'inbox', label: inboxName.value } : null,
+    hasConversation.value && !props.openedFromConversation
+      ? { key: 'inbox', label: inboxName.value }
+      : null,
     props.boardName ? { key: 'board', label: props.boardName } : null,
   ].filter(Boolean)
 );
@@ -212,8 +222,13 @@ const onTitleKeydown = event => {
       <KanbanOpportunityMenu
         :card="card"
         :card-display-id="cardDisplayId"
+        :opened-from-conversation="openedFromConversation"
         @open-conversation="emit('openConversation', $event)"
+        @open-conversation-in-new-tab="emit('openConversationInNewTab', $event)"
+        @open-funnel="emit('openFunnel', $event)"
+        @open-move="emit('openMove')"
         @copy-card-id="emit('copyCardId')"
+        @copy-card-link="emit('copyCardLink', $event)"
         @remove-card="emit('removeCard', $event)"
       />
       <button

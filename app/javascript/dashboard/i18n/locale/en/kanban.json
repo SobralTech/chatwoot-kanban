@@ -735,11 +735,13 @@
           "UNKNOWN": "updated this opportunity"
         }
       },
-      "MORE_ACTIONS": "More actions",
       "EDIT_SUBJECT": "Edit subject",
       "MOVE_TO_STAGE": "Move to stage",
       "COPY_CARD_ID_WITH_ID": "Copy ID (#{id})",
       "CARD_ID_COPIED": "Card ID copied.",
+      "COPY_CARD_LINK": "Copy card link",
+      "CARD_LINK_COPIED": "Card link copied.",
+      "OPEN_IN_BOARD": "Open in funnel",
       "REASON_LABEL": "Reason: {reason}",
       "MORE_ITEMS": "+{count}",
       "FIELD_SUMMARY": "Summary",
@@ -806,8 +808,6 @@
         "TOTAL_LABEL": "Total",
         "TOTAL_VALUE": "Total value"
       },
-      "NO_INBOX": "No inbox linked",
-      "NO_CONTACT": "No contact linked",
       "DUE_DATE": "Due date",
       "CHOOSE_DATE": "Choose a date",
       "CLEAR_DATE": "Clear due date",
@@ -907,7 +907,6 @@
     "CARD": {
       "UNKNOWN_CONTACT": "Unknown contact",
       "UNKNOWN_INBOX": "Unknown inbox",
-      "NO_LINKED_CONVERSATION": "No linked conversation",
       "NO_MESSAGES": "No messages yet",
       "UNKNOWN_STATUS": "Unknown",
       "UNKNOWN_LAST_ACTIVITY": "No activity",
@@ -917,6 +916,7 @@
       "MOVE_TO": "Move to",
       "MOVE_BOARD_LABEL": "Funnel",
       "MOVE_CURRENT_BOARD": "{name} (current)",
+      "MOVE_CURRENT_STAGE": "{name} (current) — move to top",
       "MOVE_CONFIRM_TITLE": "Move to {board}",
       "MOVE_CONFIRM_CLEAN": "The opportunity keeps all its data.",
       "MOVE_CONFIRM_REOPEN": "The opportunity will be reopened.",
@@ -942,7 +942,6 @@
       "DUE_DATE_UPDATE_ERROR": "Could not update the due date.",
       "TERMINAL_STAGE_HINT": "Use the status badge to mark as won or lost.",
       "DELETE": "Delete card",
-      "CONVERSATION_ID": "#{id}",
       "OPEN_CONVERSATION": "Open conversation with {contactName}",
       "INBOX": "Inbox: {inbox}",
       "ASSIGNEE": "Assignee: {assignee}",

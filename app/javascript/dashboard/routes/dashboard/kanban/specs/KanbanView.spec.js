@@ -316,7 +316,25 @@ const mountView = async (
         },
         KanbanOpportunityPanel: {
           name: 'KanbanOpportunityPanel',
-          props: ['boardId', 'cardId', 'stages', 'moveToStage'],
+          props: [
+            'boardId',
+            'cardId',
+            'stages',
+            'moveToStage',
+            'hasBlockingDialog',
+          ],
+          data: () => ({ unsavedChanges: false }),
+          computed: {
+            hasUnsavedChanges() {
+              return this.unsavedChanges;
+            },
+            unsavedFields() {
+              return ['description'];
+            },
+          },
+          methods: {
+            saveCard: () => Promise.resolve(true),
+          },
           template:
             '<div class="kanban-opportunity-modal-stub" data-board-id="{{ boardId }}" data-card-id="{{ cardId }}" />',
         },
@@ -1905,6 +1923,49 @@ describe('KanbanView drag and drop', () => {
         conversationId: 123,
       },
       state: { fromEmbedded: false },
+    });
+  });
+
+  it('guards modal conversation navigation when the opportunity has unsaved changes', async () => {
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+    const modal = wrapper.findComponent({ name: 'KanbanOpportunityPanel' });
+    modal.vm.unsavedChanges = true;
+    modal.vm.$emit('openConversation', { conversationId: 123 });
+    await nextTick();
+
+    expect(mockPush).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'kanban_board_conversation' })
+    );
+    expect(wrapper.findComponent({ name: 'WootModal' }).props('show')).toBe(
+      true
+    );
+  });
+
+  it('opens a card deep link from the opportunity menu', async () => {
+    const wrapper = await mountView();
+    const cardComponent = wrapper.findComponent({
+      name: 'KanbanConversationCard',
+    });
+
+    cardComponent.vm.$emit('openDetails', { id: 501, conversationId: 123 }, {});
+    await nextTick();
+    const modal = wrapper.findComponent({ name: 'KanbanOpportunityPanel' });
+    modal.vm.$emit('openFunnel', {
+      id: 501,
+      kanbanBoardId: 10,
+    });
+    await flushPromises();
+
+    expect(mockPush).toHaveBeenCalledWith({
+      name: 'kanban_board_show',
+      params: { accountId: '1', boardId: 10 },
+      query: { card_id: 501 },
     });
   });
 });

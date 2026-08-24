@@ -25,6 +25,7 @@ import KanbanStageDraft from './board/KanbanStageDraft.vue';
 import KanbanBulkActions from './KanbanBulkActions.vue';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
+import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
 import {
   getKanbanBoardPrefs,
@@ -67,6 +68,7 @@ const opportunityModalRef = ref(null);
 const opportunityTriggerRef = ref(null);
 const showUnsavedOpportunityChangesConfirm = ref(false);
 const isSavingOpportunityBeforeExit = ref(false);
+const pendingExitAction = ref(null);
 // Keyed by the thing being acted on, not by the verb, so a new action never has
 // to be registered anywhere for its spinner to work.
 const activeActionKeys = ref(new Set());
@@ -1194,7 +1196,7 @@ const moveStageConfirmationDroppedFields = computed(() => {
   })}`;
 });
 
-const openConversationInNewTab = card => {
+const navigateToConversationInNewTab = card => {
   if (!card?.conversationId) return;
 
   // A standalone tab opens the conversation on its own inbox route rather than
@@ -1213,6 +1215,51 @@ const openConversationInNewTab = card => {
   );
 };
 
+const navigateToConversation = card => {
+  saveBoardSnapshot();
+  pushEmbedded(router, {
+    name: 'kanban_board_conversation',
+    params: {
+      accountId: route.params.accountId,
+      boardId: selectedBoard.value.id,
+      conversationId: card.conversationId,
+    },
+  });
+};
+
+const closeOpportunityDetails = () => {
+  selectedOpportunityCardId.value = null;
+  showUnsavedOpportunityChangesConfirm.value = false;
+  pendingExitAction.value = null;
+  nextTick(() => {
+    opportunityTriggerRef.value?.focus?.();
+    opportunityTriggerRef.value = null;
+  });
+};
+
+const executePendingExitAction = () => {
+  const action = pendingExitAction.value;
+  pendingExitAction.value = null;
+  closeOpportunityDetails();
+  action?.();
+};
+
+const requestOpportunityExit = action => {
+  pendingExitAction.value = action;
+  if (opportunityModalRef.value?.hasUnsavedChanges) {
+    showUnsavedOpportunityChangesConfirm.value = true;
+    return;
+  }
+
+  executePendingExitAction();
+};
+
+const openConversationInNewTab = card => {
+  if (!card?.conversationId) return;
+
+  requestOpportunityExit(() => navigateToConversationInNewTab(card));
+};
+
 const openConversation = (card, event = {}) => {
   if (!card?.conversationId) return;
 
@@ -1226,15 +1273,42 @@ const openConversation = (card, event = {}) => {
     return;
   }
 
+  requestOpportunityExit(() => navigateToConversation(card));
+};
+
+const navigateToOpportunityInFunnel = card => {
+  const boardId = Number(
+    card?.kanbanBoardId ?? card?.kanban_board_id ?? selectedBoard.value?.id
+  );
+  if (!boardId || !card?.id) return;
+
   saveBoardSnapshot();
-  pushEmbedded(router, {
-    name: 'kanban_board_conversation',
+  router.push({
+    name: 'kanban_board_show',
     params: {
       accountId: route.params.accountId,
-      boardId: selectedBoard.value.id,
-      conversationId: card.conversationId,
+      boardId,
     },
+    query: { card_id: card.id },
   });
+};
+
+const openOpportunityInFunnel = card => {
+  requestOpportunityExit(() => navigateToOpportunityInFunnel(card));
+};
+
+const copyOpportunityLink = async card => {
+  const boardId = Number(
+    card?.kanbanBoardId ?? card?.kanban_board_id ?? selectedBoard.value?.id
+  );
+  if (!boardId || !card?.id) return;
+
+  const path = frontendURL(
+    `accounts/${route.params.accountId}/kanban/${boardId}`,
+    { card_id: card.id }
+  );
+  await copyTextToClipboard(`${window.chatwootConfig.hostURL}${path}`);
+  useAlert(t('KANBAN.OPPORTUNITY_DETAILS.CARD_LINK_COPIED'));
 };
 
 const openDetails = card => {
@@ -1249,15 +1323,6 @@ const openDetails = card => {
     cardElement ||
     (activeElement && activeElement !== document.body ? activeElement : null);
   selectedOpportunityCardId.value = card.id;
-};
-
-const closeOpportunityDetails = () => {
-  selectedOpportunityCardId.value = null;
-  showUnsavedOpportunityChangesConfirm.value = false;
-  nextTick(() => {
-    opportunityTriggerRef.value?.focus?.();
-    opportunityTriggerRef.value = null;
-  });
 };
 
 const openCardFromQuery = () => {
@@ -1286,6 +1351,11 @@ const keepEditingOpportunity = () => {
 };
 
 const discardOpportunityChanges = () => {
+  if (pendingExitAction.value) {
+    executePendingExitAction();
+    return;
+  }
+
   closeOpportunityDetails();
 };
 
@@ -1296,7 +1366,10 @@ const saveAndCloseOpportunity = async () => {
 
   try {
     const saved = await opportunityModalRef.value?.saveCard();
-    if (saved) closeOpportunityDetails();
+    if (saved) {
+      if (pendingExitAction.value) executePendingExitAction();
+      else closeOpportunityDetails();
+    }
   } finally {
     isSavingOpportunityBeforeExit.value = false;
   }
@@ -1317,6 +1390,16 @@ const onOpportunityUpdated = updatedCard => {
     findCardStageId({
       id: selectedOpportunityCardId.value,
       kanbanStageId: updatedCard?.kanbanStageId,
+    })
+  );
+};
+
+const onOpportunityBoardChanged = async ({ boardName } = {}) => {
+  closeOpportunityDetails();
+  await refreshSelectedBoard();
+  useAlert(
+    t('KANBAN.CARD.MOVE_BOARD_SUCCESS', {
+      board: boardName || t('KANBAN.NO_BOARD_SELECTED'),
     })
   );
 };
@@ -1707,6 +1790,8 @@ watch(searchInput, () => {
       :board-id="selectedBoard.id"
       :card-id="selectedOpportunityCardId"
       :board-name="selectedBoard.name"
+      :board="selectedBoard"
+      :boards="boards"
       :stages="selectedBoard.stages || []"
       :won-stage-id="selectedBoard.wonStageId"
       :lost-stage-id="selectedBoard.lostStageId"
@@ -1714,10 +1799,15 @@ watch(searchInput, () => {
       :reasons="selectedBoard.reasons || []"
       :custom-fields="selectedBoard.customFields || []"
       :move-to-stage="moveCardToStage"
+      :opened-from-conversation="false"
       :has-blocking-dialog="showUnsavedOpportunityChangesConfirm"
       @close="attemptCloseOpportunityDetails"
       @updated="onOpportunityUpdated"
       @open-conversation="openConversation"
+      @open-conversation-in-new-tab="openConversationInNewTab"
+      @open-funnel="openOpportunityInFunnel"
+      @copy-card-link="copyOpportunityLink"
+      @board-changed="onOpportunityBoardChanged"
       @remove-card="onOpportunityRemoveCard"
     />
 

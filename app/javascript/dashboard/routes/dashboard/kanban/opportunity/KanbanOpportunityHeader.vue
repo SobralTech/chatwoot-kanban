@@ -16,6 +16,10 @@ defineProps({
     type: String,
     default: '',
   },
+  openedFromConversation: {
+    type: Boolean,
+    default: false,
+  },
   hasUnsavedChanges: {
     type: Boolean,
     default: false,
@@ -78,7 +82,11 @@ const emit = defineEmits([
   'toggleAssignee',
   'openProducts',
   'openConversation',
+  'openConversationInNewTab',
+  'openFunnel',
+  'openMove',
   'copyCardId',
+  'copyCardLink',
   'removeCard',
   'close',
 ]);
@@ -108,10 +116,15 @@ const dueAt = defineModel('dueAt', {
       :card="card"
       :card-display-id="cardDisplayId"
       :board-name="boardName"
+      :opened-from-conversation="openedFromConversation"
       :has-unsaved-changes="hasUnsavedChanges"
       :is-pending="isPending('subject')"
       @open-conversation="emit('openConversation', $event)"
+      @open-conversation-in-new-tab="emit('openConversationInNewTab', $event)"
+      @open-funnel="emit('openFunnel', $event)"
+      @open-move="emit('openMove')"
       @copy-card-id="emit('copyCardId')"
+      @copy-card-link="emit('copyCardLink', $event)"
       @remove-card="emit('removeCard', $event)"
       @close="emit('close')"
     />
