@@ -1,5 +1,9 @@
 import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
+// The three ways a card's status can change, which double as the sub-view names
+// the card menus drill into.
+export const CARD_STATUS_TYPES = ['won', 'lost', 'reopen'];
+
 // The board payload is camelized, but the card specs still feed the raw column
 // name. Both spellings resolve here, and only here.
 export const reasonsOfType = (reasons, type) =>

@@ -2,13 +2,14 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import { CARD_STATUS_TYPES } from 'dashboard/helper/kanbanCardStatus';
 import KanbanReasonPicker from './KanbanReasonPicker.vue';
 
 const props = defineProps({
   reasonType: {
     type: String,
     required: true,
-    validator: value => ['won', 'lost', 'reopen'].includes(value),
+    validator: value => CARD_STATUS_TYPES.includes(value),
   },
   reasons: {
     type: Array,

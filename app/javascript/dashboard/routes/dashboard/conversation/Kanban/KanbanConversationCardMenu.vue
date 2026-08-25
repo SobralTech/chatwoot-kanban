@@ -8,9 +8,11 @@ import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
-import { reasonsOfType } from 'dashboard/helper/kanbanCardStatus';
+import { CARD_STATUS_TYPES } from 'dashboard/helper/kanbanCardStatus';
+import { useKanbanCardStatusActions } from 'dashboard/composables/useKanbanCardStatusActions';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 import KanbanMenuHeader from '../../kanban/KanbanMenuHeader.vue';
+import KanbanStatusMenuItems from '../../kanban/KanbanStatusMenuItems.vue';
 import KanbanStatusReasonForm from '../../kanban/KanbanStatusReasonForm.vue';
 import {
   MENU_DIVIDER_CLASSES,
@@ -70,19 +72,17 @@ const popoverRef = ref(null);
 const view = ref('root');
 const dueDateInput = ref('');
 
-const wonStageId = computed(() => Number(props.board.wonStageId) || null);
-const lostStageId = computed(() => Number(props.board.lostStageId) || null);
-const hasTerminals = computed(() => !!wonStageId.value && !!lostStageId.value);
-
 // The sidebar payload nests the stage instead of sending its id on the card.
 const cardStage = computed(() => props.card.kanbanStage || {});
-const stageId = computed(() =>
-  Number(props.card.kanbanStageId ?? cardStage.value.id)
-);
-const isOpen = computed(
-  () =>
-    stageId.value !== wonStageId.value && stageId.value !== lostStageId.value
-);
+const { hasTerminals, isOpen, canSkipReason, statusPayloadFor } =
+  useKanbanCardStatusActions({
+    stageId: computed(() => props.card.kanbanStageId ?? cardStage.value.id),
+    wonStageId: computed(() => props.board.wonStageId),
+    lostStageId: computed(() => props.board.lostStageId),
+    reasons: computed(() => props.board.reasons),
+    lostReasonRequired: computed(() => props.board.lostReasonRequired),
+  });
+const isStatusView = computed(() => CARD_STATUS_TYPES.includes(view.value));
 
 const priority = computed(() => props.card.priority ?? '');
 const dueAt = computed(() => props.card.dueAt ?? null);
@@ -163,40 +163,18 @@ const openAtView = nextView => {
 
 defineExpose({ openAtView });
 
-// Asking for a reason when there is none to pick is an empty dialog: close in
-// one step instead of drilling into a sub-view.
-const canSkipReason = type =>
-  !reasonsOfType(props.board.reasons, type).length &&
-  !(type === 'lost' && props.board.lostReasonRequired);
-
 const changeStatusTo = (type, reasonId, hide) => {
-  emit('changeStatus', {
-    targetStageId: type === 'won' ? wonStageId.value : lostStageId.value,
-    reasonId: reasonId || null,
-  });
+  emit('changeStatus', statusPayloadFor(type, reasonId));
   closeMenu(hide);
 };
 
-const onWonClick = hide => {
-  if (canSkipReason('won')) {
-    changeStatusTo('won', null, hide);
+const onSelectStatus = (type, hide) => {
+  if (canSkipReason(type)) {
+    changeStatusTo(type, null, hide);
     return;
   }
 
-  openView('won');
-};
-
-const onLostClick = hide => {
-  if (canSkipReason('lost')) {
-    changeStatusTo('lost', null, hide);
-    return;
-  }
-
-  openView('lost');
-};
-
-const onReopenClick = () => {
-  openView('reopen');
+  openView(type);
 };
 
 const onAddLabel = label => {
@@ -254,43 +232,13 @@ const onSelectDueDate = (value, hide) => {
         />
 
         <div v-if="view === 'root'" class="p-2">
-          <template v-if="hasTerminals">
-            <button
-              v-if="isOpen"
-              type="button"
-              data-testid="kanban-conversation-card-menu-won"
-              class="text-n-teal-11"
-              :class="MENU_OPTION_CLASSES"
-              :disabled="isBusy"
-              @click="onWonClick(hide)"
-            >
-              <i class="i-lucide-check-circle-2 size-4" />
-              {{ t('KANBAN.CARD.STATUS.MARK_AS_WON') }}
-            </button>
-            <button
-              v-if="isOpen"
-              type="button"
-              data-testid="kanban-conversation-card-menu-lost"
-              class="text-n-ruby-11"
-              :class="MENU_OPTION_CLASSES"
-              :disabled="isBusy"
-              @click="onLostClick(hide)"
-            >
-              <i class="i-lucide-x-circle size-4" />
-              {{ t('KANBAN.CARD.STATUS.MARK_AS_LOST') }}
-            </button>
-            <button
-              v-if="!isOpen"
-              type="button"
-              data-testid="kanban-conversation-card-menu-reopen"
-              :class="MENU_OPTION_CLASSES"
-              :disabled="isBusy"
-              @click="onReopenClick(hide)"
-            >
-              <i class="i-lucide-rotate-ccw size-4" />
-              {{ t('KANBAN.CARD.STATUS.REOPEN_OPPORTUNITY') }}
-            </button>
-          </template>
+          <KanbanStatusMenuItems
+            v-if="hasTerminals"
+            testid-prefix="kanban-conversation-card-menu"
+            :is-open="isOpen"
+            :disabled="isBusy"
+            @select="type => onSelectStatus(type, hide)"
+          />
 
           <button
             type="button"
@@ -430,34 +378,13 @@ const onSelectDueDate = (value, hide) => {
           </button>
         </div>
 
-        <div v-else-if="view === 'won'" class="p-3">
+        <div v-else-if="isStatusView" class="p-3">
           <KanbanStatusReasonForm
-            reason-type="won"
+            :reason-type="view"
             :reasons="board.reasons || []"
-            :required="false"
+            :required="view === 'lost' && Boolean(board.lostReasonRequired)"
             @back="resetView"
-            @confirm="reasonId => changeStatusTo('won', reasonId, hide)"
-          />
-        </div>
-
-        <div v-else-if="view === 'lost'" class="p-3">
-          <KanbanStatusReasonForm
-            reason-type="lost"
-            :reasons="board.reasons || []"
-            :required="Boolean(board.lostReasonRequired)"
-            @back="resetView"
-            @confirm="reasonId => changeStatusTo('lost', reasonId, hide)"
-          />
-        </div>
-
-        <div v-else-if="view === 'reopen'" class="p-3">
-          <KanbanStatusReasonForm
-            reason-type="reopen"
-            @back="resetView"
-            @confirm="
-              emit('changeStatus', { reopen: true });
-              closeMenu(hide);
-            "
+            @confirm="reasonId => changeStatusTo(view, reasonId, hide)"
           />
         </div>
 

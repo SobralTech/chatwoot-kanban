@@ -128,6 +128,9 @@ const mountCard = ({
           name: 'Popover',
           template: '<div><slot /><slot name="content" /></div>',
         },
+        // The status rows are the thing under test here, so they render for
+        // real instead of collapsing into a shallow stub.
+        KanbanStatusMenuItems: false,
       },
     },
   });
@@ -540,10 +543,8 @@ describe('KanbanConversationCard', () => {
       lostStageId: 4,
     });
 
-    expect(wrapper.find('[data-testid="kanban-card-mark-won"]').exists()).toBe(
-      true
-    );
-    expect(wrapper.find('[data-testid="kanban-card-mark-lost"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="kanban-card-won"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="kanban-card-lost"]').exists()).toBe(
       true
     );
     expect(wrapper.find('[data-testid="kanban-card-reopen"]').exists()).toBe(
@@ -551,7 +552,7 @@ describe('KanbanConversationCard', () => {
     );
 
     // No won reasons configured: closing as won takes one click.
-    await wrapper.find('[data-testid="kanban-card-mark-won"]').trigger('click');
+    await wrapper.find('[data-testid="kanban-card-won"]').trigger('click');
     expect(wrapper.emitted('changeStatus')).toEqual([
       [card, { targetStageId: 3, reasonId: null }],
     ]);
@@ -560,10 +561,10 @@ describe('KanbanConversationCard', () => {
   it('hides the menu status actions on funnels without terminal stages', () => {
     const wrapper = mountCard();
 
-    expect(wrapper.find('[data-testid="kanban-card-mark-won"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="kanban-card-won"]').exists()).toBe(
       false
     );
-    expect(wrapper.find('[data-testid="kanban-card-mark-lost"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="kanban-card-lost"]').exists()).toBe(
       false
     );
     expect(wrapper.find('[data-testid="kanban-card-reopen"]').exists()).toBe(
@@ -581,9 +582,7 @@ describe('KanbanConversationCard', () => {
       lostReasonRequired: true,
     });
 
-    await wrapper
-      .find('[data-testid="kanban-card-mark-lost"]')
-      .trigger('click');
+    await wrapper.find('[data-testid="kanban-card-lost"]').trigger('click');
 
     const form = wrapper.findComponent({ name: 'KanbanStatusReasonForm' });
     expect(form.exists()).toBe(true);
@@ -603,10 +602,10 @@ describe('KanbanConversationCard', () => {
       lostStageId: 4,
     });
 
-    expect(wrapper.find('[data-testid="kanban-card-mark-won"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="kanban-card-won"]').exists()).toBe(
       false
     );
-    expect(wrapper.find('[data-testid="kanban-card-mark-lost"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="kanban-card-lost"]').exists()).toBe(
       false
     );
 
