@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Popover from 'dashboard/components-next/popover/Popover.vue';
@@ -61,15 +61,6 @@ const actions = computed(() => [
 
 const popoverRefs = {};
 
-const onTriggerClick = action => {
-  if (canSkipReason(action.type)) {
-    closeOpportunity(action.type, null, () => popoverRefs[action.type]?.hide());
-    return;
-  }
-
-  popoverRefs[action.type]?.show();
-};
-
 const closeOpportunity = (type, reasonId, hide) => {
   hide?.();
   emit('close', {
@@ -77,6 +68,15 @@ const closeOpportunity = (type, reasonId, hide) => {
     targetStageId: type === 'won' ? props.wonStageId : props.lostStageId,
     reasonId,
   });
+};
+
+const onTriggerClick = action => {
+  if (canSkipReason(action.type)) {
+    closeOpportunity(action.type, null, () => popoverRefs[action.type]?.hide());
+    return;
+  }
+
+  popoverRefs[action.type]?.show();
 };
 </script>
 

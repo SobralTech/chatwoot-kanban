@@ -116,7 +116,6 @@ const boardName = computed(
   () => cardBoard.value?.name || t('KANBAN.CARD.UNKNOWN_BOARD')
 );
 const boardReasons = computed(() => cardBoard.value.reasons || []);
-
 const { stageSlaStatusValue, stageSlaClasses, stageTime, stageTimeTitle } =
   useKanbanCardSla(
     computed(() => props.card),
@@ -209,7 +208,6 @@ const onSubjectKeydown = event => {
       <KanbanTerminalStatusBar
         :stage-id="stageId"
         :won-stage-id="wonStageId"
-        :lost-stage-id="lostStageId"
         :reasons="boardReasons"
         :reason-id="card.kanbanReasonId ? Number(card.kanbanReasonId) : null"
         :entered-at="card.stageEnteredAt"
@@ -229,7 +227,7 @@ const onSubjectKeydown = event => {
       >
         {{ boardName }}
       </button>
-      <span class="flex-shrink-0 text-n-slate-10" aria-hidden="true">›</span>
+      <i class="i-lucide-chevron-right size-3 flex-shrink-0 text-n-slate-10" />
       <KanbanStageSelect
         :model-value="stageId"
         :stages="regularStages"

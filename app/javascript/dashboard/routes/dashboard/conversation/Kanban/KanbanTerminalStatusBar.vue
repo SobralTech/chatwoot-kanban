@@ -16,10 +16,6 @@ const props = defineProps({
     type: Number,
     default: null,
   },
-  lostStageId: {
-    type: Number,
-    default: null,
-  },
   reasons: {
     type: Array,
     default: () => [],
