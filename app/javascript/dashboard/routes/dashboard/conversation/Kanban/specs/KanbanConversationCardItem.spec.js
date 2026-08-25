@@ -58,6 +58,31 @@ const popoverStub = {
   `,
 };
 
+// The real Popover hangs its click handler on a wrapper span around the
+// trigger slot, so a trigger that stops propagation never opens it. The stub
+// above renders both slots unconditionally and cannot see that difference.
+const togglingPopoverStub = {
+  name: 'Popover',
+  data: () => ({ open: false }),
+  methods: {
+    show() {
+      this.open = true;
+    },
+    hide() {
+      this.open = false;
+    },
+    toggle() {
+      this.open = !this.open;
+    },
+  },
+  template: `
+    <div>
+      <span @click="toggle"><slot /></span>
+      <slot v-if="open" name="content" :hide="hide" />
+    </div>
+  `,
+};
+
 const cardPriorityIconStub = {
   name: 'CardPriorityIcon',
   props: ['priority'],
@@ -83,6 +108,17 @@ const labelDropdownStub = {
   template: '<div data-testid="label-dropdown" />',
 };
 
+const nestedBoard = { id: 10, name: 'Sales' };
+// What the container resolves from the boards list and hands down as `board`:
+// the only copy that knows the terminal stages and the reasons.
+const fullBoard = {
+  ...nestedBoard,
+  wonStageId: 30,
+  lostStageId: 40,
+  lostReasonRequired: true,
+  reasons: [{ id: 7, title: 'Budget' }],
+};
+
 const card = {
   id: 123,
   subject: 'Maria - Sales Inbox',
@@ -91,14 +127,8 @@ const card = {
   stageEnteredAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
   kanbanBoardId: 10,
   kanbanStageId: 20,
-  kanbanBoard: {
-    id: 10,
-    name: 'Sales',
-    wonStageId: 30,
-    lostStageId: 40,
-    lostReasonRequired: true,
-    reasons: [{ id: 7, title: 'Budget' }],
-  },
+  // _kanban_card.json.jbuilder nests the board's id and name and nothing else.
+  kanbanBoard: nestedBoard,
   kanbanStage: {
     id: 20,
     name: 'Qualified',
@@ -108,11 +138,11 @@ const card = {
   assignees: [],
 };
 
-const mountItem = (overrides = {}) =>
+const mountItem = (overrides = {}, { board = fullBoard, popover } = {}) =>
   mount(KanbanConversationCardItem, {
     props: {
       card: { ...card, ...overrides },
-      board: card.kanbanBoard,
+      board,
       regularStages: [
         { id: 20, name: 'Qualified', color: '#25c16b' },
         { id: 25, name: 'Proposal', color: '#1f93ff' },
@@ -120,7 +150,7 @@ const mountItem = (overrides = {}) =>
     },
     global: {
       stubs: {
-        Popover: popoverStub,
+        Popover: popover || popoverStub,
         CardPriorityIcon: cardPriorityIconStub,
         Avatar: avatarStub,
         WootLabel: wootLabelStub,
@@ -339,10 +369,32 @@ describe('KanbanConversationCardItem', () => {
     ).toBe(false);
   });
 
+  it('opens the actions menu from its trigger', async () => {
+    const wrapper = mountItem({}, { popover: togglingPopoverStub });
+    const menu = '[data-testid="kanban-conversation-card-actions-menu"]';
+
+    expect(wrapper.find(menu).exists()).toBe(false);
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-actions"]')
+      .trigger('click');
+
+    expect(wrapper.find(menu).exists()).toBe(true);
+  });
+
+  it('offers the status actions when the board has terminal stages', () => {
+    const wrapper = mountItem();
+
+    expect(
+      wrapper.find('[data-testid="kanban-conversation-card-won"]').exists()
+    ).toBe(true);
+    expect(
+      wrapper.find('[data-testid="kanban-conversation-card-menu-won"]').exists()
+    ).toBe(true);
+  });
+
   it('hides the quick close actions on funnels without terminals', () => {
-    const wrapper = mountItem({
-      kanbanBoard: { id: 10, name: 'Sales', reasons: [] },
-    });
+    const wrapper = mountItem({}, { board: { ...nestedBoard, reasons: [] } });
 
     expect(
       wrapper.find('[data-testid="kanban-conversation-card-won"]').exists()

@@ -48,7 +48,12 @@ const emit = defineEmits([
 const { t } = useI18n();
 const accountLabels = useMapGetter('labels/getLabels');
 
-const cardBoard = computed(() => props.card.kanbanBoard || props.board);
+// The card payload nests only the board's id and name. The container resolves
+// the full board, and that is the one that knows the terminal stages, so it
+// wins; the nested copy is only a fallback for a board the list never loaded.
+const cardBoard = computed(() =>
+  props.board?.id ? props.board : props.card.kanbanBoard || {}
+);
 const wonStageId = computed(() => Number(cardBoard.value.wonStageId) || null);
 const lostStageId = computed(() => Number(cardBoard.value.lostStageId) || null);
 const hasTerminals = computed(() => !!wonStageId.value && !!lostStageId.value);

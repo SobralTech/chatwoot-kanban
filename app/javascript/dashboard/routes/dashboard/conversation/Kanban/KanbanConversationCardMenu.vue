@@ -213,7 +213,6 @@ const onSelectDueDate = (value, hide) => {
       class="flex size-6 flex-shrink-0 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
       :aria-label="t('KANBAN.CARD.ACTIONS_MENU')"
       :disabled="isBusy"
-      @click.stop
     >
       <i v-if="isBusy" class="i-lucide-loader-circle size-4 animate-spin" />
       <i v-else class="i-lucide-more-vertical size-4" />
