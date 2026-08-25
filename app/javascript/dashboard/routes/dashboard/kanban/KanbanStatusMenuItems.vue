@@ -29,7 +29,7 @@ const { t } = useI18n();
     <button
       type="button"
       :data-testid="`${testidPrefix}-won`"
-      class="text-n-teal-11"
+      class="!text-n-teal-11"
       :class="MENU_OPTION_CLASSES"
       :disabled="disabled"
       @click="$emit('select', 'won')"
@@ -40,7 +40,7 @@ const { t } = useI18n();
     <button
       type="button"
       :data-testid="`${testidPrefix}-lost`"
-      class="text-n-ruby-11"
+      class="!text-n-ruby-11"
       :class="MENU_OPTION_CLASSES"
       :disabled="disabled"
       @click="$emit('select', 'lost')"

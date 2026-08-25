@@ -12,7 +12,9 @@ export const MENU_OPTION_CLASSES =
 export const MENU_OPTION_SELECTED_CLASSES =
   'bg-n-alpha-1 dark:bg-n-solid-active';
 
-export const MENU_OPTION_DESTRUCTIVE_CLASSES = 'text-n-ruby-11';
+// MENU_OPTION_CLASSES already sets a text colour, and it wins on source order
+// alone, so a row that means to recolour itself has to say so.
+export const MENU_OPTION_DESTRUCTIVE_CLASSES = '!text-n-ruby-11';
 
 // Separates sections inside one menu, matching the dropdown's own divider.
 export const MENU_DIVIDER_CLASSES = 'mx-2 my-1 h-px bg-n-alpha-2';
