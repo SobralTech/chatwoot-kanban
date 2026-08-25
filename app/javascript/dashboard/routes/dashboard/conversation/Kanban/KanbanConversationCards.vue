@@ -662,6 +662,7 @@ watch(
   () => props.conversationId,
   () => {
     cancelForm();
+    cards.value = [];
     assigneeStates.value = {};
     loadCards();
   }
@@ -682,7 +683,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="relative p-3 text-sm">
-    <p v-if="isLoading" class="mb-0 text-n-slate-11">
+    <p v-if="isLoading && !hasCards" class="mb-0 text-n-slate-11">
       {{ t('CONVERSATION_SIDEBAR.KANBAN.LOADING') }}
     </p>
     <p v-else-if="hasError" class="mb-0 text-n-ruby-11">
