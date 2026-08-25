@@ -8,6 +8,7 @@ import Popover from 'dashboard/components-next/popover/Popover.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
+import { reasonsOfType } from 'dashboard/helper/kanbanCardStatus';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 import KanbanMenuHeader from '../../kanban/KanbanMenuHeader.vue';
 import KanbanStatusReasonForm from '../../kanban/KanbanStatusReasonForm.vue';
@@ -129,11 +130,6 @@ const priorityOptions = computed(() => [
   },
 ]);
 
-const reasonsFor = type =>
-  (props.board.reasons || []).filter(
-    reason => (reason.reason_type ?? reason.reasonType) === type
-  );
-
 const viewTitle = computed(() => {
   switch (view.value) {
     case 'won':
@@ -183,7 +179,7 @@ defineExpose({ openAtView });
 // Asking for a reason when there is none to pick is an empty dialog: close in
 // one step instead of drilling into a sub-view.
 const canSkipReason = type =>
-  !reasonsFor(type).length &&
+  !reasonsOfType(props.board.reasons, type).length &&
   !(type === 'lost' && props.board.lostReasonRequired);
 
 const changeStatusTo = (type, reasonId, hide) => {

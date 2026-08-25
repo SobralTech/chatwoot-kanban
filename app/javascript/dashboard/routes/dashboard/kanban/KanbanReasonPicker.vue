@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Select from 'dashboard/components-next/select/Select.vue';
+import { reasonsOfType } from 'dashboard/helper/kanbanCardStatus';
 
 const props = defineProps({
   modelValue: {
@@ -29,13 +30,10 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue']);
 const { t } = useI18n();
 
-// The board payload is camelized, but the card specs still feed the raw column name.
-const getReasonType = reason => reason.reason_type ?? reason.reasonType;
-
 const options = computed(() => {
-  const reasonOptions = props.reasons
-    .filter(reason => getReasonType(reason) === props.reasonType)
-    .map(reason => ({ value: reason.id, label: reason.title }));
+  const reasonOptions = reasonsOfType(props.reasons, props.reasonType).map(
+    reason => ({ value: reason.id, label: reason.title })
+  );
 
   if (props.required) return reasonOptions;
 

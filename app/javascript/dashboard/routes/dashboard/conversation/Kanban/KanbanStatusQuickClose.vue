@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Popover from 'dashboard/components-next/popover/Popover.vue';
+import { reasonsOfType } from 'dashboard/helper/kanbanCardStatus';
 import KanbanStatusReasonForm from '../../kanban/KanbanStatusReasonForm.vue';
 import { MENU_SURFACE_CLASSES } from '../../kanban/menuClasses';
 
@@ -36,9 +37,8 @@ const { t } = useI18n();
 // Asking for a reason when there is none to pick is an empty dialog: close in
 // one step instead of opening the picker.
 const canSkipReason = type =>
-  !props.reasons.filter(
-    reason => (reason.reason_type ?? reason.reasonType) === type
-  ).length && !(type === 'lost' && props.lostReasonRequired);
+  !reasonsOfType(props.reasons, type).length &&
+  !(type === 'lost' && props.lostReasonRequired);
 
 const actions = computed(() => [
   {

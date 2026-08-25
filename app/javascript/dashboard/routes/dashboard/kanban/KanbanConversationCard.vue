@@ -9,6 +9,7 @@ import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import { SLA_STALE } from 'dashboard/helper/kanbanStageSla';
 import { getKanbanMoveConsequences } from 'dashboard/helper/kanbanMoveConsequences';
+import { reasonsOfType } from 'dashboard/helper/kanbanCardStatus';
 import { useKanbanCardSla } from 'dashboard/composables/useKanbanCardSla';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
 
@@ -398,13 +399,9 @@ const isOpenCard = computed(
 
 // Asking for a reason when there is none to pick is an empty dialog: close in
 // one step instead of drilling into a sub-view.
-const reasonsFor = type =>
-  props.reasons.filter(
-    reason => (reason.reason_type ?? reason.reasonType) === type
-  );
-
 const canSkipReason = type =>
-  !reasonsFor(type).length && !(type === 'lost' && props.lostReasonRequired);
+  !reasonsOfType(props.reasons, type).length &&
+  !(type === 'lost' && props.lostReasonRequired);
 
 const onWonClick = hide => {
   if (canSkipReason('won')) {
