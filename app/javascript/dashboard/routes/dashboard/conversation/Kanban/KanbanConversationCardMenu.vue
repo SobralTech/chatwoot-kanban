@@ -31,6 +31,12 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  // Resolved by the card, which already needs the full label objects for its
+  // chips; the menu only ever reads the titles.
+  labelTitles: {
+    type: Array,
+    default: () => [],
+  },
   assignableUsers: {
     type: Array,
     default: () => [],
@@ -89,25 +95,6 @@ const dueDateLabel = computed(() => {
 const assignees = computed(() => props.card.assignees || []);
 const selectedAssigneeIds = computed(() =>
   assignees.value.map(assignee => assignee.id)
-);
-
-const labels = computed(() => {
-  const cardLabels = props.card.labels || [];
-
-  return cardLabels.map(label => {
-    if (typeof label !== 'string') return label;
-
-    return (
-      props.accountLabels.find(
-        accountLabel => accountLabel.title === label
-      ) || {
-        title: label,
-      }
-    );
-  });
-});
-const labelTitles = computed(() =>
-  labels.value.map(label => label.title).filter(Boolean)
 );
 
 const priorityOptions = computed(() => [
@@ -214,15 +201,15 @@ const onReopenClick = () => {
 
 const onAddLabel = label => {
   const title = label?.title || label;
-  if (!title || labelTitles.value.includes(title)) return;
+  if (!title || props.labelTitles.includes(title)) return;
 
-  emit('updateLabels', [...labelTitles.value, title]);
+  emit('updateLabels', [...props.labelTitles, title]);
 };
 
 const onRemoveLabel = title => {
   emit(
     'updateLabels',
-    labelTitles.value.filter(labelTitle => labelTitle !== title)
+    props.labelTitles.filter(labelTitle => labelTitle !== title)
   );
 };
 

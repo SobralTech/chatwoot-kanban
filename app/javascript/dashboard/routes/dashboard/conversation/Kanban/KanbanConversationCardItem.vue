@@ -187,6 +187,7 @@ const onSubjectKeydown = event => {
           :card="card"
           :board="cardBoard"
           :account-labels="accountLabelList"
+          :label-titles="labelTitles"
           :assignable-users="assignableUsers"
           :is-assignees-loading="isAssigneesLoading"
           :is-busy="isBusy"

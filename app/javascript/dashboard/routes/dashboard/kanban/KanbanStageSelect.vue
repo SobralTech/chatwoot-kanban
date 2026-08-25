@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Popover from 'dashboard/components-next/popover/Popover.vue';
+import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import {
   MENU_OPTION_CLASSES,
   MENU_OPTION_SELECTED_CLASSES,
@@ -28,11 +29,6 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  variant: {
-    type: String,
-    default: 'inline',
-    validator: value => ['inline', 'field'].includes(value),
-  },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -55,6 +51,12 @@ const stageName = computed(
 
 const isSelected = stage => Number(stage.id) === Number(props.modelValue);
 
+// A stage without a colour still gets a dot, otherwise the row loses its
+// left edge and the names stop lining up.
+const dotStyle = stage => ({
+  backgroundColor: stage?.color || DEFAULT_KANBAN_STAGE_COLOR,
+});
+
 const onSelect = (stage, hide) => {
   hide();
   emit('update:modelValue', Number(stage.id));
@@ -62,21 +64,14 @@ const onSelect = (stage, hide) => {
 </script>
 
 <template>
-  <div :class="variant === 'field' ? 'w-full' : 'min-w-0'">
+  <div class="min-w-0">
     <span
       v-if="!isSelectable"
-      :class="
-        variant === 'field'
-          ? 'flex h-9 items-center px-3 text-sm text-n-slate-12'
-          : 'inline-flex items-center gap-1.5 px-1 py-0.5 text-xs font-medium text-n-slate-12'
-      "
+      class="inline-flex items-center gap-1.5 px-1 py-0.5 text-xs font-medium text-n-slate-12"
     >
       <span
-        v-if="variant === 'inline'"
         class="size-2 flex-shrink-0 rounded-full"
-        :style="
-          displayStage.color ? { backgroundColor: displayStage.color } : null
-        "
+        :style="dotStyle(displayStage)"
         aria-hidden="true"
       />
       <span class="min-w-0 truncate">{{ stageName }}</span>
@@ -86,29 +81,18 @@ const onSelect = (stage, hide) => {
       <button
         type="button"
         data-testid="kanban-stage-select-trigger"
-        :class="
-          variant === 'field'
-            ? 'flex h-9 w-full items-center justify-between gap-2 rounded-lg border-0 bg-n-surface-1 px-3 text-sm text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak hover:outline-n-slate-6 focus:outline-n-blue-9 disabled:cursor-not-allowed disabled:opacity-60'
-            : 'inline-flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50'
-        "
+        class="inline-flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
         :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.STAGE_SELECT')"
         :title="t('CONVERSATION_SIDEBAR.KANBAN.STAGE_SELECT')"
         :disabled="disabled"
       >
         <span
           class="size-2 flex-shrink-0 rounded-full"
-          :style="
-            displayStage.color ? { backgroundColor: displayStage.color } : null
-          "
+          :style="dotStyle(displayStage)"
           aria-hidden="true"
         />
         <span class="min-w-0 truncate">{{ stageName }}</span>
-        <i
-          class="i-lucide-chevron-down size-3 flex-shrink-0"
-          :class="
-            variant === 'field' ? 'size-4 text-n-slate-11' : 'text-n-slate-10'
-          "
-        />
+        <i class="i-lucide-chevron-down size-3 flex-shrink-0 text-n-slate-10" />
       </button>
 
       <template #content="{ hide }">
@@ -130,7 +114,7 @@ const onSelect = (stage, hide) => {
           >
             <span
               class="size-2 flex-shrink-0 rounded-full"
-              :style="stage.color ? { backgroundColor: stage.color } : null"
+              :style="dotStyle(stage)"
               aria-hidden="true"
             />
             <span class="min-w-0 flex-1 truncate">{{ stage.name }}</span>

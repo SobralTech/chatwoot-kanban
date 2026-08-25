@@ -77,6 +77,12 @@ const wootLabelStub = {
     '<span data-testid="kanban-conversation-card-label">{{ title }}</span>',
 };
 
+const labelDropdownStub = {
+  name: 'LabelDropdown',
+  props: ['accountLabels', 'selectedLabels', 'allowCreation'],
+  template: '<div data-testid="label-dropdown" />',
+};
+
 const card = {
   id: 123,
   subject: 'Maria - Sales Inbox',
@@ -118,6 +124,7 @@ const mountItem = (overrides = {}) =>
         CardPriorityIcon: cardPriorityIconStub,
         Avatar: avatarStub,
         WootLabel: wootLabelStub,
+        LabelDropdown: labelDropdownStub,
       },
     },
   });
@@ -282,6 +289,34 @@ describe('KanbanConversationCardItem', () => {
     expect(
       wrapper.get('[data-testid="kanban-conversation-card-labels"]').text()
     ).toContain('+6');
+  });
+
+  it('edits labels through the menu with the titles the card resolved', async () => {
+    const wrapper = mountItem({
+      labels: [
+        { id: 1, title: 'vip', color: '#ff0000' },
+        { id: 2, title: 'billing' },
+      ],
+    });
+
+    const labelsItem = wrapper.get(
+      '[data-testid="kanban-conversation-card-menu-labels"]'
+    );
+    expect(labelsItem.text()).toContain('2');
+
+    await labelsItem.trigger('click');
+    const dropdown = wrapper.getComponent(labelDropdownStub);
+    expect(dropdown.props('selectedLabels')).toEqual(['vip', 'billing']);
+
+    dropdown.vm.$emit('add', { title: 'urgent' });
+    expect(wrapper.emitted('updateLabels').at(-1)[1]).toEqual([
+      'vip',
+      'billing',
+      'urgent',
+    ]);
+
+    dropdown.vm.$emit('remove', 'vip');
+    expect(wrapper.emitted('updateLabels').at(-1)[1]).toEqual(['billing']);
   });
 
   it('drops the people row when there are no labels nor assignees', () => {
