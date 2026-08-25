@@ -58,29 +58,23 @@ const popoverStub = {
   `,
 };
 
-const statusBadgeStub = {
-  name: 'KanbanCardStatusBadge',
-  emits: ['change'],
-  template: `
-    <button type="button" data-testid="status-badge" @click="$emit('change', { targetStageId: 30 })">
-      status
-    </button>
-  `,
-};
-
 const cardPriorityIconStub = {
   name: 'CardPriorityIcon',
+  props: ['priority'],
   template: '<span data-testid="priority-icon" />',
 };
 
 const avatarStub = {
   name: 'Avatar',
+  props: ['name', 'src', 'size', 'roundedFull'],
   template: '<span data-testid="avatar" />',
 };
 
-const labelDropdownStub = {
-  name: 'LabelDropdown',
-  template: '<div data-testid="label-dropdown" />',
+const wootLabelStub = {
+  name: 'WootLabel',
+  props: ['title', 'color', 'variant', 'small'],
+  template:
+    '<span data-testid="kanban-conversation-card-label">{{ title }}</span>',
 };
 
 const card = {
@@ -114,17 +108,16 @@ const mountItem = (overrides = {}) =>
       card: { ...card, ...overrides },
       board: card.kanbanBoard,
       regularStages: [
-        { id: 20, name: 'Qualified' },
-        { id: 25, name: 'Proposal' },
+        { id: 20, name: 'Qualified', color: '#25c16b' },
+        { id: 25, name: 'Proposal', color: '#1f93ff' },
       ],
     },
     global: {
       stubs: {
         Popover: popoverStub,
-        KanbanCardStatusBadge: statusBadgeStub,
         CardPriorityIcon: cardPriorityIconStub,
         Avatar: avatarStub,
-        LabelDropdown: labelDropdownStub,
+        WootLabel: wootLabelStub,
       },
     },
   });
@@ -142,7 +135,7 @@ describe('KanbanConversationCardItem', () => {
     ).toBe('Maria - Sales Inbox');
     expect(
       wrapper.get('[data-testid="kanban-conversation-card-value"]').text()
-    ).toContain('125,50');
+    ).toContain('125,5');
     expect(wrapper.text()).toContain('Sales');
     expect(wrapper.text()).toContain('Qualified');
     expect(
@@ -158,18 +151,37 @@ describe('KanbanConversationCardItem', () => {
     ).toBe(false);
   });
 
-  it('emits field-only priority and status actions', async () => {
+  it('shows the full value on hover and the compact one inline', () => {
+    const wrapper = mountItem({ value: '456465465.56' });
+    const value = wrapper.get('[data-testid="kanban-conversation-card-value"]');
+
+    expect(value.text()).toContain('456,5');
+    expect(value.attributes('title')).toContain('456.465.465,56');
+  });
+
+  it('changes priority through the drill-in menu', async () => {
     const wrapper = mountItem();
 
     await wrapper
+      .get('[data-testid="kanban-conversation-card-menu-priority"]')
+      .trigger('click');
+    await wrapper
       .get('[data-testid="kanban-conversation-card-priority-option"]')
       .trigger('click');
-    await wrapper.get('[data-testid="status-badge"]').trigger('click');
 
     expect(wrapper.emitted('updatePriority')?.[0]).toEqual([card, '']);
+  });
+
+  it('closes the opportunity in one click from the sidebar menu', async () => {
+    const wrapper = mountItem();
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-menu-won"]')
+      .trigger('click');
+
     expect(wrapper.emitted('changeStatus')?.[0]).toEqual([
       card,
-      { targetStageId: 30 },
+      { targetStageId: 30, reasonId: null },
     ]);
   });
 
@@ -205,30 +217,17 @@ describe('KanbanConversationCardItem', () => {
     expect(wrapper.emitted('updateStage')?.[0]).toEqual([card, 25]);
   });
 
-  it('closes the opportunity in one click from the sidebar menu', async () => {
+  it('keeps a single chevron in the location line, on the stage', () => {
     const wrapper = mountItem();
+    const boardButton = wrapper.get(
+      '[data-testid="kanban-conversation-card-board"]'
+    );
+    const stageTrigger = wrapper.get(
+      '[data-testid="kanban-conversation-card-stage"]'
+    );
 
-    await wrapper
-      .get('[data-testid="kanban-conversation-card-menu-won"]')
-      .trigger('click');
-
-    expect(wrapper.emitted('changeStatus')?.[0]).toEqual([
-      card,
-      { targetStageId: 30, reasonId: null },
-    ]);
-  });
-
-  it('shows the reopen action for terminal cards in the menu', () => {
-    const wrapper = mountItem({ kanbanStageId: 40 });
-
-    expect(
-      wrapper
-        .find('[data-testid="kanban-conversation-card-menu-reopen"]')
-        .exists()
-    ).toBe(true);
-    expect(
-      wrapper.find('[data-testid="kanban-conversation-card-menu-won"]').exists()
-    ).toBe(false);
+    expect(boardButton.find('.i-lucide-chevron-down').exists()).toBe(false);
+    expect(stageTrigger.find('.i-lucide-chevron-down').exists()).toBe(true);
   });
 
   it('opens details from the subject and keyboard-focused card', async () => {
@@ -261,21 +260,17 @@ describe('KanbanConversationCardItem', () => {
     expect(wrapper.emitted('openMove')).toEqual([[card], [card]]);
   });
 
-  it('points out that the funnel can be changed', () => {
-    const wrapper = mountItem();
-
-    expect(
-      wrapper.get('[data-testid="kanban-conversation-card-board"] i').classes()
-    ).toContain('i-lucide-chevron-down');
-  });
-
-  it('renders label chips under the subject with an overflow counter', () => {
+  it('caps the label row at two chips plus an overflow counter', () => {
     const wrapper = mountItem({
       labels: [
         { id: 1, title: 'vip', color: '#ff0000' },
         { id: 2, title: 'billing' },
         { id: 3, title: 'urgent' },
         { id: 4, title: 'renewal' },
+        { id: 5, title: 'a' },
+        { id: 6, title: 'b' },
+        { id: 7, title: 'c' },
+        { id: 8, title: 'd' },
       ],
     });
 
@@ -283,17 +278,111 @@ describe('KanbanConversationCardItem', () => {
       wrapper
         .findAll('[data-testid="kanban-conversation-card-label"]')
         .map(chip => chip.text())
-    ).toEqual(['vip', 'billing', 'urgent']);
+    ).toEqual(['vip', 'billing']);
     expect(
       wrapper.get('[data-testid="kanban-conversation-card-labels"]').text()
-    ).toContain('+1');
+    ).toContain('+6');
   });
 
-  it('drops the label row when the card has none', () => {
-    const wrapper = mountItem();
+  it('drops the people row when there are no labels nor assignees', () => {
+    const wrapper = mountItem({ labels: [] });
 
     expect(
       wrapper.find('[data-testid="kanban-conversation-card-labels"]').exists()
     ).toBe(false);
+  });
+
+  it('drops the facts row when value, due date, and priority are empty', () => {
+    const wrapper = mountItem({
+      value: '0',
+      priority: '',
+      dueAt: null,
+    });
+
+    expect(
+      wrapper.find('[data-testid="kanban-conversation-card-facts"]').exists()
+    ).toBe(false);
+  });
+
+  it('hides the quick close actions on funnels without terminals', () => {
+    const wrapper = mountItem({
+      kanbanBoard: { id: 10, name: 'Sales', reasons: [] },
+    });
+
+    expect(
+      wrapper.find('[data-testid="kanban-conversation-card-won"]').exists()
+    ).toBe(false);
+    expect(
+      wrapper.find('[data-testid="kanban-conversation-card-lost"]').exists()
+    ).toBe(false);
+  });
+
+  describe('terminal cards', () => {
+    const terminalOverrides = {
+      kanbanStageId: 40,
+      kanbanReasonId: 7,
+      dueAt: '2026-12-20T12:00:00.000Z',
+    };
+
+    it('replaces the stage line with the status line', () => {
+      const wrapper = mountItem(terminalOverrides);
+      const statusLine = wrapper.get(
+        '[data-testid="kanban-conversation-card-terminal-status"]'
+      );
+
+      expect(statusLine.text()).toContain('Lost · Budget');
+      expect(
+        wrapper.find('[data-testid="kanban-conversation-card-stage"]').exists()
+      ).toBe(false);
+    });
+
+    it('shows the closing date and hides the due date', () => {
+      const wrapper = mountItem(terminalOverrides);
+
+      expect(
+        wrapper
+          .find('[data-testid="kanban-conversation-card-terminal-status"]')
+          .text()
+      ).toMatch(/\d{2}\/\d{2}/);
+      expect(
+        wrapper
+          .find('[data-testid="kanban-conversation-card-due-date"]')
+          .exists()
+      ).toBe(false);
+    });
+
+    it('does not render the won and lost quick actions', () => {
+      const wrapper = mountItem(terminalOverrides);
+
+      expect(
+        wrapper.find('[data-testid="kanban-conversation-card-won"]').exists()
+      ).toBe(false);
+      expect(
+        wrapper.find('[data-testid="kanban-conversation-card-lost"]').exists()
+      ).toBe(false);
+    });
+
+    it('emits reopen from the status line confirmation', async () => {
+      const wrapper = mountItem(terminalOverrides);
+
+      await wrapper
+        .get('[data-testid="kanban-card-status-confirm"]')
+        .trigger('click');
+
+      expect(wrapper.emitted('changeStatus')?.[0]).toEqual([
+        wrapper.props('card'),
+        { reopen: true },
+      ]);
+    });
+
+    it('shows only the status when no reason was recorded', () => {
+      const wrapper = mountItem({ ...terminalOverrides, kanbanReasonId: null });
+      const statusLine = wrapper.get(
+        '[data-testid="kanban-conversation-card-terminal-status"]'
+      );
+
+      expect(statusLine.text()).toContain('Lost');
+      expect(statusLine.text()).not.toContain('· Budget');
+    });
   });
 });

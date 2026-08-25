@@ -4,4 +4,14 @@ const formatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 });
 
+const compactFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
 export const formatCurrency = value => formatter.format(Number(value) || 0);
+
+export const formatCompactCurrency = value =>
+  compactFormatter.format(Number(value) || 0);

@@ -59,6 +59,7 @@ const emit = defineEmits([
 
 const { t } = useI18n();
 
+const popoverRef = ref(null);
 const view = ref('root');
 const dueDateInput = ref('');
 
@@ -169,6 +170,16 @@ const openView = nextView => {
   view.value = nextView;
 };
 
+// Entry point for the card's read-only rows: a chip or avatar click lands
+// straight on the matching sub-view, with the popover already open.
+const openAtView = nextView => {
+  if (nextView === 'assign') emit('loadAssignees');
+  openView(nextView);
+  popoverRef.value?.show();
+};
+
+defineExpose({ openAtView });
+
 // Asking for a reason when there is none to pick is an empty dialog: close in
 // one step instead of drilling into a sub-view.
 const canSkipReason = type =>
@@ -234,11 +245,11 @@ const onSelectDueDate = (value, hide) => {
 </script>
 
 <template>
-  <Popover align="end" disable-mobile-view @hide="resetView">
+  <Popover ref="popoverRef" align="end" disable-mobile-view @hide="resetView">
     <button
       type="button"
       data-testid="kanban-conversation-card-actions"
-      class="flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+      class="flex size-6 flex-shrink-0 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
       :aria-label="t('KANBAN.CARD.ACTIONS_MENU')"
       :disabled="isBusy"
       @click.stop
@@ -535,7 +546,6 @@ const onSelectDueDate = (value, hide) => {
           >
             <CardPriorityIcon
               :priority="option.value"
-              show-empty
               class="size-3.5 flex-shrink-0"
             />
             <span class="min-w-0 flex-1 truncate">{{ option.label }}</span>
