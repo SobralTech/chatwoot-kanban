@@ -63,8 +63,13 @@ class Api::V1::Accounts::Conversations::KanbanCardsController < Api::V1::Account
               .joins(:kanban_board, :kanban_stage)
               .merge(KanbanBoard.active)
               .merge(KanbanStage.active)
-              .includes(:kanban_board, :kanban_stage, :contact, :inbox, :labels, :assignees,
-                        :kanban_card_products, kanban_card_field_values: :kanban_custom_field)
+              # preload, never includes: the string order references the joined tables, which would turn
+              # includes into a single eager_load across four has_many branches. Postgres prices that
+              # cartesian join in the millions of rows and JIT-compiles the plan on every request, so the
+              # query costs ~1s of compilation for a handful of cards.
+              .preload(:kanban_board, :kanban_stage, :contact, :inbox, :conversation, :labels,
+                       :kanban_card_products, { assignees: { avatar_attachment: :blob } },
+                       kanban_card_field_values: :kanban_custom_field)
               .order('kanban_boards.position ASC, kanban_stages.position ASC, kanban_cards.position ASC, kanban_cards.id ASC')
   end
 

@@ -179,6 +179,7 @@ onMounted(() => {
           :title="$t('CONVERSATION_SIDEBAR.ACCORDION.KANBAN')"
           :is-open="isKanbanOpen"
           compact
+          keep-mounted
           :draggable="false"
           @toggle="toggleKanban"
         >
@@ -203,6 +204,7 @@ onMounted(() => {
           </template>
           <KanbanConversationCards
             :conversation-id="conversationId"
+            :is-open="isKanbanOpen"
             @summary="updateKanbanSummary"
           />
         </AccordionItem>

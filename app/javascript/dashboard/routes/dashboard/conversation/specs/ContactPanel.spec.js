@@ -146,6 +146,7 @@ describe('ContactPanel', () => {
     expect(wrapper.findComponent(KanbanConversationCards).exists()).toBe(true);
     expect(wrapper.findComponent(KanbanConversationCards).props()).toEqual({
       conversationId: 456,
+      isOpen: true,
     });
   });
 

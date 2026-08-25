@@ -123,12 +123,16 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
           'subject' => 'Maria Silva - Sales Inbox',
           'due_at' => card.due_at.iso8601,
           'priority' => nil,
+          'value' => '0.0',
+          'kanban_reason_id' => nil,
+          'custom_field_keys' => [],
+          'stage_entered_at' => card.stage_entered_at.iso8601,
           'labels' => [
             { 'id' => label.id, 'title' => 'urgente', 'color' => '#ff0000', 'description' => nil }
           ],
           'assignees' => [],
           'kanban_board' => { 'id' => kanban_board.id, 'name' => 'Sales' },
-          'kanban_stage' => { 'id' => stage.id, 'name' => 'New', 'color' => 'blue' },
+          'kanban_stage' => { 'id' => stage.id, 'name' => 'New', 'color' => stage.color, 'sla_hours' => stage.sla_hours },
           'conversation_id' => conversation.display_id
         }
       )

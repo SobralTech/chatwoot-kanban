@@ -25,6 +25,12 @@ const props = defineProps({
     type: [Number, String],
     required: true,
   },
+  // The card list stays mounted while the sidebar section is collapsed so the header
+  // can show how many opportunities the conversation has.
+  isOpen: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const emit = defineEmits(['open-existing', 'summary']);
@@ -667,9 +673,21 @@ watch(
     loadCards();
   }
 );
+// The boards payload spans the whole account and only the expanded card needs it, so
+// a collapsed section pays for its counter with the card request alone.
+const hasRequestedBoards = ref(false);
+watch(
+  () => props.isOpen,
+  isOpen => {
+    if (!isOpen || hasRequestedBoards.value) return;
+
+    hasRequestedBoards.value = true;
+    loadBoards();
+  },
+  { immediate: true }
+);
 onMounted(() => {
   emitter.on(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
-  loadBoards();
   loadCards();
 });
 onBeforeUnmount(() => {

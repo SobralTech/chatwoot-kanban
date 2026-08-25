@@ -26,6 +26,12 @@ defineProps({
     type: Boolean,
     default: true,
   },
+  // Sections whose header shows a summary of their own body need that body mounted
+  // even while collapsed, otherwise the summary has nothing to report.
+  keepMounted: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['toggle']);
@@ -51,7 +57,7 @@ const onToggle = () => {
           {{ title }}
         </h5>
       </div>
-      <div class="flex flex-row items-center">
+      <div class="flex flex-row items-center gap-2">
         <slot name="button" />
         <div class="flex justify-end w-3 text-n-blue-11 cursor-pointer">
           <fluent-icon v-if="isOpen" size="24" icon="subtract" type="solid" />
@@ -60,7 +66,8 @@ const onToggle = () => {
       </div>
     </button>
     <div
-      v-if="isOpen"
+      v-if="isOpen || keepMounted"
+      v-show="isOpen"
       class="outline outline-1 outline-n-weak -mt-[-1px] border-t-0 rounded-br-lg rounded-bl-lg"
       :class="compact ? 'p-0' : 'px-2 py-4'"
     >
