@@ -2,7 +2,10 @@
 import { useI18n } from 'vue-i18n';
 import Draggable from 'vuedraggable';
 
-import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
+import {
+  formatCompactCurrency,
+  formatCurrency,
+} from 'dashboard/helper/kanbanCurrency';
 
 defineProps({
   stage: {
@@ -75,8 +78,9 @@ const { t } = useI18n();
     <span
       data-testid="kanban-stage-collapsed-total-value"
       class="flex-shrink-0 rounded-full bg-n-alpha-2 px-1.5 py-0.5 text-[10px] font-medium text-n-slate-11"
+      :title="formatCurrency(stage.totalValue)"
     >
-      {{ formatCurrency(stage.totalValue) }}
+      {{ formatCompactCurrency(stage.totalValue) }}
     </span>
   </div>
 </template>

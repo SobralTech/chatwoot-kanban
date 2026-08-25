@@ -202,23 +202,43 @@ describe('KanbanConversationCard', () => {
     ).toBe('critical');
   });
 
-  it('shows an overflow badge when more than one assignee is set', () => {
+  it('stacks three assignees and shows the remaining count', () => {
     const wrapper = mountCard({
       card: buildCard({
         assignees: [
           { id: 7, name: 'Agent Smith', avatar_url: 'agent.png' },
           { id: 8, name: 'Agent Jones', avatar_url: 'jones.png' },
+          { id: 9, name: 'Agent Brown', avatar_url: 'brown.png' },
+          { id: 10, name: 'Agent Taylor', avatar_url: 'taylor.png' },
         ],
       }),
     });
 
-    expect(wrapper.text()).toContain('+1');
+    expect(
+      wrapper.findAll('[data-testid="kanban-card-assignee"]')
+    ).toHaveLength(3);
+    expect(
+      wrapper.find('[data-testid="kanban-card-assignee-overflow"]').text()
+    ).toBe('+1');
   });
 
-  it('does not show an overflow badge for a single assignee', () => {
-    const wrapper = mountCard();
+  it('does not show an overflow badge for up to three assignees', () => {
+    const wrapper = mountCard({
+      card: buildCard({
+        assignees: [
+          { id: 7, name: 'Agent Smith', avatar_url: 'agent.png' },
+          { id: 8, name: 'Agent Jones', avatar_url: 'jones.png' },
+          { id: 9, name: 'Agent Brown', avatar_url: 'brown.png' },
+        ],
+      }),
+    });
 
-    expect(wrapper.text()).not.toContain('+1');
+    expect(
+      wrapper.findAll('[data-testid="kanban-card-assignee"]')
+    ).toHaveLength(3);
+    expect(
+      wrapper.find('[data-testid="kanban-card-assignee-overflow"]').exists()
+    ).toBe(false);
   });
 
   it('emits openConversation when the card surface is clicked', async () => {
@@ -473,6 +493,8 @@ describe('KanbanConversationCard', () => {
     expect(actionsButton.attributes('aria-label')).toBe('Card actions');
     expect(actionsButton.attributes('title')).toBe('Card actions');
     expect(actionsButton.find('.i-lucide-more-vertical').exists()).toBe(true);
+    expect(actionsButton.classes()).not.toContain('opacity-0');
+    expect(actionsButton.classes()).not.toContain('group-hover:opacity-100');
   });
 
   it('renders inbox badge separately from the inbox pill', () => {

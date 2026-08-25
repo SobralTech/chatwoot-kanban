@@ -6,7 +6,10 @@ import { useKanbanMoveTarget } from 'dashboard/composables/useKanbanMoveTarget';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { format, differenceInCalendarDays } from 'date-fns';
 import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
-import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
+import {
+  formatCompactCurrency,
+  formatCurrency,
+} from 'dashboard/helper/kanbanCurrency';
 import { SLA_STALE } from 'dashboard/helper/kanbanStageSla';
 import { getKanbanMoveConsequences } from 'dashboard/helper/kanbanMoveConsequences';
 import { CARD_STATUS_TYPES } from 'dashboard/helper/kanbanCardStatus';
@@ -174,9 +177,9 @@ const contactThumbnail = computed(
   () => contact.value?.thumbnail || contact.value?.avatarUrl || ''
 );
 const assignees = computed(() => props.card.assignees || []);
-const primaryAssignee = computed(() => assignees.value[0] || null);
+const visibleAssignees = computed(() => assignees.value.slice(0, 3));
 const extraAssigneeCount = computed(() =>
-  Math.max(assignees.value.length - 1, 0)
+  Math.max(assignees.value.length - visibleAssignees.value.length, 0)
 );
 const extraAssigneeLabel = computed(() => `+${extraAssigneeCount.value}`);
 const moveTargetStage = ref(null);
@@ -301,7 +304,13 @@ const dueAtClasses = computed(() => {
 });
 
 const cardValue = computed(() => Number(props.card.value) || 0);
-const formattedCardValue = computed(() => formatCurrency(cardValue.value));
+const formattedCardValue = computed(() =>
+  formatCompactCurrency(cardValue.value)
+);
+const fullCardValue = computed(() => formatCurrency(cardValue.value));
+const hasCardFacts = computed(
+  () => cardValue.value > 0 || !!dueAtLabel.value || !!stageTime.value
+);
 
 const openDetails = () => {
   emit('openDetails', props.card);
@@ -462,14 +471,14 @@ const toggleSelection = async event => {
       />
     </label>
     <span
-      class="no-drag absolute top-1.5 inline-flex ltr:right-1.5 rtl:left-1.5"
+      class="no-drag absolute top-1.5 z-10 inline-flex ltr:right-1.5 rtl:left-1.5"
       @click.stop
     >
       <Popover align="end" disable-mobile-view @hide="resetView">
         <button
           type="button"
           data-testid="kanban-card-actions"
-          class="no-drag flex size-8 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 opacity-0 shadow-sm transition-opacity hover:bg-n-alpha-2 focus:opacity-100 focus:outline-none focus:ring-1 focus:ring-n-brand group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+          class="no-drag flex size-8 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 shadow-sm hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
           :aria-label="t('KANBAN.CARD.ACTIONS_MENU')"
           :title="t('KANBAN.CARD.ACTIONS_MENU')"
           :disabled="isBusy"
@@ -815,13 +824,16 @@ const toggleSelection = async event => {
     <div class="min-w-0 text-left">
       <p
         v-if="subject"
-        class="truncate text-sm font-semibold leading-4 text-n-slate-12"
+        class="truncate text-sm font-semibold leading-4 text-n-slate-12 ltr:pr-8 rtl:pl-8"
         :title="subject"
       >
         {{ subject }}
       </p>
 
-      <div v-if="labels.length" class="mt-1 flex flex-wrap gap-1">
+      <div
+        v-if="labels.length"
+        class="mt-1 flex flex-wrap gap-1 ltr:pr-8 rtl:pl-8"
+      >
         <WootLabel
           v-for="label in labels"
           :key="label.title"
@@ -832,10 +844,10 @@ const toggleSelection = async event => {
         />
       </div>
 
-      <div class="mt-1 flex items-center gap-1.5">
+      <div class="mt-3 flex min-w-0 items-center gap-2">
         <span
           data-testid="kanban-card-contact-avatar"
-          class="relative flex flex-shrink-0 rounded-full"
+          class="flex flex-shrink-0 rounded-full"
           :title="contactName"
         >
           <Avatar
@@ -844,76 +856,88 @@ const toggleSelection = async event => {
             :size="28"
             rounded-full
           />
-          <span
-            v-if="inbox"
-            class="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border border-n-surface-1 bg-n-surface-1"
-          >
-            <ChannelIcon :inbox="inbox" class="size-3.5 text-n-slate-11" />
-          </span>
         </span>
 
-        <h4
-          class="min-w-0 flex-1 truncate text-xs font-medium leading-4 text-n-slate-12"
-        >
-          {{ contactName }}
-        </h4>
+        <div class="min-w-0 flex-1">
+          <h4
+            class="truncate text-xs font-medium leading-4 text-n-slate-12"
+            :title="contactName"
+          >
+            {{ contactName }}
+          </h4>
 
-        <span
-          v-if="primaryAssignee"
-          class="relative flex flex-shrink-0 items-center"
+          <div class="mt-1 flex min-w-0 items-center gap-1 text-xs leading-4">
+            <ChannelIcon
+              :inbox="namedInbox"
+              class="size-3.5 flex-shrink-0 text-n-slate-11"
+            />
+            <InboxName :inbox="namedInbox" :show-icon="false" class="min-w-0" />
+          </div>
+        </div>
+
+        <div
+          v-if="visibleAssignees.length"
+          class="-space-x-1 flex flex-shrink-0 items-center"
         >
-          <Avatar
-            :name="primaryAssignee.name"
-            :src="primaryAssignee.avatarUrl"
-            :size="18"
-            rounded-full
-          />
+          <span
+            v-for="assignee in visibleAssignees"
+            :key="assignee.id"
+            data-testid="kanban-card-assignee"
+            class="flex flex-shrink-0 rounded-full ring-2 ring-n-surface-1"
+            :title="assignee.name"
+          >
+            <Avatar
+              :name="assignee.name"
+              :src="assignee.avatarUrl"
+              :size="20"
+              rounded-full
+            />
+          </span>
           <span
             v-if="extraAssigneeCount"
-            class="absolute -bottom-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-n-slate-9 px-0.5 text-[9px] font-medium leading-none text-white"
+            data-testid="kanban-card-assignee-overflow"
+            class="flex size-5 flex-shrink-0 items-center justify-center rounded-full bg-n-slate-3 text-[9px] font-medium leading-none text-n-slate-11 ring-2 ring-n-surface-1"
           >
             {{ extraAssigneeLabel }}
           </span>
-        </span>
-      </div>
-
-      <div class="mt-1 flex min-w-0">
-        <div
-          class="inline-flex max-w-full items-center rounded-md bg-n-alpha-2 px-1.5 py-0.5 text-xs leading-4"
-        >
-          <InboxName
-            :inbox="namedInbox"
-            :show-icon="false"
-            class="max-w-full"
-          />
         </div>
       </div>
 
       <div
         data-testid="kanban-card-meta"
-        class="mt-1 flex items-center justify-between gap-1.5 text-xs leading-4 text-n-slate-10"
+        class="mt-3 text-xs leading-4 text-n-slate-10"
       >
-        <span class="inline-flex flex-shrink-0">
-          <CardPriorityIcon :priority="priority" show-empty class="!size-3.5" />
-        </span>
+        <div class="flex min-w-0 items-center justify-between gap-2">
+          <span class="no-drag inline-flex flex-shrink-0" @click.stop>
+            <KanbanCardStatusBadge
+              :kanban-stage-id="card.kanbanStageId"
+              :won-stage-id="wonStageId"
+              :lost-stage-id="lostStageId"
+              :reasons="reasons"
+              :lost-reason-required="lostReasonRequired"
+              :disabled="isBusy"
+              @change="onChangeStatus"
+            />
+          </span>
 
-        <span class="no-drag inline-flex flex-shrink-0" @click.stop>
-          <KanbanCardStatusBadge
-            :kanban-stage-id="card.kanbanStageId"
-            :won-stage-id="wonStageId"
-            :lost-stage-id="lostStageId"
-            :reasons="reasons"
-            :lost-reason-required="lostReasonRequired"
-            :disabled="isBusy"
-            @change="onChangeStatus"
-          />
-        </span>
+          <span class="ms-auto inline-flex flex-shrink-0">
+            <CardPriorityIcon
+              :priority="priority"
+              show-empty
+              class="!size-3.5"
+            />
+          </span>
+        </div>
 
-        <div class="flex min-w-0 items-center justify-end gap-1.5">
+        <div
+          v-if="hasCardFacts"
+          class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1"
+        >
           <span
             v-if="cardValue > 0"
             data-testid="kanban-card-value"
-            class="inline-flex flex-shrink-0 items-center truncate font-medium text-n-slate-11"
+            class="inline-flex flex-shrink-0 items-center font-medium text-n-slate-11"
+            :title="fullCardValue"
           >
             {{ formattedCardValue }}
           </span>
@@ -928,7 +952,7 @@ const toggleSelection = async event => {
           </span>
           <span
             v-if="stageTime"
-            class="inline-flex min-w-0 items-center gap-1 truncate"
+            class="inline-flex flex-shrink-0 items-center gap-1"
             :class="stageSlaClasses"
             :title="stageTimeTitle"
             :aria-label="
@@ -938,7 +962,7 @@ const toggleSelection = async event => {
             "
           >
             <i class="i-lucide-clock size-3 flex-shrink-0" />
-            <span class="truncate">{{ stageTime }}</span>
+            <span>{{ stageTime }}</span>
           </span>
         </div>
       </div>
