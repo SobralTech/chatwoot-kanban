@@ -469,7 +469,7 @@
       "SELECT_STAGE": "Select a stage",
       "NO_ELIGIBLE_BOARDS": "No funnel accepts this inbox.",
       "CREATE_IN_ANOTHER_BOARD": "Create in another funnel",
-      "ALREADY_IN_BOARD": "This conversation already has {id} here",
+      "ALREADY_IN_BOARD": "Opportunity {id} already exists in this funnel for the same conversation and subject.",
       "OPEN_EXISTING": "Open",
       "EDIT_DETAILS": "Edit details",
       "MOVE_BOARD": "Move to another funnel",

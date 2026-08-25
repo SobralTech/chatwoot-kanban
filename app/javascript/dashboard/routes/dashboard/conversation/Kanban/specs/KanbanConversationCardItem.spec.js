@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { computed } from 'vue';
 
 import KanbanConversationCardItem from '../KanbanConversationCardItem.vue';
@@ -63,7 +63,25 @@ const popoverStub = {
 // above renders both slots unconditionally and cannot see that difference.
 const togglingPopoverStub = {
   name: 'Popover',
-  data: () => ({ open: false }),
+  data: () => ({
+    open: false,
+    onDocumentKeydown: null,
+    onDocumentClick: null,
+  }),
+  mounted() {
+    this.onDocumentKeydown = event => {
+      if (event.key === 'Escape') this.hide();
+    };
+    this.onDocumentClick = event => {
+      if (this.open && !this.$el.contains(event.target)) this.hide();
+    };
+    document.addEventListener('keydown', this.onDocumentKeydown);
+    document.addEventListener('click', this.onDocumentClick);
+  },
+  beforeUnmount() {
+    document.removeEventListener('keydown', this.onDocumentKeydown);
+    document.removeEventListener('click', this.onDocumentClick);
+  },
   methods: {
     show() {
       this.open = true;
@@ -93,13 +111,6 @@ const avatarStub = {
   name: 'Avatar',
   props: ['name', 'src', 'size', 'roundedFull'],
   template: '<span data-testid="avatar" />',
-};
-
-const wootLabelStub = {
-  name: 'WootLabel',
-  props: ['title', 'color', 'variant', 'small'],
-  template:
-    '<span data-testid="kanban-conversation-card-label">{{ title }}</span>',
 };
 
 const labelDropdownStub = {
@@ -149,11 +160,13 @@ const mountItem = (overrides = {}, { board = fullBoard, popover } = {}) =>
       ],
     },
     global: {
+      directives: {
+        resize: {},
+      },
       stubs: {
         Popover: popover || popoverStub,
         CardPriorityIcon: cardPriorityIconStub,
         Avatar: avatarStub,
-        WootLabel: wootLabelStub,
         LabelDropdown: labelDropdownStub,
       },
     },
@@ -175,6 +188,12 @@ describe('KanbanConversationCardItem', () => {
     ).toContain('125,5');
     expect(wrapper.text()).toContain('Sales');
     expect(wrapper.text()).toContain('Qualified');
+    expect(
+      wrapper.get('[data-testid="kanban-conversation-card-board-label"]').text()
+    ).toBe('Funnel');
+    expect(
+      wrapper.get('[data-testid="kanban-conversation-card-stage-label"]').text()
+    ).toBe('Stage');
     expect(
       wrapper.find('[data-testid="kanban-conversation-card"]').classes()
     ).toContain('border-l-2');
@@ -297,28 +316,37 @@ describe('KanbanConversationCardItem', () => {
     expect(wrapper.emitted('openMove')).toEqual([[card], [card]]);
   });
 
-  it('caps the label row at two chips plus an overflow counter', () => {
-    const wrapper = mountItem({
-      labels: [
-        { id: 1, title: 'vip', color: '#ff0000' },
-        { id: 2, title: 'billing' },
-        { id: 3, title: 'urgent' },
-        { id: 4, title: 'renewal' },
-        { id: 5, title: 'a' },
-        { id: 6, title: 'b' },
-        { id: 7, title: 'c' },
-        { id: 8, title: 'd' },
-      ],
-    });
+  it('renders responsive read-only labels that expand and collapse', async () => {
+    const accountLabelList = [
+      { id: 1, title: 'vip', color: '#ff0000' },
+      { id: 2, title: 'billing' },
+      { id: 3, title: 'urgent' },
+    ];
+    useMapGetter.mockReturnValue(computed(() => accountLabelList));
+    const wrapper = mountItem({ labels: accountLabelList });
+    await flushPromises();
 
+    const labels = wrapper.get(
+      '[data-testid="kanban-conversation-card-labels"]'
+    );
+    expect(labels.element.tagName).toBe('DIV');
+    expect(labels.findAll('[data-label]')).toHaveLength(3);
     expect(
-      wrapper
-        .findAll('[data-testid="kanban-conversation-card-label"]')
-        .map(chip => chip.text())
-    ).toEqual(['vip', 'billing']);
+      labels.findAll('[data-label]').some(label => label.classes('invisible'))
+    ).toBe(true);
+
+    await labels.get('button').trigger('click');
+    await flushPromises();
     expect(
-      wrapper.get('[data-testid="kanban-conversation-card-labels"]').text()
-    ).toContain('+6');
+      labels.findAll('[data-label]').some(label => label.classes('invisible'))
+    ).toBe(false);
+    expect(wrapper.emitted('updateLabels')).toBeUndefined();
+
+    await labels.get('button').trigger('click');
+    await flushPromises();
+    expect(
+      labels.findAll('[data-label]').some(label => label.classes('invisible'))
+    ).toBe(true);
   });
 
   it('edits labels through the menu with the titles the card resolved', async () => {
@@ -394,6 +422,88 @@ describe('KanbanConversationCardItem', () => {
     ).toBe(true);
   });
 
+  it('closes the loss popover with its X without changing status', async () => {
+    const wrapper = mountItem({}, { popover: togglingPopoverStub });
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-lost"]')
+      .trigger('click');
+    const closeButton = wrapper.get('button[aria-label="Close"]');
+    await closeButton.trigger('click');
+
+    expect(wrapper.find('button[aria-label="Close"]').exists()).toBe(false);
+    expect(wrapper.emitted('changeStatus')).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it('closes the other status popover when a new one opens', async () => {
+    const board = {
+      ...fullBoard,
+      reasons: [
+        { id: 7, title: 'Budget', reasonType: 'lost' },
+        { id: 8, title: 'Upsell', reasonType: 'won' },
+      ],
+    };
+    const wrapper = mountItem({}, { board, popover: togglingPopoverStub });
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-lost"]')
+      .trigger('click');
+    expect(wrapper.text()).toContain('Mark as lost');
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-won"]')
+      .trigger('click');
+
+    expect(wrapper.text()).not.toContain('Mark as lost');
+    expect(wrapper.text()).toContain('Mark as won');
+    expect(wrapper.emitted('changeStatus')).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it('toggles the loss popover closed on a second trigger click', async () => {
+    const wrapper = mountItem({}, { popover: togglingPopoverStub });
+    const trigger = wrapper.get(
+      '[data-testid="kanban-conversation-card-lost"]'
+    );
+
+    await trigger.trigger('click');
+    expect(wrapper.find('button[aria-label="Close"]').exists()).toBe(true);
+    await trigger.trigger('click');
+
+    expect(wrapper.find('button[aria-label="Close"]').exists()).toBe(false);
+    expect(wrapper.emitted('changeStatus')).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it('closes the loss popover with Escape without changing status', async () => {
+    const wrapper = mountItem({}, { popover: togglingPopoverStub });
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-lost"]')
+      .trigger('click');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('button[aria-label="Close"]').exists()).toBe(false);
+    expect(wrapper.emitted('changeStatus')).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it('closes the loss popover on an outside click without changing status', async () => {
+    const wrapper = mountItem({}, { popover: togglingPopoverStub });
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-lost"]')
+      .trigger('click');
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('button[aria-label="Close"]').exists()).toBe(false);
+    expect(wrapper.emitted('changeStatus')).toBeUndefined();
+    wrapper.unmount();
+  });
+
   it('hides the quick close actions on funnels without terminals', () => {
     const wrapper = mountItem({}, { board: { ...nestedBoard, reasons: [] } });
 
@@ -419,6 +529,11 @@ describe('KanbanConversationCardItem', () => {
       );
 
       expect(statusLine.text()).toContain('Lost · Budget');
+      expect(
+        wrapper
+          .get('[data-testid="kanban-conversation-card-stage-label"]')
+          .text()
+      ).toBe('Stage');
       expect(
         wrapper.find('[data-testid="kanban-conversation-card-stage"]').exists()
       ).toBe(false);

@@ -919,7 +919,7 @@
       "MOVE_CONFIRM_SUBMIT": "Move",
       "MOVE_BOARD_SUCCESS": "Opportunity moved to {board}.",
       "MOVE_BOARD_ERROR": "Could not move the opportunity to the other funnel.",
-      "MOVE_BOARD_ERROR_DUPLICATE": "{board} already has an opportunity for this conversation.",
+      "MOVE_BOARD_ERROR_DUPLICATE": "{board} already has an opportunity for the same conversation and subject.",
       "MOVE_BOARD_ERROR_INBOX": "{board} does not accept this inbox.",
       "ASSIGN_TO": "Assign to",
       "OPEN_IN_NEW_TAB": "Open in a new tab",

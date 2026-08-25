@@ -16,7 +16,7 @@ vi.mock('vue-i18n', () => ({
           'CONVERSATION_SIDEBAR.KANBAN.BOARD': 'Funnel',
           'CONVERSATION_SIDEBAR.KANBAN.SELECT_BOARD': 'Select a funnel',
           'CONVERSATION_SIDEBAR.KANBAN.ALREADY_IN_BOARD':
-            'This conversation already has #{id} here',
+            'Opportunity {id} already exists for this conversation and subject',
           'CONVERSATION_SIDEBAR.KANBAN.OPEN_EXISTING': 'Open existing',
           'CONVERSATION_SIDEBAR.KANBAN.STAGE': 'Stage',
           'CONVERSATION_SIDEBAR.KANBAN.SELECT_STAGE': 'Select a stage',
@@ -123,12 +123,18 @@ describe('KanbanConversationCardForm', () => {
     ).toBe(false);
   });
 
-  it('warns about an existing card and emits the open action', async () => {
-    const existingCard = { id: 123, kanbanBoardId: 10 };
+  it('blocks a normalized duplicate and allows a different subject', async () => {
+    const existingCard = {
+      id: 123,
+      origin: 'conversation',
+      subject: '  MARIA   - sales  ',
+      kanbanBoardId: 10,
+    };
     const wrapper = mountForm({
       boards: [buildBoard()],
       cards: [existingCard],
       inboxId: 5,
+      defaultSubject: 'Maria - Sales',
     });
 
     await wrapper.vm.$nextTick();
@@ -137,6 +143,16 @@ describe('KanbanConversationCardForm', () => {
         .find('[data-testid="kanban-conversation-card-duplicate-warning"]')
         .exists()
     ).toBe(true);
+    expect(
+      wrapper
+        .get('[data-testid="kanban-conversation-card-create"]')
+        .attributes('disabled')
+    ).toBeDefined();
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-form"]')
+      .trigger('submit');
+    expect(wrapper.emitted('create')).toBeUndefined();
 
     await wrapper
       .get('[data-testid="kanban-conversation-card-duplicate-warning"] button')
@@ -145,6 +161,54 @@ describe('KanbanConversationCardForm', () => {
     expect(wrapper.emitted('open-existing')?.[0][0]).toStrictEqual(
       existingCard
     );
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-subject"]')
+      .setValue('Maria - Expansion');
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-conversation-card-duplicate-warning"]')
+        .exists()
+    ).toBe(false);
+    expect(
+      wrapper
+        .get('[data-testid="kanban-conversation-card-create"]')
+        .attributes('disabled')
+    ).toBeUndefined();
+
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-form"]')
+      .trigger('submit');
+    expect(wrapper.emitted('create')?.[0][0].subject).toBe('Maria - Expansion');
+  });
+
+  it('ignores a manual card with the same subject', async () => {
+    const wrapper = mountForm({
+      boards: [buildBoard()],
+      cards: [
+        {
+          id: 123,
+          origin: 'manual',
+          subject: 'Maria - Sales',
+          kanbanBoardId: 10,
+        },
+      ],
+      inboxId: 5,
+      defaultSubject: 'Maria - Sales',
+    });
+
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper
+        .find('[data-testid="kanban-conversation-card-duplicate-warning"]')
+        .exists()
+    ).toBe(false);
+    await wrapper
+      .get('[data-testid="kanban-conversation-card-form"]')
+      .trigger('submit');
+    expect(wrapper.emitted('create')).toHaveLength(1);
   });
 
   it('submits only the three conversation-card fields', async () => {

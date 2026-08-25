@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 import Select from 'dashboard/components-next/select/Select.vue';
 import { boardAcceptsInbox } from 'dashboard/helper/kanbanBoardScope';
+import { normalizeKanbanCardSubject } from 'dashboard/helper/kanbanCardSubject';
 
 const props = defineProps({
   boards: {
@@ -76,7 +77,11 @@ const existingCard = computed(() =>
   props.cards.find(card => {
     const board = card.kanbanBoard || card.kanban_board;
     return (
-      Number(board?.id ?? card.kanbanBoardId) === Number(selectedBoardId.value)
+      card.origin === 'conversation' &&
+      Number(board?.id ?? card.kanbanBoardId) ===
+        Number(selectedBoardId.value) &&
+      normalizeKanbanCardSubject(card.subject) ===
+        normalizeKanbanCardSubject(subject.value)
     );
   })
 );
@@ -91,6 +96,7 @@ const canSubmit = computed(
     !!selectedBoardId.value &&
     !!selectedStageId.value &&
     !!subject.value.trim() &&
+    !existingCard.value &&
     !props.isCreating
 );
 

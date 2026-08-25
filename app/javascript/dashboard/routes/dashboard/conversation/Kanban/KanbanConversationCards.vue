@@ -761,6 +761,7 @@ onBeforeUnmount(() => {
       :inbox-id="cardInboxId(moveDialogCard)"
       :reasons="boardForCard(moveDialogCard).reasons || []"
       :is-moving="moveDialogIsMoving"
+      another-board-only
       @close="closeMoveDialog"
       @move="moveCardToBoard"
     />

@@ -306,6 +306,9 @@ const mountModal = async ({
         LabelDropdown: labelDropdownStub,
         Editor: editorStub,
         TabBar: tabBarStub,
+        TeleportWithDirection: {
+          template: '<div><slot /></div>',
+        },
       },
     },
   });

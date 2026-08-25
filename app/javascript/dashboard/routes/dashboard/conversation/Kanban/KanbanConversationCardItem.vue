@@ -76,29 +76,15 @@ const priority = computed(() => props.card.priority ?? '');
 const dueAt = computed(() => props.card.dueAt ?? null);
 
 const accountLabelList = computed(() => accountLabels?.value || []);
-// Card payloads carry bare titles when the label left the account; resolve
-// what we can against the account list.
-const resolveLabel = label => {
-  if (typeof label !== 'string') return label;
-
-  return (
-    accountLabelList.value.find(item => item.title === label) || {
-      title: label,
-    }
-  );
-};
-const labels = computed(() => (props.card.labels || []).map(resolveLabel));
 const labelTitles = computed(() =>
-  labels.value.map(label => label.title).filter(Boolean)
-);
-// Two chips read at a glance in ~254px; the rest collapse into a counter.
-const visibleLabels = computed(() => labels.value.slice(0, 2));
-const overflowCount = (list, visible) => Math.max(list.length - visible, 0);
-const extraLabelCount = computed(() =>
-  overflowCount(labels.value, visibleLabels.value.length)
+  (props.card.labels || [])
+    .map(label => (typeof label === 'string' ? label : label?.title))
+    .filter(Boolean)
 );
 const assignees = computed(() => props.card.assignees || []);
-const extraAssigneeCount = computed(() => overflowCount(assignees.value, 2));
+const extraAssigneeCount = computed(() =>
+  Math.max(assignees.value.length - 2, 0)
+);
 
 const cardValue = computed(() => Number(props.card.value) || 0);
 const hasValue = computed(() => cardValue.value > 0);
@@ -208,43 +194,59 @@ const onSubjectKeydown = event => {
     </div>
 
     <div class="mt-2 grid min-w-0 gap-2">
-      <Button
-        data-testid="kanban-conversation-card-board"
-        variant="outline"
-        color="slate"
-        justify="start"
-        class="w-full"
-        :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD')"
-        :title="boardName"
-        :disabled="isBusy"
-        @click.stop="openMove"
-      >
-        <i class="i-lucide-corner-up-right size-4 flex-shrink-0" />
-        <span class="min-w-0 flex-1 truncate text-left">
-          {{ boardName }}
+      <div class="grid min-w-0 gap-1">
+        <span
+          data-testid="kanban-conversation-card-board-label"
+          class="text-xs font-medium text-n-slate-11"
+        >
+          {{ t('CONVERSATION_SIDEBAR.KANBAN.BOARD') }}
         </span>
-      </Button>
+        <Button
+          data-testid="kanban-conversation-card-board"
+          variant="outline"
+          color="slate"
+          justify="start"
+          class="w-full"
+          :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD')"
+          :title="boardName"
+          :disabled="isBusy"
+          @click.stop="openMove"
+        >
+          <i class="i-lucide-corner-up-right size-4 flex-shrink-0" />
+          <span class="min-w-0 flex-1 truncate text-left">
+            {{ boardName }}
+          </span>
+        </Button>
+      </div>
 
-      <KanbanStageSelect
-        v-if="!isTerminal"
-        :model-value="stageId"
-        :stages="regularStages"
-        :current-stage="cardStage"
-        :disabled="isBusy"
-        data-testid="kanban-conversation-card-stage"
-        @update:model-value="emit('updateStage', card, $event)"
-      />
+      <div class="grid min-w-0 gap-1">
+        <span
+          data-testid="kanban-conversation-card-stage-label"
+          class="text-xs font-medium text-n-slate-11"
+        >
+          {{ t('CONVERSATION_SIDEBAR.KANBAN.STAGE') }}
+        </span>
+        <KanbanStageSelect
+          v-if="!isTerminal"
+          :model-value="stageId"
+          :stages="regularStages"
+          :current-stage="cardStage"
+          :disabled="isBusy"
+          data-testid="kanban-conversation-card-stage"
+          @update:model-value="emit('updateStage', card, $event)"
+        />
 
-      <KanbanTerminalStatusBar
-        v-else
-        :stage-id="stageId"
-        :won-stage-id="wonStageId"
-        :reasons="boardReasons"
-        :reason-id="card.kanbanReasonId ? Number(card.kanbanReasonId) : null"
-        :entered-at="card.stageEnteredAt"
-        :disabled="isBusy"
-        @reopen="emit('changeStatus', card, { reopen: true })"
-      />
+        <KanbanTerminalStatusBar
+          v-else
+          :stage-id="stageId"
+          :won-stage-id="wonStageId"
+          :reasons="boardReasons"
+          :reason-id="card.kanbanReasonId ? Number(card.kanbanReasonId) : null"
+          :entered-at="card.stageEnteredAt"
+          :disabled="isBusy"
+          @reopen="emit('changeStatus', card, { reopen: true })"
+        />
+      </div>
     </div>
 
     <div
@@ -290,10 +292,8 @@ const onSubjectKeydown = event => {
     </div>
 
     <KanbanCardPeopleRow
-      v-if="visibleLabels.length || assignees.length"
-      :visible-labels="visibleLabels"
+      v-if="labelTitles.length || assignees.length"
       :label-titles="labelTitles"
-      :extra-label-count="extraLabelCount"
       :assignees="assignees"
       :extra-assignee-count="extraAssigneeCount"
       :disabled="isBusy"

@@ -21,7 +21,7 @@ const translations = {
   'CONVERSATION_SIDEBAR.KANBAN.NO_ELIGIBLE_BOARDS':
     'No funnel accepts this inbox.',
   'CONVERSATION_SIDEBAR.KANBAN.ALREADY_IN_BOARD':
-    'This conversation already has #{id} here',
+    'Opportunity {id} already exists for this conversation and subject',
   'CONVERSATION_SIDEBAR.KANBAN.OPEN_EXISTING': 'Open existing',
   'CONVERSATION_SIDEBAR.KANBAN.CREATE_ERROR': 'Failed to create opportunity',
   'CONVERSATION_SIDEBAR.KANBAN.CREATED': 'Opportunity created',
@@ -199,7 +199,13 @@ const dialogStub = {
 
 const moveDialogStub = {
   name: 'KanbanCardMoveDialog',
-  props: ['card', 'existingCards', 'boards', 'isMoving'],
+  props: {
+    card: Object,
+    existingCards: Array,
+    boards: Array,
+    isMoving: Boolean,
+    anotherBoardOnly: Boolean,
+  },
   emits: ['close', 'move'],
   template: `
     <div data-testid="kanban-card-move-dialog">
@@ -224,7 +230,7 @@ const opportunityPanelStub = {
     stages: Array,
     openedFromConversation: Boolean,
   },
-  emits: ['close'],
+  emits: ['close', 'openFunnel'],
   template: '<div data-testid="kanban-conversation-opportunity-panel" />',
 };
 
@@ -510,11 +516,46 @@ describe('KanbanConversationCards', () => {
         .find('[data-testid="kanban-conversation-card-duplicate-warning"]')
         .exists()
     ).toBe(true);
+    expect(
+      mountedWrapper
+        .get('[data-testid="kanban-conversation-card-create"]')
+        .attributes('disabled')
+    ).toBeDefined();
     await mountedWrapper
       .get('[data-testid="kanban-conversation-card-duplicate-warning"] button')
       .trigger('click');
 
     expect(mountedWrapper.emitted('open-existing')?.[0][0].id).toBe(123);
+  });
+
+  it('renders one floating move dialog for the card that opened it', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: {
+        payload: [buildCard(), buildCard({ id: 124, subject: 'Expansion' })],
+      },
+    });
+
+    const mountedWrapper = mountComponent();
+    await flushPromises();
+    await mountedWrapper
+      .findAll('[data-testid="card-board"]')[1]
+      .trigger('click');
+
+    const cardRows = mountedWrapper.findAll('ul > li');
+    cardRows.forEach(cardRow => {
+      expect(
+        cardRow.find('[data-testid="kanban-card-move-dialog"]').exists()
+      ).toBe(false);
+    });
+    expect(
+      mountedWrapper.findAll('[data-testid="kanban-card-move-dialog"]')
+    ).toHaveLength(1);
+
+    const dialog = mountedWrapper.getComponent({
+      name: 'KanbanCardMoveDialog',
+    });
+    expect(dialog.props('anotherBoardOnly')).toBe(true);
+    expect(dialog.props('card').id).toBe(124);
   });
 
   it('opens the shared opportunity panel from the subject', async () => {

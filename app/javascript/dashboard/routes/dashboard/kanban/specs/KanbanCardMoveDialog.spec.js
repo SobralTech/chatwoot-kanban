@@ -85,6 +85,8 @@ const incompatibleBoard = {
 };
 const card = {
   id: 123,
+  origin: 'conversation',
+  subject: 'Enterprise renewal',
   kanbanBoardId: 10,
   kanbanStageId: 91,
   kanbanReasonId: 9,
@@ -110,7 +112,14 @@ const mountDialog = (overrides = {}) =>
       reasons: sourceBoard.reasons,
       ...overrides,
     },
-    global: { stubs: { Select: SelectStub } },
+    global: {
+      stubs: {
+        Select: SelectStub,
+        TeleportWithDirection: {
+          template: '<div><slot /></div>',
+        },
+      },
+    },
   });
 
 const boardSelect = wrapper =>
@@ -119,10 +128,28 @@ const stageButtons = wrapper =>
   wrapper.findAll('[data-testid="kanban-card-move-dialog-stage"]');
 
 describe('KanbanCardMoveDialog', () => {
-  it('offers the current funnel when nothing else holds the card', async () => {
-    const wrapper = mountDialog({ card: { ...card, kanbanStageId: 80 } });
+  it('keeps the dialog fixed, centered, and modal', () => {
+    const wrapper = mountDialog();
+    const dialog = wrapper.get('[data-testid="kanban-card-move-dialog"]');
+
+    expect(dialog.classes()).toContain('fixed');
+    expect(dialog.classes()).toContain('items-center');
+    expect(dialog.classes()).toContain('z-[9990]');
+    expect(dialog.classes()).toContain('bg-n-alpha-black2');
+    expect(dialog.classes()).toContain('backdrop-blur-[4px]');
+    expect(dialog.attributes('role')).toBe('presentation');
+    expect(dialog.get('section').attributes('aria-modal')).toBe('true');
+  });
+
+  it('offers the current funnel and always ignores the card itself', async () => {
+    const wrapper = mountDialog({
+      card: { ...card, kanbanStageId: 80 },
+      existingCards: [card],
+    });
+    const options = boardSelect(wrapper).findAll('option');
     const stages = stageButtons(wrapper);
 
+    expect(options[0].element.disabled).toBe(false);
     // Won and Lost never show up as a move target, and the stage the card is
     // already in stays, offered as a reorder to the top.
     expect(stages.map(stage => stage.text())).toEqual([
@@ -137,20 +164,82 @@ describe('KanbanCardMoveDialog', () => {
     expect(wrapper.emitted('move')).toEqual([[{ boardId: 10, stageId: 80 }]]);
   });
 
-  it('disables funnels that already hold a card for the conversation', async () => {
+  it('blocks only another card with the same origin and normalized subject', async () => {
     const wrapper = mountDialog({
-      existingCards: [card, { id: 124, kanbanBoardId: 12 }],
+      existingCards: [
+        card,
+        {
+          id: 124,
+          origin: 'conversation',
+          subject: '  ENTERPRISE   renewal ',
+          kanbanBoardId: 12,
+        },
+        {
+          id: 125,
+          origin: 'manual',
+          subject: card.subject,
+          kanbanBoardId: 11,
+        },
+        {
+          id: 126,
+          origin: 'conversation',
+          subject: 'Expansion',
+          kanbanBoardId: 11,
+        },
+      ],
     });
     const options = boardSelect(wrapper).findAll('option');
 
     expect(options.map(option => option.text())).not.toContain('Enterprise');
-    expect(options[0].element.disabled).toBe(true);
+    expect(options[0].element.disabled).toBe(false);
     expect(options[1].element.disabled).toBe(false);
     expect(options[2].element.disabled).toBe(true);
     expect(options[2].text()).toContain('124');
     expect(
+      wrapper.find('[data-testid="kanban-card-move-dialog-taken"]').exists()
+    ).toBe(false);
+
+    await boardSelect(wrapper).setValue('12');
+    await flushPromises();
+
+    expect(
       wrapper.get('[data-testid="kanban-card-move-dialog-taken"]').text()
-    ).toContain('123');
+    ).toContain('124');
+    expect(stageButtons(wrapper)).toHaveLength(0);
+
+    await boardSelect(wrapper).setValue('11');
+    await flushPromises();
+
+    expect(stageButtons(wrapper).map(stage => stage.text())).toEqual([
+      'Triage',
+    ]);
+  });
+
+  it('keeps the current funnel unavailable without treating it as a duplicate', async () => {
+    const wrapper = mountDialog({
+      anotherBoardOnly: true,
+      existingCards: [
+        card,
+        {
+          ...card,
+          id: 127,
+        },
+      ],
+    });
+    const dialog = wrapper.get('[data-testid="kanban-card-move-dialog"]');
+    const options = boardSelect(wrapper).findAll('option');
+
+    expect(dialog.classes()).toContain('fixed');
+    expect(dialog.classes()).toContain('items-center');
+    expect(dialog.classes()).toContain('backdrop-blur-[4px]');
+    expect(dialog.attributes('role')).toBe('presentation');
+    expect(dialog.get('section').attributes('aria-modal')).toBe('true');
+    expect(options[0].element.disabled).toBe(true);
+    expect(options[0].text()).not.toContain('Opportunity 123');
+    expect(options[0].text()).not.toContain('Opportunity 127');
+    expect(
+      wrapper.find('[data-testid="kanban-card-move-dialog-taken"]').exists()
+    ).toBe(false);
     expect(stageButtons(wrapper)).toHaveLength(0);
 
     await boardSelect(wrapper).setValue('11');
@@ -217,6 +306,7 @@ describe('KanbanCardMoveDialog', () => {
     const wrapper = mountDialog({
       boards: [sourceBoard],
       existingCards: [card],
+      anotherBoardOnly: true,
     });
 
     expect(

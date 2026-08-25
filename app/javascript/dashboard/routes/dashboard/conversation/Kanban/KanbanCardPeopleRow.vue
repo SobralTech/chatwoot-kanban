@@ -2,20 +2,12 @@
 import { useI18n } from 'vue-i18n';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
-import WootLabel from 'dashboard/components/ui/Label.vue';
+import CardLabelsV5 from 'dashboard/components-next/Conversation/ConversationCard/CardLabelsV5.vue';
 
 defineProps({
-  visibleLabels: {
-    type: Array,
-    default: () => [],
-  },
   labelTitles: {
     type: Array,
     default: () => [],
-  },
-  extraLabelCount: {
-    type: Number,
-    default: 0,
   },
   assignees: {
     type: Array,
@@ -31,7 +23,6 @@ defineProps({
   },
 });
 
-// Read-only rows: clicking either group lands on the matching menu view.
 defineEmits(['openView']);
 
 const { t } = useI18n();
@@ -39,33 +30,12 @@ const { t } = useI18n();
 
 <template>
   <div class="mt-1.5 flex min-w-0 items-center justify-between gap-2">
-    <button
-      v-if="visibleLabels.length"
-      type="button"
+    <CardLabelsV5
+      v-if="labelTitles.length"
       data-testid="kanban-conversation-card-labels"
-      class="flex min-w-0 cursor-pointer items-center gap-1 p-0"
-      :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.LABELS')"
-      :disabled="disabled"
-      @click.stop="$emit('openView', 'labels')"
-    >
-      <WootLabel
-        v-for="label in visibleLabels"
-        :key="label.id || label.title"
-        data-testid="kanban-conversation-card-label"
-        :title="label.title"
-        :color="label.color"
-        variant="smooth"
-        small
-        class="max-w-[7rem]"
-      />
-      <span
-        v-if="extraLabelCount"
-        class="text-xs text-n-slate-10"
-        :title="labelTitles.join(', ')"
-      >
-        {{ t('KANBAN.OVERVIEW.EXTRA_COUNT', { count: extraLabelCount }) }}
-      </span>
-    </button>
+      :labels="labelTitles"
+      class="flex-1"
+    />
     <button
       v-if="assignees.length"
       type="button"
