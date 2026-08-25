@@ -318,6 +318,11 @@ const newReportRoutes = () => [
     to: accountScopedRoute('team_reports_index'),
     activeOn: ['team_reports_show'],
   },
+  {
+    name: 'Reports Kanban',
+    label: t('SIDEBAR.REPORTS_KANBAN'),
+    to: accountScopedRoute('kanban_reports'),
+  },
 ];
 
 const reportRoutes = computed(() => newReportRoutes());

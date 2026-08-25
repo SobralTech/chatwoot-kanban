@@ -581,6 +581,18 @@ Rails.application.routes.draw do
               get :outgoing_messages_count
             end
           end
+          resources :kanban_reports, only: [:index] do
+            collection do
+              get :conversion
+              get :stage_times
+              get :stage_time, action: :stage_time
+              get :won_lost
+              get :loss_reasons
+              get :reasons, action: :reasons
+              get :agents
+              get :products
+            end
+          end
           resource :year_in_review, only: [:show]
           resources :live_reports, only: [] do
             collection do

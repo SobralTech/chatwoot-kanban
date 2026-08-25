@@ -6,6 +6,79 @@
     "DOWNLOAD_CONVERSATION_REPORTS": "Download conversation reports",
     "DATA_FETCHING_FAILED": "Failed to fetch data, please try again later.",
     "SUMMARY_FETCHING_FAILED": "Failed to fetch summary, please try again later.",
+    "KANBAN": {
+      "HEADER": "Funnel reports",
+      "DESCRIPTION": "Understand how opportunities move through your Kanban boards, from open cards to won and lost outcomes.",
+      "FILTERS": {
+        "BOARD": "Select board",
+        "GROUP_BY": "Group by",
+        "AGENTS": "Agents",
+        "INBOXES": "Inboxes",
+        "LABELS": "Labels",
+        "DAY": "Day",
+        "WEEK": "Week"
+      },
+      "SUMMARY": {
+        "INFO": "Metrics calculated from the selected board, period, and filters.",
+        "OPEN": "Open cards",
+        "WON": "Won cards",
+        "LOST": "Lost cards",
+        "AVERAGE_TICKET": "Average ticket",
+        "CONVERSION": "Conversion"
+      },
+      "CHART": {
+        "TITLE": "Won and lost over time",
+        "WON": "Won",
+        "LOST": "Lost",
+        "X_AXIS": "Period",
+        "Y_AXIS": "Cards"
+      },
+      "FUNNEL": {
+        "TITLE": "Funnel by stage",
+        "VALUE": "{count} · {conversion}%"
+      },
+      "TABLE": {
+        "DOWNLOAD": "Download CSV",
+        "EMPTY_VALUE": "—",
+        "NO_DURATION": "No completed duration",
+        "SECONDS": "{value}s",
+        "MINUTES": "{value}m",
+        "HOURS": "{value}h",
+        "TITLES": {
+          "CONVERSION": "Stage conversion",
+          "STAGE_TIMES": "Time by stage",
+          "REASONS": "Loss reasons",
+          "AGENTS": "Agent performance",
+          "PRODUCTS": "Products sold"
+        },
+        "HEADERS": {
+          "STAGE": "Stage",
+          "COUNT": "Cards",
+          "CONVERSION": "Conversion",
+          "AVERAGE_TIME": "Average time",
+          "MEDIAN_TIME": "Median time",
+          "COMPLETED": "Completed stages",
+          "REASON": "Reason",
+          "PERCENTAGE": "Share",
+          "AGENT": "Agent",
+          "WON": "Won",
+          "LOST": "Lost",
+          "REVENUE": "Revenue",
+          "SKU": "SKU",
+          "PRODUCT": "Product",
+          "QUANTITY": "Quantity",
+          "CARDS": "Won cards"
+        }
+      },
+      "STATES": {
+        "LOADING": "Loading funnel data...",
+        "ERROR": "Could not load funnel reports. Please try again.",
+        "DOWNLOAD_ERROR": "Could not download this report.",
+        "NO_DATA": "There is no data for the selected filters.",
+        "NO_BOARD": "No Kanban board available",
+        "NO_BOARD_DESCRIPTION": "Ask an administrator to give you access to a Kanban board."
+      }
+    },
     "METRICS": {
       "CONVERSATIONS": {
         "NAME": "Conversations",
