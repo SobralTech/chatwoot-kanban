@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n';
 import { useStore } from 'dashboard/composables/store';
 import { useKanbanMoveTarget } from 'dashboard/composables/useKanbanMoveTarget';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
-import { format, differenceInCalendarDays } from 'date-fns';
 import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
 import {
   formatCompactCurrency,
@@ -26,6 +25,7 @@ import CardPriorityIcon from 'dashboard/components-next/Conversation/Conversatio
 import WootLabel from 'dashboard/components/ui/Label.vue';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
 import KanbanCardStatusBadge from './KanbanCardStatusBadge.vue';
+import KanbanDueDateBadge from './KanbanDueDateBadge.vue';
 import KanbanDueDatePicker from './KanbanDueDatePicker.vue';
 import KanbanMenuHeader from './KanbanMenuHeader.vue';
 import KanbanStatusMenuItems from './KanbanStatusMenuItems.vue';
@@ -275,33 +275,10 @@ const { stageSlaStatusValue, stageSlaClasses, stageTime, stageTimeTitle } =
     computed(() => props.slaHours)
   );
 const dueAt = computed(() => props.card.due_at || props.card.dueAt);
-const dueAtDate = computed(() => {
-  if (!dueAt.value) return null;
-
-  const dueDate = new Date(dueAt.value);
-  return Number.isNaN(dueDate.getTime()) ? null : dueDate;
-});
 const dueAtLabel = computed(() =>
-  dueAtDate.value ? format(dueAtDate.value, 'dd/MM/yyyy') : ''
+  formatDateInput(dueAt.value).split('-').reverse().join('/')
 );
-const dueAtStatus = computed(() => {
-  if (!dueAtDate.value) return '';
-
-  const diffInDays = differenceInCalendarDays(dueAtDate.value, new Date());
-  if (diffInDays <= 0) return 'today';
-  if (diffInDays === 1) return 'tomorrow';
-  return 'upcoming';
-});
-const dueAtClasses = computed(() => {
-  switch (dueAtStatus.value) {
-    case 'today':
-      return 'bg-n-ruby-3 text-n-ruby-11';
-    case 'tomorrow':
-      return 'bg-n-amber-3 text-n-amber-11';
-    default:
-      return 'bg-n-teal-3 text-n-teal-11';
-  }
-});
+const hasDueDate = computed(() => !!dueAtLabel.value);
 
 const cardValue = computed(() => Number(props.card.value) || 0);
 const formattedCardValue = computed(() =>
@@ -309,7 +286,7 @@ const formattedCardValue = computed(() =>
 );
 const fullCardValue = computed(() => formatCurrency(cardValue.value));
 const hasCardFacts = computed(
-  () => cardValue.value > 0 || !!dueAtLabel.value || !!stageTime.value
+  () => cardValue.value > 0 || hasDueDate.value || !!stageTime.value
 );
 
 const openDetails = () => {
@@ -623,7 +600,7 @@ const toggleSelection = async event => {
                   <span class="truncate">{{ t('KANBAN.CARD.DUE_DATE') }}</span>
                 </span>
                 <span class="flex flex-shrink-0 items-center gap-1">
-                  <span v-if="dueAtLabel" class="text-xs text-n-slate-11">
+                  <span v-if="hasDueDate" class="text-xs text-n-slate-11">
                     {{ dueAtLabel }}
                   </span>
                   <i class="i-lucide-chevron-right size-4" />
@@ -941,15 +918,7 @@ const toggleSelection = async event => {
           >
             {{ formattedCardValue }}
           </span>
-          <span
-            v-if="dueAtLabel"
-            class="inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5"
-            :class="dueAtClasses"
-            :title="dueAt"
-          >
-            <i class="i-lucide-calendar size-3" />
-            {{ dueAtLabel }}
-          </span>
+          <KanbanDueDateBadge v-if="hasDueDate" :due-at="dueAt" />
           <span
             v-if="stageTime"
             class="inline-flex flex-shrink-0 items-center gap-1"

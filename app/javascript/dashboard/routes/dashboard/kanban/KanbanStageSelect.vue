@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import Button from 'dashboard/components-next/button/Button.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import {
@@ -19,8 +20,8 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
-  // A card on a terminal stage never appears in the regular list, so its name
-  // and color have to come from outside it for the read-only label.
+  // Keeps the current value readable while the regular stage list is loading
+  // or no longer contains the card's stage.
   currentStage: {
     type: Object,
     default: null,
@@ -64,10 +65,11 @@ const onSelect = (stage, hide) => {
 </script>
 
 <template>
-  <div class="min-w-0">
+  <div class="min-w-0 w-full [&>span]:w-full">
     <span
       v-if="!isSelectable"
-      class="inline-flex items-center gap-1.5 px-1 py-0.5 text-xs font-medium text-n-slate-12"
+      class="flex h-10 w-full items-center gap-2 rounded-lg px-4 text-sm font-medium text-n-slate-12 outline outline-1 outline-n-strong"
+      :title="stageName"
     >
       <span
         class="size-2 flex-shrink-0 rounded-full"
@@ -78,26 +80,35 @@ const onSelect = (stage, hide) => {
     </span>
 
     <Popover v-else align="start" disable-mobile-view>
-      <button
-        type="button"
-        data-testid="kanban-stage-select-trigger"
-        class="inline-flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-xs font-medium text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-        :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.STAGE_SELECT')"
-        :title="t('CONVERSATION_SIDEBAR.KANBAN.STAGE_SELECT')"
-        :disabled="disabled"
-      >
-        <span
-          class="size-2 flex-shrink-0 rounded-full"
-          :style="dotStyle(displayStage)"
-          aria-hidden="true"
-        />
-        <span class="min-w-0 truncate">{{ stageName }}</span>
-        <i class="i-lucide-chevron-down size-3 flex-shrink-0 text-n-slate-10" />
-      </button>
+      <template #default="{ isOpen }">
+        <Button
+          data-testid="kanban-stage-select-trigger"
+          variant="outline"
+          color="slate"
+          justify="start"
+          class="w-full"
+          :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.STAGE_SELECT')"
+          :title="stageName"
+          :disabled="disabled"
+        >
+          <span
+            class="size-2 flex-shrink-0 rounded-full"
+            :style="dotStyle(displayStage)"
+            aria-hidden="true"
+          />
+          <span class="min-w-0 flex-1 truncate text-left">
+            {{ stageName }}
+          </span>
+          <i
+            class="size-4 flex-shrink-0 text-n-slate-10"
+            :class="isOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+          />
+        </Button>
+      </template>
 
       <template #content="{ hide }">
         <div
-          class="w-56 max-w-[calc(100vw-2rem)] overflow-hidden"
+          class="w-64 max-w-[calc(100vw-2rem)] overflow-hidden"
           :class="[MENU_SURFACE_CLASSES]"
         >
           <button
@@ -117,7 +128,9 @@ const onSelect = (stage, hide) => {
               :style="dotStyle(stage)"
               aria-hidden="true"
             />
-            <span class="min-w-0 flex-1 truncate">{{ stage.name }}</span>
+            <span class="min-w-0 flex-1 truncate" :title="stage.name">
+              {{ stage.name }}
+            </span>
             <i
               v-if="isSelected(stage)"
               class="i-lucide-check size-3.5 flex-shrink-0 text-n-brand"

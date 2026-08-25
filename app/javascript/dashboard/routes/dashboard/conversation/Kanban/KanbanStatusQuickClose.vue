@@ -88,14 +88,14 @@ const onTriggerClick = action => {
     <button
       type="button"
       :data-testid="action.testid"
-      class="flex size-6 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+      class="flex size-8 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
       :class="action.hoverClass"
       :aria-label="t(action.labelKey)"
       :title="t(action.labelKey)"
       :disabled="disabled"
       @click.stop="onTriggerClick(action)"
     >
-      <i :class="action.icon" class="size-4" />
+      <i :class="action.icon" class="size-5" />
     </button>
     <template #content="{ hide }">
       <div class="w-56" :class="[MENU_SURFACE_CLASSES]">

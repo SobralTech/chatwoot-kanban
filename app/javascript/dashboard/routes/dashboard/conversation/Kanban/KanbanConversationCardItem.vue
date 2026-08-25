@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { differenceInCalendarDays, format } from 'date-fns';
 
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
@@ -10,10 +9,13 @@ import {
   formatCompactCurrency,
   formatCurrency,
 } from 'dashboard/helper/kanbanCurrency';
+import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
 import { SLA_STALE, SLA_WARNING } from 'dashboard/helper/kanbanStageSla';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 
+import Button from 'dashboard/components-next/button/Button.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
+import KanbanDueDateBadge from '../../kanban/KanbanDueDateBadge.vue';
 import KanbanStageSelect from '../../kanban/KanbanStageSelect.vue';
 import KanbanStatusQuickClose from './KanbanStatusQuickClose.vue';
 import KanbanTerminalStatusBar from './KanbanTerminalStatusBar.vue';
@@ -72,18 +74,6 @@ const isTerminal = computed(
 const subject = computed(() => props.card.subject || '');
 const priority = computed(() => props.card.priority ?? '');
 const dueAt = computed(() => props.card.dueAt ?? null);
-const dueDate = computed(() => {
-  const empty = { label: '', overdue: false };
-  if (!dueAt.value) return empty;
-
-  const date = new Date(dueAt.value);
-  if (Number.isNaN(date.getTime())) return empty;
-
-  return {
-    label: format(date, 'dd/MM'),
-    overdue: differenceInCalendarDays(date, new Date()) < 0,
-  };
-});
 
 const accountLabelList = computed(() => accountLabels?.value || []);
 // Card payloads carry bare titles when the label left the account; resolve
@@ -112,11 +102,10 @@ const extraAssigneeCount = computed(() => overflowCount(assignees.value, 2));
 
 const cardValue = computed(() => Number(props.card.value) || 0);
 const hasValue = computed(() => cardValue.value > 0);
-const hasDueDate = computed(() => !!dueAt.value && !isTerminal.value);
-const hasPriority = computed(() => !!priority.value);
-const hasFacts = computed(
-  () => hasValue.value || hasDueDate.value || hasPriority.value
+const hasDueDate = computed(
+  () => !!formatDateInput(dueAt.value) && !isTerminal.value
 );
+const hasPriority = computed(() => !!priority.value);
 const boardName = computed(
   () => cardBoard.value?.name || t('KANBAN.CARD.UNKNOWN_BOARD')
 );
@@ -126,6 +115,14 @@ const { stageSlaStatusValue, stageSlaClasses, stageTime, stageTimeTitle } =
     computed(() => props.card),
     computed(() => cardStage.value.slaHours)
   );
+const hasStageTime = computed(() => !!stageTime.value && !isTerminal.value);
+const hasFacts = computed(
+  () =>
+    hasValue.value ||
+    hasDueDate.value ||
+    hasStageTime.value ||
+    hasPriority.value
+);
 
 const cardMenuRef = ref(null);
 const copyCardId = async () => {
@@ -210,8 +207,36 @@ const onSubjectKeydown = event => {
       </div>
     </div>
 
-    <div v-if="isTerminal" class="mt-2 flex min-w-0">
+    <div class="mt-2 grid min-w-0 gap-2">
+      <Button
+        data-testid="kanban-conversation-card-board"
+        variant="outline"
+        color="slate"
+        justify="start"
+        class="w-full"
+        :aria-label="t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD')"
+        :title="boardName"
+        :disabled="isBusy"
+        @click.stop="openMove"
+      >
+        <i class="i-lucide-corner-up-right size-4 flex-shrink-0" />
+        <span class="min-w-0 flex-1 truncate text-left">
+          {{ boardName }}
+        </span>
+      </Button>
+
+      <KanbanStageSelect
+        v-if="!isTerminal"
+        :model-value="stageId"
+        :stages="regularStages"
+        :current-stage="cardStage"
+        :disabled="isBusy"
+        data-testid="kanban-conversation-card-stage"
+        @update:model-value="emit('updateStage', card, $event)"
+      />
+
       <KanbanTerminalStatusBar
+        v-else
         :stage-id="stageId"
         :won-stage-id="wonStageId"
         :reasons="boardReasons"
@@ -222,30 +247,27 @@ const onSubjectKeydown = event => {
       />
     </div>
 
-    <div v-else class="mt-2 flex min-w-0 items-center gap-1 text-xs">
-      <button
-        type="button"
-        data-testid="kanban-conversation-card-board"
-        class="min-w-0 shrink truncate p-0 text-n-slate-11 hover:text-n-brand disabled:cursor-not-allowed disabled:opacity-50"
-        :title="t('CONVERSATION_SIDEBAR.KANBAN.MOVE_BOARD')"
-        :disabled="isBusy"
-        @click.stop="openMove"
+    <div
+      v-if="hasFacts"
+      data-testid="kanban-conversation-card-facts"
+      class="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs"
+    >
+      <span
+        v-if="hasValue"
+        data-testid="kanban-conversation-card-value"
+        class="font-medium text-n-slate-11"
+        :title="formatCurrency(cardValue)"
       >
-        {{ boardName }}
-      </button>
-      <i class="i-lucide-chevron-right size-3 flex-shrink-0 text-n-slate-10" />
-      <KanbanStageSelect
-        :model-value="stageId"
-        :stages="regularStages"
-        :current-stage="cardStage"
-        :disabled="isBusy"
-        class="max-w-[10rem] flex-shrink-0"
-        data-testid="kanban-conversation-card-stage"
-        @update:model-value="emit('updateStage', card, $event)"
+        {{ formatCompactCurrency(cardValue) }}
+      </span>
+      <KanbanDueDateBadge
+        v-if="hasDueDate"
+        data-testid="kanban-conversation-card-due-date"
+        :due-at="dueAt"
       />
       <span
-        v-if="stageTime"
-        class="ms-auto inline-flex flex-shrink-0 items-center gap-1"
+        v-if="hasStageTime"
+        class="inline-flex flex-shrink-0 items-center gap-1"
         :class="stageSlaClasses || 'text-n-slate-10'"
         :title="stageTimeTitle"
         :aria-label="
@@ -260,32 +282,10 @@ const onSubjectKeydown = event => {
         />
         {{ stageTime }}
       </span>
-    </div>
-
-    <div
-      v-if="hasFacts"
-      data-testid="kanban-conversation-card-facts"
-      class="mt-1.5 flex min-w-0 items-center gap-3 text-xs"
-    >
-      <span
-        v-if="hasValue"
-        data-testid="kanban-conversation-card-value"
-        class="font-medium text-n-slate-11"
-        :title="formatCurrency(cardValue)"
-      >
-        {{ formatCompactCurrency(cardValue) }}
-      </span>
-      <span
-        v-if="hasDueDate"
-        data-testid="kanban-conversation-card-due-date"
-        :class="dueDate.overdue ? 'text-n-ruby-11' : 'text-n-slate-10'"
-      >
-        {{ dueDate.label }}
-      </span>
       <CardPriorityIcon
         v-if="hasPriority"
         :priority="priority"
-        class="ms-auto flex-shrink-0 !size-3.5"
+        class="flex-shrink-0 !size-3.5"
       />
     </div>
 

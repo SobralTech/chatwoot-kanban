@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { format } from 'date-fns';
 
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
@@ -11,6 +10,7 @@ import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
 import { CARD_STATUS_TYPES } from 'dashboard/helper/kanbanCardStatus';
 import { useKanbanCardStatusActions } from 'dashboard/composables/useKanbanCardStatusActions';
 import { CONVERSATION_PRIORITY } from 'shared/constants/messages';
+import KanbanDueDatePicker from '../../kanban/KanbanDueDatePicker.vue';
 import KanbanMenuHeader from '../../kanban/KanbanMenuHeader.vue';
 import KanbanStatusMenuItems from '../../kanban/KanbanStatusMenuItems.vue';
 import KanbanStatusReasonForm from '../../kanban/KanbanStatusReasonForm.vue';
@@ -87,10 +87,9 @@ const isStatusView = computed(() => CARD_STATUS_TYPES.includes(view.value));
 const priority = computed(() => props.card.priority ?? '');
 const dueAt = computed(() => props.card.dueAt ?? null);
 const dueDateLabel = computed(() => {
-  if (!dueAt.value) return '';
+  const dateValue = formatDateInput(dueAt.value);
 
-  const date = new Date(dueAt.value);
-  return Number.isNaN(date.getTime()) ? '' : format(date, 'dd/MM');
+  return dateValue ? dateValue.split('-').reverse().join('/') : '';
 });
 const assignees = computed(() => props.card.assignees || []);
 const selectedAssigneeIds = computed(() =>
@@ -210,12 +209,13 @@ const onSelectDueDate = (value, hide) => {
     <button
       type="button"
       data-testid="kanban-conversation-card-actions"
-      class="flex size-6 flex-shrink-0 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+      class="flex size-8 flex-shrink-0 items-center justify-center rounded-md text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
       :aria-label="t('KANBAN.CARD.ACTIONS_MENU')"
+      :title="t('KANBAN.CARD.ACTIONS_MENU')"
       :disabled="isBusy"
     >
-      <i v-if="isBusy" class="i-lucide-loader-circle size-4 animate-spin" />
-      <i v-else class="i-lucide-more-vertical size-4" />
+      <i v-if="isBusy" class="i-lucide-loader-circle size-5 animate-spin" />
+      <i v-else class="i-lucide-more-vertical size-5" />
     </button>
 
     <template #content="{ hide }">
@@ -307,6 +307,7 @@ const onSelectDueDate = (value, hide) => {
             <i class="i-lucide-chevron-right size-4 flex-shrink-0" />
           </button>
           <button
+            v-if="isOpen"
             type="button"
             data-testid="kanban-conversation-card-menu-due-date"
             class="justify-between"
@@ -465,25 +466,15 @@ const onSelectDueDate = (value, hide) => {
           </button>
         </div>
 
-        <div v-else-if="view === 'due'" class="grid gap-2 p-3">
-          <label class="grid gap-1 text-xs font-medium text-n-slate-12">
-            {{ t('KANBAN.CARD.DUE_DATE') }}
-            <input
-              v-model="dueDateInput"
-              type="date"
-              class="h-9 rounded-md border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12"
-              :disabled="isBusy"
-              @change="onSelectDueDate(dueDateInput, hide)"
-            />
-          </label>
-          <button
-            type="button"
-            class="justify-self-end text-xs text-n-slate-11 hover:text-n-slate-12"
+        <div v-else-if="view === 'due'" class="p-3">
+          <KanbanDueDatePicker
+            v-model="dueDateInput"
+            data-testid="kanban-conversation-card-due-date-picker"
+            :placeholder="t('KANBAN.OPPORTUNITY_DETAILS.CHOOSE_DATE')"
+            :clear-label="t('KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE')"
             :disabled="isBusy"
-            @click="onSelectDueDate('', hide)"
-          >
-            {{ t('KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE') }}
-          </button>
+            @change="onSelectDueDate($event, hide)"
+          />
         </div>
       </div>
     </template>

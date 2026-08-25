@@ -357,11 +357,12 @@ describe('KanbanConversationCardItem', () => {
     ).toBe(false);
   });
 
-  it('drops the facts row when value, due date, and priority are empty', () => {
+  it('drops the facts row when all optional facts are empty', () => {
     const wrapper = mountItem({
       value: '0',
       priority: '',
       dueAt: null,
+      stageEnteredAt: null,
     });
 
     expect(

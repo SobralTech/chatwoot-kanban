@@ -83,39 +83,38 @@ const onReopenConfirm = hide => {
 </script>
 
 <template>
-  <Popover
-    ref="popoverRef"
-    align="start"
-    disable-mobile-view
-    class="min-w-0 flex-1"
-  >
-    <button
-      type="button"
-      data-testid="kanban-conversation-card-terminal-status"
-      class="flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
-      :class="meta.classes"
-      :disabled="disabled"
-      @click.stop="popoverRef?.show()"
-    >
-      <i :class="meta.icon" class="size-3 flex-shrink-0" />
-      <span class="min-w-0 truncate">{{ label }}</span>
-      <span
-        v-if="closedOnLabel"
-        class="ms-auto flex-shrink-0 pl-1"
-        :title="
-          t('CONVERSATION_SIDEBAR.KANBAN.CLOSED_ON', { date: closedOnLabel })
-        "
+  <div class="min-w-0 w-full [&>span]:w-full">
+    <Popover ref="popoverRef" align="start" disable-mobile-view>
+      <button
+        type="button"
+        data-testid="kanban-conversation-card-terminal-status"
+        class="flex h-10 w-full min-w-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+        :class="meta.classes"
+        :disabled="disabled"
+        @click.stop="popoverRef?.show()"
       >
-        {{ closedOnLabel }}
-      </span>
-    </button>
-    <template #content="{ hide }">
-      <div class="w-56" :class="[MENU_SURFACE_CLASSES]">
-        <KanbanStatusReasonForm
-          reason-type="reopen"
-          @confirm="onReopenConfirm(hide)"
-        />
-      </div>
-    </template>
-  </Popover>
+        <i :class="meta.icon" class="size-3 flex-shrink-0" />
+        <span class="min-w-0 truncate" :title="label">{{ label }}</span>
+        <span
+          v-if="closedOnLabel"
+          class="ms-auto flex-shrink-0 pl-1"
+          :title="
+            t('CONVERSATION_SIDEBAR.KANBAN.CLOSED_ON', {
+              date: closedOnLabel,
+            })
+          "
+        >
+          {{ closedOnLabel }}
+        </span>
+      </button>
+      <template #content="{ hide }">
+        <div class="w-56" :class="[MENU_SURFACE_CLASSES]">
+          <KanbanStatusReasonForm
+            reason-type="reopen"
+            @confirm="onReopenConfirm(hide)"
+          />
+        </div>
+      </template>
+    </Popover>
+  </div>
 </template>
