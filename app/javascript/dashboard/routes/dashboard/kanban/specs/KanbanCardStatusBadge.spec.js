@@ -103,6 +103,26 @@ describe('KanbanCardStatusBadge', () => {
     ]);
   });
 
+  it('closes in one click when the board has no reason to pick', async () => {
+    const wrapper = mountBadge({
+      reasons: [{ id: 11, title: 'Budget', reason_type: 'lost' }],
+    });
+
+    await wrapper
+      .find('[data-testid="kanban-card-status-badge"]')
+      .trigger('click');
+    await body()
+      .find('[data-testid="kanban-card-status-option-won"]')
+      .trigger('click');
+
+    expect(
+      body().find('[data-testid="kanban-card-status-confirm"]').exists()
+    ).toBe(false);
+    expect(wrapper.emitted('change')).toEqual([
+      [{ targetStageId: 2, reasonId: null }],
+    ]);
+  });
+
   it('disables confirm when a lost reason is required but none is selected', async () => {
     const wrapper = mountBadge({
       lostReasonRequired: true,

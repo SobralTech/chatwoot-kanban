@@ -1,9 +1,9 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Popover from 'dashboard/components-next/popover/Popover.vue';
-import { reasonsOfType } from 'dashboard/helper/kanbanCardStatus';
+import { useKanbanCardStatusActions } from 'dashboard/composables/useKanbanCardStatusActions';
 import KanbanStatusReasonForm from '../../kanban/KanbanStatusReasonForm.vue';
 import { MENU_SURFACE_CLASSES } from '../../kanban/menuClasses';
 
@@ -34,11 +34,12 @@ const emit = defineEmits(['close']);
 
 const { t } = useI18n();
 
-// Asking for a reason when there is none to pick is an empty dialog: close in
-// one step instead of opening the picker.
-const canSkipReason = type =>
-  !reasonsOfType(props.reasons, type).length &&
-  !(type === 'lost' && props.lostReasonRequired);
+const { canSkipReason, statusPayloadFor } = useKanbanCardStatusActions({
+  wonStageId: toRef(props, 'wonStageId'),
+  lostStageId: toRef(props, 'lostStageId'),
+  reasons: toRef(props, 'reasons'),
+  lostReasonRequired: toRef(props, 'lostReasonRequired'),
+});
 
 const actions = computed(() => [
   {
@@ -63,11 +64,7 @@ const popoverRefs = {};
 
 const closeOpportunity = (type, reasonId, hide) => {
   hide?.();
-  emit('close', {
-    type,
-    targetStageId: type === 'won' ? props.wonStageId : props.lostStageId,
-    reasonId,
-  });
+  emit('close', statusPayloadFor(type, reasonId));
 };
 
 const onTriggerClick = action => {
