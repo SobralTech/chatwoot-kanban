@@ -39,7 +39,8 @@ vi.mock('dashboard/composables', () => ({
 }));
 
 vi.mock('dashboard/helper/URLHelper', () => ({
-  frontendURL: path => `/app/${path}`,
+  frontendURL: (path, params) =>
+    `/app/${path}${params ? `?${new URLSearchParams(params)}` : ''}`,
   conversationUrl: ({ accountId, id }) =>
     `accounts/${accountId}/conversations/${id}`,
 }));
@@ -66,6 +67,9 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
     updateStage: vi.fn(),
     deleteStage: vi.fn(),
     getStageCards: vi.fn(),
+    getConversationCards: vi.fn(() =>
+      Promise.resolve({ data: { payload: [] } })
+    ),
     deleteCardById: vi.fn(),
     updateCardAssignees: vi.fn(),
     updateCardDetailsById: vi.fn(),
@@ -1793,6 +1797,7 @@ describe('KanbanView drag and drop', () => {
         boardId: 10,
         conversationId: 123,
       },
+      query: { card_id: 501 },
       state: { fromEmbedded: false },
     });
   });
@@ -1811,7 +1816,7 @@ describe('KanbanView drag and drop', () => {
     await flushPromises();
 
     expect(window.open).toHaveBeenCalledWith(
-      'http://localhost:3000/app/accounts/1/conversations/123',
+      'http://localhost:3000/app/accounts/1/conversations/123?card_id=501',
       '_blank',
       'noopener,noreferrer'
     );
@@ -1949,7 +1954,7 @@ describe('KanbanView drag and drop', () => {
     const modal = wrapper.findComponent({
       name: 'KanbanOpportunityPanel',
     });
-    modal.vm.$emit('openConversation', { conversationId: 123 });
+    modal.vm.$emit('openConversation', { id: 501, conversationId: 123 });
     await flushPromises();
 
     expect(window.open).not.toHaveBeenCalled();
@@ -1960,6 +1965,7 @@ describe('KanbanView drag and drop', () => {
         boardId: 10,
         conversationId: 123,
       },
+      query: { card_id: 501 },
       state: { fromEmbedded: false },
     });
   });

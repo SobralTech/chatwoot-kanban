@@ -221,7 +221,13 @@ export default {
       this.isFetchingConversation = true;
       this.conversationFetchError = false;
       try {
-        await this.$store.dispatch('getConversation', conversationId);
+        // The embedded route names one conversation and renders no list, so it
+        // must land in the store even when the "all" view would filter its inbox
+        // out. Without this the sidebar never gets a currentChat to render for.
+        await this.$store.dispatch('getConversation', {
+          conversationId,
+          forceUpsert: this.isEmbedded,
+        });
         // The route may have changed while the request was in flight.
         if (this.conversationId === conversationId) {
           this.setActiveChat();

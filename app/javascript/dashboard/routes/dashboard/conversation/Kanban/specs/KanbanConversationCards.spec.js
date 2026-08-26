@@ -1,4 +1,5 @@
 import { mount, flushPromises } from '@vue/test-utils';
+import camelcaseKeys from 'camelcase-keys';
 import { computed, nextTick } from 'vue';
 
 import KanbanConversationCards from '../KanbanConversationCards.vue';
@@ -54,9 +55,10 @@ vi.mock('vue-i18n', () => ({
 }));
 
 const routerPush = vi.fn();
+let routeQuery = {};
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { accountId: '1' } }),
+  useRoute: () => ({ params: { accountId: '1' }, query: routeQuery }),
   useRouter: () => ({ push: routerPush }),
 }));
 
@@ -105,7 +107,12 @@ const store = {
   getters: {
     'inboxes/getInboxById': vi.fn(() => ({ id: 5, name: 'Sales Inbox' })),
   },
+  dispatch: vi.fn(() => Promise.resolve()),
 };
+
+// The section reads the account's boards from the kanbanBoards store module,
+// which holds them already camelized.
+let storeBoards = [];
 
 const buildStage = (id, name) => ({
   id,
@@ -271,14 +278,20 @@ describe('KanbanConversationCards', () => {
     emitter.all.clear();
 
     useStore.mockReturnValue(store);
+    routeQuery = {};
+    storeBoards = camelcaseKeys(
+      [buildBoard(), buildBoard({ id: 11, name: 'Renewals' })],
+      { deep: true }
+    );
     useMapGetter.mockImplementation(key => {
       if (key === 'getSelectedChat') return computed(() => currentChat);
       if (key === 'labels/getLabels') return computed(() => []);
+      if (key === 'kanbanBoards/kanbanBoards')
+        return computed(() => storeBoards);
+      if (key === 'kanbanBoards/kanbanBoardsLoading')
+        return computed(() => false);
+      if (key === 'kanbanBoards/kanbanBoardsError') return computed(() => null);
       return computed(() => undefined);
-    });
-
-    KanbanBoardsAPI.getBoards.mockResolvedValue({
-      data: [buildBoard(), buildBoard({ id: 11, name: 'Renewals' })],
     });
     KanbanBoardsAPI.getConversationCards.mockResolvedValue({
       data: { payload: [] },
@@ -310,17 +323,55 @@ describe('KanbanConversationCards', () => {
     emitter.all.clear();
   });
 
-  it('loads boards once and conversation cards on mount', async () => {
+  it('reuses the boards already in the store and loads conversation cards on mount', async () => {
     mountComponent();
     await flushPromises();
 
-    expect(KanbanBoardsAPI.getBoards).toHaveBeenCalledTimes(1);
-    expect(KanbanBoardsAPI.getBoards).toHaveBeenCalledWith({
-      signal: expect.any(AbortSignal),
-    });
+    expect(KanbanBoardsAPI.getBoards).not.toHaveBeenCalled();
+    expect(store.dispatch).not.toHaveBeenCalledWith('kanbanBoards/fetchBoards');
     expect(KanbanBoardsAPI.getConversationCards).toHaveBeenCalledWith(456, {
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it('fetches the boards only when the store has none', async () => {
+    storeBoards = [];
+    mountComponent();
+    await flushPromises();
+
+    expect(store.dispatch).toHaveBeenCalledWith('kanbanBoards/fetchBoards');
+  });
+
+  it('floats the card named by card_id to the top and highlights it', async () => {
+    routeQuery = { card_id: '124' };
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: {
+        payload: [
+          buildCard(),
+          buildCard({ id: 124, kanban_board: { id: 11, name: 'Renewals' } }),
+        ],
+      },
+    });
+
+    const mountedWrapper = mountComponent();
+    await flushPromises();
+
+    const items = mountedWrapper.findAllComponents(cardItemStub);
+    expect(items.map(item => item.props('card').id)).toEqual([124, 123]);
+    expect(items[0].props('isHighlighted')).toBe(true);
+  });
+
+  it('keeps the server order when no card_id is present', async () => {
+    KanbanBoardsAPI.getConversationCards.mockResolvedValue({
+      data: { payload: [buildCard(), buildCard({ id: 124 })] },
+    });
+
+    const mountedWrapper = mountComponent();
+    await flushPromises();
+
+    const items = mountedWrapper.findAllComponents(cardItemStub);
+    expect(items.map(item => item.props('card').id)).toEqual([123, 124]);
+    expect(items[0].props('isHighlighted')).toBe(false);
   });
 
   it('renders the read-only card list without the old edit form', async () => {
@@ -478,9 +529,7 @@ describe('KanbanConversationCards', () => {
   });
 
   it('preselects the only eligible funnel and excludes terminal stages', async () => {
-    KanbanBoardsAPI.getBoards.mockResolvedValue({
-      data: [buildBoard()],
-    });
+    storeBoards = camelcaseKeys([buildBoard()], { deep: true });
 
     const mountedWrapper = mountComponent();
     await flushPromises();

@@ -3,6 +3,7 @@ import { nextTick, ref, watch } from 'vue';
 import { useAlert } from 'dashboard/composables';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
+import { prefetchConversationCards } from 'dashboard/helper/kanbanConversationCardsPrefetch';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 
 /**
@@ -40,7 +41,8 @@ export function useKanbanOpportunityPanel({
       conversationUrl({
         accountId: route.params.accountId,
         id: card.conversationId,
-      })
+      }),
+      { card_id: card.id }
     );
     window.open(
       `${window.chatwootConfig.hostURL}${path}`,
@@ -51,6 +53,7 @@ export function useKanbanOpportunityPanel({
 
   const navigateToConversation = card => {
     saveBoardSnapshot();
+    prefetchConversationCards(card.conversationId);
     pushEmbedded(router, {
       name: 'kanban_board_conversation',
       params: {
@@ -58,6 +61,8 @@ export function useKanbanOpportunityPanel({
         boardId: selectedBoard.value.id,
         conversationId: card.conversationId,
       },
+      // The sidebar reads this to float the card the user came from to the top.
+      query: { card_id: card.id },
     });
   };
 

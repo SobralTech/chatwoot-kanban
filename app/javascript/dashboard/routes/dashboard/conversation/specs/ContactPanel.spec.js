@@ -4,7 +4,7 @@ import ContactPanel from '../ContactPanel.vue';
 import KanbanConversationCards from '../Kanban/KanbanConversationCards.vue';
 import { EMBEDDED_CONVERSATION } from 'dashboard/composables/useEmbeddedConversation';
 
-const dispatchMock = vi.fn();
+const dispatchMock = vi.fn(() => Promise.resolve());
 const isContactSidebarItemOpenMock = vi.fn(() => true);
 const toggleSidebarUIStateMock = vi.fn();
 const conversationSidebarItemsOrderMock = ref([

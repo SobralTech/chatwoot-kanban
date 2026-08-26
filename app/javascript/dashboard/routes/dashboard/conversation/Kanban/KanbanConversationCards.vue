@@ -10,6 +10,7 @@ import { useKanbanCardFields } from 'dashboard/composables/useKanbanCardFields';
 import { useSlaClock } from 'dashboard/composables/useSlaClock';
 import { getCardStatusChangeErrorMessage } from 'dashboard/helper/kanbanCardStatus';
 import { apiErrorMessage, isAbortError } from 'dashboard/helper/kanbanApiError';
+import { takePrefetchedConversationCards } from 'dashboard/helper/kanbanConversationCardsPrefetch';
 import {
   normalize,
   normalizeCard,
@@ -45,11 +46,13 @@ const router = useRouter();
 const currentChat = useMapGetter('getSelectedChat');
 const accountLabels = useMapGetter('labels/getLabels');
 const cards = ref([]);
-const boards = ref([]);
+// The account's boards are already loaded by the global sidebar, and the payload
+// is identical to the one this section used to fetch for itself.
+const boards = useMapGetter('kanbanBoards/kanbanBoards');
+const isLoadingBoards = useMapGetter('kanbanBoards/kanbanBoardsLoading');
+const boardsFetchError = useMapGetter('kanbanBoards/kanbanBoardsError');
 const isLoading = ref(false);
-const isLoadingBoards = ref(false);
 const hasError = ref(false);
-const boardsError = ref('');
 const createError = ref('');
 const isFormOpen = ref(false);
 const isCreating = ref(false);
@@ -57,10 +60,8 @@ const highlightedCardId = ref(null);
 const busyCardIds = ref(new Set());
 const assigneeStates = ref({});
 const cardsAbortController = ref(null);
-const boardsAbortController = ref(null);
 const createAbortController = ref(null);
 const cardsRequestId = ref(0);
-const boardsRequestId = ref(0);
 const realtimeRefreshQueued = ref(false);
 const deleteDialogRef = ref(null);
 const cardToDelete = ref(null);
@@ -84,7 +85,23 @@ const defaultSubject = computed(() => {
 
   return `${contactName} - ${inboxName}`;
 });
+const boardsError = computed(() =>
+  boardsFetchError.value ? t('CONVERSATION_SIDEBAR.KANBAN.ERROR') : ''
+);
 const hasCards = computed(() => cards.value.length > 0);
+// Arriving from a board card, that card leads the list instead of being buried
+// in the server's board/stage/position order.
+const focusedCardId = computed(() => Number(route?.query?.card_id) || null);
+const orderedCards = computed(() => {
+  const index = cards.value.findIndex(
+    card => Number(card.id) === focusedCardId.value
+  );
+  if (index <= 0) return cards.value;
+
+  const reordered = [...cards.value];
+  const [focusedCard] = reordered.splice(index, 1);
+  return [focusedCard, ...reordered];
+});
 const staleCardCount = computed(
   () =>
     cards.value.filter(card => {
@@ -213,10 +230,14 @@ const loadCards = async () => {
   hasError.value = false;
 
   try {
-    const response = await KanbanBoardsAPI.getConversationCards(
-      props.conversationId,
-      { signal: controller.signal }
-    );
+    // A navigation from the board already asked for these cards; fall through to
+    // a fresh request when there is no prefetch or it failed.
+    const prefetched = takePrefetchedConversationCards(props.conversationId);
+    const response =
+      (prefetched && (await prefetched)) ||
+      (await KanbanBoardsAPI.getConversationCards(props.conversationId, {
+        signal: controller.signal,
+      }));
     if (requestId !== cardsRequestId.value || controller.signal.aborted) return;
 
     cards.value = normalizeCollection(response);
@@ -249,38 +270,6 @@ const loadCards = async () => {
         realtimeRefreshQueued.value = false;
         loadCards();
       }
-    }
-  }
-};
-
-const loadBoards = async () => {
-  const requestId = boardsRequestId.value + 1;
-  boardsRequestId.value = requestId;
-  boardsAbortController.value?.abort();
-  const controller = new AbortController();
-  boardsAbortController.value = controller;
-  isLoadingBoards.value = true;
-  boardsError.value = '';
-
-  try {
-    const response = await KanbanBoardsAPI.getBoards({
-      signal: controller.signal,
-    });
-    if (requestId !== boardsRequestId.value || controller.signal.aborted)
-      return;
-
-    boards.value = normalizeCollection(response);
-  } catch (error) {
-    if (isAbortError(error) || requestId !== boardsRequestId.value) return;
-
-    boardsError.value = apiErrorMessage(
-      error,
-      t('CONVERSATION_SIDEBAR.KANBAN.ERROR')
-    );
-  } finally {
-    if (requestId === boardsRequestId.value) {
-      isLoadingBoards.value = false;
-      boardsAbortController.value = null;
     }
   }
 };
@@ -337,7 +326,7 @@ const handleRealtimeKanbanEvent = ({ event, data } = {}) => {
   refreshCardsFromRealtime();
 };
 
-const highlightCreatedCard = cardId => {
+const highlightCard = cardId => {
   if (!cardId) return;
   clearTimeout(highlightTimer);
   highlightedCardId.value = cardId;
@@ -376,7 +365,7 @@ const createCard = async payload => {
     const createdCard = normalizeCard(response);
     isFormOpen.value = false;
     await loadCards();
-    highlightCreatedCard(createdCard?.id);
+    highlightCard(createdCard?.id);
     useAlert(t('CONVERSATION_SIDEBAR.KANBAN.CREATED'), {
       type: 'link',
       to: window.location.pathname,
@@ -669,27 +658,28 @@ watch(
     loadCards();
   }
 );
-// The boards payload spans the whole account and only the expanded card needs it, so
-// a collapsed section pays for its counter with the card request alone.
-const hasRequestedBoards = ref(false);
+// The boards payload spans the whole account and only the expanded card needs it,
+// so a collapsed section pays for its counter with the card request alone. By the
+// time it does expand the global sidebar has usually filled the store already.
 watch(
   () => props.isOpen,
   isOpen => {
-    if (!isOpen || hasRequestedBoards.value) return;
+    if (!isOpen || boards.value.length) return;
 
-    hasRequestedBoards.value = true;
-    loadBoards();
+    store.dispatch('kanbanBoards/fetchBoards').catch(() => {
+      // The store already exposes the error through kanbanBoardsError.
+    });
   },
   { immediate: true }
 );
-onMounted(() => {
+onMounted(async () => {
   emitter.on(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
-  loadCards();
+  await loadCards();
+  highlightCard(focusedCardId.value);
 });
 onBeforeUnmount(() => {
   clearTimeout(highlightTimer);
   cardsAbortController.value?.abort();
-  boardsAbortController.value?.abort();
   createAbortController.value?.abort();
   emitter.off(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleRealtimeKanbanEvent);
 });
@@ -717,7 +707,7 @@ onBeforeUnmount(() => {
         {{ t('CONVERSATION_SIDEBAR.KANBAN.CREATE') }}
       </button>
       <ul v-if="hasCards" class="m-0 flex list-none flex-col gap-2 p-0">
-        <li v-for="card in cards" :key="card.id" class="min-w-0">
+        <li v-for="card in orderedCards" :key="card.id" class="min-w-0">
           <KanbanConversationCardItem
             :card="card"
             :board="boardForCard(card)"
