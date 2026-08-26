@@ -21,6 +21,7 @@ export function useKanbanStageActions({
   refreshSelectedBoard,
   refreshStageFirstPages,
   selectedBoard,
+  suppressNextCardClick,
   showMoveStageConfirmation,
   showRemoveStageCardsConfirmation,
   showRemoveStageConfirmation,
@@ -416,6 +417,13 @@ export function useKanbanStageActions({
 
   const onStageDragEnd = async event => {
     stopBoardAutoScroll();
+    if (event?.item) {
+      suppressNextCardClick.value = true;
+      window.setTimeout(() => {
+        suppressNextCardClick.value = false;
+      }, 0);
+    }
+
     const stageId = Number(event?.item?.dataset?.stageId);
     const newIndex = event?.newIndex;
     const oldIndex = event?.oldIndex;

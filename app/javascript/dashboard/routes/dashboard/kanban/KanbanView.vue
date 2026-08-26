@@ -500,6 +500,7 @@ const {
   refreshSelectedBoard,
   refreshStageFirstPages,
   selectedBoard,
+  suppressNextCardClick,
   showMoveStageConfirmation,
   showActionError,
   showRemoveStageCardsConfirmation,
@@ -965,6 +966,7 @@ watch(searchInput, () => {
                 :boards="boards"
                 :is-admin="isAdmin"
                 :is-busy="isActionActive(stageActionKey(stage))"
+                :suppress-next-click="suppressNextCardClick"
                 :is-card-drag-disabled="isCardDragDisabled"
                 :selected-card-ids="selectedCardIds"
                 :is-selection-mode="isSelectionMode"

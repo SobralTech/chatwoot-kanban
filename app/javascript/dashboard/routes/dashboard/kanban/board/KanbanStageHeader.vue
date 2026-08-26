@@ -37,6 +37,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  suppressNextClick: {
+    type: Boolean,
+    default: false,
+  },
   editingStageId: {
     type: [Number, String],
     default: null,
@@ -194,7 +198,9 @@ const toggleCollapseOnDoubleClick = () => {
               { 'cursor-pointer hover:text-n-brand': isAdmin },
             ]"
             :title="isAdmin ? t('KANBAN.STAGE_MENU.EDIT') : undefined"
-            @click.stop="isAdmin && emit('editStage', stage)"
+            @click.stop="
+              !suppressNextClick && isAdmin && emit('editStage', stage)
+            "
           >
             {{ stage.name }}
           </h3>

@@ -43,6 +43,10 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  suppressNextClick: {
+    type: Boolean,
+    default: false,
+  },
   isCardDragDisabled: {
     type: Boolean,
     default: false,
@@ -190,6 +194,7 @@ const { t } = useI18n();
       :boards="boards"
       :is-admin="isAdmin"
       :is-busy="isBusy"
+      :suppress-next-click="suppressNextClick"
       :editing-stage-id="editingStageId"
       :stage-names="stageNames"
       :stage-colors="stageColors"
