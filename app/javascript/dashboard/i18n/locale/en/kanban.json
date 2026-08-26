@@ -316,6 +316,7 @@
       "UNASSIGN": "Unassign everyone",
       "LABEL": "Add labels",
       "PRIORITY": "Priority",
+      "WIN": "Mark as won",
       "LOSE": "Mark as lost",
       "DELETE": "Delete",
       "DELETE_CONFIRM_TITLE": "Delete opportunities",

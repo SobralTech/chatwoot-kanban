@@ -45,8 +45,10 @@ export function useKanbanBulkActions({
     const sourceStageIds = [...selectedCardIds.value].map(cardId =>
       findCardStageId({ id: cardId })
     );
-    const terminalStageId =
-      action === 'lose' ? selectedBoard.value.lostStageId : null;
+    const terminalStageId = {
+      lose: selectedBoard.value.lostStageId,
+      win: selectedBoard.value.wonStageId,
+    }[action];
     const targetStageId = isCrossBoardMove(action, payload)
       ? null
       : payload.kanban_stage_id;

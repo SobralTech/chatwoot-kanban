@@ -3,7 +3,7 @@
 # single code instead of producing one identical failure row per card.
 class KanbanCards::BulkActionRequest
   MAX_CARDS = 100
-  OPERATIONS = %w[move assign label clear_labels priority lose delete].freeze
+  OPERATIONS = %w[move assign label clear_labels priority win lose delete].freeze
 
   class Error < ArgumentError
     attr_reader :code
@@ -40,10 +40,17 @@ class KanbanCards::BulkActionRequest
     @lost_stage ||= kanban_board.lost_stage
   end
 
-  # `move` and `lose` are the same transition; only the destination differs, and which
+  def won_stage
+    @won_stage ||= kanban_board.won_stage
+  end
+
+  # `move`, `win`, and `lose` are the same transition; only the destination differs, and which
   # destination applies is a property of the operation rather than of the caller.
   def target_stage
-    operation == 'lose' ? lost_stage : move_stage
+    return won_stage if operation == 'win'
+    return lost_stage if operation == 'lose'
+
+    move_stage
   end
 
   def assignee_ids
@@ -69,6 +76,7 @@ class KanbanCards::BulkActionRequest
   def validate_payload!
     case operation
     when 'move' then validate_move!
+    when 'win' then validate_win!
     when 'lose' then validate_lose!
     when 'assign' then validate_assignees!
     when 'label' then validate_labels!
@@ -84,6 +92,10 @@ class KanbanCards::BulkActionRequest
   def validate_lose!
     raise Error, 'lost_stage_not_found' unless lost_stage&.active?
     raise Error, 'lost_reason_required' if kanban_board.lost_reason_required? && reason_id.blank?
+  end
+
+  def validate_win!
+    raise Error, 'won_stage_not_found' unless won_stage&.active?
   end
 
   def validate_assignees!

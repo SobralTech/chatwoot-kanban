@@ -66,7 +66,7 @@ class KanbanCards::BulkActionService
 
   def apply_operation(card)
     case operation
-    when 'move', 'lose' then move_card(card)
+    when 'move', 'win', 'lose' then move_card(card)
     when 'assign' then assign_card(card)
     when 'label' then label_card(card)
     when 'clear_labels' then clear_labels(card)
@@ -90,7 +90,7 @@ class KanbanCards::BulkActionService
 
     stage_transition.apply!
     stage_transition.record_event!
-    # A move is the only operation that fires an automation, and the transition already
+    # A stage transition is the only operation that fires an automation, and it already
     # knows whether this one crossed a stage and which event that makes it.
     @automation_event_name = stage_transition.automation_event_name
     stage_transition.affected_stage_ids

@@ -149,11 +149,17 @@ const priorityOptions = computed(() => [
   },
 ]);
 
-const chooseReason = hide => {
-  if (props.lostReasonRequired && !selectedReasonId.value) return;
+const chooseReason = (action, hide) => {
+  if (
+    action === 'lose' &&
+    props.lostReasonRequired &&
+    !selectedReasonId.value
+  ) {
+    return;
+  }
 
   chooseAction(
-    'lose',
+    action,
     { kanban_reason_id: selectedReasonId.value || null },
     hide
   );
@@ -315,7 +321,39 @@ const resetReason = () => {
       </template>
     </KanbanBulkActionMenu>
 
-    <!-- The only menu whose body is a form rather than a list of options. -->
+    <Popover align="start" disable-mobile-view @hide="resetReason">
+      <button
+        type="button"
+        data-testid="kanban-bulk-action-win"
+        :class="`${BULK_ACTION_BUTTON_CLASSES} text-n-teal-11 hover:bg-n-teal-2`"
+        :disabled="isBusy"
+      >
+        <i class="i-lucide-check-circle-2 size-4" />
+        {{ t('KANBAN.BULK.WIN') }}
+      </button>
+      <template #content="{ hide }">
+        <div
+          class="w-64 max-w-[calc(100vw-2rem)]"
+          :class="[MENU_SURFACE_CLASSES]"
+        >
+          <KanbanReasonPicker
+            v-model="selectedReasonId"
+            :reasons="reasons"
+            reason-type="won"
+            testid="kanban-bulk-win-reason"
+          />
+          <button
+            type="button"
+            data-testid="kanban-bulk-confirm-win"
+            class="mt-2 w-full rounded-md bg-n-teal-9 px-3 py-1.5 text-xs font-medium text-white hover:brightness-110"
+            @click="chooseReason('win', hide)"
+          >
+            {{ t('KANBAN.CARD.STATUS.CONFIRM') }}
+          </button>
+        </div>
+      </template>
+    </Popover>
+
     <Popover align="start" disable-mobile-view @hide="resetReason">
       <button
         type="button"
@@ -343,7 +381,7 @@ const resetReason = () => {
             data-testid="kanban-bulk-confirm-lose"
             class="mt-2 w-full rounded-md bg-n-ruby-9 px-3 py-1.5 text-xs font-medium text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="lostReasonRequired && !selectedReasonId"
-            @click="chooseReason(hide)"
+            @click="chooseReason('lose', hide)"
           >
             {{ t('KANBAN.CARD.STATUS.CONFIRM') }}
           </button>
