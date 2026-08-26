@@ -14,3 +14,10 @@ json.lost_this_month do
 end
 
 json.average_ticket @summary.average_ticket
+
+json.stages_summary do
+  json.array! @summary.stages_summary do |stage|
+    json.id stage[:id]
+    json.cards_count stage[:cards_count]
+  end
+end

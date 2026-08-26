@@ -164,6 +164,7 @@ const {
   router,
   selectedBoard,
   stages,
+  store,
   t,
 });
 // The server owns the cap; the board payload carries it so the two cannot drift.

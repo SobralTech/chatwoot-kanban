@@ -1,5 +1,5 @@
 class KanbanBoards::SummaryQuery
-  Result = Struct.new(:open, :won_this_month, :lost_this_month, :average_ticket, keyword_init: true)
+  Result = Struct.new(:open, :won_this_month, :lost_this_month, :average_ticket, :stages_summary, keyword_init: true)
 
   def initialize(account:, kanban_board:, visible_cards:)
     @account = account
@@ -10,7 +10,11 @@ class KanbanBoards::SummaryQuery
   def call
     metrics = KanbanCards::Totals.metrics(visible_cards, metric_conditions)
 
-    Result.new(**metrics, average_ticket: average_ticket_for(metrics.fetch(:won_this_month)))
+    Result.new(
+      **metrics,
+      average_ticket: average_ticket_for(metrics.fetch(:won_this_month)),
+      stages_summary: stages_summary
+    )
   end
 
   private
@@ -48,6 +52,16 @@ class KanbanBoards::SummaryQuery
     return if metric.count.zero?
 
     format('%.2f', metric.value / metric.count)
+  end
+
+  # Menu actions affect every active card in a stage, so their counts must not
+  # inherit the visibility and view filters used by the funnel metrics.
+  def stages_summary
+    card_counts = kanban_board.kanban_cards.active.group(:kanban_stage_id).count
+
+    kanban_board.kanban_stages.active.ordered.pluck(:id).map do |stage_id|
+      { id: stage_id, cards_count: card_counts.fetch(stage_id, 0) }
+    end
   end
 
   def card_table

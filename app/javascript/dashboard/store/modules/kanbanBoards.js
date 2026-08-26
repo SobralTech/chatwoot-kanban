@@ -59,6 +59,28 @@ export const mutations = {
   [types.SET_KANBAN_BOARDS](_state, data) {
     _state.records = camelcaseKeys(data || [], { deep: true });
   },
+  [types.UPDATE_KANBAN_BOARD_CARD_COUNTS](_state, { boardId, stagesSummary }) {
+    const cardCountsByStageId = new Map(
+      stagesSummary.map(stage => [Number(stage.id), stage.cardsCount])
+    );
+
+    _state.records = _state.records.map(board => {
+      if (Number(board.id) !== Number(boardId)) return board;
+
+      return {
+        ...board,
+        cardsCount: stagesSummary.reduce(
+          (total, stage) => total + stage.cardsCount,
+          0
+        ),
+        stagesSummary: board.stagesSummary.map(stage => ({
+          ...stage,
+          cardsCount:
+            cardCountsByStageId.get(Number(stage.id)) ?? stage.cardsCount,
+        })),
+      };
+    });
+  },
   [types.SET_KANBAN_BOARDS_UI_FLAG](_state, data) {
     _state.uiFlags = { ..._state.uiFlags, ...data };
   },

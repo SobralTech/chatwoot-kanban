@@ -12,6 +12,7 @@ export function useKanbanBoardData({
   router,
   selectedBoard,
   stages,
+  store,
   t,
 }) {
   const stageCardsPageLimit = 20;
@@ -182,9 +183,9 @@ export function useKanbanBoardData({
     return true;
   };
 
-  // The summary reads the same filters as the columns, but through its own request
-  // so a slow aggregate never holds the board back. The previous numbers stay on
-  // screen while it reloads, because it now reloads on every card change.
+  // The funnel metrics read the same filters as the columns, while the stage
+  // action counts in the same response stay unfiltered. A slow aggregate never
+  // holds the board back, and the previous numbers stay on screen while it reloads.
   const fetchBoardSummary = async (boardId, generation) => {
     isFetchingSummary.value = true;
     summaryError.value = false;
@@ -195,7 +196,14 @@ export function useKanbanBoardData({
       });
       if (generation !== requestGeneration.value) return;
 
-      boardSummary.value = normalizePayload(response.data);
+      const summary = normalizePayload(response.data);
+      boardSummary.value = summary;
+      if (Array.isArray(summary.stagesSummary)) {
+        store.commit('kanbanBoards/UPDATE_KANBAN_BOARD_CARD_COUNTS', {
+          boardId,
+          stagesSummary: summary.stagesSummary,
+        });
+      }
     } catch {
       if (generation !== requestGeneration.value) return;
 
@@ -207,10 +215,10 @@ export function useKanbanBoardData({
     }
   };
 
-  // The summary aggregates the same cards the columns show, so anything that
-  // changes a card changes it too. Queueing rather than fetching means a burst of
-  // stage refreshes - a drag touching two columns, a realtime flush, a bulk move -
-  // still costs a single request.
+  // Anything that changes a card changes the filtered metrics and total stage
+  // counts. Queueing rather than fetching means a burst of stage refreshes - a
+  // drag touching two columns, a realtime flush, a bulk move - still costs a
+  // single request.
   let queuedSummaryRefresh = null;
   const queueBoardSummaryRefresh = () => {
     queuedSummaryRefresh ||= Promise.resolve().then(() => {
