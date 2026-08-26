@@ -1,9 +1,8 @@
 <script setup>
-import { computed, nextTick, ref, toRef, watch } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useKanbanMoveTarget } from 'dashboard/composables/useKanbanMoveTarget';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
-import Input from 'dashboard/components-next/input/Input.vue';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import KanbanMenuHeader from './KanbanMenuHeader.vue';
@@ -47,7 +46,6 @@ const props = defineProps({
 const emit = defineEmits([
   'addCard',
   'edit',
-  'copy',
   'move',
   'moveCards',
   'sort',
@@ -57,15 +55,11 @@ const emit = defineEmits([
 
 const { t } = useI18n();
 const view = ref('root');
-const copyName = ref('');
-const copyNameInput = ref(null);
 const targetPosition = ref(1);
 
 const currentBoardId = computed(() => Number(props.stage.kanbanBoardId));
 const viewTitle = computed(() => {
   switch (view.value) {
-    case 'copy':
-      return t('KANBAN.STAGE_MENU.COPY.TITLE');
     case 'move':
       return t('KANBAN.STAGE_MENU.MOVE.TITLE');
     case 'moveCards':
@@ -161,7 +155,6 @@ const sortOptions = computed(() => [
 
 const resetView = () => {
   view.value = 'root';
-  copyName.value = '';
   targetPosition.value = 1;
   resetStageMoveTarget();
   resetMoveCardsTarget();
@@ -169,11 +162,6 @@ const resetView = () => {
 
 const openView = nextView => {
   view.value = nextView;
-
-  if (nextView === 'copy') {
-    copyName.value = props.stage.name;
-    nextTick(() => copyNameInput.value?.$el?.querySelector('input')?.select());
-  }
 
   if (nextView === 'move') {
     resetStageMoveTarget();
@@ -196,9 +184,6 @@ const emitAction = (event, payload, hide) => {
     case 'edit':
       emit('edit');
       break;
-    case 'copy':
-      emit('copy', payload);
-      break;
     case 'move':
       emit('move', payload);
       break;
@@ -219,13 +204,6 @@ const emitAction = (event, payload, hide) => {
   }
 
   closeMenu(hide);
-};
-
-const submitCopy = hide => {
-  const name = copyName.value.trim();
-  if (!name) return;
-
-  emitAction('copy', { name }, hide);
 };
 
 const submitMove = hide => {
@@ -300,16 +278,6 @@ watch(stageMoveBoardId, () => {
             {{ t('KANBAN.STAGE_MENU.EDIT') }}
           </button>
           <button
-            v-if="isAdmin"
-            type="button"
-            :class="MENU_OPTION_CLASSES"
-            :disabled="isBusy"
-            @click="openView('copy')"
-          >
-            <i class="i-lucide-copy size-4" />
-            {{ t('KANBAN.STAGE_MENU.COPY.LABEL') }}
-          </button>
-          <button
             v-if="isAdmin && !isCurrentStageTerminal"
             type="button"
             :class="MENU_OPTION_CLASSES"
@@ -364,25 +332,6 @@ watch(stageMoveBoardId, () => {
             {{ t('KANBAN.STAGE_MENU.DELETE_CARDS') }}
           </button>
         </div>
-
-        <form
-          v-else-if="view === 'copy'"
-          class="space-y-4 p-4"
-          @submit.prevent="submitCopy(hide)"
-        >
-          <Input
-            ref="copyNameInput"
-            v-model="copyName"
-            :label="t('KANBAN.STAGE_MENU.COPY.NAME')"
-          />
-          <button
-            type="submit"
-            class="w-full rounded-md bg-n-brand px-3 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="!copyName.trim() || isBusy"
-          >
-            {{ t('KANBAN.STAGE_MENU.COPY.SUBMIT') }}
-          </button>
-        </form>
 
         <form
           v-else-if="view === 'move'"

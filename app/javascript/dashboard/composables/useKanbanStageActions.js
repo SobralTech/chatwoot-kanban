@@ -215,32 +215,6 @@ export function useKanbanStageActions({
     await removeStage(stage);
   };
 
-  const copyStage = async (stage, { name }) => {
-    const actionKey = stageActionKey(stage);
-    if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
-      return;
-    }
-
-    startAction(actionKey);
-
-    try {
-      const response = await KanbanBoardsAPI.copyStage(
-        selectedBoard.value.id,
-        stage.id,
-        {
-          stage: { name },
-        }
-      );
-      pendingScrollToStageId.value = normalizePayload(response.data).id;
-      await refreshSelectedBoard();
-      useAlert(t('KANBAN.STAGE_MENU.SUCCESS.COPY'));
-    } catch (error) {
-      showActionError(error, t('KANBAN.ACTIONS.CREATE_STAGE_ERROR'));
-    } finally {
-      endAction(actionKey);
-    }
-  };
-
   const executeMoveStage = async (stage, { kanbanBoardId, position }) => {
     const actionKey = stageActionKey(stage);
     if (!selectedBoard.value?.id || !stage?.id || isActionActive(actionKey)) {
@@ -444,7 +418,6 @@ export function useKanbanStageActions({
     confirmRemoveStage,
     confirmRemoveStageCards,
     confirmMoveStage,
-    copyStage,
     createStage,
     moveAllStageCards,
     moveStage,

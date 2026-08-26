@@ -140,7 +140,6 @@ Rails.application.routes.draw do
               resources :stages, only: [:create, :destroy] do
                 patch '', on: :member, action: :update
                 patch :reorder, on: :member
-                post :copy, on: :member
                 patch :move, on: :member
                 patch :sort_cards, on: :member, action: :sort, controller: 'stages/cards'
                 patch :move_cards, on: :member, action: :move_all, controller: 'stages/cards'

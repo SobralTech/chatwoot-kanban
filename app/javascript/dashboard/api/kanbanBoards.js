@@ -29,10 +29,6 @@ class KanbanBoardsAPI extends ApiClient {
     return axios.delete(`${this.url}/${boardId}/stages/${stageId}`);
   }
 
-  copyStage(boardId, stageId, payload) {
-    return axios.post(`${this.url}/${boardId}/stages/${stageId}/copy`, payload);
-  }
-
   moveStage(boardId, stageId, payload) {
     return axios.patch(
       `${this.url}/${boardId}/stages/${stageId}/move`,

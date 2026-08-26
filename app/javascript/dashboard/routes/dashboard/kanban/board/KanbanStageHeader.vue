@@ -82,7 +82,6 @@ const emit = defineEmits([
   'cancelEditingStage',
   'addCard',
   'editStage',
-  'copyStage',
   'moveStage',
   'moveAllCards',
   'sortCards',
@@ -240,7 +239,6 @@ const toggleCollapseOnDoubleClick = () => {
             :is-busy="isBusy"
             @add-card="emit('addCard', stage)"
             @edit="emit('editStage', stage)"
-            @copy="emit('copyStage', stage, $event)"
             @move="emit('moveStage', stage, $event)"
             @move-cards="emit('moveAllCards', stage, $event)"
             @sort="emit('sortCards', stage, $event)"

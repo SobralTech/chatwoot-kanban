@@ -467,7 +467,6 @@ const {
   confirmMoveStage,
   confirmRemoveStage,
   confirmRemoveStageCards,
-  copyStage,
   createStage,
   moveAllStageCards,
   moveStage,
@@ -993,7 +992,6 @@ watch(searchInput, () => {
                 @edit-stage="startEditingStage"
                 @update-stage="updateStage"
                 @cancel-editing-stage="cancelEditingStage"
-                @copy-stage="copyStage"
                 @move-stage="moveStage"
                 @move-all-cards="moveAllStageCards"
                 @sort-cards="sortStageCards"

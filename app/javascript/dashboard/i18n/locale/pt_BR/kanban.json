@@ -137,12 +137,6 @@
       "DELETE_STAGE": "Excluir esta lista",
       "DELETE_CARDS": "Excluir todos os cartões desta lista",
       "CARD_COUNT": "{count} cartões",
-      "COPY": {
-        "LABEL": "Copiar lista",
-        "TITLE": "Copiar lista",
-        "NAME": "Nome da lista",
-        "SUBMIT": "Criar lista"
-      },
       "MOVE": {
         "LABEL": "Mover lista",
         "TITLE": "Mover lista",
@@ -178,7 +172,6 @@
         "CANCEL": "Cancelar"
       },
       "SUCCESS": {
-        "COPY": "Lista copiada.",
         "MOVE": "Lista movida.",
         "MOVE_CARDS": "Cartões movidos.",
         "SORT": "Cartões ordenados.",

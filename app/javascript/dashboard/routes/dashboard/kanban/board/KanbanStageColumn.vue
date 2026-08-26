@@ -134,7 +134,6 @@ const emit = defineEmits([
   'editStage',
   'updateStage',
   'cancelEditingStage',
-  'copyStage',
   'moveStage',
   'moveAllCards',
   'sortCards',
@@ -209,7 +208,6 @@ const { t } = useI18n();
       @cancel-editing-stage="emit('cancelEditingStage')"
       @add-card="emit('addCard', $event)"
       @edit-stage="emit('editStage', $event)"
-      @copy-stage="(...args) => emit('copyStage', ...args)"
       @move-stage="(...args) => emit('moveStage', ...args)"
       @move-all-cards="(...args) => emit('moveAllCards', ...args)"
       @sort-cards="(...args) => emit('sortCards', ...args)"

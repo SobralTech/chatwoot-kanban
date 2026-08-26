@@ -187,12 +187,6 @@
       "DELETE_CARDS": "Delete all cards in this list",
       "CARD_COUNT": "{count} cards",
       "STALE_COUNT": "{count} stalled",
-      "COPY": {
-        "LABEL": "Copy list",
-        "TITLE": "Copy list",
-        "NAME": "List name",
-        "SUBMIT": "Create list"
-      },
       "MOVE": {
         "LABEL": "Move list",
         "TITLE": "Move list",
@@ -232,7 +226,6 @@
         "CANCEL": "Cancel"
       },
       "SUCCESS": {
-        "COPY": "List copied.",
         "MOVE": "List moved.",
         "MOVE_CARDS": "Cards moved.",
         "SORT": "Cards sorted.",

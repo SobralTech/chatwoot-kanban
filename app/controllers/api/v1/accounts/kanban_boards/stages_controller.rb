@@ -1,8 +1,7 @@
-# rubocop:disable Metrics/ClassLength
 class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::BaseController
   before_action :fetch_kanban_board
   before_action :authorize_kanban_board_update
-  before_action :fetch_kanban_stage, only: [:update, :destroy, :reorder, :copy, :move]
+  before_action :fetch_kanban_stage, only: [:update, :destroy, :reorder, :move]
 
   def create
     KanbanStage.transaction do
@@ -16,30 +15,6 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     end
 
     dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_CREATED)
-  end
-
-  def copy
-    source_stage = @kanban_stage
-
-    KanbanStage.transaction do
-      KanbanStage.normalize_positions_for_board!(@kanban_board)
-      source_stage.reload
-      position = [source_stage.position + 1, KanbanStage.next_active_position(@kanban_board)].min
-      KanbanStage.shift_active_positions_from!(@kanban_board, position)
-
-      @kanban_stage = @kanban_board.kanban_stages.create!(
-        account: Current.account,
-        name: copy_stage_params[:name],
-        color: source_stage.color,
-        description: source_stage.description,
-        sla_hours: source_stage.sla_hours,
-        position: position
-      )
-      KanbanStage.normalize_positions_for_board!(@kanban_board)
-    end
-
-    dispatch_kanban_stage_event(Events::Types::KANBAN_STAGE_CREATED)
-    render :create
   end
 
   def update
@@ -136,10 +111,6 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
 
   def kanban_stage_params
     params.require(:stage).permit(:name, :position, :active, :color, :description, :sla_hours)
-  end
-
-  def copy_stage_params
-    params.require(:stage).permit(:name)
   end
 
   def deactivating_stage?
@@ -251,4 +222,3 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
     render json: { error: KanbanStage::SPECIAL_STAGE_ORDER_ERROR }, status: :unprocessable_content
   end
 end
-# rubocop:enable Metrics/ClassLength
