@@ -54,6 +54,7 @@ export const mutations = {
           allMessagesLoaded: existingConversation.allMessagesLoaded,
           messages: existingConversation.messages,
           dataFetched: existingConversation.dataFetched,
+          messageGapBeforeId: existingConversation.messageGapBeforeId,
         };
       }
     });
@@ -93,10 +94,10 @@ export const mutations = {
     const [chat] = _state.allConversations.filter(c => c.id === id);
     if (!chat) return;
     chat.messages = data;
-    chat.messageGapBeforeId = null;
   },
 
-  [types.MERGE_CONVERSATION_MESSAGE_WINDOW](_state, { id, data }) {
+  [types.MERGE_CONVERSATION_MESSAGE_WINDOW](_state, payload) {
+    const { id, data } = payload;
     const chat = getConversationById(_state)(id);
     if (!chat || !data.length) return;
 
@@ -123,19 +124,29 @@ export const mutations = {
       }
     );
 
-    let gapBeforeMessageId = null;
-    if (!hasOverlap && chat.messages.length > 0) {
-      for (let i = 1; i < sortedMessages.length; i += 1) {
-        const prevInWindow = windowIds.has(sortedMessages[i - 1].id);
-        const currInWindow = windowIds.has(sortedMessages[i].id);
-        if (prevInWindow !== currInWindow) {
-          gapBeforeMessageId = sortedMessages[i].id;
-          break;
+    if (Object.prototype.hasOwnProperty.call(payload, 'messageGapBeforeId')) {
+      const isCurrentGap =
+        payload.expectedMessageGapBeforeId === undefined ||
+        Number(chat.messageGapBeforeId) ===
+          Number(payload.expectedMessageGapBeforeId);
+      if (isCurrentGap) {
+        chat.messageGapBeforeId = payload.messageGapBeforeId;
+      }
+    } else {
+      let gapBeforeMessageId = null;
+      if (!hasOverlap && chat.messages.length > 0) {
+        for (let i = 1; i < sortedMessages.length; i += 1) {
+          const prevInWindow = windowIds.has(sortedMessages[i - 1].id);
+          const currInWindow = windowIds.has(sortedMessages[i].id);
+          if (prevInWindow !== currInWindow) {
+            gapBeforeMessageId = sortedMessages[i].id;
+            break;
+          }
         }
       }
+      chat.messageGapBeforeId = gapBeforeMessageId;
     }
 
-    chat.messageGapBeforeId = gapBeforeMessageId;
     chat.messages.splice(0, chat.messages.length, ...sortedMessages);
   },
 

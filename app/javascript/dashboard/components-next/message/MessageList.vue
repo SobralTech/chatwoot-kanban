@@ -6,6 +6,7 @@ import { MESSAGE_TYPES } from './constants.js';
 import { useCamelCase } from 'dashboard/composables/useTransformKeys';
 import { useMapGetter } from 'dashboard/composables/store.js';
 import MessageApi from 'dashboard/api/inbox/message.js';
+import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 
 /**
  * Props definition for the component
@@ -45,6 +46,10 @@ const props = defineProps({
   activeConversationSearchResultId: {
     type: Number,
     default: null,
+  },
+  isMessageGapLoading: {
+    type: Boolean,
+    default: false,
   },
 });
 
@@ -217,10 +222,16 @@ const getInReplyToMessage = parentMessage => {
       />
       <li
         v-if="currentChat?.messageGapBeforeId === message.id"
+        data-message-gap
         class="list-none flex items-center gap-3 my-3 px-2"
       >
         <div class="h-px flex-1 bg-n-weak" />
-        <span class="shrink-0 text-xs text-n-slate-10">
+        <Spinner
+          v-if="isMessageGapLoading"
+          :size="16"
+          class="shrink-0 text-n-brand"
+        />
+        <span v-else class="shrink-0 text-xs text-n-slate-10">
           {{ t('CONVERSATION.MESSAGES_GAP') }}
         </span>
         <div class="h-px flex-1 bg-n-weak" />
