@@ -12,6 +12,7 @@ import {
   isDirectWonLostTransitionError,
 } from 'dashboard/helper/kanbanCardStatus';
 import { formatDateInput } from 'dashboard/helper/kanbanDueDate';
+import { isLostReasonRequiredError } from 'dashboard/helper/kanbanStageError';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import KanbanCardDetailsTab from './tabs/KanbanCardDetailsTab.vue';
 import KanbanCardItemsTab from './tabs/KanbanCardItemsTab.vue';
@@ -268,9 +269,6 @@ const onToggleAssignee = user => {
 
   return updateAssignees(card.value, nextIds);
 };
-
-const isLostReasonRequiredError = error =>
-  error?.response?.data?.error === 'lost_reason_required';
 
 const moveStageErrorMessage = error => {
   if (isLostReasonRequiredError(error)) {
