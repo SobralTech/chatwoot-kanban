@@ -34,6 +34,7 @@ const { t } = useI18n();
   <div
     class="flex min-h-0 flex-1 flex-col items-center gap-2 p-1"
     :class="headerClass"
+    @dblclick="emit('toggleCollapse')"
   >
     <button
       type="button"
