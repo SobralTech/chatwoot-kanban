@@ -411,6 +411,7 @@ export default {
       </ContactDetailsItem>
       <MultiselectDropdown
         button-variant="outline"
+        show-chevron
         :options="agentsList"
         :selected-item="assignedAgent"
         :multiselector-title="$t('AGENT_MGMT.MULTI_SELECTOR.TITLE.AGENT')"
@@ -583,6 +584,7 @@ export default {
       />
       <MultiselectDropdown
         button-variant="outline"
+        show-chevron
         :options="teamsList"
         :selected-item="assignedTeam"
         :multiselector-title="$t('AGENT_MGMT.MULTI_SELECTOR.TITLE.TEAM')"
@@ -600,6 +602,7 @@ export default {
       <ContactDetailsItem compact :title="$t('CONVERSATION.PRIORITY.TITLE')" />
       <MultiselectDropdown
         button-variant="outline"
+        show-chevron
         :options="priorityOptions"
         :selected-item="assignedPriority"
         :multiselector-title="$t('CONVERSATION.PRIORITY.TITLE')"

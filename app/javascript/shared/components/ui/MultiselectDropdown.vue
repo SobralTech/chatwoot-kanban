@@ -49,6 +49,10 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  showChevron: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['select']);
@@ -70,6 +74,14 @@ const hasValue = computed(() => {
 const hasIcon = computed(() => {
   return props.selectedItem?.icon || false;
 });
+
+const dropdownIcon = computed(() => {
+  if (!props.showChevron || props.compact) return '';
+
+  return showSearchDropdown.value
+    ? 'i-lucide-chevron-up'
+    : 'i-lucide-chevron-down';
+});
 </script>
 
 <template>
@@ -84,6 +96,7 @@ const hasIcon = computed(() => {
         :variant="compact ? 'ghost' : buttonVariant"
         :size="compact ? 'sm' : null"
         :trailing-icon="!compact"
+        :icon="dropdownIcon"
         :title="selectedItem?.name || multiselectorPlaceholder"
         :aria-label="selectedItem?.name || multiselectorPlaceholder"
         :class="compact ? '!size-8 !p-0' : 'w-full !px-2'"
