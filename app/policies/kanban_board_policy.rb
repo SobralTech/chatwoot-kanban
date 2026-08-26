@@ -4,7 +4,7 @@ class KanbanBoardPolicy < ApplicationPolicy
   end
 
   def templates?
-    administrator? || agent?
+    administrator?
   end
 
   def show?
@@ -12,7 +12,7 @@ class KanbanBoardPolicy < ApplicationPolicy
   end
 
   def create?
-    administrator? || agent?
+    administrator?
   end
 
   def update?

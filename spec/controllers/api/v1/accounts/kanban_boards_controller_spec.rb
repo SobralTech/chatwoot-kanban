@@ -979,6 +979,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['name']).to eq('Support')
+      expect(response.parsed_body['active']).to be(true)
       expect(response.parsed_body['auto_create_cards_from_conversations']).to be(false)
       expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
     end
@@ -1020,22 +1021,28 @@ RSpec.describe 'Kanban Boards API', type: :request do
       )
     end
 
-    it 'creates a board for agents' do
+    it 'does not create a board for agents' do
       expect do
         post "/api/v1/accounts/#{account.id}/kanban_boards",
              headers: agent.create_new_auth_token,
              params: payload,
              as: :json
-      end.to change(KanbanBoard, :count).by(1)
+      end.not_to change(KanbanBoard, :count)
 
-      created_board = KanbanBoard.last
-      expect(response).to have_http_status(:success)
-      expect(created_board).to have_attributes(
-        name: 'Support',
-        account_id: account.id,
-        visibility_mode: 'all_agents',
-        inbox_scope_mode: 'all_inboxes'
-      )
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'rolls the board back when the name is already taken' do
+      create(:kanban_board, account: account, name: 'Support')
+
+      expect do
+        post "/api/v1/accounts/#{account.id}/kanban_boards",
+             headers: administrator.create_new_auth_token,
+             params: payload,
+             as: :json
+      end.not_to change(KanbanBoard, :count)
+
+      expect(response).to have_http_status(:unprocessable_entity)
     end
 
     it 'accepts automatic card creation setting' do

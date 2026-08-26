@@ -2037,7 +2037,7 @@ describe('KanbanView header navigation', () => {
   });
 
   it('lists visible boards in the dropdown', async () => {
-    const wrapper = await mountView();
+    const wrapper = await mountView({ role: 'administrator' });
 
     await wrapper
       .find('[data-testid="kanban-board-switcher"]')
@@ -2072,7 +2072,7 @@ describe('KanbanView header navigation', () => {
   });
 
   it('navigates to the create board form from the dropdown', async () => {
-    const wrapper = await mountView();
+    const wrapper = await mountView({ role: 'administrator' });
 
     await wrapper
       .find('[data-testid="kanban-board-switcher"]')
@@ -2405,6 +2405,7 @@ describe('KanbanView header navigation', () => {
   it('still opens the board switcher to create a board when only one board is visible', async () => {
     const wrapper = await mountView({
       boards: [{ id: 10, name: 'Sales Board' }],
+      role: 'administrator',
     });
 
     expect(

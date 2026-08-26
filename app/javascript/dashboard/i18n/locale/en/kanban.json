@@ -60,10 +60,16 @@
       "REASONS_COUNT": "{count} loss reasons",
       "FIELDS_COUNT": "{count} custom fields",
       "LOAD_ERROR": "Could not load the funnel templates. You can still start from scratch.",
-      "CREATING": "Creating funnel..."
+      "CREATING": "Creating funnel...",
+      "CREATE_SUCCESS": "Funnel created.",
+      "NAME_DIALOG": {
+        "TITLE": "Name your funnel",
+        "LABEL": "Funnel name",
+        "NAME_TAKEN": "A funnel with this name already exists.",
+        "CONFIRM": "Create funnel"
+      }
     },
     "BOARD_EDIT": {
-      "CREATE_TITLE": "Creating: New Funnel",
       "EDIT_TITLE": "Editing: {name}",
       "DISCARD": "Discard",
       "SAVE": "Save",
@@ -75,18 +81,13 @@
       "SAVE_AND_EXIT": "Save and exit",
       "DISCARD_CONFIRM_TITLE": "Discard changes?",
       "DISCARD_CONFIRM_MESSAGE": "The changes made to this funnel's settings will be lost.",
-      "DISCARD_DRAFT_TITLE": "Discard funnel being created?",
-      "DISCARD_DRAFT_MESSAGE": "This funnel was never activated. Leaving now deletes it along with its stages, custom fields and reasons.",
-      "DISCARD_DRAFT_CONFIRM": "Discard funnel",
       "AUTOSAVE_NOTE": "Changes in this tab are saved automatically.",
       "WON_STAGE_REMOVED": "The stage set as Won was deleted. Choose another one.",
       "LOST_STAGE_REMOVED": "The stage set as Lost was deleted. Choose another one.",
-      "ACTIVATE_LOCKED_HELP": "Set the Won and Lost stages in the Stages and Data tab to activate this funnel.",
       "LOADING": "Loading funnel...",
       "LOAD_ERROR": "Could not load this funnel.",
       "CREATE_ERROR": "Could not create the funnel.",
       "ACTIVATE_ERROR": "Could not activate the funnel. Set the Won and Lost stages first.",
-      "DISCARD_ERROR": "Could not discard the funnel.",
       "ACCESS_DENIED": "You are not authorized to manage this funnel.",
       "NEW_BOARD_DEFAULT_NAME": "New Funnel",
       "TABS": {

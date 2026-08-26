@@ -35,8 +35,8 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
   private
 
   def fetch_kanban_board
-    # See KanbanBoardsController#fetch_kanban_board: admins editing a draft board (not yet
-    # activated) need to reach its settings before it becomes active.
+    # See KanbanBoardsController#fetch_kanban_board: admins need to reach the settings of a
+    # deactivated board to switch it back on.
     @kanban_board = if Current.account_user&.administrator?
                       KanbanBoard.where(account_id: Current.account.id).find(params[:kanban_board_id])
                     else

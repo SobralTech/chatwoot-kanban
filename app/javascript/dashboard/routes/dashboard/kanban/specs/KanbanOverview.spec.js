@@ -48,12 +48,14 @@ vi.mock('dashboard/composables', () => ({
 vi.mock('dashboard/api/kanbanBoards', () => ({
   default: {
     get: vi.fn(),
-    create: vi.fn(),
   },
 }));
 
 const createTestStore = (role = 'agent') =>
   createStore({
+    getters: {
+      getCurrentRole: () => role,
+    },
     modules: {
       kanbanBoards: { namespaced: true, ...kanbanBoardsModule },
       auth: {
@@ -243,19 +245,6 @@ describe('KanbanOverview', () => {
     expect(createButton.text()).toContain('Adicionar Funil');
   });
 
-  it('agent sees create button', async () => {
-    const wrapper = await mountOverview();
-    await flushPromises();
-    await nextTick();
-
-    const createButton = wrapper.find(
-      '[data-testid="overview-create-board-button"]'
-    );
-
-    expect(createButton.exists()).toBe(true);
-    expect(createButton.text()).toContain('Criar funil');
-  });
-
   it('uses valid Button colors in the overview actions', async () => {
     KanbanBoardsAPI.get.mockRejectedValue(new Error('API error'));
     const wrapper = await mountOverview('administrator');
@@ -279,7 +268,7 @@ describe('KanbanOverview', () => {
     KanbanBoardsAPI.get.mockResolvedValue({
       data: [{ id: 1, name: 'Sales Board' }],
     });
-    const wrapper = await mountOverview('agent');
+    const wrapper = await mountOverview('administrator');
     await flushPromises();
     await nextTick();
 
@@ -294,9 +283,22 @@ describe('KanbanOverview', () => {
     });
   });
 
+  it('hides the create button from agents', async () => {
+    KanbanBoardsAPI.get.mockResolvedValue({
+      data: [{ id: 1, name: 'Sales Board' }],
+    });
+    const wrapper = await mountOverview('agent');
+    await flushPromises();
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="overview-create-board-button"]').exists()
+    ).toBe(false);
+  });
+
   it('empty state does not render a second create button', async () => {
     KanbanBoardsAPI.get.mockResolvedValue({ data: [] });
-    const wrapper = await mountOverview();
+    const wrapper = await mountOverview('administrator');
     await flushPromises();
     await nextTick();
 

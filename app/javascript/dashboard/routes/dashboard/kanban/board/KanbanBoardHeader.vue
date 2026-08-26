@@ -225,7 +225,7 @@ const { t } = useI18n();
                   </template>
                 </div>
               </div>
-              <div class="border-t border-n-weak p-2">
+              <div v-if="isAdmin" class="border-t border-n-weak p-2">
                 <button
                   type="button"
                   class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium text-n-brand hover:bg-n-alpha-1"

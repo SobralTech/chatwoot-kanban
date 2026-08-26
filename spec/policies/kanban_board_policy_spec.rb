@@ -17,15 +17,10 @@ RSpec.describe KanbanBoardPolicy, type: :policy do
     it { is_expected.to permit(agent_context, KanbanBoard) }
   end
 
-  permissions :create? do
-    it { is_expected.to permit(admin_context, KanbanBoard) }
-    it { is_expected.to permit(agent_context, KanbanBoard) }
-    it { is_expected.not_to permit(other_context, KanbanBoard) }
-  end
-
-  permissions :update?, :destroy? do
+  permissions :templates?, :create?, :update?, :destroy? do
     it { is_expected.to permit(admin_context, KanbanBoard) }
     it { is_expected.not_to permit(agent_context, KanbanBoard) }
+    it { is_expected.not_to permit(other_context, KanbanBoard) }
   end
   # rubocop:enable RSpec/RepeatedExample
 

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter, useRoute } from 'vue-router';
+import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
@@ -11,6 +12,7 @@ const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const store = useStore();
+const { isAdmin } = useAdmin();
 
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const isLoading = useMapGetter('kanbanBoards/kanbanBoardsLoading');
@@ -77,6 +79,7 @@ onMounted(async () => {
         </div>
         <div class="flex flex-shrink-0 items-center gap-4">
           <Button
+            v-if="isAdmin"
             icon="i-lucide-plus"
             data-testid="overview-create-board-button"
             :label="t('KANBAN.OVERVIEW.CREATE_BOARD')"
@@ -149,6 +152,7 @@ onMounted(async () => {
           </div>
 
           <Button
+            v-if="isAdmin"
             icon="i-lucide-plus"
             data-testid="overview-create-board-button"
             class="w-full"

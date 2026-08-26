@@ -2,6 +2,7 @@ import { frontendURL } from '../../../helper/URLHelper';
 import KanbanOverview from './KanbanOverview.vue';
 import KanbanView from './KanbanView.vue';
 import KanbanBoardForm from './KanbanBoardForm.vue';
+import KanbanBoardCreate from './KanbanBoardCreate.vue';
 import ConversationView from '../conversation/ConversationView.vue';
 
 const meta = {
@@ -42,8 +43,8 @@ export const routes = [
   {
     path: frontendURL('accounts/:accountId/kanban/new'),
     name: 'kanban_board_create_form',
-    component: KanbanBoardForm,
-    meta,
+    component: KanbanBoardCreate,
+    meta: { permissions: ['administrator'] },
   },
   {
     path: frontendURL('accounts/:accountId/kanban/:boardId/edit'),

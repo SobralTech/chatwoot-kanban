@@ -19,7 +19,6 @@ import AgentTagInput from 'dashboard/components-next/taginput/AgentTagInput.vue'
 import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import KanbanStageEditPanel from './KanbanStageEditPanel.vue';
-import KanbanBoardTemplatePicker from './KanbanBoardTemplatePicker.vue';
 import KanbanCustomFieldsTab from './KanbanCustomFieldsTab.vue';
 import KanbanReasonsTab from './KanbanReasonsTab.vue';
 import KanbanAutomationsTab from './automations/KanbanAutomationsTab.vue';
@@ -45,7 +44,6 @@ const boardId = ref(route.params.boardId ? Number(route.params.boardId) : null);
 
 const isLoading = ref(true);
 const isTogglingActive = ref(false);
-const isDiscarding = ref(false);
 const isSavingSettings = ref(false);
 const isSavingAutomation = ref(false);
 const isDeleting = ref(false);
@@ -64,7 +62,6 @@ const showImportExistingConversationsModal = ref(false);
 const showRemoveStageConfirmation = ref(false);
 const showDiscardSettingsConfirmation = ref(false);
 const showUnsavedChangesModal = ref(false);
-const showDiscardDraftModal = ref(false);
 
 const stages = ref([]);
 const newStageName = ref('');
@@ -83,12 +80,6 @@ const stageReconcileWarning = ref('');
 const requestedAutomationLog = route.query?.automation_log === '1';
 const activeTabIndex = ref(
   requestedAutomationLog && isAdmin.value ? TAB_KEYS.indexOf('automations') : 0
-);
-const isFreshDraft = ref(false);
-const templates = ref([]);
-const isCreatingTemplate = ref(false);
-const isTemplatePickerVisible = computed(
-  () => route.name === 'kanban_board_create_form'
 );
 const savedSnapshot = shallowRef(null);
 const pendingNavigation = ref(null);
@@ -174,12 +165,9 @@ const tabItems = computed(() => [
 const activeTabKey = computed(() => TAB_KEYS[activeTabIndex.value]);
 
 const pageTitle = computed(() =>
-  route.name === 'kanban_board_create_form' || isFreshDraft.value
-    ? t('KANBAN.BOARD_EDIT.CREATE_TITLE')
-    : t('KANBAN.BOARD_EDIT.EDIT_TITLE', { name: form.name })
+  t('KANBAN.BOARD_EDIT.EDIT_TITLE', { name: form.name })
 );
 
-const canActivate = computed(() => !!(form.wonStageId && form.lostStageId));
 const saveDisabled = computed(
   () =>
     isLoading.value ||
@@ -188,20 +176,12 @@ const saveDisabled = computed(
     !form.name.trim()
 );
 
-const backDestination = computed(() =>
-  boardId.value && !isFreshDraft.value
-    ? {
-        name: 'kanban_board_show',
-        params: { accountId: route.params.accountId, boardId: boardId.value },
-      }
-    : { name: 'kanban_boards', params: { accountId: route.params.accountId } }
-);
+const backDestination = computed(() => ({
+  name: 'kanban_board_show',
+  params: { accountId: route.params.accountId, boardId: boardId.value },
+}));
 
-const backLabel = computed(() =>
-  backDestination.value.name === 'kanban_boards'
-    ? t('KANBAN.ACTIONS.BACK_TO_OVERVIEW')
-    : t('KANBAN.ACTIONS.BACK_TO_BOARD')
-);
+const backLabel = computed(() => t('KANBAN.ACTIONS.BACK_TO_BOARD'));
 
 const inboxOptions = computed(() =>
   inboxes.value.map(inbox => ({
@@ -298,61 +278,6 @@ const loadBoard = async () => {
     loadError.value = apiErrorMessage(error, t('KANBAN.BOARD_EDIT.LOAD_ERROR'));
   } finally {
     isLoading.value = false;
-  }
-};
-
-const loadTemplates = async () => {
-  loadError.value = '';
-
-  try {
-    const response = await KanbanBoardsAPI.templates();
-    templates.value = camelcaseKeys(response.data || [], { deep: true });
-  } catch (error) {
-    loadError.value = apiErrorMessage(
-      error,
-      t('KANBAN.BOARD_TEMPLATES.LOAD_ERROR')
-    );
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-const ensureDraftBoard = async templateKey => {
-  if (route.name !== 'kanban_board_create_form') return;
-
-  isCreatingTemplate.value = true;
-  loadError.value = '';
-
-  try {
-    await store.dispatch('kanbanBoards/fetchBoards');
-    const position = store.getters['kanbanBoards/kanbanBoards'].length;
-    const response = await KanbanBoardsAPI.create({
-      template_key: templateKey,
-      kanban_board: {
-        name: t('KANBAN.BOARD_EDIT.NEW_BOARD_DEFAULT_NAME'),
-        active: false,
-        position,
-      },
-    });
-    const created = camelcaseKeys(response.data || {}, { deep: true });
-    boardId.value = created.id;
-    isFreshDraft.value = true;
-
-    await router.replace({
-      name: 'kanban_board_edit_form',
-      params: {
-        accountId: route.params.accountId,
-        boardId: boardId.value,
-      },
-    });
-    await loadBoard();
-  } catch (error) {
-    loadError.value = apiErrorMessage(
-      error,
-      t('KANBAN.BOARD_EDIT.CREATE_ERROR')
-    );
-  } finally {
-    isCreatingTemplate.value = false;
   }
 };
 
@@ -692,7 +617,6 @@ const onActiveToggle = async () => {
       kanban_board: { active: desired },
     });
     form.active = camelcaseKeys(response.data || {}, { deep: true }).active;
-    if (form.active) isFreshDraft.value = false;
     await store.dispatch('kanbanBoards/refreshBoards');
   } catch (error) {
     form.active = !desired;
@@ -712,7 +636,6 @@ const goBack = () => router.push(backDestination.value);
 // intercepted: `proceed` lets the router continue, otherwise it is cancelled.
 const resolveNavigation = proceed => {
   showUnsavedChangesModal.value = false;
-  showDiscardDraftModal.value = false;
 
   const next = pendingNavigation.value;
   pendingNavigation.value = null;
@@ -741,22 +664,6 @@ const discardChangesAndExit = () => {
 
 const saveAndExit = async () => {
   resolveNavigation(await persistSettings());
-};
-
-const discardDraft = async () => {
-  if (isDiscarding.value || !boardId.value) return;
-
-  isDiscarding.value = true;
-
-  try {
-    await KanbanBoardsAPI.delete(boardId.value);
-    await store.dispatch('kanbanBoards/refreshBoards');
-    resolveNavigation(true);
-  } catch (error) {
-    useAlert(apiErrorMessage(error, t('KANBAN.BOARD_EDIT.DISCARD_ERROR')));
-  } finally {
-    isDiscarding.value = false;
-  }
 };
 
 const openDeleteConfirmation = () => {
@@ -801,21 +708,6 @@ useEventListener(window, 'beforeunload', event => {
 });
 
 onBeforeRouteLeave((to, from, next) => {
-  // The draft's own create -> edit redirect is not a real exit.
-  if (
-    to.name === 'kanban_board_edit_form' &&
-    Number(to.params.boardId) === boardId.value
-  ) {
-    next();
-    return;
-  }
-
-  if (isFreshDraft.value && !form.active) {
-    pendingNavigation.value = next;
-    showDiscardDraftModal.value = true;
-    return;
-  }
-
   if (!isDirty.value) {
     next();
     return;
@@ -826,16 +718,6 @@ onBeforeRouteLeave((to, from, next) => {
 });
 
 onMounted(async () => {
-  if (route.name === 'kanban_board_create_form') {
-    await loadTemplates();
-    return;
-  }
-
-  if (loadError.value || !boardId.value) {
-    isLoading.value = false;
-    return;
-  }
-
   await loadBoard();
 });
 </script>
@@ -858,62 +740,50 @@ onMounted(async () => {
         :title="backLabel"
         @click="goBack"
       />
-      <template v-if="!isTemplatePickerVisible">
-        <div class="flex min-w-0 flex-1 items-center gap-2">
-          <h1 class="min-w-0 truncate text-lg font-medium text-n-slate-12">
-            {{ pageTitle }}
-          </h1>
-          <span
-            v-if="isDirty"
-            data-testid="kanban-board-form-unsaved-indicator"
-            class="flex-none rounded-full bg-n-amber-2 px-2 py-0.5 text-xs font-medium text-n-amber-11"
-          >
-            {{ t('KANBAN.BOARD_EDIT.UNSAVED_INDICATOR') }}
-          </span>
-        </div>
-        <div class="flex flex-none items-center gap-2">
-          <Button
-            v-if="isDirty"
-            data-testid="kanban-board-form-discard"
-            icon="i-lucide-x"
-            variant="outline"
-            color="slate"
-            size="sm"
-            :label="t('KANBAN.BOARD_EDIT.DISCARD')"
-            @click="showDiscardSettingsConfirmation = true"
-          />
-          <Button
-            v-if="isDirty"
-            data-testid="kanban-board-form-save"
-            icon="i-lucide-check"
-            color="blue"
-            size="sm"
-            :label="t('KANBAN.BOARD_EDIT.SAVE')"
-            :disabled="saveDisabled"
-            :is-loading="isSavingSettings"
-            @click="persistSettings"
-          />
-        </div>
-      </template>
-    </header>
-
-    <template v-if="!isTemplatePickerVisible">
-      <p
-        v-if="!isLoading && !loadError && !form.active && !canActivate"
-        data-testid="kanban-board-form-locked-help"
-        class="flex-none border-b border-n-weak bg-n-amber-2 px-6 py-2 text-sm text-n-amber-11"
-      >
-        {{ t('KANBAN.BOARD_EDIT.ACTIVATE_LOCKED_HELP') }}
-      </p>
-
-      <div class="flex-none border-b border-n-weak px-6 py-3">
-        <TabBar
-          :tabs="tabItems"
-          :initial-active-tab="activeTabIndex"
-          @tab-changed="onTabChanged"
+      <div class="flex min-w-0 flex-1 items-center gap-2">
+        <h1 class="min-w-0 truncate text-lg font-medium text-n-slate-12">
+          {{ pageTitle }}
+        </h1>
+        <span
+          v-if="isDirty"
+          data-testid="kanban-board-form-unsaved-indicator"
+          class="flex-none rounded-full bg-n-amber-2 px-2 py-0.5 text-xs font-medium text-n-amber-11"
+        >
+          {{ t('KANBAN.BOARD_EDIT.UNSAVED_INDICATOR') }}
+        </span>
+      </div>
+      <div class="flex flex-none items-center gap-2">
+        <Button
+          v-if="isDirty"
+          data-testid="kanban-board-form-discard"
+          icon="i-lucide-x"
+          variant="outline"
+          color="slate"
+          size="sm"
+          :label="t('KANBAN.BOARD_EDIT.DISCARD')"
+          @click="showDiscardSettingsConfirmation = true"
+        />
+        <Button
+          v-if="isDirty"
+          data-testid="kanban-board-form-save"
+          icon="i-lucide-check"
+          color="blue"
+          size="sm"
+          :label="t('KANBAN.BOARD_EDIT.SAVE')"
+          :disabled="saveDisabled"
+          :is-loading="isSavingSettings"
+          @click="persistSettings"
         />
       </div>
-    </template>
+    </header>
+
+    <div class="flex-none border-b border-n-weak px-6 py-3">
+      <TabBar
+        :tabs="tabItems"
+        :initial-active-tab="activeTabIndex"
+        @tab-changed="onTabChanged"
+      />
+    </div>
 
     <div
       v-if="isLoading"
@@ -922,23 +792,6 @@ onMounted(async () => {
     >
       {{ t('KANBAN.BOARD_EDIT.LOADING') }}
     </div>
-
-    <template v-else-if="isTemplatePickerVisible">
-      <p
-        v-if="loadError"
-        data-testid="kanban-board-template-picker-error"
-        class="flex-none border-b border-n-weak bg-n-amber-2 px-6 py-2 text-sm text-n-amber-11"
-      >
-        {{ loadError }}
-      </p>
-      <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <KanbanBoardTemplatePicker
-          :templates="templates"
-          :is-creating="isCreatingTemplate"
-          @select="ensureDraftBoard"
-        />
-      </div>
-    </template>
 
     <div
       v-else-if="loadError || !isAdmin"
@@ -1538,17 +1391,6 @@ onMounted(async () => {
         </div>
       </div>
     </woot-modal>
-
-    <woot-delete-modal
-      v-model:show="showDiscardDraftModal"
-      :on-close="keepEditing"
-      :on-confirm="discardDraft"
-      :is-loading="isDiscarding"
-      :title="t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_TITLE')"
-      :message="t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_MESSAGE')"
-      :confirm-text="t('KANBAN.BOARD_EDIT.DISCARD_DRAFT_CONFIRM')"
-      :reject-text="t('KANBAN.BOARD_EDIT.KEEP_EDITING')"
-    />
 
     <woot-modal
       v-model:show="showImportExistingConversationsModal"

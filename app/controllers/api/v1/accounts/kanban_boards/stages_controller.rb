@@ -117,8 +117,8 @@ class Api::V1::Accounts::KanbanBoards::StagesController < Api::V1::Accounts::Bas
   end
 
   def find_kanban_board(board_id)
-    # See KanbanBoardsController#fetch_kanban_board: admins editing a draft board (not yet
-    # activated) need to manage its stages before it becomes active.
+    # See KanbanBoardsController#fetch_kanban_board: admins need to manage the stages of a
+    # deactivated board to switch it back on.
     if Current.account_user&.administrator?
       KanbanBoard.where(account_id: Current.account.id).find(board_id)
     else

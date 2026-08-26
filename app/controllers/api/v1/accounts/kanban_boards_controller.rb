@@ -25,9 +25,15 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
     fetch_stage_card_results
   end
 
+  # A board cannot be born active: activation requires the won, lost and regular stages
+  # that ApplyTemplateService only creates afterwards. The transaction keeps a rejected
+  # activation (a duplicate name, say) from leaving a stageless board behind.
   def create
-    @kanban_board = KanbanBoard.create!(kanban_board_params.merge(account: Current.account))
-    KanbanBoards::ApplyTemplateService.new(kanban_board: @kanban_board, template_key: params[:template_key]).perform!
+    KanbanBoard.transaction do
+      @kanban_board = KanbanBoard.create!(kanban_board_params.merge(account: Current.account, active: false))
+      KanbanBoards::ApplyTemplateService.new(kanban_board: @kanban_board, template_key: params[:template_key]).perform!
+      @kanban_board.update!(active: true)
+    end
   end
 
   def update
@@ -43,10 +49,9 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
   private
 
   def fetch_kanban_board
-    # Administrators manage boards through the single create/edit form, which needs to
-    # load and mutate a board while it is still a draft (active: false, not yet
-    # activated). policy_scope filters drafts out for everyone, so admins bypass it here;
-    # non-admins keep the existing active + visibility restriction.
+    # Deleting a board only deactivates it, and an administrator has to be able to reopen
+    # a deactivated board to switch it back on. policy_scope resolves from scope.active,
+    # so admins bypass it here; non-admins keep the active + visibility restriction.
     @kanban_board = if Current.account_user&.administrator?
                       KanbanBoard.where(account_id: Current.account.id).find(params[:id])
                     else
