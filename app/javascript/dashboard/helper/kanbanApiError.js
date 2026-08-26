@@ -15,3 +15,10 @@ export const apiErrorMessage = (error, fallback) => {
 
   return data?.error || data?.message || error?.message || fallback;
 };
+
+// A request the component replaced or unmounted out from under settles as a rejection
+// like any other. Axios reports its own cancellation as CanceledError and a raw
+// AbortController as AbortError, so both names mean "nobody is waiting for this any
+// more" and never an error worth showing.
+export const isAbortError = error =>
+  error?.name === 'AbortError' || error?.name === 'CanceledError';

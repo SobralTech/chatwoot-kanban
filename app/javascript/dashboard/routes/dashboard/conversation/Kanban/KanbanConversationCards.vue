@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
@@ -10,7 +9,12 @@ import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useKanbanCardFields } from 'dashboard/composables/useKanbanCardFields';
 import { useSlaClock } from 'dashboard/composables/useSlaClock';
 import { getCardStatusChangeErrorMessage } from 'dashboard/helper/kanbanCardStatus';
-import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
+import { apiErrorMessage, isAbortError } from 'dashboard/helper/kanbanApiError';
+import {
+  normalize,
+  normalizeCard,
+  normalizeCollection,
+} from 'dashboard/helper/kanbanPayload';
 import { SLA_STALE, stageSlaStatus } from 'dashboard/helper/kanbanStageSla';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -63,7 +67,6 @@ const cardToDelete = ref(null);
 const isDeletingCard = ref(false);
 const moveDialogCard = ref(null);
 const opportunityCard = ref(null);
-const opportunityPanelRef = ref(null);
 const slaNow = useSlaClock();
 let highlightTimer = null;
 
@@ -96,13 +99,6 @@ const staleCardCount = computed(
     }).length
 );
 
-const normalize = value => camelcaseKeys(value || {}, { deep: true });
-const normalizeCard = response =>
-  normalize(response?.data?.payload || response?.data);
-const normalizeCollection = response =>
-  normalize(response?.data?.payload || response?.data || []);
-const isAbortError = error =>
-  error?.name === 'AbortError' || error?.name === 'CanceledError';
 // Every payload this component holds went through camelcaseKeys on the way in,
 // so the wire's snake_case never reaches here.
 const cardBoardId = card => card?.kanbanBoardId || card?.kanbanBoard?.id;
@@ -787,7 +783,6 @@ onBeforeUnmount(() => {
 
     <KanbanOpportunityPanel
       v-if="opportunityCard"
-      ref="opportunityPanelRef"
       :board-id="cardBoardId(opportunityCard)"
       :card-id="opportunityCard.id"
       :board-name="opportunityBoard.name || ''"

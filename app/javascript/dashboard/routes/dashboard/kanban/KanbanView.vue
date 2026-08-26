@@ -54,7 +54,6 @@ const isSummaryCollapsed = ref(false);
 const isFetchingBoard = ref(false);
 const isCreatingStage = ref(false);
 const isCreatingStageDraft = ref(false);
-const opportunityModalRef = ref(null);
 // Keyed by the thing being acted on, not by the verb, so a new action never has
 // to be registered anywhere for its spinner to work.
 const activeActionKeys = ref(new Set());
@@ -1122,7 +1121,6 @@ watch(searchInput, () => {
 
     <KanbanOpportunityPanel
       v-if="selectedOpportunityCardId && selectedBoard"
-      ref="opportunityModalRef"
       :board-id="selectedBoard.id"
       :card-id="selectedOpportunityCardId"
       :board-name="selectedBoard.name"

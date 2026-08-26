@@ -1,14 +1,10 @@
 import { computed, ref } from 'vue';
-import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import { useAlert } from 'dashboard/composables';
 import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
+import { normalize, normalizeCard } from 'dashboard/helper/kanbanPayload';
 import { toIso8601 } from 'dashboard/helper/kanbanDueDate';
-
-const normalize = value => camelcaseKeys(value || {}, { deep: true });
-const cardFromResponse = response =>
-  normalize(response?.data?.payload ?? response?.data);
 
 // subject, priority, dueAt and description are one key each on the card details
 // endpoint, so they only differ by wire name, serialization and error message.
@@ -114,7 +110,7 @@ export function useKanbanCardFields({
           [payloadKey]: serialize(value),
         }),
       apply: response => {
-        const saved = cardFromResponse(response)[field];
+        const saved = normalizeCard(response)[field];
         return { [patchKey]: saved === undefined ? value : saved };
       },
       errorKey,

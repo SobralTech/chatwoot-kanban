@@ -18,6 +18,7 @@ import {
 } from 'shared/helpers/timeHelper';
 import { MESSAGE_TYPE } from 'shared/constants/messages';
 import { ATTACHMENT_TYPES } from 'dashboard/components-next/message/constants';
+import { isAbortError } from 'dashboard/helper/kanbanApiError';
 
 const props = defineProps({
   kanbanBoardId: {
@@ -114,9 +115,6 @@ const activeCardConversationIds = computed(
 const activeNonTerminalCard = computed(() =>
   activeCards.value.find(card => !card.terminal)
 );
-
-const isAbortError = error =>
-  error?.name === 'AbortError' || error?.name === 'CanceledError';
 
 const normalizeForSearch = value =>
   String(value || '')
