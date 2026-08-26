@@ -188,8 +188,13 @@ const toggleCollapseOnDoubleClick = () => {
             aria-hidden="true"
           />
           <h3
-            class="truncate text-sm font-semibold"
-            :class="stageAccent(stage)?.title ?? 'text-n-slate-12'"
+            class="no-drag truncate text-sm font-semibold"
+            :class="[
+              stageAccent(stage)?.title ?? 'text-n-slate-12',
+              { 'cursor-pointer hover:text-n-brand': isAdmin },
+            ]"
+            :title="isAdmin ? t('KANBAN.STAGE_MENU.EDIT') : undefined"
+            @click.stop="isAdmin && emit('editStage', stage)"
           >
             {{ stage.name }}
           </h3>
