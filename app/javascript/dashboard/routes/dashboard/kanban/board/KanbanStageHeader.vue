@@ -188,7 +188,7 @@ const toggleCollapseOnDoubleClick = () => {
             aria-hidden="true"
           />
           <h3
-            class="no-drag truncate text-sm font-semibold"
+            class="truncate text-sm font-semibold"
             :class="[
               stageAccent(stage)?.title ?? 'text-n-slate-12',
               { 'cursor-pointer hover:text-n-brand': isAdmin },
