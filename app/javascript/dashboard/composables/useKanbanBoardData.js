@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import types from 'dashboard/store/mutation-types';
 
 export function useKanbanBoardData({
   collapsedStageIds,
@@ -199,7 +200,7 @@ export function useKanbanBoardData({
       const summary = normalizePayload(response.data);
       boardSummary.value = summary;
       if (Array.isArray(summary.stagesSummary)) {
-        store.commit('kanbanBoards/UPDATE_KANBAN_BOARD_CARD_COUNTS', {
+        store.commit(`kanbanBoards/${types.UPDATE_KANBAN_BOARD_CARD_COUNTS}`, {
           boardId,
           stagesSummary: summary.stagesSummary,
         });
