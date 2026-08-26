@@ -730,6 +730,7 @@ onBeforeUnmount(() => {
             @delete="openDeleteConfirm"
             @load-assignees="loadAssignees"
             @open-details="openDetails"
+            @open-funnel="openOpportunityInFunnel"
             @open-move="openMoveDialog"
             @update-assignees="updateAssignees"
             @update-due-date="updateDueDate"

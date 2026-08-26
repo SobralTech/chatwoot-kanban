@@ -59,6 +59,7 @@ const emit = defineEmits([
   'delete',
   'loadAssignees',
   'openDetails',
+  'openFunnel',
   'openMove',
   'updateAssignees',
   'updateDueDate',
@@ -239,6 +240,19 @@ const onSelectDueDate = (value, hide) => {
             @select="type => onSelectStatus(type, hide)"
           />
 
+          <button
+            type="button"
+            data-testid="kanban-conversation-card-menu-open-funnel"
+            :class="MENU_OPTION_CLASSES"
+            :disabled="isBusy"
+            @click="
+              closeMenu(hide);
+              emit('openFunnel');
+            "
+          >
+            <i class="i-lucide-panels-top-left size-4" />
+            {{ t('KANBAN.OPPORTUNITY_DETAILS.OPEN_IN_BOARD') }}
+          </button>
           <button
             type="button"
             data-testid="kanban-conversation-card-menu-edit"

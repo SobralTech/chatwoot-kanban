@@ -37,6 +37,7 @@ const emit = defineEmits([
   'delete',
   'loadAssignees',
   'openDetails',
+  'openFunnel',
   'openMove',
   'updateAssignees',
   'updateDueDate',
@@ -184,6 +185,7 @@ const onSubjectKeydown = event => {
           @delete="emit('delete', card)"
           @load-assignees="showAssignees"
           @open-details="openDetails"
+          @open-funnel="emit('openFunnel', card)"
           @open-move="openMove"
           @update-priority="value => emit('updatePriority', card, value)"
           @update-due-date="value => emit('updateDueDate', card, value)"
