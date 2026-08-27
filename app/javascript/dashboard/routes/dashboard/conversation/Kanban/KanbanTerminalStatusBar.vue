@@ -111,6 +111,7 @@ const onReopenConfirm = hide => {
         <div class="w-56" :class="[MENU_SURFACE_CLASSES]">
           <KanbanStatusReasonForm
             reason-type="reopen"
+            @back="hide"
             @confirm="onReopenConfirm(hide)"
           />
         </div>
