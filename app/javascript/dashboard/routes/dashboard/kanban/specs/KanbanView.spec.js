@@ -1384,12 +1384,6 @@ describe('KanbanView drag and drop', () => {
   });
 
   it('persists same-stage card reorder using a null anchor', async () => {
-    KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
-      data: {
-        cards: [buildCard({ id: 501, kanban_stage_id: 100, position: 1 })],
-        pagination: buildPagination({ total_count: 1 }),
-      },
-    });
     const wrapper = await mountView();
     const sourceStageCardDraggable = findCardDraggables(wrapper)[0];
 
@@ -1412,20 +1406,18 @@ describe('KanbanView drag and drop', () => {
         after_card_id: null,
       },
     });
-    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
-      limit: 20,
-    });
+    // The drop already put the card where it belongs, so a successful move refetches
+    // nothing: reloading both columns to redraw the same cards is the loading state
+    // this optimistic path exists to remove.
+    expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
     expect(KanbanBoardsAPI.show).toHaveBeenCalledTimes(1);
   });
 
   it('persists populated-to-populated stage card move', async () => {
-    KanbanBoardsAPI.getStageCards.mockImplementation((boardId, stageId) => ({
-      data: {
-        cards: [buildCard({ id: stageId, kanban_stage_id: stageId })],
-        pagination: buildPagination({ total_count: 1 }),
-      },
-    }));
     const wrapper = await mountView(buildBoardResponse([buildCard()]));
+    const { stages } = wrapper.vm.$.setupState;
+    const sourceCardsCount = stages[0].cardsCount;
+    const targetCardsCount = stages[1].cardsCount;
     const targetStageCardDraggable = findCardDraggables(wrapper)[1];
 
     targetStageCardDraggable.vm.$emit('change', {
@@ -1447,12 +1439,14 @@ describe('KanbanView drag and drop', () => {
         after_card_id: 502,
       },
     });
-    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
-      limit: 20,
-    });
-    expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 200, {
-      limit: 20,
-    });
+    expect(KanbanBoardsAPI.getStageCards).not.toHaveBeenCalled();
+    // Both headers settle locally instead of waiting for a refetch of either column.
+    expect(wrapper.vm.$.setupState.stages[0].cardsCount).toBe(
+      sourceCardsCount - 1
+    );
+    expect(wrapper.vm.$.setupState.stages[1].cardsCount).toBe(
+      targetCardsCount + 1
+    );
     expect(KanbanBoardsAPI.show).toHaveBeenCalledTimes(1);
   });
   it('persists filtered card drag using the card above the destination as anchor', async () => {

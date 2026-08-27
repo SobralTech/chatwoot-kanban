@@ -39,6 +39,28 @@ export function useKanbanBoardRealtime({
   selectedBoard,
 }) {
   const pendingEvents = ref([]);
+  // A move made here comes back over the websocket like anyone else's. The drop already
+  // applied it locally, so refreshing both columns would redraw the very same cards; the
+  // echo is dropped, and only for the card this client just moved. The window only has to
+  // outlast the broadcast, which rides a background job and took seconds to arrive in
+  // development - someone else moving the very same card inside it loses nothing but the
+  // ordering, until the next event on that board.
+  const SELF_ECHO_TTL = 20000;
+  const selfMovedCardExpiries = new Map();
+
+  const suppressCardReorderEcho = cardId => {
+    if (!cardId) return;
+
+    selfMovedCardExpiries.set(cardId, Date.now() + SELF_ECHO_TTL);
+  };
+
+  const isSelfCardReorderEcho = cardId => {
+    const expiresAt = selfMovedCardExpiries.get(cardId);
+    if (!expiresAt) return false;
+
+    selfMovedCardExpiries.delete(cardId);
+    return expiresAt > Date.now();
+  };
 
   // The board may have moved on while the request was in flight; anything it
   // answers about the old one is discarded rather than patched in.
@@ -103,6 +125,8 @@ export function useKanbanBoardRealtime({
     }
 
     if (event === 'kanban.card.reordered') {
+      if (isSelfCardReorderEcho(data.card_id)) return;
+
       buffer.push({
         stageIds: [data.source_stage_id, data.target_stage_id],
       });
@@ -156,5 +180,5 @@ export function useKanbanBoardRealtime({
   onMounted(() => emitter.on(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleEvent));
   onUnmounted(() => emitter.off(BUS_EVENTS.KANBAN_REALTIME_EVENT, handleEvent));
 
-  return { flushPendingEvents };
+  return { flushPendingEvents, suppressCardReorderEcho };
 }

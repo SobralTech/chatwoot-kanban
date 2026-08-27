@@ -7,6 +7,7 @@ import {
 } from 'dashboard/helper/kanbanCardStatus';
 
 export function useKanbanCardActions({
+  applyCardStageMove,
   cardActionKey,
   boards,
   cardPendingRemoval,
@@ -31,6 +32,7 @@ export function useKanbanCardActions({
   startAction,
   startBoardAutoScroll,
   stopBoardAutoScroll,
+  suppressCardReorderEcho,
   suppressNextCardClick,
   t,
   useAlert,
@@ -117,14 +119,23 @@ export function useKanbanCardActions({
       cardPayload.after_card_id = anchorCard?.id ?? null;
     }
     const payload = { card: cardPayload };
+    const sourceStageId = card.kanbanStageId;
+    // Registered before the request so the broadcast, which the server fires on its own
+    // schedule, cannot beat it back here and refresh the columns anyway.
+    suppressCardReorderEcho(card.id);
 
     try {
-      await KanbanBoardsAPI.reorderCardById(
+      const response = await KanbanBoardsAPI.reorderCardById(
         selectedBoard.value.id,
         card.id,
         payload
       );
-      await refreshStageFirstPages([card.kanbanStageId, stage.id]);
+      // The card is already where it was dropped - the drag moved it between the stage
+      // arrays before the request went out - so only the counters and the card's own
+      // stage fields are left to settle. Refetching both columns to redraw the same
+      // cards is what turned a request of a few hundred milliseconds into a board reload.
+      applyCardStageMove(card, sourceStageId, stage.id);
+      patchVisibleCard(response.data);
     } catch (error) {
       let message = apiErrorMessage(
         error,
@@ -140,7 +151,9 @@ export function useKanbanCardActions({
       }
 
       useAlert(message);
-      await refreshStageFirstPages([card.kanbanStageId, stage.id]);
+      // The move stays on screen until the server's answer replaces it, so a rejected
+      // drop visibly snaps back instead of silently disagreeing with the board.
+      await refreshStageFirstPages([sourceStageId, stage.id]);
     } finally {
       isPersistingCardDrag.value = false;
       endAction(actionKey);

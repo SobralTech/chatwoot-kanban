@@ -138,6 +138,8 @@ const terminalPeriodOptions = computed(() => [
   { value: ALL_TIME_TERMINAL_PERIOD, label: t('KANBAN.STAGE.PERIOD.ALL') },
 ]);
 const {
+  applyCardStageMove,
+  applyStageCardsPage,
   applyStageFirstPage,
   boardSummary,
   fetchStageCardsPage,
@@ -153,6 +155,7 @@ const {
   refreshStageFirstPages,
   requestGeneration,
   showBoard,
+  stageCardsMaxLimit,
   staleRequest,
   summaryError,
 } = useKanbanBoardData({
@@ -257,9 +260,11 @@ const TERMINAL_STAGE_CLASSES = {
   },
 };
 const stageAccent = stage => TERMINAL_STAGE_CLASSES[stageTone(stage)] ?? null;
-const isCardDragDisabled = computed(
-  () => isPersistingCardDrag.value || isBoardBusy.value
-);
+// Only while a drop is being persisted, which is one request long, and only for the
+// column an action is running on. Reading the board-wide busy flag here meant a single
+// card action froze the drag handles of every column, including the six nobody touched.
+const isCardDragDisabled = stage =>
+  isPersistingCardDrag.value || isActionActive(stageActionKey(stage));
 const canAddCardInEmptyStage = stage =>
   !isTerminalStage(stage) && !hasActiveFilters.value && !isCardDragging.value;
 const canAddCardInStageFooter = stage =>
@@ -286,6 +291,7 @@ const {
   showBoardWithSnapshot,
 } = useKanbanBoardSession({
   activeSearchTerm,
+  applyStageCardsPage,
   applyStageFirstPage,
   boardFilters,
   boardScrollContainer,
@@ -304,6 +310,7 @@ const {
   searchInput,
   selectedBoard,
   showBoard,
+  stageCardsMaxLimit,
   staleRequest,
   stages,
   terminalPeriod,
@@ -570,19 +577,21 @@ const onManualCardCreated = async card => {
   }
 };
 
-const { flushPendingEvents: flushPendingRealtimeKanbanEvents } =
-  useKanbanBoardRealtime({
-    findCardStageId,
-    hasActiveFilters,
-    isCardDragging,
-    normalizePayload,
-    patchVisibleCard,
-    refreshSelectedBoard,
-    refreshStageFirstPage,
-    refreshStageFirstPages,
-    requestGeneration,
-    selectedBoard,
-  });
+const {
+  flushPendingEvents: flushPendingRealtimeKanbanEvents,
+  suppressCardReorderEcho,
+} = useKanbanBoardRealtime({
+  findCardStageId,
+  hasActiveFilters,
+  isCardDragging,
+  normalizePayload,
+  patchVisibleCard,
+  refreshSelectedBoard,
+  refreshStageFirstPage,
+  refreshStageFirstPages,
+  requestGeneration,
+  selectedBoard,
+});
 
 const {
   assignAgent,
@@ -599,6 +608,7 @@ const {
   updateCardLabels,
   updateCardPriority,
 } = useKanbanCardActions({
+  applyCardStageMove,
   boards,
   cardActionKey,
   cardPendingRemoval,
@@ -623,6 +633,7 @@ const {
   startAction,
   startBoardAutoScroll,
   stopBoardAutoScroll,
+  suppressCardReorderEcho,
   suppressNextCardClick,
   t,
   useAlert,
@@ -967,7 +978,7 @@ watch(searchInput, () => {
                 :is-admin="isAdmin"
                 :is-busy="isActionActive(stageActionKey(stage))"
                 :suppress-next-click="suppressNextCardClick"
-                :is-card-drag-disabled="isCardDragDisabled"
+                :is-card-drag-disabled="isCardDragDisabled(stage)"
                 :selected-card-ids="selectedCardIds"
                 :is-selection-mode="isSelectionMode"
                 :has-active-filters="hasActiveFilters"

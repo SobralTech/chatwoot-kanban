@@ -41,6 +41,9 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  // Also decides `.no-drag` on the root: Sortable's filter covers that class, so a card
+  // with an action in flight refuses the drag on its own now that a busy card no longer
+  // freezes the drag handles of every column on the board.
   isBusy: {
     type: Boolean,
     default: false,
@@ -429,6 +432,7 @@ const toggleSelection = async event => {
     :class="{
       'border-n-brand ring-1 ring-n-brand': isSelected,
       'border-l-2 border-n-ruby-9': stageSlaStatusValue === SLA_STALE,
+      'no-drag': isBusy,
     }"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"

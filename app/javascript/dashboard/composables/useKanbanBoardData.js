@@ -106,15 +106,35 @@ export function useKanbanBoardData({
     return [...existingCards, ...uniqueNextCards];
   };
 
+  // Only the stage that changed is replaced. Recreating the board object and the whole
+  // stages array made every column - and every card inside every column - re-render on a
+  // single card move, which is what read as "the board reloaded".
   const updateStageCards = (stageId, updater) => {
-    if (!selectedBoard.value) return;
+    const boardStages = selectedBoard.value?.stages;
+    const stageIndex =
+      boardStages?.findIndex(stage => stage.id === stageId) ?? -1;
+    if (stageIndex === -1) return;
 
-    selectedBoard.value = {
-      ...selectedBoard.value,
-      stages: selectedBoard.value.stages.map(stage =>
-        stage.id === stageId ? updater(stage) : stage
-      ),
-    };
+    boardStages[stageIndex] = updater(boardStages[stageIndex]);
+  };
+
+  // A drag has already moved the card between the local arrays by the time the request
+  // goes out, so the only thing left to settle locally are the counters the stage headers
+  // read. The queued summary refresh reconciles them against the server right after.
+  const applyCardStageMove = (card, fromStageId, toStageId) => {
+    if (fromStageId === toStageId) return;
+
+    const cardValue = Number(card?.value) || 0;
+    updateStageCards(fromStageId, stage => ({
+      ...stage,
+      cardsCount: Math.max((stage.cardsCount || 0) - 1, 0),
+      totalValue: String(Number(stage.totalValue || 0) - cardValue),
+    }));
+    updateStageCards(toStageId, stage => ({
+      ...stage,
+      cardsCount: (stage.cardsCount || 0) + 1,
+      totalValue: String(Number(stage.totalValue || 0) + cardValue),
+    }));
   };
 
   // Stage totals only ride on the first page, so a cursor page keeps whatever
@@ -399,6 +419,7 @@ export function useKanbanBoardData({
   };
 
   return {
+    applyCardStageMove,
     applyStageCardsPage,
     applyStageFirstPage,
     boardSummary,

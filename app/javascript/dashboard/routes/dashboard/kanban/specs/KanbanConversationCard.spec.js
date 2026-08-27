@@ -159,6 +159,12 @@ describe('KanbanConversationCard', () => {
     expect(wrapper.classes()).not.toContain('no-drag');
   });
 
+  it('refuses the drag while one of its own actions is in flight', () => {
+    const wrapper = mountCard({ isBusy: true });
+
+    expect(wrapper.classes()).toContain('no-drag');
+  });
+
   it('shows the native priority indicator when priority is present', () => {
     const wrapper = mountCard();
     const priorityIcon = wrapper.findComponent({ name: 'CardPriorityIcon' });
