@@ -544,6 +544,8 @@ const changeStatus = (card, { targetStageId, reasonId, reopen }) => {
               kanban_reason_id: reasonId || null,
             },
           }),
+    // The endpoint answers with the board's shape of a card, which is not the one
+    // this list carries, so a status change only takes the keys it owns.
     apply: response => {
       const updated = normalizeCard(response);
       const nextStageId =
@@ -554,15 +556,11 @@ const changeStatus = (card, { targetStageId, reasonId, reopen }) => {
         ) || targetStage;
 
       return {
-        ...(updated?.id ? updated : {}),
         kanbanStageId: nextStageId,
         kanbanReasonId:
           updated?.kanbanReasonId ?? (reopen ? null : reasonId || null),
-        kanbanStage: {
-          ...(card.kanbanStage || {}),
-          ...nextStage,
-          ...(updated?.kanbanStage || {}),
-        },
+        stageEnteredAt: updated?.stageEnteredAt ?? card.stageEnteredAt,
+        kanbanStage: { ...(card.kanbanStage || {}), ...nextStage },
       };
     },
     errorKey: actionError =>

@@ -114,15 +114,7 @@ class KanbanCards::AutoCreateFromConversationService
   end
 
   def default_subject
-    "#{contact_display_name} - #{inbox_display_name}"
-  end
-
-  def contact_display_name
-    contact.name.presence || "Contact ##{contact.id}"
-  end
-
-  def inbox_display_name
-    inbox.name.presence || "Inbox ##{inbox.id}"
+    KanbanCard.default_subject_for(contact: contact, inbox: inbox)
   end
 
   def contact

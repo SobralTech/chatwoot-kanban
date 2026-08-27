@@ -143,6 +143,18 @@ class KanbanCard < ApplicationRecord
     [items_total - discount_value, 0].max
   end
 
+  # A card mirrored from a conversation by the board sync carries no subject of its own,
+  # so the surfaces that need a title fall back to the contact and the inbox.
+  def self.default_subject_for(contact:, inbox:)
+    contact_name = contact.name.presence || "Contact ##{contact.id}"
+    inbox_name = inbox.name.presence || "Inbox ##{inbox.id}"
+    "#{contact_name} - #{inbox_name}"
+  end
+
+  def display_subject
+    subject.presence || self.class.default_subject_for(contact: contact, inbox: inbox)
+  end
+
   def self.normalize_positions_for_stage!(kanban_board:, kanban_stage:)
     transaction do
       stage_active_cards(kanban_board, kanban_stage).lock.pluck(:id)

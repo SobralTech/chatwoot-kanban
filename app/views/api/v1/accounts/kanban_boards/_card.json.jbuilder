@@ -16,7 +16,7 @@ json.created_at card.created_at.to_i
 json.updated_at card.updated_at.to_i
 json.stage_entered_at card.stage_entered_at&.iso8601 if card.respond_to?(:stage_entered_at)
 json.origin card.origin if card.respond_to?(:origin)
-json.subject card.subject if card.respond_to?(:subject)
+json.subject card.display_subject if card.respond_to?(:display_subject)
 json.kanban_reason_id card.kanban_reason_id if card.respond_to?(:kanban_reason_id)
 if card.respond_to?(:kanban_card_field_values)
   json.custom_field_keys(card.kanban_card_field_values.map do |field_value|

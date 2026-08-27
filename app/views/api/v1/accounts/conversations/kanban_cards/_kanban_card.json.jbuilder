@@ -2,9 +2,7 @@ include_metadata ||= false
 
 json.id kanban_card.id
 json.origin kanban_card.origin
-contact_name = kanban_card.contact.name.presence || "Contact ##{kanban_card.contact_id}"
-inbox_name = kanban_card.inbox.name.presence || "Inbox ##{kanban_card.inbox_id}"
-json.subject kanban_card.subject.presence || "#{contact_name} - #{inbox_name}"
+json.subject kanban_card.display_subject
 if include_metadata
   json.due_at kanban_card.due_at&.iso8601
   json.priority kanban_card.priority
