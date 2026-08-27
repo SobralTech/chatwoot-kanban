@@ -15,7 +15,7 @@ json.due_at card.due_at&.iso8601
 json.labels card.labels.map(&:name)
 json.stage_entered_at card.stage_entered_at&.iso8601
 json.contact do
-  json.partial! 'api/v1/models/contact', formats: [:json], resource: card.contact
+  json.partial! 'api/v1/models/contact_slim', formats: [:json], resource: card.contact
 end
 json.inbox do
   json.partial! 'api/v1/models/inbox_slim', formats: [:json], resource: card.inbox

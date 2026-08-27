@@ -191,7 +191,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
 
     dispatch_kanban_card_reordered_event(source_stage_id)
     trigger_automation(automation_event_name)
-    render_card
+    render_moved_card
   end
 
   def resolved_reorder_position(stage_transition)
@@ -353,6 +353,10 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       user: Current.user,
       context: context
     )
+  end
+
+  def render_moved_card
+    render partial: 'api/v1/accounts/kanban_boards/moved_card', formats: [:json], locals: { card: @kanban_card }
   end
 
   def render_card

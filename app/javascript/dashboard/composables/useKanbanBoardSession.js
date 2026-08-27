@@ -17,6 +17,7 @@ import { normalizeTerminalPeriod } from 'dashboard/helper/kanbanBoardFilters';
  */
 export function useKanbanBoardSession({
   activeSearchTerm,
+  applyStageCardsPage,
   applyStageFirstPage,
   boardFilters,
   boardScrollContainer,
@@ -35,6 +36,7 @@ export function useKanbanBoardSession({
   searchInput,
   selectedBoard,
   showBoard,
+  stageCardsMaxLimit,
   staleRequest,
   stages,
   terminalPeriod,
@@ -114,6 +116,34 @@ export function useKanbanBoardSession({
     });
   };
 
+  // The server caps a page at stageCardsMaxLimit, so restoring a column the user had
+  // paged well past it walks the cursor instead of asking for the whole count at once -
+  // a single oversized request comes back clamped and would shrink the column silently.
+  const restoreStagePages = async (stage, loadedCount, boardId, generation) => {
+    let page = await fetchStageCardsPage(
+      stage.id,
+      { limit: stageCardsMaxLimit },
+      generation
+    );
+    if (page === staleRequest || isStale(generation, boardId)) return;
+
+    applyStageFirstPage(stage.id, page);
+    let restoredCount = page.cards?.length || 0;
+
+    while (restoredCount < loadedCount && page.pagination?.hasMore) {
+      // eslint-disable-next-line no-await-in-loop
+      page = await fetchStageCardsPage(
+        stage.id,
+        { limit: stageCardsMaxLimit, cursor: page.pagination.nextCursor },
+        generation
+      );
+      if (page === staleRequest || isStale(generation, boardId)) return;
+
+      applyStageCardsPage(stage.id, page, true);
+      restoredCount += page.cards?.length || 0;
+    }
+  };
+
   const restorePagedStages = (snapshot, boardId, generation) =>
     Promise.all(
       // showBoard already loaded every stage's first page, so only the stages
@@ -124,14 +154,7 @@ export function useKanbanBoardSession({
         const { loadedCount } = snapshot.stages[stage.id] ?? {};
         if (!loadedCount || loadedCount <= stage.cards.length) return;
 
-        const page = await fetchStageCardsPage(
-          stage.id,
-          { limit: loadedCount },
-          generation
-        );
-        if (page === staleRequest || isStale(generation, boardId)) return;
-
-        applyStageFirstPage(stage.id, page);
+        await restoreStagePages(stage, loadedCount, boardId, generation);
       })
     );
 

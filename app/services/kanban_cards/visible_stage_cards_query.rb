@@ -133,6 +133,8 @@ class KanbanCards::VisibleStageCardsQuery
                     contact: { avatar_attachment: :blob },
                     inbox: [:channel, { avatar_attachment: :blob }],
                     labels: [],
+                    kanban_card_products: [],
+                    assignees: { avatar_attachment: :blob },
                     kanban_card_field_values: :kanban_custom_field
                   ).index_by(&:id)
 

@@ -33,8 +33,8 @@ class KanbanCards::StageTransition
     kanban_card.reorder_to_position!(kanban_stage: target_stage, position: position || default_position)
     return if same_stage?
 
-    kanban_card.update!(previous_stage_id: source_stage.id) if entering_terminal_stage?
-    kanban_card.update!(kanban_reason_id: resolved_reason_id)
+    attributes = stage_change_attributes
+    kanban_card.update!(attributes) if attributes.present?
   end
 
   def record_event!
@@ -65,6 +65,20 @@ class KanbanCards::StageTransition
   private
 
   attr_reader :kanban_board, :kanban_card, :kanban_reason_id, :user
+
+  # One write instead of two, and none at all when nothing actually changed: every
+  # update! here runs the card's full validation pass, which reloads most of its
+  # associations. Leaving the stage clears the reason, so a nil target still counts
+  # as a change when the card carries one.
+  def stage_change_attributes
+    attributes = {}
+    attributes[:previous_stage_id] = source_stage.id if entering_terminal_stage?
+
+    reason_id = resolved_reason_id
+    attributes[:kanban_reason_id] = reason_id if kanban_card.kanban_reason_id != reason_id
+
+    attributes
+  end
 
   def same_stage?
     source_stage.id == target_stage.id

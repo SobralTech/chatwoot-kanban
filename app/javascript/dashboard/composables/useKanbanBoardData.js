@@ -17,6 +17,10 @@ export function useKanbanBoardData({
   t,
 }) {
   const stageCardsPageLimit = 20;
+  // Mirrors KanbanCards::VisibleStageCardsQuery::MAX_LIMIT. Asking for more than the
+  // server will serve made a column that had been expanded past it silently shrink
+  // to the cap on the next refresh.
+  const stageCardsMaxLimit = 50;
   const stageCardsLoading = ref({});
   const stageCardsErrors = ref({});
   const stageRefreshRequests = new Map();
@@ -171,7 +175,10 @@ export function useKanbanBoardData({
     generation = requestGeneration.value
   ) => {
     const stage = stages.value.find(item => item.id === stageId);
-    const limit = Math.max(stageCardsPageLimit, stage?.cards?.length || 0);
+    const limit = Math.min(
+      stageCardsMaxLimit,
+      Math.max(stageCardsPageLimit, stage?.cards?.length || 0)
+    );
     // A collapsed column shows no cards but still shows its counters, so it
     // refreshes through the same endpoint asking for totals only.
     const params = collapsedStageIds.value.has(stageId)
@@ -392,6 +399,7 @@ export function useKanbanBoardData({
   };
 
   return {
+    applyStageCardsPage,
     applyStageFirstPage,
     boardSummary,
     fetchStageCardsPage,
@@ -407,6 +415,7 @@ export function useKanbanBoardData({
     refreshStageFirstPages,
     requestGeneration,
     showBoard,
+    stageCardsMaxLimit,
     staleRequest,
     summaryError,
   };

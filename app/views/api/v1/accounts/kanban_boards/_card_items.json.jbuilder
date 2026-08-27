@@ -1,4 +1,6 @@
-json.products card.kanban_card_products.ordered do |product|
+# Sorted in memory rather than through the `ordered` scope: the scope issues a fresh
+# query per card and bypasses the preload the card list sets up.
+json.products(card.kanban_card_products.sort_by { |product| [product.position, product.id] }) do |product|
   json.partial! 'api/v1/accounts/kanban_boards/card_product', formats: [:json], product: product
 end
 json.items_total card.items_total
