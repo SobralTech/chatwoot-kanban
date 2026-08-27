@@ -40,6 +40,7 @@ import { INBOX_TYPES } from 'dashboard/helper/inbox';
 // distance from the bottom of the list that still counts as "at the bottom",
 // same order as the threshold used to paginate older messages
 const NEAR_BOTTOM_THRESHOLD = 100;
+const MESSAGE_GAP_SCROLL_THRESHOLD = 100;
 
 export default {
   components: {
@@ -101,6 +102,9 @@ export default {
       labelSuggestions: [],
       newMessageCount: 0,
       isNearBottom: true,
+      isMessageGapLoading: false,
+      messageGapLoadRequestId: 0,
+      lastScrollTop: 0,
     };
   },
 
@@ -281,7 +285,18 @@ export default {
       this.messageSentSinceOpened = false;
       this.newMessageCount = 0;
       this.isNearBottom = true;
+      this.messageGapLoadRequestId += 1;
+      this.isMessageGapLoading = false;
       this.resetReplyEditorHeight();
+    },
+    'currentChat.messageGapBeforeId'(newGapBeforeId, oldGapBeforeId) {
+      if (
+        this.isMessageGapLoading &&
+        Number(newGapBeforeId) !== Number(oldGapBeforeId)
+      ) {
+        this.messageGapLoadRequestId += 1;
+        this.isMessageGapLoading = false;
+      }
     },
   },
 
@@ -412,6 +427,7 @@ export default {
     addScrollListener() {
       this.conversationPanel = this.$el.querySelector('.conversation-panel');
       this.setScrollParams();
+      this.lastScrollTop = this.conversationPanel.scrollTop;
       this.conversationPanel.addEventListener('scroll', this.handleScroll);
       this.$nextTick(() => this.scrollToBottom());
       this.isLoadingPrevious = false;
@@ -462,7 +478,55 @@ export default {
       }
     },
 
+    isMessageGapNearViewport() {
+      const gap = this.conversationPanel.querySelector('[data-message-gap]');
+      if (!gap) return false;
+
+      const panelRect = this.conversationPanel.getBoundingClientRect();
+      const gapRect = gap.getBoundingClientRect();
+      return (
+        gapRect.bottom >= panelRect.top &&
+        gapRect.top - panelRect.bottom < MESSAGE_GAP_SCROLL_THRESHOLD
+      );
+    },
+
+    async loadMessageGap() {
+      const beforeId = this.currentChat.messageGapBeforeId;
+      if (!beforeId || this.isMessageGapLoading) return;
+
+      const gapIndex = this.currentChat.messages.findIndex(
+        message => Number(message.id) === Number(beforeId)
+      );
+      if (gapIndex <= 0) return;
+
+      const conversationId = this.currentChat.id;
+      const afterId = this.currentChat.messages[gapIndex - 1].id;
+      const requestId = this.messageGapLoadRequestId + 1;
+      this.messageGapLoadRequestId = requestId;
+      this.isMessageGapLoading = true;
+
+      try {
+        await this.$store.dispatch('loadConversationMessageGap', {
+          conversationId,
+          afterId,
+          beforeId,
+        });
+      } catch (error) {
+        // Keep the gap marker available so the next downward scroll can retry.
+      } finally {
+        if (
+          this.messageGapLoadRequestId === requestId &&
+          Number(this.currentChat.id) === Number(conversationId)
+        ) {
+          this.isMessageGapLoading = false;
+        }
+      }
+    },
+
     handleScroll(e) {
+      const { scrollTop } = e.target;
+      const isScrollingDown = scrollTop > this.lastScrollTop;
+      this.lastScrollTop = scrollTop;
       this.updateNearBottom();
       if (this.isProgrammaticScroll) {
         this.hasUserScrolled = false;
@@ -476,7 +540,10 @@ export default {
         }, 150);
       } else {
         this.hasUserScrolled = true;
-        this.fetchPreviousMessages(e.target.scrollTop);
+        if (isScrollingDown && this.isMessageGapNearViewport()) {
+          this.loadMessageGap();
+        }
+        this.fetchPreviousMessages(scrollTop);
       }
       emitter.emit(BUS_EVENTS.ON_MESSAGE_LIST_SCROLL);
     },
@@ -530,6 +597,7 @@ export default {
       :messages="getMessages"
       :conversation-search-query="conversationSearchQuery"
       :active-conversation-search-result-id="activeConversationSearchResultId"
+      :is-message-gap-loading="isMessageGapLoading"
       @retry="handleMessageRetry"
     >
       <template #beforeAll>
