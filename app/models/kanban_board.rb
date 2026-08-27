@@ -82,8 +82,10 @@ class KanbanBoard < ApplicationRecord
     active.where(account_id: account_id).accepting_inbox(inbox_id)
   }
 
+  # The avatar is rendered for every assignable user, so the attachment is preloaded here
+  # rather than in each view: without it a board with a large team costs one query per user.
   def assignable_users
-    all_agents? ? account.users : visible_users
+    (all_agents? ? account.users : visible_users).includes(avatar_attachment: :blob)
   end
 
   def inbox_allowed?(inbox_or_id)
