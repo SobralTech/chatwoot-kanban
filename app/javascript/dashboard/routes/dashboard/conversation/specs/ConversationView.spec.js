@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
     conversation_display_type: 'expanded',
     is_contact_sidebar_open: true,
     is_copilot_panel_open: false,
+    is_embedded_conversation_list_open: false,
   },
   forwardedSearchState: vi.fn(),
 }));
@@ -132,6 +133,7 @@ describe('ConversationView', () => {
     mocks.uiSettings.conversation_display_type = 'expanded';
     mocks.uiSettings.is_contact_sidebar_open = true;
     mocks.uiSettings.is_copilot_panel_open = false;
+    mocks.uiSettings.is_embedded_conversation_list_open = false;
   });
 
   it('renders search panel beside conversation box and replaces profile sidebar', async () => {
@@ -191,12 +193,25 @@ describe('ConversationView', () => {
     ).toBe(false);
   });
 
-  it('does not mount ChatList in embedded mode', () => {
+  it('does not mount ChatList in embedded mode while the list is collapsed', () => {
     const { wrapper } = mountView({
       backRoute: { name: 'kanban_board_show' },
     });
 
     expect(wrapper.find('[data-testid="chat-list"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="conversation-box"]').exists()).toBe(
+      true
+    );
+  });
+
+  it('mounts ChatList in embedded mode once the list is expanded', () => {
+    mocks.uiSettings.is_embedded_conversation_list_open = true;
+
+    const { wrapper } = mountView({
+      backRoute: { name: 'kanban_board_show' },
+    });
+
+    expect(wrapper.find('[data-testid="chat-list"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="conversation-box"]').exists()).toBe(
       true
     );

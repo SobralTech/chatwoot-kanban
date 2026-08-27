@@ -34,6 +34,9 @@ export default {
               sidebarOpen: this.embeddedSidebarOpen,
               setSidebarOpen: this.setEmbeddedSidebarOpen,
               goBack: this.goBackFromEmbedded,
+              listOpen: this.embeddedListOpen,
+              canToggleList: !this.isOnExpandedLayout,
+              toggleList: this.toggleEmbeddedList,
             }
           : null
       ),
@@ -118,6 +121,18 @@ export default {
     isEmbedded() {
       return !!this.backRoute;
     },
+    embeddedListOpen() {
+      return !!this.uiSettings.is_embedded_conversation_list_open;
+    },
+    // An embedded conversation always has a conversation open, so on the
+    // expanded layout the list would never get a column of its own: keep the
+    // focused view there and only offer the list on wider layouts.
+    showConversationSidebarList() {
+      if (!this.isEmbedded) {
+        return true;
+      }
+      return this.embeddedListOpen && !this.isOnExpandedLayout;
+    },
     isOnExpandedLayout() {
       if (this.windowWidth >= wootConstants.SMALL_SCREEN_BREAKPOINT) {
         return false;
@@ -189,10 +204,10 @@ export default {
     initialize() {
       this.$store.dispatch('setActiveInbox', this.inboxId);
       this.setActiveChat();
-      // In embedded mode (e.g. opened from a kanban card), ChatList isn't
-      // rendered, so its conversation-load event never fires to trigger
-      // this. Check directly so a conversation missing from the store
-      // still gets fetched.
+      // In embedded mode (e.g. opened from a kanban card) ChatList is only
+      // rendered while the list is expanded, so its conversation-load event
+      // cannot be relied on to trigger this. Check directly so a conversation
+      // missing from the store still gets fetched.
       if (this.isEmbedded) {
         this.fetchConversationIfUnavailable();
       }
@@ -364,6 +379,11 @@ export default {
     setEmbeddedSidebarOpen(value) {
       this.embeddedSidebarOpen = value;
     },
+    toggleEmbeddedList() {
+      this.updateUISettings({
+        is_embedded_conversation_list_open: !this.embeddedListOpen,
+      });
+    },
     goBackFromEmbedded() {
       goBackEmbedded(this.$router, this.backRoute);
     },
@@ -374,7 +394,7 @@ export default {
 <template>
   <section class="flex w-full h-full min-w-0">
     <ChatList
-      v-if="!isEmbedded"
+      v-if="showConversationSidebarList"
       :show-conversation-list="showConversationList"
       :conversation-inbox="inboxId"
       :label="label"

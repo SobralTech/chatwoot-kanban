@@ -137,7 +137,9 @@
         "RT": "RT {status}",
         "MISSED": "missed",
         "DUE": "due"
-      }
+      },
+      "SHOW_CONVERSATION_LIST": "Show conversation list",
+      "HIDE_CONVERSATION_LIST": "Hide conversation list"
     },
     "MENTION": {
       "AGENTS": "Agents",

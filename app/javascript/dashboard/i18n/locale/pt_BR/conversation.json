@@ -121,7 +121,9 @@
         "RT": "RT {status}",
         "MISSED": "perdidas",
         "DUE": "venceu"
-      }
+      },
+      "SHOW_CONVERSATION_LIST": "Mostrar lista de conversas",
+      "HIDE_CONVERSATION_LIST": "Ocultar lista de conversas"
     },
     "RESOLVE_DROPDOWN": {
       "MARK_PENDING": "Deixar pendente",

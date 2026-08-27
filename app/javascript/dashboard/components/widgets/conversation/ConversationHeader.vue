@@ -5,6 +5,7 @@ import { useStore } from 'vuex';
 import { useElementSize } from '@vueuse/core';
 import BackButton from '../BackButton.vue';
 import EmbeddedBackButton from './EmbeddedBackButton.vue';
+import EmbeddedListToggle from './EmbeddedListToggle.vue';
 import InboxName from '../InboxName.vue';
 import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
@@ -154,6 +155,10 @@ const toggleContactDetails = () => {
     class="flex flex-row items-center justify-between flex-1 w-full min-w-0 gap-3 px-3 py-2 min-h-12"
   >
     <div class="flex items-center justify-start flex-1 min-w-0">
+      <EmbeddedListToggle
+        v-if="embedded?.canToggleList"
+        class="ltr:mr-2 rtl:ml-2"
+      />
       <EmbeddedBackButton v-if="embedded" class="ltr:mr-2 rtl:ml-2" />
       <BackButton
         v-else-if="showBackButton"
