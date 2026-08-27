@@ -41,6 +41,7 @@ import {
 } from 'dashboard/composables/useTransformKeys';
 import { useEmitter } from 'dashboard/composables/emitter';
 import { useConversationRequiredAttributes } from 'dashboard/composables/useConversationRequiredAttributes';
+import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
 
 import wootConstants from 'dashboard/constants/globals';
 import advancedFilterOptions from './widgets/conversation/advancedFilterItems';
@@ -78,6 +79,7 @@ const props = defineProps({
 
 const emit = defineEmits(['conversationLoad']);
 const { uiSettings, updateUISettings } = useUISettings();
+const embedded = useEmbeddedConversation();
 const { t } = useI18n();
 
 const CONVERSATION_LIST_DEFAULT_WIDTH = 340;
@@ -675,7 +677,7 @@ function resetAndFetchData() {
   appliedFilter.value = [];
   resetBulkActions();
   store.dispatch('conversationPage/reset');
-  store.dispatch('emptyAllConversations');
+  store.dispatch('emptyAllConversations', { keepSelected: !!embedded.value });
   store.dispatch('clearConversationFilters');
   if (hasActiveFolders.value) {
     const payload = activeFolder.value.query;

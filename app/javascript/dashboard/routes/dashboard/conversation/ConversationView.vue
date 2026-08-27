@@ -105,6 +105,7 @@ export default {
       fetchingConversationId: null,
       isSyncingRouteWithArchivedState: false,
       embeddedSidebarOpen: true,
+      hasEmbeddedListMounted: false,
     };
   },
   computed: {
@@ -113,6 +114,9 @@ export default {
       currentChat: 'getSelectedChat',
     }),
     showConversationList() {
+      if (this.isEmbedded) {
+        return this.embeddedListOpen;
+      }
       return this.isOnExpandedLayout ? !this.conversationId : true;
     },
     showMessageView() {
@@ -127,11 +131,14 @@ export default {
     // An embedded conversation always has a conversation open, so on the
     // expanded layout the list would never get a column of its own: keep the
     // focused view there and only offer the list on wider layouts.
+    //
+    // Once expanded the list stays mounted and is only hidden on collapse:
+    // remounting it would re-fetch the whole list on every expand.
     showConversationSidebarList() {
       if (!this.isEmbedded) {
         return true;
       }
-      return this.embeddedListOpen && !this.isOnExpandedLayout;
+      return this.hasEmbeddedListMounted && !this.isOnExpandedLayout;
     },
     isOnExpandedLayout() {
       if (this.windowWidth >= wootConstants.SMALL_SCREEN_BREAKPOINT) {
@@ -163,6 +170,14 @@ export default {
     },
   },
   watch: {
+    embeddedListOpen: {
+      immediate: true,
+      handler(isOpen) {
+        if (isOpen) {
+          this.hasEmbeddedListMounted = true;
+        }
+      },
+    },
     conversationId() {
       this.conversationFetchError = false;
       this.fetchConversationIfUnavailable();

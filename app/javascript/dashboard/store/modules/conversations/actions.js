@@ -102,8 +102,8 @@ const actions = {
     }
   },
 
-  emptyAllConversations({ commit }) {
-    commit(types.EMPTY_ALL_CONVERSATION);
+  emptyAllConversations({ commit }, { keepSelected = false } = {}) {
+    commit(types.EMPTY_ALL_CONVERSATION, { keepSelected });
   },
 
   clearSelectedState({ commit }) {

@@ -59,9 +59,20 @@ export const mutations = {
     });
     _state.allConversations = newAllConversations;
   },
-  [types.EMPTY_ALL_CONVERSATION](_state) {
-    _state.allConversations = [];
-    _state.selectedChatId = null;
+  [types.EMPTY_ALL_CONVERSATION](_state, { keepSelected = false } = {}) {
+    // An embedded conversation is the whole point of the view built around it,
+    // so reloading the list next to it must not drop the conversation itself:
+    // the list getters still filter it out when it doesn't match the filters.
+    const keptConversations =
+      keepSelected && _state.selectedChatId
+        ? _state.allConversations.filter(
+            conversation => conversation.id === _state.selectedChatId
+          )
+        : [];
+    _state.allConversations = keptConversations;
+    if (!keptConversations.length) {
+      _state.selectedChatId = null;
+    }
   },
   [types.SET_ALL_MESSAGES_LOADED](_state, conversationId) {
     const chat = getConversationById(_state)(conversationId);
