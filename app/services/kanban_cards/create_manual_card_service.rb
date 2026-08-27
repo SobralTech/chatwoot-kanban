@@ -20,8 +20,6 @@ class KanbanCards::CreateManualCardService
 
     card = KanbanCard.transaction do
       kanban_stage.lock!
-      lock_active_cards!
-      shift_active_cards_down!
       create_card!.tap do |created_card|
         KanbanCards::RecordEventService.card_created(created_card, user: user)
       end
@@ -91,23 +89,13 @@ class KanbanCards::CreateManualCardService
       conversation: card_conversation,
       subject: normalized_subject,
       origin: 'manual',
-      position: 1,
+      position: KanbanCard.top_position(kanban_board: kanban_board, kanban_stage: kanban_stage),
       active: true
     )
   end
 
   def dispatch_card_created_event(card)
     KanbanCards::EventDispatcher.card_event(Events::Types::KANBAN_CARD_CREATED, card)
-  end
-
-  def lock_active_cards!
-    KanbanCard.lock_active_cards_for_stages!(kanban_board, [kanban_stage.id])
-  end
-
-  def shift_active_cards_down!
-    KanbanCard.where(kanban_board: kanban_board, kanban_stage: kanban_stage).active.update_all( # rubocop:disable Rails/SkipsModelValidations
-      ['position = position + 1, updated_at = ?', Time.current]
-    )
   end
 
   def duplicate_subject?

@@ -25,7 +25,7 @@ RSpec.describe KanbanCards::CreateFromConversationService do
         origin: 'conversation',
         kanban_stage_id: kanban_stage.id,
         conversation_id: conversation.id,
-        position: 1
+        position: 1000
       )
     end
 
@@ -37,14 +37,15 @@ RSpec.describe KanbanCards::CreateFromConversationService do
       end
     end
 
-    it 'shifts existing active cards down' do
-      first_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1)
-      second_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 2)
+    it 'leaves the cards already in the stage where they are' do
+      first_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1000)
+      second_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 2000)
 
-      service.perform!
+      card = service.perform!
 
-      expect(first_card.reload.position).to eq(2)
-      expect(second_card.reload.position).to eq(3)
+      expect(first_card.reload.position).to eq(1000)
+      expect(second_card.reload.position).to eq(2000)
+      expect(KanbanCard.stage_active_cards(kanban_board, kanban_stage).pluck(:id)).to eq([card.id, first_card.id, second_card.id])
     end
 
     it 'uses conversation contact and inbox' do

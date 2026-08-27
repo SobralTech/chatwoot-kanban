@@ -402,7 +402,7 @@ RSpec.describe KanbanCard do
   end
 
   describe '.normalize_positions_for_stage!' do
-    it 'assigns sequential positions to active cards ordered by position, creation time, and id' do
+    it 'respaces active cards a gap apart, ordered by position, creation time, and id' do
       board = create(:kanban_board)
       stage = create(:kanban_stage, account: board.account, kanban_board: board)
       later_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2)
@@ -425,9 +425,9 @@ RSpec.describe KanbanCard do
 
       described_class.normalize_positions_for_stage!(kanban_board: board, kanban_stage: stage)
 
-      expect(first_duplicate.reload.position).to eq(1)
-      expect(second_duplicate.reload.position).to eq(2)
-      expect(later_card.reload.position).to eq(3)
+      expect(first_duplicate.reload.position).to eq(1000)
+      expect(second_duplicate.reload.position).to eq(2000)
+      expect(later_card.reload.position).to eq(3000)
     end
 
     it 'excludes inactive cards' do
@@ -438,7 +438,7 @@ RSpec.describe KanbanCard do
 
       described_class.normalize_positions_for_stage!(kanban_board: board, kanban_stage: stage)
 
-      expect(active_card.reload.position).to eq(1)
+      expect(active_card.reload.position).to eq(1000)
       expect(inactive_card.reload.position).to eq(1)
     end
 
@@ -446,8 +446,12 @@ RSpec.describe KanbanCard do
       board = create(:kanban_board)
       stage = create(:kanban_stage, account: board.account, kanban_board: board)
       original_time = 2.days.ago
-      unchanged_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1, updated_at: original_time)
-      changed_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 10, updated_at: original_time)
+      unchanged_card = create(
+        :kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1000, updated_at: original_time
+      )
+      changed_card = create(
+        :kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 3000, updated_at: original_time
+      )
       inactive_card = create(
         :kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2, active: false, updated_at: original_time
       )
@@ -457,6 +461,7 @@ RSpec.describe KanbanCard do
       end
 
       expect(unchanged_card.reload.updated_at.to_i).to eq(original_time.to_i)
+      expect(changed_card.reload.position).to eq(2000)
       expect(changed_card.reload.updated_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
       expect(inactive_card.reload.updated_at.to_i).to eq(original_time.to_i)
     end
@@ -484,7 +489,7 @@ RSpec.describe KanbanCard do
 
       described_class.normalize_positions_for_stage!(kanban_board: board, kanban_stage: stage)
 
-      expect(card.reload.position).to eq(1)
+      expect(card.reload.position).to eq(1000)
       expect(other_board_card.reload.position).to eq(10)
     end
 
@@ -497,85 +502,145 @@ RSpec.describe KanbanCard do
 
       described_class.normalize_positions_for_stage!(kanban_board: board, kanban_stage: stage)
 
-      expect(card.reload.position).to eq(1)
+      expect(card.reload.position).to eq(1000)
       expect(other_stage_card.reload.position).to eq(10)
     end
   end
 
-  describe '#reorder_to_position!' do
-    it 'reorders cards within the same stage' do
+  describe '.drop_position' do
+    let(:board) { create(:kanban_board) }
+    let(:stage) { create(:kanban_stage, account: board.account, kanban_board: board) }
+
+    def sparse_cards(*positions)
+      positions.map do |position|
+        create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: position)
+      end
+    end
+
+    it 'lands halfway between the anchor and the card that follows it' do
+      first_card, = sparse_cards(1000, 2000, 3000)
+
+      position = described_class.drop_position(kanban_board: board, kanban_stage: stage, after_card: first_card)
+
+      expect(position).to eq(1500)
+    end
+
+    it 'lands a gap ahead of the stage when there is no anchor' do
+      sparse_cards(1000, 2000)
+
+      position = described_class.drop_position(kanban_board: board, kanban_stage: stage, after_card: nil)
+
+      expect(position).to eq(0)
+    end
+
+    it 'lands a gap past the anchor when the anchor is last' do
+      _first_card, _second_card, last_card = sparse_cards(1000, 2000, 3000)
+
+      position = described_class.drop_position(kanban_board: board, kanban_stage: stage, after_card: last_card)
+
+      expect(position).to eq(4000)
+    end
+
+    it 'lands a gap into an empty stage' do
+      position = described_class.drop_position(kanban_board: board, kanban_stage: stage, after_card: nil)
+
+      expect(position).to eq(1000)
+    end
+
+    it 'ignores the card being moved when it is the anchor neighbour' do
+      first_card, moved_card = sparse_cards(1000, 1001)
+
+      position = described_class.drop_position(
+        kanban_board: board, kanban_stage: stage, after_card: first_card, moved_card: moved_card
+      )
+
+      expect(position).to eq(2000)
+      expect(first_card.reload.position).to eq(1000)
+    end
+
+    it 'rebalances the stage when the slot has no integer left' do
+      first_card, second_card, moved_card = sparse_cards(1000, 1001, 1002)
+
+      position = described_class.drop_position(
+        kanban_board: board, kanban_stage: stage, after_card: first_card, moved_card: moved_card
+      )
+
+      expect(first_card.reload.position).to eq(1000)
+      expect(second_card.reload.position).to eq(2000)
+      expect(position).to eq(1500)
+    end
+  end
+
+  describe '.end_position' do
+    it 'lands a gap past the last active card' do
       board = create(:kanban_board)
       stage = create(:kanban_stage, account: board.account, kanban_board: board)
-      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1)
-      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2)
-      third_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 3)
+      create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 5000)
+      create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 9000, active: false)
 
-      third_card.reorder_to_position!(kanban_stage: stage, position: 1)
+      expect(described_class.end_position(kanban_board: board, kanban_stage: stage)).to eq(6000)
+    end
+  end
+
+  describe '#reorder_to_position!' do
+    it 'reorders a card within its stage without touching the cards around it' do
+      board = create(:kanban_board)
+      stage = create(:kanban_stage, account: board.account, kanban_board: board)
+      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1000)
+      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2000)
+      third_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 3000)
+
+      third_card.reorder_to_position!(kanban_stage: stage, position: 500)
 
       expect(stage_positions(stage)).to eq([third_card.id, first_card.id, second_card.id])
+      expect(first_card.reload.position).to eq(1000)
+      expect(second_card.reload.position).to eq(2000)
     end
 
-    it 'clamps same-stage positions below the minimum' do
-      board = create(:kanban_board)
-      stage = create(:kanban_stage, account: board.account, kanban_board: board)
-      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1)
-      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2)
-
-      second_card.reorder_to_position!(kanban_stage: stage, position: 0)
-
-      expect(stage_positions(stage)).to eq([second_card.id, first_card.id])
-    end
-
-    it 'clamps same-stage positions above the maximum' do
-      board = create(:kanban_board)
-      stage = create(:kanban_stage, account: board.account, kanban_board: board)
-      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1)
-      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2)
-
-      first_card.reorder_to_position!(kanban_stage: stage, position: 10)
-
-      expect(stage_positions(stage)).to eq([second_card.id, first_card.id])
-    end
-
-    it 'reorders cards across stages' do
+    it 'reorders cards across stages and restarts the stage clock' do
       board = create(:kanban_board)
       source_stage = create(:kanban_stage, account: board.account, kanban_board: board)
       target_stage = create(:kanban_stage, account: board.account, kanban_board: board)
-      moved_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: source_stage, position: 1)
-      target_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: target_stage, position: 1)
+      moved_card = create(
+        :kanban_card, account: board.account, kanban_board: board, kanban_stage: source_stage, position: 1000, stage_entered_at: 2.days.ago
+      )
+      target_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: target_stage, position: 1000)
 
-      moved_card.reorder_to_position!(kanban_stage: target_stage, position: 1)
+      travel_to(Time.zone.parse('2026-01-01 12:00:00 UTC')) do
+        moved_card.reorder_to_position!(kanban_stage: target_stage, position: 500)
+      end
 
       expect(stage_positions(source_stage)).to eq([])
       expect(stage_positions(target_stage)).to eq([moved_card.id, target_card.id])
       expect(moved_card.reload.kanban_stage).to eq(target_stage)
+      expect(moved_card.reload.stage_entered_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
     end
 
-    it 'normalizes the source stage after a cross-stage move' do
+    it 'leaves the source stage untouched after a cross-stage move' do
       board = create(:kanban_board)
       source_stage = create(:kanban_stage, account: board.account, kanban_board: board)
       target_stage = create(:kanban_stage, account: board.account, kanban_board: board)
-      moved_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: source_stage, position: 1)
-      remaining_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: source_stage, position: 10)
+      moved_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: source_stage, position: 1000)
+      remaining_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: source_stage, position: 10_000)
 
-      moved_card.reorder_to_position!(kanban_stage: target_stage, position: 1)
+      moved_card.reorder_to_position!(kanban_stage: target_stage, position: 1000)
 
-      expect(remaining_card.reload.position).to eq(1)
+      expect(remaining_card.reload.position).to eq(10_000)
     end
 
-    it 'normalizes the destination stage after a cross-stage move' do
+    it 'leaves the destination stage untouched after a cross-stage move' do
       board = create(:kanban_board)
       source_stage = create(:kanban_stage, account: board.account, kanban_board: board)
       target_stage = create(:kanban_stage, account: board.account, kanban_board: board)
-      moved_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: source_stage, position: 1)
-      first_target_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: target_stage, position: 10)
-      second_target_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: target_stage, position: 20)
+      moved_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: source_stage, position: 1000)
+      first_target_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: target_stage, position: 1000)
+      second_target_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: target_stage, position: 2000)
 
-      moved_card.reorder_to_position!(kanban_stage: target_stage, position: 2)
+      moved_card.reorder_to_position!(kanban_stage: target_stage, position: 1500)
 
-      expect(first_target_card.reload.position).to eq(1)
-      expect(moved_card.reload.position).to eq(2)
-      expect(second_target_card.reload.position).to eq(3)
+      expect(first_target_card.reload.position).to eq(1000)
+      expect(second_target_card.reload.position).to eq(2000)
+      expect(stage_positions(target_stage)).to eq([first_target_card.id, moved_card.id, second_target_card.id])
     end
 
     it 'rejects reordering inactive cards' do
@@ -591,10 +656,10 @@ RSpec.describe KanbanCard do
       board = create(:kanban_board)
       stage = create(:kanban_stage, account: board.account, kanban_board: board)
       inactive_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1, active: false)
-      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2)
-      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 3)
+      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1000)
+      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2000)
 
-      second_card.reorder_to_position!(kanban_stage: stage, position: 1)
+      second_card.reorder_to_position!(kanban_stage: stage, position: 500)
 
       expect(stage_positions(stage)).to eq([second_card.id, first_card.id])
       expect(inactive_card.reload.position).to eq(1)
@@ -603,7 +668,7 @@ RSpec.describe KanbanCard do
     it 'reorders manual cards and conversation cards identically' do
       board = create(:kanban_board)
       stage = create(:kanban_stage, account: board.account, kanban_board: board)
-      manual_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1)
+      manual_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1000)
       conversation = create(:conversation, account: board.account)
       conversation_card = create(
         :kanban_card,
@@ -611,40 +676,45 @@ RSpec.describe KanbanCard do
         kanban_board: board,
         kanban_stage: stage,
         conversation: conversation,
-        position: 2
+        position: 2000
       )
 
-      conversation_card.reorder_to_position!(kanban_stage: stage, position: 1)
+      conversation_card.reorder_to_position!(kanban_stage: stage, position: 500)
       expect(stage_positions(stage)).to eq([conversation_card.id, manual_card.id])
 
-      manual_card.reorder_to_position!(kanban_stage: stage, position: 1)
+      manual_card.reorder_to_position!(kanban_stage: stage, position: 250)
       expect(stage_positions(stage)).to eq([manual_card.id, conversation_card.id])
     end
 
-    it 'updates updated_at for mechanically reordered rows' do
+    it 'updates updated_at for the moved card alone' do
       board = create(:kanban_board)
       stage = create(:kanban_stage, account: board.account, kanban_board: board)
-      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1, updated_at: 2.days.ago)
-      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2, updated_at: 2.days.ago)
+      original_time = 2.days.ago
+      first_card = create(
+        :kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1000, updated_at: original_time
+      )
+      second_card = create(
+        :kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2000, updated_at: original_time
+      )
 
       travel_to(Time.zone.parse('2026-01-01 12:00:00 UTC')) do
-        second_card.reorder_to_position!(kanban_stage: stage, position: 1)
+        second_card.reorder_to_position!(kanban_stage: stage, position: 500)
       end
 
-      expect(first_card.reload.updated_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
+      expect(first_card.reload.updated_at.to_i).to eq(original_time.to_i)
       expect(second_card.reload.updated_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
     end
 
     it 'does not query taggings while reordering positions' do
       board = create(:kanban_board)
       stage = create(:kanban_stage, account: board.account, kanban_board: board)
-      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1)
-      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2)
+      first_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 1000)
+      second_card = create(:kanban_card, account: board.account, kanban_board: board, kanban_stage: stage, position: 2000)
       first_card.update_labels(%w[hot])
       second_card.update_labels(%w[warm])
 
       sql_queries = collect_sql_queries do
-        second_card.reorder_to_position!(kanban_stage: stage, position: 1)
+        second_card.reorder_to_position!(kanban_stage: stage, position: 500)
       end
 
       expect(labels_tags_taggings_query_count(sql_queries)).to eq(0)
@@ -659,7 +729,7 @@ RSpec.describe KanbanCard do
       first_card.deactivate_and_normalize!
 
       expect { first_card.reload }.to raise_error(ActiveRecord::RecordNotFound)
-      expect(second_card.reload.position).to eq(1)
+      expect(second_card.reload.position).to eq(1000)
     end
 
     def stage_positions(stage)

@@ -21,7 +21,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
         inbox_id: inbox.id,
         kanban_board_id: board.id,
         kanban_stage_id: first_stage.id,
-        position: 1,
+        position: 1000,
         active: true
       )
     end
@@ -82,38 +82,26 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
     end
 
     it 'inserts the card at the top of the first active stage' do
-      create(:kanban_card, account: account, kanban_board: board, kanban_stage: first_stage, position: 1)
+      first_card = create(:kanban_card, account: account, kanban_board: board, kanban_stage: first_stage, position: 1000)
 
       service.perform!
 
-      expect(created_card.position).to eq(1)
+      expect(created_card.position).to be < first_card.position
+      expect(KanbanCard.stage_active_cards(board, first_stage).pluck(:id)).to eq([created_card.id, first_card.id])
     end
 
-    it 'shifts existing active cards down in the target stage' do
-      first_card = create(:kanban_card, account: account, kanban_board: board, kanban_stage: first_stage, position: 1)
-      second_card = create(:kanban_card, account: account, kanban_board: board, kanban_stage: first_stage, position: 2)
-
-      service.perform!
-
-      expect(first_card.reload.position).to eq(2)
-      expect(second_card.reload.position).to eq(3)
-    end
-
-    it 'updates updated_at for mechanically shifted cards' do
-      shifted_card = create(
-        :kanban_card,
-        account: account,
-        kanban_board: board,
-        kanban_stage: first_stage,
-        position: 1,
-        updated_at: 2.days.ago
+    it 'leaves the cards already in the stage where they are' do
+      first_card = create(:kanban_card, account: account, kanban_board: board, kanban_stage: first_stage, position: 1000)
+      original_time = Time.zone.parse('2026-01-01 12:00:00 UTC')
+      second_card = create(
+        :kanban_card, account: account, kanban_board: board, kanban_stage: first_stage, position: 2000, updated_at: original_time
       )
 
-      travel_to(Time.zone.parse('2026-01-01 12:00:00 UTC')) do
-        service.perform!
-      end
+      service.perform!
 
-      expect(shifted_card.reload.updated_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
+      expect(first_card.reload.position).to eq(1000)
+      expect(second_card.reload.position).to eq(2000)
+      expect(second_card.reload.updated_at.to_i).to eq(original_time.to_i)
     end
 
     it 'does not query labels tags or taggings per shifted card' do
@@ -128,7 +116,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
 
       service.perform!
 
-      expect(created_card.position).to eq(1)
+      expect(created_card.position).to eq(1000)
       expect(inactive_card.reload.position).to eq(1)
     end
 
@@ -138,7 +126,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
 
       service.perform!
 
-      expect(created_card.position).to eq(1)
+      expect(created_card.position).to eq(1000)
       expect(other_stage_card.reload.position).to eq(1)
     end
 

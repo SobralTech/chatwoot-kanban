@@ -23,8 +23,6 @@ class KanbanCards::CreateFromConversationService
 
     card = KanbanCard.transaction do
       kanban_stage.lock!
-      lock_active_cards!
-      shift_active_cards_down!
       create_card!.tap do |created_card|
         created_card.update_labels(label_titles)
         created_card.update_assignees!(assignee_ids)
@@ -101,8 +99,11 @@ class KanbanCards::CreateFromConversationService
     raise Pundit::NotAuthorizedError unless KanbanCardPolicy.new(user_context, unsaved_card).create?
   end
 
+  # The position is resolved here rather than in card_attributes: the policy check builds an
+  # unsaved card from the same attributes, and reading the top of the stage is only correct
+  # once the stage is locked.
   def create_card!
-    KanbanCard.create!(card_attributes)
+    KanbanCard.create!(card_attributes.merge(position: KanbanCard.top_position(kanban_board: kanban_board, kanban_stage: kanban_stage)))
   end
 
   def card_attributes
@@ -115,7 +116,6 @@ class KanbanCards::CreateFromConversationService
       conversation: conversation,
       subject: normalized_card_subject,
       origin: 'conversation',
-      position: 1,
       due_at: due_at,
       priority: priority,
       active: true
@@ -128,16 +128,6 @@ class KanbanCards::CreateFromConversationService
 
   def dispatch_card_created_event(card)
     KanbanCards::EventDispatcher.card_event(Events::Types::KANBAN_CARD_CREATED, card)
-  end
-
-  def lock_active_cards!
-    KanbanCard.lock_active_cards_for_stages!(kanban_board, [kanban_stage.id])
-  end
-
-  def shift_active_cards_down!
-    KanbanCard.where(kanban_board: kanban_board, kanban_stage: kanban_stage).active.update_all( # rubocop:disable Rails/SkipsModelValidations
-      ['position = position + 1, updated_at = ?', Time.current]
-    )
   end
 
   def normalized_subject

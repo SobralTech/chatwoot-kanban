@@ -89,7 +89,7 @@ RSpec.describe KanbanCards::MoveToBoardService do
       expect(card.reload).to have_attributes(
         kanban_board_id: target_board.id,
         kanban_stage_id: target_stage.id,
-        position: 1,
+        position: 1000,
         kanban_reason_id: nil,
         previous_stage_id: nil,
         stage_entered_at: Time.zone.parse('2026-06-09 12:00:00 UTC')
@@ -97,21 +97,21 @@ RSpec.describe KanbanCards::MoveToBoardService do
       expect(KanbanCardEvent.last.metadata).to include('reason_cleared' => true)
     end
 
-    it 'normalizes positions in both source and destination stages' do
+    it 'appends the card past the destination stage and leaves both stages in place' do
       moving_card = card
-      moving_card.update!(position: 3)
+      moving_card.update!(position: 3000)
       source_tail = create(:kanban_card, account: account, kanban_board: source_board, kanban_stage: source_stage,
-                                         contact: contact, inbox: inbox, subject: 'Source tail', position: 7)
+                                         contact: contact, inbox: inbox, subject: 'Source tail', position: 7000)
       target_first = create(:kanban_card, account: account, kanban_board: target_board, kanban_stage: target_stage,
-                                          contact: contact, inbox: inbox, subject: 'Target first', position: 2)
+                                          contact: contact, inbox: inbox, subject: 'Target first', position: 2000)
 
       service.perform!
 
-      expect(KanbanCard.stage_active_cards(source_board, source_stage).pluck(:position)).to eq([1])
-      expect(KanbanCard.stage_active_cards(target_board, target_stage).pluck(:position)).to eq([1, 2])
-      expect(moving_card.reload.position).to eq(2)
-      expect(source_tail.reload.position).to eq(1)
-      expect(target_first.reload.position).to eq(1)
+      expect(KanbanCard.stage_active_cards(source_board, source_stage).pluck(:id)).to eq([source_tail.id])
+      expect(KanbanCard.stage_active_cards(target_board, target_stage).pluck(:id)).to eq([target_first.id, moving_card.id])
+      expect(moving_card.reload.position).to eq(3000)
+      expect(source_tail.reload.position).to eq(7000)
+      expect(target_first.reload.position).to eq(2000)
     end
 
     it 'returns a duplicate error without changing the source card' do

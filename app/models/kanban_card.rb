@@ -80,6 +80,11 @@ class KanbanCard < ApplicationRecord
   enum :priority, { low: 0, medium: 1, high: 2, urgent: 3 }
   enum :discount_type, { percent: 0, amount: 1 }, prefix: true
 
+  # Positions are sparse: the active cards of a stage sit POSITION_GAP apart, so dropping a
+  # card between two neighbours is one row written instead of the whole stage renumbered.
+  # The gap only runs out after roughly ten drops into the very same slot.
+  POSITION_GAP = 1000
+
   SORT_ORDER_SQL = {
     'created_at_desc' => 'kanban_cards.created_at DESC, kanban_cards.id DESC',
     'created_at_asc' => 'kanban_cards.created_at ASC, kanban_cards.id ASC',
@@ -145,26 +150,45 @@ class KanbanCard < ApplicationRecord
     end
   end
 
+  # Where a card lands when it is dropped right after `after_card`, or at the top of the
+  # stage when that is nil. The stage row is locked so two drops into the same slot cannot
+  # settle on the same midpoint; the caller keeps that lock by wrapping this and the move
+  # that follows in one transaction. A slot with no integer left between its neighbours
+  # rebalances the stage first, which is the only path that writes more than one row.
+  def self.drop_position(kanban_board:, kanban_stage:, after_card: nil, moved_card: nil)
+    transaction do
+      lock_reorder_stages!([kanban_stage.id])
+
+      slot_position(kanban_board, kanban_stage, after_card, moved_card) || begin
+        normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: kanban_stage)
+        slot_position(kanban_board, kanban_stage, after_card&.reload, moved_card)
+      end
+    end
+  end
+
+  # Past the last active card of the stage: where an appended card goes.
+  def self.end_position(kanban_board:, kanban_stage:)
+    stage_active_cards(kanban_board, kanban_stage).maximum(:position).to_i + POSITION_GAP
+  end
+
+  # Ahead of the first active card of the stage: where a newly created card goes, without
+  # the rest of the stage having to shift out of its way.
+  def self.top_position(kanban_board:, kanban_stage:)
+    drop_position(kanban_board: kanban_board, kanban_stage: kanban_stage)
+  end
+
+  # A move rewrites a single row: the card takes the position the caller resolved and, when
+  # it changed stage, restarts its stage clock. Both stage rows are locked in id order so
+  # two moves over the same pair cannot deadlock.
   def reorder_to_position!(kanban_stage:, position:)
     raise ActiveRecord::RecordNotSaved, 'Inactive kanban cards cannot be reordered' unless active?
 
     self.class.transaction do
-      source_stage = self.kanban_stage
-      stage_ids = [source_stage.id, kanban_stage.id].uniq.sort
+      self.class.lock_reorder_stages!([kanban_stage_id, kanban_stage.id].uniq.sort)
 
-      self.class.lock_reorder_stages!(stage_ids)
-      self.class.lock_active_cards_for_stages!(kanban_board, stage_ids)
-
-      normalize_reorder_stages!(source_stage, kanban_stage)
-      reload
-
-      if source_stage == kanban_stage
-        reorder_within_stage!(kanban_stage, position)
-      else
-        reorder_across_stages!(source_stage, kanban_stage, position)
-      end
-
-      normalize_reorder_stages!(source_stage, kanban_stage)
+      # rubocop:disable Rails/SkipsModelValidations
+      update_columns(moved_card_attributes(kanban_stage, position))
+      # rubocop:enable Rails/SkipsModelValidations
       reload
     end
   end
@@ -200,6 +224,29 @@ class KanbanCard < ApplicationRecord
     KanbanStage.where(id: stage_ids).order(:id).lock.each(&:id)
   end
 
+  # The card being moved is skipped: it is either leaving the slot it occupies or arriving
+  # from another stage, so it never counts as its own neighbour.
+  def self.slot_position(kanban_board, kanban_stage, after_card, moved_card)
+    scope = stage_active_cards(kanban_board, kanban_stage)
+    scope = scope.where.not(id: moved_card.id) if moved_card&.id
+
+    before = after_card&.position
+    after = before ? scope.where(position: (before + 1)..).pick(:position) : scope.pick(:position)
+
+    position_between(before, after)
+  end
+
+  # nil when the neighbours have no integer left between them, which is the signal to
+  # rebalance the stage before placing the card.
+  def self.position_between(before, after)
+    return POSITION_GAP if before.nil? && after.nil?
+    return after - POSITION_GAP if before.nil?
+    return before + POSITION_GAP if after.nil?
+    return nil if after - before < 2
+
+    before + ((after - before) / 2)
+  end
+
   # A stage has no size limit, so the lock plucks ids rather than instantiating a record per
   # card. The ordering is what keeps concurrent callers from deadlocking, not the rows.
   def self.lock_active_cards_for_stages!(kanban_board, stage_ids)
@@ -209,7 +256,7 @@ class KanbanCard < ApplicationRecord
   def self.bulk_normalize_positions_for_stage!(kanban_board, kanban_stage)
     connection.execute(<<~SQL.squish)
       WITH ordered_cards AS (
-        SELECT id, row_number() OVER (ORDER BY position ASC, created_at ASC, id ASC) AS normalized_position
+        SELECT id, row_number() OVER (ORDER BY position ASC, created_at ASC, id ASC) * #{POSITION_GAP} AS normalized_position
         FROM #{quoted_table_name}
         WHERE kanban_board_id = #{connection.quote(kanban_board.id)}
           AND kanban_stage_id = #{connection.quote(kanban_stage.id)}
@@ -232,16 +279,16 @@ class KanbanCard < ApplicationRecord
     end
   end
 
+  # The whole source stage lands past the last card of the target, so neither stage needs
+  # renumbering: the source is left empty and the target keeps the gaps it already had.
   def self.move_active_cards_to_stage!(kanban_board:, source_stage:, target_stage:)
     transaction do
       stage_ids = [source_stage.id, target_stage.id].sort
       lock_reorder_stages!(stage_ids)
       lock_active_cards_for_stages!(kanban_board, stage_ids)
 
-      bulk_normalize_positions_for_stage!(kanban_board, target_stage)
-      target_card_count = stage_active_cards(kanban_board, target_stage).count
-      bulk_move_active_cards!(kanban_board, source_stage, target_stage, target_card_count)
-      bulk_normalize_positions_for_stage!(kanban_board, source_stage)
+      target_last_position = stage_active_cards(kanban_board, target_stage).maximum(:position).to_i
+      bulk_move_active_cards!(kanban_board, source_stage, target_stage, target_last_position)
     end
   end
 
@@ -250,7 +297,7 @@ class KanbanCard < ApplicationRecord
 
     connection.execute(<<~SQL.squish)
       WITH ordered_cards AS (
-        SELECT kanban_cards.id, row_number() OVER (ORDER BY #{order_sql}) AS sorted_position
+        SELECT kanban_cards.id, row_number() OVER (ORDER BY #{order_sql}) * #{POSITION_GAP} AS sorted_position
         FROM #{quoted_table_name}
         LEFT JOIN #{Contact.quoted_table_name} ON #{Contact.quoted_table_name}.id = #{quoted_table_name}.contact_id
         WHERE #{quoted_table_name}.kanban_board_id = #{connection.quote(kanban_board.id)}
@@ -266,12 +313,12 @@ class KanbanCard < ApplicationRecord
     SQL
   end
 
-  def self.bulk_move_active_cards!(kanban_board, source_stage, target_stage, target_card_count)
+  def self.bulk_move_active_cards!(kanban_board, source_stage, target_stage, target_last_position)
     current_time = connection.quote(Time.current)
 
     connection.execute(<<~SQL.squish)
       WITH source_cards AS (
-        SELECT id, row_number() OVER (ORDER BY position ASC, created_at ASC, id ASC) + #{target_card_count} AS target_position
+        SELECT id, row_number() OVER (ORDER BY position ASC, created_at ASC, id ASC) * #{POSITION_GAP} + #{target_last_position} AS target_position
         FROM #{quoted_table_name}
         WHERE kanban_board_id = #{connection.quote(kanban_board.id)}
           AND kanban_stage_id = #{connection.quote(source_stage.id)}
@@ -289,77 +336,16 @@ class KanbanCard < ApplicationRecord
     SQL
   end
 
-  private_class_method :bulk_normalize_positions_for_stage!, :bulk_sort_active_cards_for_stage!, :bulk_move_active_cards!
+  private_class_method :slot_position, :position_between,
+                       :bulk_normalize_positions_for_stage!, :bulk_sort_active_cards_for_stage!, :bulk_move_active_cards!
 
   private
 
-  def normalize_reorder_stages!(source_stage, target_stage)
-    self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: source_stage)
-    return if source_stage == target_stage
+  def moved_card_attributes(target_stage, position)
+    attributes = { position: position.to_i, updated_at: Time.current }
+    return attributes if kanban_stage_id == target_stage.id
 
-    self.class.normalize_positions_for_stage!(kanban_board: kanban_board, kanban_stage: target_stage)
-  end
-
-  def reorder_within_stage!(target_stage, target_position)
-    cards = stage_active_cards_without_self(target_stage)
-    cards.insert(clamped_position(target_position, cards.length + 1) - 1, self)
-
-    update_stage_positions!(cards, target_stage)
-  end
-
-  def reorder_across_stages!(source_stage, target_stage, target_position)
-    source_cards = stage_active_cards_without_self(source_stage)
-    destination_cards = self.class.stage_active_cards(kanban_board, target_stage).to_a
-
-    update_stage_positions!(source_cards, source_stage)
-
-    destination_cards.insert(clamped_position(target_position, destination_cards.length + 1) - 1, self)
-    update_stage_positions!(destination_cards, target_stage)
-  end
-
-  def stage_active_cards_without_self(stage)
-    self.class.stage_active_cards(kanban_board, stage).where.not(id: id).to_a
-  end
-
-  def clamped_position(target_position, maximum_position)
-    target_position.to_i.clamp(1, maximum_position)
-  end
-
-  def update_stage_positions!(cards, target_stage)
-    changed_cards = cards.each_with_index.filter_map do |card, index|
-      position = index + 1
-      next if card.position == position && card.kanban_stage_id == target_stage.id
-
-      [card.id, position, card.kanban_stage_id != target_stage.id]
-    end
-
-    return if changed_cards.blank?
-
-    # rubocop:disable Rails/SkipsModelValidations
-    self.class.where(id: changed_cards.map(&:first)).update_all(bulk_position_update_sql(changed_cards, target_stage))
-    # rubocop:enable Rails/SkipsModelValidations
-  end
-
-  def bulk_position_update_sql(changed_cards, target_stage)
-    current_time = self.class.connection.quote(Time.current)
-    position_cases = changed_cards.map { |card_id, position, _stage_changed| "WHEN #{card_id} THEN #{position}" }.join(' ')
-    stage_cases = changed_cards.map { |card_id, _position, _stage_changed| "WHEN #{card_id} THEN #{target_stage.id}" }.join(' ')
-    stage_entered_at_cases = changed_cards.filter_map do |card_id, _position, stage_changed|
-      "WHEN #{card_id} THEN #{current_time}" if stage_changed
-    end.join(' ')
-
-    <<~SQL.squish
-      position = CASE id #{position_cases} ELSE position END,
-      kanban_stage_id = CASE id #{stage_cases} ELSE kanban_stage_id END,
-      #{stage_entered_at_update_sql(stage_entered_at_cases)}
-      updated_at = #{current_time}
-    SQL
-  end
-
-  def stage_entered_at_update_sql(stage_entered_at_cases)
-    return 'stage_entered_at = stage_entered_at,' if stage_entered_at_cases.blank?
-
-    "stage_entered_at = CASE id #{stage_entered_at_cases} ELSE stage_entered_at END,"
+    attributes.merge(kanban_stage_id: target_stage.id, stage_entered_at: Time.current)
   end
 
   def normalize_subject

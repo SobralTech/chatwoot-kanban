@@ -170,21 +170,22 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
   end
 
   describe 'POST /api/v1/accounts/{account.id}/conversations/{conversation.display_id}/kanban_cards' do
-    it 'creates a conversation-origin card at position 1' do
+    it 'creates a conversation-origin card at the top of the stage' do
       expect do
         post_conversation_kanban_card
       end.to change(KanbanCard.conversation, :count).by(1)
 
       expect(response).to have_http_status(:created)
-      expect(KanbanCard.last).to have_attributes(origin: 'conversation', position: 1)
+      expect(KanbanCard.last).to have_attributes(origin: 'conversation', position: 1000)
     end
 
-    it 'shifts existing active cards by one' do
-      existing_card = create_manual_card(position: 1)
+    it 'leaves the cards already in the stage where they are' do
+      existing_card = create_manual_card(position: 1000)
 
       post_conversation_kanban_card
 
-      expect(existing_card.reload.position).to eq(2)
+      expect(existing_card.reload.position).to eq(1000)
+      expect(KanbanCard.stage_active_cards(kanban_board, stage).pluck(:id)).to eq([KanbanCard.last.id, existing_card.id])
     end
 
     it 'uses conversation contact and inbox' do

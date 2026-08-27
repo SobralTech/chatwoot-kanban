@@ -1160,7 +1160,7 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.show).toHaveBeenCalledWith(10, undefined);
   });
 
-  it('persists cross-stage card drag using target stage and position payload', async () => {
+  it('persists cross-stage card drag using target stage and anchor payload', async () => {
     const wrapper = await mountView();
     const targetStageCardDraggable = findEmptyStageDraggable(wrapper);
 
@@ -1182,7 +1182,7 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
       card: {
         kanban_stage_id: 200,
-        position: 1,
+        after_card_id: null,
       },
     });
   });
@@ -1383,7 +1383,7 @@ describe('KanbanView drag and drop', () => {
     expect(findAddItemPicker(wrapper).exists()).toBe(true);
   });
 
-  it('persists same-stage card reorder using updated position', async () => {
+  it('persists same-stage card reorder using a null anchor', async () => {
     KanbanBoardsAPI.getStageCards.mockResolvedValueOnce({
       data: {
         cards: [buildCard({ id: 501, kanban_stage_id: 100, position: 1 })],
@@ -1409,7 +1409,7 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
       card: {
         kanban_stage_id: 100,
-        position: 1,
+        after_card_id: null,
       },
     });
     expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {
@@ -1444,7 +1444,7 @@ describe('KanbanView drag and drop', () => {
     expect(KanbanBoardsAPI.reorderCardById).toHaveBeenCalledWith(10, 501, {
       card: {
         kanban_stage_id: 200,
-        position: 2,
+        after_card_id: 502,
       },
     });
     expect(KanbanBoardsAPI.getStageCards).toHaveBeenCalledWith(10, 100, {

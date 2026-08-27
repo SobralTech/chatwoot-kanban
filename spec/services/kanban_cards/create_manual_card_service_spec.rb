@@ -81,38 +81,26 @@ RSpec.describe KanbanCards::CreateManualCardService do
     end
 
     it 'inserts the card at the top of the selected stage' do
-      create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1)
+      first_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1000)
 
       card = service.perform!
 
-      expect(card.position).to eq(1)
+      expect(card.position).to be < first_card.position
+      expect(KanbanCard.stage_active_cards(kanban_board, kanban_stage).pluck(:id)).to eq([card.id, first_card.id])
     end
 
-    it 'shifts existing active cards down in the selected stage' do
-      first_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1)
-      second_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 2)
+    it 'leaves the cards already in the stage where they are' do
+      original_time = Time.zone.parse('2026-01-01 12:00:00 UTC')
+      first_card = create(:kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 1000)
+      second_card = create(
+        :kanban_card, account: account, kanban_board: kanban_board, kanban_stage: kanban_stage, position: 2000, updated_at: original_time
+      )
 
       service.perform!
 
-      expect(first_card.reload.position).to eq(2)
-      expect(second_card.reload.position).to eq(3)
-    end
-
-    it 'updates updated_at for mechanically shifted cards' do
-      shifted_card = create(
-        :kanban_card,
-        account: account,
-        kanban_board: kanban_board,
-        kanban_stage: kanban_stage,
-        position: 1,
-        updated_at: 2.days.ago
-      )
-
-      travel_to(Time.zone.parse('2026-01-01 12:00:00 UTC')) do
-        service.perform!
-      end
-
-      expect(shifted_card.reload.updated_at.to_i).to eq(Time.zone.parse('2026-01-01 12:00:00 UTC').to_i)
+      expect(first_card.reload.position).to eq(1000)
+      expect(second_card.reload.position).to eq(2000)
+      expect(second_card.reload.updated_at.to_i).to eq(original_time.to_i)
     end
 
     it 'does not query labels tags or taggings per shifted card' do
@@ -127,7 +115,7 @@ RSpec.describe KanbanCards::CreateManualCardService do
 
       card = service.perform!
 
-      expect(card.position).to eq(1)
+      expect(card.position).to eq(1000)
       expect(inactive_card.reload.position).to eq(1)
     end
 
@@ -137,7 +125,7 @@ RSpec.describe KanbanCards::CreateManualCardService do
 
       card = service.perform!
 
-      expect(card.position).to eq(1)
+      expect(card.position).to eq(1000)
       expect(other_stage_card.reload.position).to eq(1)
     end
 

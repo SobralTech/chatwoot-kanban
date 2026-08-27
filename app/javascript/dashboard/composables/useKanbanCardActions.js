@@ -91,32 +91,30 @@ export function useKanbanCardActions({
 
     // Dropping on the last loaded slot while more cards exist beyond the
     // page means the true end of the stage isn't known locally, so the
-    // position is omitted and the backend appends the card to the real end.
+    // anchor is omitted and the backend appends the card to the real end.
     // A collapsed column loads no cards at all, so it always appends.
     const isLastLoadedSlot = targetIndex === stage.cards.length - 1;
     const appendsToStageEnd =
       appendToStageEnd || (isLastLoadedSlot && !!stage.pagination?.hasMore);
-    const destinationPosition = appendsToStageEnd ? undefined : targetIndex + 1;
     const stageChanged = card.kanbanStageId !== stage.id;
-    // Under filters the visible list is a subset, so a card's local index says
-    // nothing about its real position; only the drag itself signals a move.
-    const positionChanged = hasActiveFilters.value
-      ? stageChanged || event?.moved?.oldIndex !== event?.moved?.newIndex
-      : appendsToStageEnd || card.position !== destinationPosition;
-    if (!stageChanged && !positionChanged) return;
+    // Stored positions are sparse, and under filters the visible list is only a
+    // subset, so a local index says nothing about where the card actually sits:
+    // the drag event is what signals a move.
+    const positionChanged =
+      stageChanged || event?.moved?.oldIndex !== event?.moved?.newIndex;
+    if (!positionChanged) return;
 
     const actionKey = cardActionKey(card);
     if (isActionActive(actionKey)) return;
 
     isPersistingCardDrag.value = true;
     startAction(actionKey);
-    // A null anchor means the card was dropped at the top of the stage.
+    // A null anchor means the card was dropped at the top of the stage; the
+    // backend places it between the anchor and whatever follows it.
     const anchorCard = targetIndex > 0 ? stage.cards[targetIndex - 1] : null;
     const cardPayload = { kanban_stage_id: stage.id };
-    if (hasActiveFilters.value) {
+    if (hasActiveFilters.value || !appendsToStageEnd) {
       cardPayload.after_card_id = anchorCard?.id ?? null;
-    } else if (!appendsToStageEnd) {
-      cardPayload.position = destinationPosition;
     }
     const payload = { card: cardPayload };
 

@@ -59,7 +59,7 @@ class KanbanCards::StageTransition
   end
 
   def next_position
-    kanban_board.kanban_cards.active.where(kanban_stage: target_stage).maximum(:position).to_i + 1
+    KanbanCard.end_position(kanban_board: kanban_board, kanban_stage: target_stage)
   end
 
   private

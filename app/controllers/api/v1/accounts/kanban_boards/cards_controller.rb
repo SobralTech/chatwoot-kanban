@@ -201,17 +201,22 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
     position_after_anchor(stage_transition, card_params[:after_card_id])
   end
 
-  # A blank after_card_id means the card was dropped at the top of the stage.
+  # A blank after_card_id means the card was dropped at the top of the stage; an id that no
+  # longer resolves means the stage moved on under the drag, so the card goes to the end.
   def position_after_anchor(stage_transition, after_card_id)
-    return 1 if after_card_id.blank?
-
     target_stage = stage_transition.target_stage
-    anchor = @kanban_board.kanban_cards.active.find_by(id: after_card_id, kanban_stage_id: target_stage.id)
-    return stage_transition.next_position if anchor.nil?
+    anchor = drop_anchor_card(target_stage, after_card_id)
+    return stage_transition.next_position if after_card_id.present? && anchor.nil?
 
-    return anchor.position + 1 unless target_stage.id == @kanban_card.kanban_stage_id
+    KanbanCard.drop_position(
+      kanban_board: @kanban_board, kanban_stage: target_stage, after_card: anchor, moved_card: @kanban_card
+    )
+  end
 
-    anchor.position + (anchor.position > @kanban_card.position ? 0 : 1)
+  def drop_anchor_card(target_stage, after_card_id)
+    return if after_card_id.blank?
+
+    @kanban_board.kanban_cards.active.find_by(id: after_card_id, kanban_stage_id: target_stage.id)
   end
 
   def destroy_kanban_card

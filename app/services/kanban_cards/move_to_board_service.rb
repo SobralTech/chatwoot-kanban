@@ -61,21 +61,16 @@ class KanbanCards::MoveToBoardService
         position: target_position,
         stage_entered_at: Time.current
       )
-      normalize_moved_stages!(target_stage)
       @card.reload
     end
   end
 
+  # Sparse positions leave the gap the card vacated in the source stage and put it past the
+  # last card of the target, so locking the two stage rows is enough - neither stage has to
+  # be renumbered, and no card row other than the moved one is written.
   def lock_move_records!(target_stage)
     KanbanCard.lock_reorder_stages!([@source_stage.id, target_stage.id])
-    KanbanCard.lock_active_cards_for_stages!(@source_board, [@source_stage.id])
-    KanbanCard.lock_active_cards_for_stages!(@target_board, [target_stage.id])
     next_target_position(target_stage)
-  end
-
-  def normalize_moved_stages!(target_stage)
-    KanbanCard.normalize_positions_for_stage!(kanban_board: @source_board, kanban_stage: @source_stage)
-    KanbanCard.normalize_positions_for_stage!(kanban_board: @target_board, kanban_stage: target_stage)
   end
 
   # Both ends of the move need the card list refreshed, so the source board hears about a
@@ -90,7 +85,7 @@ class KanbanCards::MoveToBoardService
   end
 
   def next_target_position(target_stage)
-    @target_board.kanban_cards.active.where(kanban_stage: target_stage).maximum(:position).to_i + 1
+    KanbanCard.end_position(kanban_board: @target_board, kanban_stage: target_stage)
   end
 
   def success
