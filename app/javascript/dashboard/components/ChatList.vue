@@ -209,7 +209,11 @@ const debouncedSearch = useDebounceFn(q => {
     store.dispatch('conversationSearch/clearSearchResults');
     return;
   }
-  store.dispatch('conversationSearch/fullSearch', { q, page: 1 });
+  store.dispatch('conversationSearch/fullSearch', {
+    q,
+    page: 1,
+    inboxId: props.conversationInbox || undefined,
+  });
 }, 300);
 
 function onSearchQueryChange(q) {

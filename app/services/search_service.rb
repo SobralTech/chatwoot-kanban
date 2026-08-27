@@ -42,6 +42,7 @@ class SearchService
                           .not_archived
                           .joins('INNER JOIN contacts ON conversations.contact_id = contacts.id')
                           .where(search_sql, search: "%#{search_query}%")
+    conversations_query = apply_inbox_id_filter(conversations_query)
 
     if current_account.feature_enabled?('advanced_search')
       conversations_query = apply_time_filter(conversations_query,
@@ -122,11 +123,11 @@ class SearchService
   end
 
   def apply_message_filters(query)
+    query = apply_inbox_id_filter(query)
     return query unless current_account.feature_enabled?('advanced_search')
 
     query = apply_time_filter(query, 'messages.created_at')
-    query = apply_sender_filter(query)
-    apply_inbox_id_filter(query)
+    apply_sender_filter(query)
   end
 
   def apply_sender_filter(query)

@@ -258,10 +258,12 @@ const buildSearchPayload = (basePayload = {}, searchType = 'message') => {
       payload.until = filters.value.dateRange.to;
     }
 
-    // Only messages support 'from' and 'inboxId' filters
-    if (searchType === 'message') {
-      if (filters.value.from) payload.from = filters.value.from;
-      if (filters.value.in) payload.inboxId = filters.value.in;
+    // Inbox scoping applies to conversations and messages
+    if (filters.value.in) payload.inboxId = filters.value.in;
+
+    // Only messages support the 'from' filter
+    if (searchType === 'message' && filters.value.from) {
+      payload.from = filters.value.from;
     }
   }
 

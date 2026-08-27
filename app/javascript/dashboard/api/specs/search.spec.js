@@ -57,7 +57,13 @@ describe('#SearchAPI', () => {
       expect(axiosMock.get).toHaveBeenCalledWith(
         '/api/v1/search/conversations',
         {
-          params: { q: 'test', page: 1, since: undefined, until: undefined },
+          params: {
+            q: 'test',
+            page: 1,
+            since: undefined,
+            until: undefined,
+            inbox_id: undefined,
+          },
         }
       );
     });
@@ -72,7 +78,13 @@ describe('#SearchAPI', () => {
       expect(axiosMock.get).toHaveBeenCalledWith(
         '/api/v1/search/conversations',
         {
-          params: { q: 'test', page: 1, since: 1700000000, until: 1732000000 },
+          params: {
+            q: 'test',
+            page: 1,
+            since: 1700000000,
+            until: 1732000000,
+            inbox_id: undefined,
+          },
         }
       );
     });
