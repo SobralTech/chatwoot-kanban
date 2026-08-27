@@ -96,6 +96,8 @@ yarn-debug.log*
 .cursor
 .codex/
 .claude/
+.agents/
+skills-lock.json
 CLAUDE.local.md
 
 # Histoire deployment
