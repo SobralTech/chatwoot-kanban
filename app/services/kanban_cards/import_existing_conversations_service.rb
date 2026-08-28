@@ -13,9 +13,10 @@ class KanbanCards::ImportExistingConversationsService
   def perform!
     return summary unless default_stage
 
-    eligible_conversations.in_batches(of: BATCH_SIZE) do |batch|
-      matching = matching_conversation_ids(batch)
-      import_batch(batch.where(id: matching)) if matching.present?
+    sql_conversations = sql_filtered_conversations
+    (sql_conversations || eligible_conversations).in_batches(of: BATCH_SIZE) do |batch|
+      batch = batch.where(id: matching_conversation_ids(batch)) unless sql_conversations
+      import_batch(batch)
     end
 
     summary
@@ -23,7 +24,9 @@ class KanbanCards::ImportExistingConversationsService
 
   def estimated_count
     return 0 unless default_stage
-    return eligible_conversations.count unless filter_in_ruby?
+
+    conversations = sql_filtered_conversations
+    return conversations.count if conversations
 
     count = 0
     eligible_conversations.in_batches(of: BATCH_SIZE) { |batch| count += matching_conversation_ids(batch).size }
@@ -34,16 +37,15 @@ class KanbanCards::ImportExistingConversationsService
 
   attr_reader :account, :kanban_board, :ignore_groups, :entry_rule, :summary
 
-  # The inbox side of a rule is SQL, so it narrows the relation. The four conditions are
-  # run through the same matcher the automation uses, rather than restated as SQL: a
-  # retroactive import has to select exactly what the rule would have let in.
-  def filter_in_ruby?
-    entry_rule.present? && Array(entry_rule.conditions).present?
+  # A nil result means a future condition is not supported by the SQL filter yet. The
+  # matcher remains the compatibility path, so adding a condition cannot broaden imports.
+  def sql_filtered_conversations
+    return @sql_filtered_conversations if defined?(@sql_filtered_conversations)
+
+    @sql_filtered_conversations = KanbanBoardEntryRules::ConversationFilter.apply(eligible_conversations, entry_rule)
   end
 
   def matching_conversation_ids(batch)
-    return batch.pluck(:id) unless filter_in_ruby?
-
     batch.select(:id, :assignee_id, :team_id, :priority, :cached_label_list).filter_map do |conversation|
       conversation.id if KanbanBoardEntryRules::Matcher.match?(conversation, entry_rule)
     end
