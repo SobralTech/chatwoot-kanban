@@ -49,7 +49,7 @@ class KanbanCards::AutoCreateFromConversationService
   end
 
   def create_for_board(kanban_board, rule)
-    return skip_existing_card if automatic_card_exists?(kanban_board)
+    return skip_existing_card if existing_card_before_lock?(kanban_board)
 
     card = KanbanCard.transaction do
       stage = stage_for(kanban_board, rule)
@@ -125,6 +125,20 @@ class KanbanCards::AutoCreateFromConversationService
     return KanbanCard.conversation.exists?(kanban_board: kanban_board, conversation_id: conversation.id) if recreated_from_card_id.blank?
 
     KanbanCard.active_non_terminal_for(kanban_board, contact.id).exists?
+  end
+
+  def existing_card_before_lock?(kanban_board)
+    return automatic_card_exists?(kanban_board) if recreated_from_card_id.present?
+
+    boards_with_card_ids.include?(kanban_board.id)
+  end
+
+  def boards_with_card_ids
+    @boards_with_card_ids ||= KanbanCard.conversation
+                                        .where(conversation_id: conversation.id)
+                                        .distinct
+                                        .pluck(:kanban_board_id)
+                                        .to_set
   end
 
   def boards_with_terminal_history_ids
