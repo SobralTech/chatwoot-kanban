@@ -85,6 +85,38 @@ class KanbanBoardsAPI extends ApiClient {
     );
   }
 
+  getEntryRules(boardId) {
+    return axios.get(`${this.url}/${boardId}/entry_rules`);
+  }
+
+  createEntryRule(boardId, payload) {
+    return axios.post(`${this.url}/${boardId}/entry_rules`, payload);
+  }
+
+  updateEntryRule(boardId, ruleId, payload) {
+    return axios.patch(`${this.url}/${boardId}/entry_rules/${ruleId}`, payload);
+  }
+
+  toggleEntryRule(boardId, ruleId, active) {
+    return axios.patch(`${this.url}/${boardId}/entry_rules/${ruleId}/toggle`, {
+      active,
+    });
+  }
+
+  deleteEntryRule(boardId, ruleId) {
+    return axios.delete(`${this.url}/${boardId}/entry_rules/${ruleId}`);
+  }
+
+  reorderEntryRules(boardId, ruleIds) {
+    return axios.patch(`${this.url}/${boardId}/entry_rules/reorder`, {
+      rule_ids: ruleIds,
+    });
+  }
+
+  previewEntryRule(boardId, payload) {
+    return axios.post(`${this.url}/${boardId}/entry_rules/preview`, payload);
+  }
+
   getAutomationRules(boardId) {
     return axios.get(`${this.url}/${boardId}/automation_rules`);
   }

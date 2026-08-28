@@ -125,8 +125,8 @@ module KanbanCardFilterParams
   end
 
   def board_filterable_inbox_ids(inbox_ids)
-    return inbox_ids if @kanban_board.all_inboxes?
+    return inbox_ids if @kanban_board.derived_all_inboxes?
 
-    @kanban_board.kanban_board_inboxes.where(inbox_id: inbox_ids).pluck(:inbox_id)
+    inbox_ids & @kanban_board.derived_allowed_inbox_ids
   end
 end

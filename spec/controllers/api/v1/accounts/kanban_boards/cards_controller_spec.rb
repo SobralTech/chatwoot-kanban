@@ -151,8 +151,8 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it 'rejects inbox not in selected_inboxes scope' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+    it 'rejects inbox the entry rules do not name' do
+      restrict_board_to_inboxes(kanban_board)
 
       post_manual_card
 
@@ -160,9 +160,8 @@ RSpec.describe 'Kanban Cards API', type: :request do
       expect(response.parsed_body['message']).to include('Inbox is not allowed by board scope')
     end
 
-    it 'accepts inbox when selected in selected_inboxes scope' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: manual_inbox)
+    it 'accepts inbox when an entry rule names it' do
+      restrict_board_to_inboxes(kanban_board, manual_inbox)
 
       post_manual_card
 

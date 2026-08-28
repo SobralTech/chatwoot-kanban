@@ -16,7 +16,8 @@ RSpec.describe 'Kanban board settings API', type: :request do
              headers: administrator.create_new_auth_token,
              params: { ignore_groups: true },
              as: :json
-      end.to have_enqueued_job(KanbanCards::ImportExistingConversationsJob).with(account.id, board.id, ignore_groups: true)
+      end.to have_enqueued_job(KanbanCards::ImportExistingConversationsJob)
+        .with(account.id, board.id, ignore_groups: true, entry_rule_id: nil)
 
       expect(response).to have_http_status(:accepted)
       expect(response.parsed_body).to include(

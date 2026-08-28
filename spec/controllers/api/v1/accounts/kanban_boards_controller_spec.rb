@@ -20,7 +20,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
       expect(response).to have_http_status(:success)
       expect(response.parsed_body.first['name']).to eq('Sales')
-      expect(response.parsed_body.first['auto_create_cards_from_conversations']).to be(false)
       expect(response.parsed_body.first).not_to have_key('use_opportunity_card_reads')
       expect(response.parsed_body.first).to include(
         'won_recurrence_enabled' => false,
@@ -87,6 +86,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
         'visibility_mode' => 'selected_agents',
         'inbox_scope_mode' => 'selected_inboxes'
       )
+      expect(board_payload['allowed_inboxes'].pluck('id')).to eq([overview_data[:inbox].id])
       expect(board_payload['stages_summary']).to eq(overview_stages_summary(overview_data))
       expect(board_payload['visible_users']).to contain_exactly(
         hash_including('id' => overview_data[:visible_user].id, 'name' => 'Paula Agent', 'avatar_url' => anything)
@@ -188,8 +188,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
     it 'returns inbox scope metadata for the board header' do
       inbox = create(:inbox, account: account)
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      restrict_board_to_inboxes(kanban_board, inbox)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
           headers: agent.create_new_auth_token,
@@ -980,7 +979,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:success)
       expect(response.parsed_body['name']).to eq('Support')
       expect(response.parsed_body['active']).to be(true)
-      expect(response.parsed_body['auto_create_cards_from_conversations']).to be(false)
       expect(response.parsed_body).not_to have_key('use_opportunity_card_reads')
     end
 
@@ -1045,17 +1043,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
-    it 'accepts automatic card creation setting' do
-      post "/api/v1/accounts/#{account.id}/kanban_boards",
-           headers: administrator.create_new_auth_token,
-           params: { kanban_board: payload[:kanban_board].merge(auto_create_cards_from_conversations: true) },
-           as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(KanbanBoard.last.auto_create_cards_from_conversations).to be(true)
-      expect(response.parsed_body['auto_create_cards_from_conversations']).to be(true)
-    end
-
     it 'returns unauthorized for users outside the account' do
       other_user = create(:user)
 
@@ -1073,8 +1060,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
       kanban_board.update!(
         description: 'Pipeline comercial',
         visibility_mode: 'selected_agents',
-        inbox_scope_mode: 'selected_inboxes',
-        auto_create_cards_from_conversations: true,
         won_recurrence_enabled: true,
         won_recurrence_window_hours: 12,
         lost_recurrence_enabled: true,
@@ -1082,7 +1067,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
       )
       inbox = create(:inbox, account: account)
       create(:kanban_board_member, account: account, kanban_board: kanban_board, user: agent)
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      restrict_board_to_inboxes(kanban_board, inbox)
 
       get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
           headers: administrator.create_new_auth_token,
@@ -1097,7 +1082,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
         'visible_user_ids' => [agent.id],
         'inbox_scope_mode' => 'selected_inboxes',
         'allowed_inbox_ids' => [inbox.id],
-        'auto_create_cards_from_conversations' => true,
         'won_recurrence_enabled' => true,
         'won_recurrence_window_hours' => 12,
         'lost_recurrence_enabled' => true,
@@ -1126,7 +1110,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
               kanban_board: {
                 name: 'Vendas',
                 description: 'Pipeline comercial',
-                auto_create_cards_from_conversations: true,
                 won_recurrence_enabled: true,
                 won_recurrence_window_hours: 12,
                 lost_recurrence_enabled: true,
@@ -1139,7 +1122,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(kanban_board.reload).to have_attributes(
         name: 'Vendas',
         description: 'Pipeline comercial',
-        auto_create_cards_from_conversations: true,
         won_recurrence_enabled: true,
         won_recurrence_window_hours: 12,
         lost_recurrence_enabled: true,
@@ -1166,45 +1148,17 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(response.parsed_body['visible_user_ids']).to eq([second_agent.id])
     end
 
-    it 'replaces inboxes' do
-      old_inbox = create(:inbox, account: account)
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: old_inbox)
-
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
-            headers: administrator.create_new_auth_token,
-            params: {
-              kanban_board: {
-                inbox_scope_mode: 'selected_inboxes',
-                allowed_inbox_ids: [inbox.id]
-              }
-            },
-            as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(kanban_board.reload).to be_selected_inboxes
-      expect(kanban_board.kanban_board_inboxes.pluck(:inbox_id)).to eq([inbox.id])
-      expect(response.parsed_body['allowed_inbox_ids']).to eq([inbox.id])
-    end
-
-    it 'cleans associations when using all_agents and all_inboxes' do
+    it 'cleans memberships when switching back to all_agents' do
       create(:kanban_board_member, account: account, kanban_board: kanban_board, user: agent)
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
             headers: administrator.create_new_auth_token,
-            params: {
-              kanban_board: {
-                visibility_mode: 'all_agents',
-                inbox_scope_mode: 'all_inboxes'
-              }
-            },
+            params: { kanban_board: { visibility_mode: 'all_agents' } },
             as: :json
 
       expect(response).to have_http_status(:success)
       expect(kanban_board.reload).to be_all_agents
-      expect(kanban_board).to be_all_inboxes
       expect(kanban_board.kanban_board_members).to be_empty
-      expect(kanban_board.kanban_board_inboxes).to be_empty
     end
 
     it 'deduplicates selected user and inbox ids' do
@@ -1213,16 +1167,13 @@ RSpec.describe 'Kanban Boards API', type: :request do
             params: {
               kanban_board: {
                 visibility_mode: 'selected_agents',
-                visible_user_ids: [agent.id, agent.id, second_agent.id],
-                inbox_scope_mode: 'selected_inboxes',
-                allowed_inbox_ids: [inbox.id, inbox.id]
+                visible_user_ids: [agent.id, agent.id, second_agent.id]
               }
             },
             as: :json
 
       expect(response).to have_http_status(:success)
       expect(kanban_board.kanban_board_members.order(:user_id).pluck(:user_id)).to eq([agent.id, second_agent.id].sort)
-      expect(kanban_board.kanban_board_inboxes.pluck(:inbox_id)).to eq([inbox.id])
     end
 
     it 'rejects users from another account' do
@@ -1243,40 +1194,22 @@ RSpec.describe 'Kanban Boards API', type: :request do
       expect(kanban_board.kanban_board_members).to be_empty
     end
 
-    it 'rejects inboxes from another account' do
-      other_inbox = create(:inbox, account: create(:account))
-
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
-            headers: administrator.create_new_auth_token,
-            params: {
-              kanban_board: {
-                inbox_scope_mode: 'selected_inboxes',
-                allowed_inbox_ids: [other_inbox.id]
-              }
-            },
-            as: :json
-
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(kanban_board.reload).to be_all_inboxes
-      expect(kanban_board.kanban_board_inboxes).to be_empty
-    end
-
     it 'rolls back all changes when association validation fails' do
-      other_inbox = create(:inbox, account: create(:account))
+      other_user = create(:user, account: create(:account), role: :agent)
 
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/settings",
             headers: administrator.create_new_auth_token,
             params: {
               kanban_board: {
                 name: 'Vendas',
-                inbox_scope_mode: 'selected_inboxes',
-                allowed_inbox_ids: [other_inbox.id]
+                visibility_mode: 'selected_agents',
+                visible_user_ids: [other_user.id]
               }
             },
             as: :json
 
       expect(response).to have_http_status(:unprocessable_content)
-      expect(kanban_board.reload).to have_attributes(name: 'Sales', inbox_scope_mode: 'all_inboxes')
+      expect(kanban_board.reload).to have_attributes(name: 'Sales', visibility_mode: 'all_agents')
     end
 
     it 'emits kanban.board.updated after success' do
@@ -1377,30 +1310,6 @@ RSpec.describe 'Kanban Boards API', type: :request do
       )
     end
 
-    it 'updates automatic card creation from false to true' do
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
-            headers: administrator.create_new_auth_token,
-            params: { kanban_board: { auto_create_cards_from_conversations: true } },
-            as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(kanban_board.reload.auto_create_cards_from_conversations).to be(true)
-      expect(response.parsed_body['auto_create_cards_from_conversations']).to be(true)
-    end
-
-    it 'updates automatic card creation from true to false' do
-      kanban_board.update!(auto_create_cards_from_conversations: true)
-
-      patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
-            headers: administrator.create_new_auth_token,
-            params: { kanban_board: { auto_create_cards_from_conversations: false } },
-            as: :json
-
-      expect(response).to have_http_status(:success)
-      expect(kanban_board.reload.auto_create_cards_from_conversations).to be(false)
-      expect(response.parsed_body['auto_create_cards_from_conversations']).to be(false)
-    end
-
     it 'rejects agents' do
       patch "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}",
             headers: agent.create_new_auth_token,
@@ -1469,9 +1378,9 @@ RSpec.describe 'Kanban Boards API', type: :request do
   end
 
   def create_overview_board_access(inbox, visible_user)
-    kanban_board.update!(visibility_mode: 'selected_agents', inbox_scope_mode: 'selected_inboxes')
+    kanban_board.update!(visibility_mode: 'selected_agents')
     create(:kanban_board_member, account: account, kanban_board: kanban_board, user: visible_user)
-    create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+    restrict_board_to_inboxes(kanban_board, inbox)
   end
 
   def create_overview_cards(first_stage, second_stage, inactive_stage, inbox)
@@ -1487,8 +1396,8 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
   def overview_stages_summary(overview_data)
     [
-      { 'id' => overview_data[:first_stage].id, 'name' => 'Lead', 'color' => 'blue', 'cards_count' => 1 },
-      { 'id' => overview_data[:second_stage].id, 'name' => 'Won', 'color' => 'green', 'cards_count' => 2 }
+      { 'id' => overview_data[:first_stage].id, 'name' => 'Lead', 'color' => '#2781F6', 'cards_count' => 1 },
+      { 'id' => overview_data[:second_stage].id, 'name' => 'Won', 'color' => '#22C55E', 'cards_count' => 2 }
     ]
   end
 

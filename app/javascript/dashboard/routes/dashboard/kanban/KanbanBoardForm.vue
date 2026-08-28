@@ -9,17 +9,17 @@ import Draggable from 'vuedraggable';
 import { useAlert } from 'dashboard/composables';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
-import { useMapGetter, useStore } from 'dashboard/composables/store';
+import { useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
 import AgentTagInput from 'dashboard/components-next/taginput/AgentTagInput.vue';
-import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import KanbanStageEditPanel from './KanbanStageEditPanel.vue';
 import KanbanCustomFieldsTab from './KanbanCustomFieldsTab.vue';
+import KanbanEntryRulesTab from './KanbanEntryRulesTab.vue';
 import KanbanReasonsTab from './KanbanReasonsTab.vue';
 import KanbanAutomationsTab from './automations/KanbanAutomationsTab.vue';
 import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
@@ -28,6 +28,7 @@ const TAB_KEYS = [
   'stages',
   'custom_fields',
   'settings',
+  'entry_rules',
   'reasons',
   'automations',
 ];
@@ -37,7 +38,6 @@ const route = useRoute();
 const router = useRouter();
 const store = useStore();
 
-const inboxes = useMapGetter('inboxes/getAllInboxes');
 const { isAdmin } = useAdmin();
 
 const boardId = ref(route.params.boardId ? Number(route.params.boardId) : null);
@@ -45,7 +45,6 @@ const boardId = ref(route.params.boardId ? Number(route.params.boardId) : null);
 const isLoading = ref(true);
 const isTogglingActive = ref(false);
 const isSavingSettings = ref(false);
-const isSavingAutomation = ref(false);
 const isDeleting = ref(false);
 const isCreatingStage = ref(false);
 const isUpdatingStage = ref(false);
@@ -88,11 +87,8 @@ const form = reactive({
   name: '',
   description: '',
   active: false,
-  autoCreateCardsFromConversations: false,
   visibilityMode: 'all_agents',
   visibleUserIds: [],
-  inboxScopeMode: 'all_inboxes',
-  allowedInboxIds: [],
   wonStageId: null,
   lostStageId: null,
   lostReasonRequired: false,
@@ -157,6 +153,7 @@ const tabItems = computed(() => [
   { label: t('KANBAN.BOARD_EDIT.TABS.STAGES') },
   { label: t('KANBAN.BOARD_EDIT.TABS.CUSTOM_FIELDS') },
   { label: t('KANBAN.BOARD_EDIT.TABS.SETTINGS') },
+  { label: t('KANBAN.BOARD_EDIT.TABS.ENTRY_RULES') },
   { label: t('KANBAN.BOARD_EDIT.TABS.REASONS') },
   ...(isAdmin.value
     ? [{ label: t('KANBAN.BOARD_EDIT.TABS.AUTOMATIONS') }]
@@ -183,20 +180,11 @@ const backDestination = computed(() => ({
 
 const backLabel = computed(() => t('KANBAN.ACTIONS.BACK_TO_BOARD'));
 
-const inboxOptions = computed(() =>
-  inboxes.value.map(inbox => ({
-    value: inbox.id,
-    label: inbox.name,
-  }))
-);
-
 const normalizeForDiff = source => ({
   name: (source.name || '').trim(),
   description: (source.description || '').trim(),
   visibilityMode: source.visibilityMode,
   visibleUserIds: [...(source.visibleUserIds || [])].sort((a, b) => a - b),
-  inboxScopeMode: source.inboxScopeMode,
-  allowedInboxIds: [...(source.allowedInboxIds || [])].sort((a, b) => a - b),
   wonStageId: source.wonStageId ?? null,
   lostStageId: source.lostStageId ?? null,
   lostReasonRequired: !!source.lostReasonRequired,
@@ -219,12 +207,8 @@ const applySettings = payload => {
   form.name = settings.name || '';
   form.description = settings.description || '';
   form.active = settings.active || false;
-  form.autoCreateCardsFromConversations =
-    settings.autoCreateCardsFromConversations || false;
   form.visibilityMode = settings.visibilityMode || 'all_agents';
   form.visibleUserIds = settings.visibleUserIds || [];
-  form.inboxScopeMode = settings.inboxScopeMode || 'all_inboxes';
-  form.allowedInboxIds = settings.allowedInboxIds || [];
   form.wonStageId = settings.wonStageId ?? null;
   form.lostStageId = settings.lostStageId ?? null;
   form.lostReasonRequired = settings.lostReasonRequired || false;
@@ -288,9 +272,6 @@ const buildSettingsPayload = () => ({
     visibility_mode: form.visibilityMode,
     visible_user_ids:
       form.visibilityMode === 'selected_agents' ? form.visibleUserIds : [],
-    inbox_scope_mode: form.inboxScopeMode,
-    allowed_inbox_ids:
-      form.inboxScopeMode === 'selected_inboxes' ? form.allowedInboxIds : [],
     won_stage_id: form.wonStageId,
     lost_stage_id: form.lostStageId,
     lost_reason_required: form.lostReasonRequired,
@@ -362,36 +343,6 @@ const onWonRecurrenceWindowHoursChange = value => {
 
 const onLostRecurrenceWindowHoursChange = value => {
   form.lostRecurrenceWindowHours = value === '' ? null : Number(value);
-};
-
-const onAutoCreateChange = async checked => {
-  if (isSavingAutomation.value || !isAdmin.value) return;
-
-  form.autoCreateCardsFromConversations = checked;
-  isSavingAutomation.value = true;
-
-  try {
-    const response = await KanbanBoardsAPI.updateSettings(boardId.value, {
-      kanban_board: {
-        auto_create_cards_from_conversations: checked,
-      },
-    });
-    const settings = camelcaseKeys(response.data || {}, { deep: true });
-    form.autoCreateCardsFromConversations =
-      settings.autoCreateCardsFromConversations ?? checked;
-    await store.dispatch('kanbanBoards/refreshBoards');
-
-    if (checked) {
-      importError.value = '';
-      ignoreGroupsForImport.value = false;
-      showImportExistingConversationsModal.value = true;
-    }
-  } catch (error) {
-    form.autoCreateCardsFromConversations = !checked;
-    useAlert(apiErrorMessage(error, t('KANBAN.SETTINGS.SAVE_ERROR')));
-  } finally {
-    isSavingAutomation.value = false;
-  }
 };
 
 const closeImportExistingConversationsModal = () => {
@@ -852,39 +803,6 @@ onMounted(async () => {
               @update:model-value="onVisibleUserIdsChange"
             />
           </div>
-
-          <div class="grid gap-3 border-t border-n-weak pt-4">
-            <h2 class="text-base font-medium text-n-slate-12">
-              {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.INBOXES_TITLE') }}
-            </h2>
-            <div class="flex flex-wrap gap-2">
-              <label class="flex items-center gap-2 text-sm text-n-slate-12">
-                <input
-                  v-model="form.inboxScopeMode"
-                  type="radio"
-                  value="all_inboxes"
-                />
-                {{ t('KANBAN.SETTINGS.INBOXES.ALL') }}
-              </label>
-              <label class="flex items-center gap-2 text-sm text-n-slate-12">
-                <input
-                  v-model="form.inboxScopeMode"
-                  type="radio"
-                  value="selected_inboxes"
-                />
-                {{ t('KANBAN.SETTINGS.INBOXES.SELECTED') }}
-              </label>
-            </div>
-            <TagMultiSelectComboBox
-              v-if="form.inboxScopeMode === 'selected_inboxes'"
-              v-model="form.allowedInboxIds"
-              data-testid="kanban-board-form-inbox-select"
-              :options="inboxOptions"
-              :placeholder="t('KANBAN.SETTINGS.INBOXES.PLACEHOLDER')"
-              :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
-              :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
-            />
-          </div>
         </div>
 
         <div
@@ -1179,21 +1097,9 @@ onMounted(async () => {
           <h2 class="text-base font-medium text-n-slate-12">
             {{ t('KANBAN.SETTINGS.AUTOMATIONS.TITLE') }}
           </h2>
-          <label
-            class="flex items-start gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2 text-sm text-n-slate-12"
-          >
-            <input
-              type="checkbox"
-              :checked="form.autoCreateCardsFromConversations"
-              data-testid="kanban-board-form-auto-create"
-              class="mt-1 size-4 rounded border-n-weak text-n-brand focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="isSavingAutomation"
-              @change="onAutoCreateChange($event.target.checked)"
-            />
-            <span class="font-medium">
-              {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.AUTOMATIONS_TITLE') }}
-            </span>
-          </label>
+          <p class="mb-0 text-sm text-n-slate-11">
+            {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.ENTRY_RULES_HINT') }}
+          </p>
 
           <div
             class="grid gap-3 rounded-md border border-n-weak bg-n-surface-2 p-3"
@@ -1295,6 +1201,17 @@ onMounted(async () => {
             @click="openDeleteConfirmation"
           />
         </section>
+      </section>
+
+      <section
+        v-show="activeTabKey === 'entry_rules'"
+        data-testid="kanban-board-form-entry-rules-tab"
+      >
+        <KanbanEntryRulesTab
+          v-if="boardId"
+          :board-id="boardId"
+          :stages="regularStages"
+        />
       </section>
 
       <section

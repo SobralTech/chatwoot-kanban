@@ -1,0 +1,517 @@
+<script setup>
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import camelcaseKeys from 'camelcase-keys';
+import Draggable from 'vuedraggable';
+
+import { useAlert } from 'dashboard/composables';
+import { useMapGetter } from 'dashboard/composables/store';
+import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
+import Button from 'dashboard/components-next/button/Button.vue';
+import NextInput from 'dashboard/components-next/input/Input.vue';
+import Select from 'dashboard/components-next/select/Select.vue';
+import Switch from 'dashboard/components-next/switch/Switch.vue';
+import TagMultiSelectComboBox from 'dashboard/components-next/combobox/TagMultiSelectComboBox.vue';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
+import {
+  ENTRY_RULE_FIELDS,
+  NONE_VALUE,
+  buildConditions,
+  conditionsToForm,
+  emptyConditionForm,
+  isRuleWiderThan,
+} from 'dashboard/helper/kanbanEntryRules';
+
+const props = defineProps({
+  boardId: { type: [Number, String], required: true },
+  stages: { type: Array, default: () => [] },
+});
+
+const { t } = useI18n();
+
+const inboxes = useMapGetter('inboxes/getAllInboxes');
+const agents = useMapGetter('agents/getAgents');
+const teams = useMapGetter('teams/getTeams');
+const labels = useMapGetter('labels/getLabels');
+
+const isLoading = ref(false);
+const loadError = ref('');
+const rules = ref([]);
+const showFormModal = ref(false);
+const editingRuleId = ref(null);
+const isSaving = ref(false);
+const formError = ref('');
+const showRemoveConfirmation = ref(false);
+const rulePendingRemoval = ref(null);
+const isRemoving = ref(false);
+const importPrompt = ref(null);
+const isImporting = ref(false);
+
+const form = reactive({
+  name: '',
+  allInboxes: true,
+  inboxIds: [],
+  kanbanStageId: null,
+  conditions: emptyConditionForm(),
+});
+
+const noneOption = computed(() => ({
+  value: NONE_VALUE,
+  label: t('KANBAN.ENTRY_RULES.NONE_OPTION'),
+}));
+
+const toOptions = (items, labelKey = 'name') =>
+  items.map(item => ({ value: String(item.id), label: item[labelKey] }));
+
+const inboxOptions = computed(() => toOptions(inboxes.value));
+
+const valueOptionsByField = computed(() => ({
+  labels: [
+    noneOption.value,
+    ...labels.value.map(label => ({ value: label.title, label: label.title })),
+  ],
+  assignee_id: [noneOption.value, ...toOptions(agents.value)],
+  team_id: [noneOption.value, ...toOptions(teams.value)],
+  priority: [
+    noneOption.value,
+    ...['low', 'medium', 'high', 'urgent'].map(priority => ({
+      value: priority,
+      label: t(`KANBAN.ENTRY_RULES.PRIORITY.${priority.toUpperCase()}`),
+    })),
+  ],
+}));
+
+const operatorOptionsByField = computed(() =>
+  Object.fromEntries(
+    ENTRY_RULE_FIELDS.map(field => [
+      field.key,
+      field.operators.map(operator => ({
+        value: operator,
+        label: t(`KANBAN.ENTRY_RULES.OPERATORS.${operator.toUpperCase()}`),
+      })),
+    ])
+  )
+);
+
+const stageOptions = computed(() => [
+  { value: '', label: t('KANBAN.ENTRY_RULES.FIRST_STAGE') },
+  ...toOptions(props.stages),
+]);
+
+const inboxNameById = computed(
+  () => new Map(inboxes.value.map(inbox => [inbox.id, inbox.name]))
+);
+
+const ruleInboxSummary = rule => {
+  if (rule.allInboxes) return t('KANBAN.ENTRY_RULES.ALL_INBOXES');
+  const names = (rule.inboxIds || []).map(
+    id => inboxNameById.value.get(id) || `#${id}`
+  );
+  return names.length ? names.join(', ') : t('KANBAN.ENTRY_RULES.NO_INBOX');
+};
+
+const ruleConditionSummary = rule => {
+  const count = (rule.conditions || []).length;
+  return count
+    ? t('KANBAN.ENTRY_RULES.CONDITION_COUNT', { count })
+    : t('KANBAN.ENTRY_RULES.NO_CONDITIONS');
+};
+
+const fetchRules = async () => {
+  isLoading.value = true;
+  loadError.value = '';
+
+  try {
+    const response = await KanbanBoardsAPI.getEntryRules(props.boardId);
+    rules.value = camelcaseKeys(response.data || [], { deep: true });
+  } catch (error) {
+    loadError.value = apiErrorMessage(
+      error,
+      t('KANBAN.ENTRY_RULES.LOAD_ERROR')
+    );
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const resetForm = () => {
+  form.name = '';
+  form.allInboxes = true;
+  form.inboxIds = [];
+  form.kanbanStageId = null;
+  form.conditions = emptyConditionForm();
+  formError.value = '';
+};
+
+const openAddRuleModal = () => {
+  resetForm();
+  editingRuleId.value = null;
+  showFormModal.value = true;
+};
+
+const openEditRuleModal = rule => {
+  editingRuleId.value = rule.id;
+  form.name = rule.name;
+  form.allInboxes = rule.allInboxes;
+  form.inboxIds = [...(rule.inboxIds || [])];
+  form.kanbanStageId = rule.kanbanStageId;
+  form.conditions = conditionsToForm(rule.conditions);
+  formError.value = '';
+  showFormModal.value = true;
+};
+
+const payloadFromForm = () => ({
+  entry_rule: {
+    name: form.name,
+    all_inboxes: form.allInboxes,
+    inbox_ids: form.allInboxes ? [] : form.inboxIds,
+    kanban_stage_id: form.kanbanStageId || null,
+    conditions: buildConditions(form.conditions),
+  },
+});
+
+// A rule that reaches more conversations than before would leave the matching history
+// behind, so the import is offered right after saving one -- and only then.
+const offerRetroactiveImport = async (savedRule, previousRule) => {
+  if (previousRule && !isRuleWiderThan(savedRule, previousRule)) return;
+
+  try {
+    const response = await KanbanBoardsAPI.previewEntryRule(
+      props.boardId,
+      payloadFromForm()
+    );
+    const count = response.data?.count || 0;
+    if (count > 0) importPrompt.value = { rule: savedRule, count };
+  } catch (error) {
+    // The rule is already saved; a failed estimate only costs the offer.
+    importPrompt.value = null;
+  }
+};
+
+const saveRule = async () => {
+  if (!form.name.trim()) {
+    formError.value = t('KANBAN.ENTRY_RULES.NAME_REQUIRED');
+    return;
+  }
+  if (!form.allInboxes && !form.inboxIds.length) {
+    formError.value = t('KANBAN.ENTRY_RULES.INBOX_REQUIRED');
+    return;
+  }
+
+  isSaving.value = true;
+  formError.value = '';
+  const previousRule = rules.value.find(
+    rule => rule.id === editingRuleId.value
+  );
+
+  try {
+    const response = editingRuleId.value
+      ? await KanbanBoardsAPI.updateEntryRule(
+          props.boardId,
+          editingRuleId.value,
+          payloadFromForm()
+        )
+      : await KanbanBoardsAPI.createEntryRule(props.boardId, payloadFromForm());
+
+    const savedRule = camelcaseKeys(response.data, { deep: true });
+    showFormModal.value = false;
+    await fetchRules();
+    await offerRetroactiveImport(savedRule, previousRule);
+    useAlert(t('KANBAN.ENTRY_RULES.SAVE_SUCCESS'));
+  } catch (error) {
+    formError.value = apiErrorMessage(
+      error,
+      t('KANBAN.ENTRY_RULES.SAVE_ERROR')
+    );
+  } finally {
+    isSaving.value = false;
+  }
+};
+
+const toggleRule = async rule => {
+  try {
+    await KanbanBoardsAPI.toggleEntryRule(props.boardId, rule.id, !rule.active);
+    await fetchRules();
+  } catch (error) {
+    useAlert(apiErrorMessage(error, t('KANBAN.ENTRY_RULES.SAVE_ERROR')));
+  }
+};
+
+const openRemoveConfirmation = rule => {
+  rulePendingRemoval.value = rule;
+  showRemoveConfirmation.value = true;
+};
+
+const removeRule = async () => {
+  isRemoving.value = true;
+  try {
+    await KanbanBoardsAPI.deleteEntryRule(
+      props.boardId,
+      rulePendingRemoval.value.id
+    );
+    showRemoveConfirmation.value = false;
+    rulePendingRemoval.value = null;
+    await fetchRules();
+  } catch (error) {
+    useAlert(apiErrorMessage(error, t('KANBAN.ENTRY_RULES.REMOVE_ERROR')));
+  } finally {
+    isRemoving.value = false;
+  }
+};
+
+// Order decides which rule wins when several match, so it is persisted on every drop.
+const persistOrder = async () => {
+  try {
+    await KanbanBoardsAPI.reorderEntryRules(
+      props.boardId,
+      rules.value.map(rule => rule.id)
+    );
+  } catch (error) {
+    useAlert(apiErrorMessage(error, t('KANBAN.ENTRY_RULES.SAVE_ERROR')));
+    await fetchRules();
+  }
+};
+
+const runRetroactiveImport = async () => {
+  isImporting.value = true;
+  try {
+    await KanbanBoardsAPI.importExistingConversations(props.boardId, {
+      entry_rule_id: importPrompt.value.rule.id,
+    });
+    useAlert(t('KANBAN.ENTRY_RULES.IMPORT_STARTED'));
+    importPrompt.value = null;
+  } catch (error) {
+    useAlert(apiErrorMessage(error, t('KANBAN.ENTRY_RULES.IMPORT_ERROR')));
+  } finally {
+    isImporting.value = false;
+  }
+};
+
+onMounted(fetchRules);
+</script>
+
+<template>
+  <div class="grid gap-4">
+    <header class="flex items-center justify-between gap-3">
+      <div>
+        <h2 class="mb-0 text-base font-medium text-n-slate-12">
+          {{ t('KANBAN.ENTRY_RULES.TITLE') }}
+        </h2>
+        <p class="mb-0 text-sm text-n-slate-11">
+          {{ t('KANBAN.ENTRY_RULES.DESCRIPTION') }}
+        </p>
+      </div>
+      <Button
+        icon="i-lucide-plus"
+        size="sm"
+        data-testid="kanban-entry-rule-add"
+        :label="t('KANBAN.ENTRY_RULES.ADD_RULE')"
+        @click="openAddRuleModal"
+      />
+    </header>
+
+    <p v-if="isLoading" class="text-sm text-n-slate-11">
+      {{ t('KANBAN.ENTRY_RULES.LOADING') }}
+    </p>
+
+    <p
+      v-else-if="loadError"
+      data-testid="kanban-entry-rules-load-error"
+      class="text-sm text-n-ruby-11"
+    >
+      {{ loadError }}
+    </p>
+
+    <p
+      v-else-if="!rules.length"
+      data-testid="kanban-entry-rules-empty"
+      class="rounded-md border border-dashed border-n-weak px-3 py-4 text-sm text-n-slate-11"
+    >
+      {{ t('KANBAN.ENTRY_RULES.EMPTY') }}
+    </p>
+
+    <Draggable
+      v-else
+      v-model="rules"
+      item-key="id"
+      handle=".entry-rule-handle"
+      class="grid gap-2"
+      @end="persistOrder"
+    >
+      <template #item="{ element: rule }">
+        <div
+          data-testid="kanban-entry-rule-row"
+          class="flex items-center gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2"
+        >
+          <span
+            class="entry-rule-handle i-lucide-grip-vertical flex-none cursor-grab text-n-slate-10"
+          />
+          <div class="min-w-0 flex-1">
+            <p class="mb-0 truncate text-sm font-medium text-n-slate-12">
+              {{ rule.name }}
+            </p>
+            <p class="mb-0 truncate text-xs text-n-slate-11">
+              {{
+                t('KANBAN.ENTRY_RULES.ROW_SUMMARY', {
+                  inboxes: ruleInboxSummary(rule),
+                  conditions: ruleConditionSummary(rule),
+                })
+              }}
+            </p>
+          </div>
+          <Switch
+            :model-value="rule.active"
+            data-testid="kanban-entry-rule-toggle"
+            @update:model-value="toggleRule(rule)"
+          />
+          <Button
+            icon="i-lucide-pencil"
+            variant="ghost"
+            color="slate"
+            size="sm"
+            :title="t('KANBAN.ENTRY_RULES.EDIT_RULE')"
+            data-testid="kanban-entry-rule-edit"
+            @click="openEditRuleModal(rule)"
+          />
+          <Button
+            icon="i-lucide-trash"
+            variant="ghost"
+            color="ruby"
+            size="sm"
+            :title="t('KANBAN.ENTRY_RULES.REMOVE_RULE')"
+            data-testid="kanban-entry-rule-remove"
+            @click="openRemoveConfirmation(rule)"
+          />
+        </div>
+      </template>
+    </Draggable>
+
+    <woot-modal
+      v-model:show="showFormModal"
+      :on-close="() => (showFormModal = false)"
+    >
+      <div class="grid gap-4 p-8">
+        <h3 class="mb-0 text-lg font-medium text-n-slate-12">
+          {{
+            editingRuleId
+              ? t('KANBAN.ENTRY_RULES.EDIT_RULE')
+              : t('KANBAN.ENTRY_RULES.ADD_RULE')
+          }}
+        </h3>
+
+        <NextInput
+          v-model="form.name"
+          data-testid="kanban-entry-rule-name"
+          :label="t('KANBAN.ENTRY_RULES.NAME_LABEL')"
+        />
+
+        <label class="flex items-center gap-2 text-sm text-n-slate-12">
+          <Switch v-model="form.allInboxes" />
+          {{ t('KANBAN.ENTRY_RULES.ALL_INBOXES') }}
+        </label>
+
+        <TagMultiSelectComboBox
+          v-if="!form.allInboxes"
+          v-model="form.inboxIds"
+          data-testid="kanban-entry-rule-inboxes"
+          :options="inboxOptions"
+          :placeholder="t('KANBAN.SETTINGS.INBOXES.PLACEHOLDER')"
+          :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
+          :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
+        />
+
+        <div
+          v-for="field in ENTRY_RULE_FIELDS"
+          :key="field.key"
+          class="grid gap-2 rounded-md border border-n-weak p-3"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-medium text-n-slate-12">
+              {{ t(`KANBAN.ENTRY_RULES.FIELDS.${field.key.toUpperCase()}`) }}
+            </span>
+            <Select
+              v-model="form.conditions[field.key].operator"
+              :options="operatorOptionsByField[field.key]"
+            />
+          </div>
+          <TagMultiSelectComboBox
+            v-model="form.conditions[field.key].values"
+            :data-testid="`kanban-entry-rule-${field.key}`"
+            :options="valueOptionsByField[field.key]"
+            :placeholder="t('KANBAN.ENTRY_RULES.ANY_VALUE')"
+            :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
+            :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
+          />
+        </div>
+
+        <Select
+          v-model="form.kanbanStageId"
+          data-testid="kanban-entry-rule-stage"
+          :options="stageOptions"
+          :label="t('KANBAN.ENTRY_RULES.STAGE_LABEL')"
+        />
+
+        <p v-if="formError" class="mb-0 text-sm text-n-ruby-11">
+          {{ formError }}
+        </p>
+
+        <div class="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            color="slate"
+            :label="t('KANBAN.ENTRY_RULES.CANCEL')"
+            @click="showFormModal = false"
+          />
+          <Button
+            :is-loading="isSaving"
+            data-testid="kanban-entry-rule-save"
+            :label="t('KANBAN.ENTRY_RULES.SAVE')"
+            @click="saveRule"
+          />
+        </div>
+      </div>
+    </woot-modal>
+
+    <woot-modal
+      v-if="importPrompt"
+      show
+      :on-close="() => (importPrompt = null)"
+    >
+      <div class="grid gap-4 p-8">
+        <h3 class="mb-0 text-lg font-medium text-n-slate-12">
+          {{ t('KANBAN.ENTRY_RULES.IMPORT_TITLE') }}
+        </h3>
+        <p class="mb-0 text-sm text-n-slate-11">
+          {{
+            t('KANBAN.ENTRY_RULES.IMPORT_BODY', { count: importPrompt.count })
+          }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            color="slate"
+            :label="t('KANBAN.ENTRY_RULES.IMPORT_SKIP')"
+            @click="importPrompt = null"
+          />
+          <Button
+            :is-loading="isImporting"
+            data-testid="kanban-entry-rule-import"
+            :label="t('KANBAN.ENTRY_RULES.IMPORT_CONFIRM')"
+            @click="runRetroactiveImport"
+          />
+        </div>
+      </div>
+    </woot-modal>
+
+    <woot-delete-modal
+      v-model:show="showRemoveConfirmation"
+      :on-close="() => (showRemoveConfirmation = false)"
+      :on-confirm="removeRule"
+      :title="t('KANBAN.ENTRY_RULES.REMOVE_RULE')"
+      :message="t('KANBAN.ENTRY_RULES.REMOVE_CONFIRM')"
+      :confirm-text="t('KANBAN.ENTRY_RULES.REMOVE_RULE')"
+      :reject-text="t('KANBAN.ENTRY_RULES.CANCEL')"
+      :is-loading="isRemoving"
+    />
+  </div>
+</template>

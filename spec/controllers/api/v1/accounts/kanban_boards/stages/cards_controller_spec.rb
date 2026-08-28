@@ -86,8 +86,7 @@ RSpec.describe 'Kanban stage cards API', type: :request do
     it 'ignores inbox ids outside the board scope' do
       second_inbox = create(:inbox, account: account)
       create(:inbox_member, user: agent, inbox: second_inbox)
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      restrict_board_to_inboxes(kanban_board, inbox)
       create_visible_card(position: 1, inbox: inbox)
       create_visible_card(position: 2, inbox: second_inbox)
 

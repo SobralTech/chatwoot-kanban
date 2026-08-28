@@ -94,6 +94,7 @@
         "STAGES": "Stages and Data",
         "CUSTOM_FIELDS": "Global Custom Fields",
         "SETTINGS": "Settings",
+        "ENTRY_RULES": "Entry Rules",
         "REASONS": "Win and Loss Reasons",
         "AUTOMATIONS": "Automations"
       },
@@ -121,10 +122,10 @@
       },
       "SETTINGS_TAB": {
         "LOST_REASON_REQUIRED": "Require a loss reason",
-        "AUTOMATIONS_TITLE": "Automatically create cards from conversations",
         "DANGER_ZONE_TITLE": "Danger zone",
         "DANGER_ZONE_DESCRIPTION": "Deleting this funnel removes it from active Kanban navigation. Historical cards are not changed.",
-        "DELETE_FUNNEL": "Delete funnel"
+        "DELETE_FUNNEL": "Delete funnel",
+        "ENTRY_RULES_HINT": "Cards are created automatically by the rules on the Entry Rules tab."
       }
     },
     "BOARD_FORM": {
@@ -979,6 +980,59 @@
       "BOT": "Bot",
       "CREATE_ERROR": "Could not add the contact note.",
       "FETCH_ERROR": "Could not load contact notes."
+    },
+    "ENTRY_RULES": {
+      "TITLE": "Entry rules",
+      "DESCRIPTION": "A conversation enters this funnel through the first rule it matches. Drag to change which rule wins.",
+      "ADD_RULE": "Add rule",
+      "EDIT_RULE": "Edit rule",
+      "REMOVE_RULE": "Remove rule",
+      "REMOVE_CONFIRM": "Remove this entry rule? Cards already on the funnel stay where they are.",
+      "CANCEL": "Cancel",
+      "SAVE": "Save",
+      "LOADING": "Loading entry rules...",
+      "EMPTY": "No entry rules yet. Without one, this funnel accepts every inbox by hand and creates no cards on its own.",
+      "LOAD_ERROR": "Could not load the entry rules.",
+      "SAVE_ERROR": "Could not save the entry rule.",
+      "SAVE_SUCCESS": "Entry rule saved.",
+      "REMOVE_ERROR": "Could not remove the entry rule.",
+      "NAME_LABEL": "Rule name",
+      "NAME_REQUIRED": "Give the rule a name.",
+      "INBOX_REQUIRED": "Pick at least one inbox, or turn on all inboxes.",
+      "ALL_INBOXES": "All inboxes",
+      "NO_INBOX": "No inbox",
+      "NO_CONDITIONS": "no conditions",
+      "CONDITION_COUNT": "{count} condition | {count} conditions",
+      "ROW_SUMMARY": "{inboxes} - {conditions}",
+      "ANY_VALUE": "Any value",
+      "NONE_OPTION": "None",
+      "FIRST_STAGE": "First active stage",
+      "STAGE_LABEL": "Card lands in",
+      "IMPORT_TITLE": "Import matching conversations?",
+      "IMPORT_BODY": "{count} existing conversations match this rule. Import them into the funnel now?",
+      "IMPORT_CONFIRM": "Import",
+      "IMPORT_SKIP": "Not now",
+      "IMPORT_STARTED": "Import started. Cards will appear as they are created.",
+      "IMPORT_ERROR": "Could not start the import.",
+      "FIELDS": {
+        "LABELS": "Labels",
+        "ASSIGNEE_ID": "Assigned agent",
+        "TEAM_ID": "Team",
+        "PRIORITY": "Priority"
+      },
+      "OPERATORS": {
+        "IS_ONE_OF": "is one of",
+        "IS_NOT_ONE_OF": "is not one of",
+        "INCLUDES_ANY": "has any of",
+        "INCLUDES_ALL": "has all of",
+        "NOT_INCLUDES": "has none of"
+      },
+      "PRIORITY": {
+        "LOW": "Low",
+        "MEDIUM": "Medium",
+        "HIGH": "High",
+        "URGENT": "Urgent"
+      }
     }
   }
 }
