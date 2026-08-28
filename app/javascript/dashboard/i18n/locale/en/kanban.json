@@ -1005,6 +1005,8 @@
       "CONDITION_COUNT": "{count} condition | {count} conditions",
       "ROW_SUMMARY": "{inboxes} - {conditions}",
       "ANY_VALUE": "Any value",
+      "SEARCH_VALUES": "Search values",
+      "NO_VALUES": "No values found",
       "NONE_OPTION": "None",
       "FIRST_STAGE": "First active stage",
       "STAGE_LABEL": "Card lands in",

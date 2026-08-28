@@ -51,7 +51,7 @@ const form = reactive({
   name: '',
   allInboxes: true,
   inboxIds: [],
-  kanbanStageId: null,
+  kanbanStageId: '',
   conditions: emptyConditionForm(),
 });
 
@@ -138,7 +138,7 @@ const resetForm = () => {
   form.name = '';
   form.allInboxes = true;
   form.inboxIds = [];
-  form.kanbanStageId = null;
+  form.kanbanStageId = '';
   form.conditions = emptyConditionForm();
   formError.value = '';
 };
@@ -154,7 +154,7 @@ const openEditRuleModal = rule => {
   form.name = rule.name;
   form.allInboxes = rule.allInboxes;
   form.inboxIds = [...(rule.inboxIds || [])];
-  form.kanbanStageId = rule.kanbanStageId;
+  form.kanbanStageId = rule.kanbanStageId || '';
   form.conditions = conditionsToForm(rule.conditions);
   formError.value = '';
   showFormModal.value = true;
@@ -439,17 +439,19 @@ onMounted(fetchRules);
             :data-testid="`kanban-entry-rule-${field.key}`"
             :options="valueOptionsByField[field.key]"
             :placeholder="t('KANBAN.ENTRY_RULES.ANY_VALUE')"
-            :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
-            :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
+            :search-placeholder="t('KANBAN.ENTRY_RULES.SEARCH_VALUES')"
+            :empty-state="t('KANBAN.ENTRY_RULES.NO_VALUES')"
           />
         </div>
 
-        <Select
-          v-model="form.kanbanStageId"
-          data-testid="kanban-entry-rule-stage"
-          :options="stageOptions"
-          :label="t('KANBAN.ENTRY_RULES.STAGE_LABEL')"
-        />
+        <label class="grid gap-1 text-sm font-medium text-n-slate-12">
+          {{ t('KANBAN.ENTRY_RULES.STAGE_LABEL') }}
+          <Select
+            v-model="form.kanbanStageId"
+            data-testid="kanban-entry-rule-stage"
+            :options="stageOptions"
+          />
+        </label>
 
         <p v-if="formError" class="mb-0 text-sm text-n-ruby-11">
           {{ formError }}
