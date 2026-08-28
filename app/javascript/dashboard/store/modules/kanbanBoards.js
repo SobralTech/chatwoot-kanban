@@ -11,6 +11,7 @@ const state = {
 };
 
 let fetchRequestId = 0;
+let inFlightFetch = null;
 
 export const getters = {
   kanbanBoards: _state => _state.records,
@@ -19,34 +20,45 @@ export const getters = {
 };
 
 export const actions = {
-  fetchBoards: async ({ commit }) => {
+  fetchBoards: ({ commit }, { force = false } = {}) => {
+    if (inFlightFetch && !force) return inFlightFetch;
+
     fetchRequestId += 1;
     const requestId = fetchRequestId;
 
     commit(types.SET_KANBAN_BOARDS_UI_FLAG, { isLoading: true, error: null });
 
-    try {
-      const response = await KanbanBoardsAPI.get();
-      if (requestId !== fetchRequestId) return;
-      commit(types.SET_KANBAN_BOARDS, response.data);
-    } catch (error) {
-      if (requestId !== fetchRequestId) return;
-      const message = error?.response?.data?.error || error.message;
-      commit(types.SET_KANBAN_BOARDS_UI_FLAG, { error: message });
-      throw error;
-    } finally {
-      if (requestId === fetchRequestId) {
-        commit(types.SET_KANBAN_BOARDS_UI_FLAG, { isLoading: false });
+    const request = (async () => {
+      try {
+        const response = await KanbanBoardsAPI.get();
+        if (requestId !== fetchRequestId) return;
+        commit(types.SET_KANBAN_BOARDS, response.data);
+      } catch (error) {
+        if (requestId !== fetchRequestId) return;
+        const message = error?.response?.data?.error || error.message;
+        commit(types.SET_KANBAN_BOARDS_UI_FLAG, { error: message });
+        throw error;
+      } finally {
+        if (requestId === fetchRequestId) {
+          commit(types.SET_KANBAN_BOARDS_UI_FLAG, { isLoading: false });
+        }
       }
-    }
+    })();
+
+    inFlightFetch = request.finally(() => {
+      if (requestId === fetchRequestId) inFlightFetch = null;
+    });
+
+    return inFlightFetch;
   },
 
   refreshBoards: async ({ dispatch }) => {
-    return dispatch('fetchBoards');
+    return dispatch('fetchBoards', { force: true });
   },
 
   resetBoards: ({ commit }) => {
     fetchRequestId += 1;
+    inFlightFetch = null;
     commit(types.SET_KANBAN_BOARDS, []);
     commit(types.SET_KANBAN_BOARDS_UI_FLAG, {
       isLoading: false,
