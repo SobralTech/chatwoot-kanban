@@ -3,6 +3,8 @@
 # the tables do not know -- an attribute or operator that is not in the vocabulary -- is
 # a condition that cannot be satisfied, so the rule does not fire.
 class KanbanAutomations::RuleMatcher
+  extend KanbanConditions::Coercions
+
   NUMERIC_ATTRIBUTES = %w[stage_id previous_stage_id inbox_id assignee_id reason_id total_value hours_in_stage].freeze
 
   ATTRIBUTES = {
@@ -23,16 +25,17 @@ class KanbanAutomations::RuleMatcher
     }
   }.freeze
 
-  # `self` inside these is the class, so they read as plain calls to the coercions below.
+  # `self` inside these is the class, so they read as plain calls to the coercions the
+  # class extends.
   OPERATORS = {
-    'equal_to' => ->(value, values, key) { equal_to?(value, values.first, key) },
-    'not_equal_to' => ->(value, values, key) { !equal_to?(value, values.first, key) },
-    'is_present' => ->(value, _values, _key) { value.present? },
-    'is_not_present' => ->(value, _values, _key) { value.blank? },
-    'greater_than' => ->(value, values, _key) { numeric_compare(value, values.first, :>) },
-    'less_than' => ->(value, values, _key) { numeric_compare(value, values.first, :<) },
-    'is_one_of' => ->(value, values, key) { values.any? { |expected| equal_to?(value, expected, key) } },
-    'includes' => ->(value, values, key) { includes?(value, values, key) }
+    'equal_to' => ->(value, values, numeric) { equal_to?(value, values.first, numeric: numeric) },
+    'not_equal_to' => ->(value, values, numeric) { !equal_to?(value, values.first, numeric: numeric) },
+    'is_present' => ->(value, _values, _numeric) { value.present? },
+    'is_not_present' => ->(value, _values, _numeric) { value.blank? },
+    'greater_than' => ->(value, values, _numeric) { numeric_compare(value, values.first, :>) },
+    'less_than' => ->(value, values, _numeric) { numeric_compare(value, values.first, :<) },
+    'is_one_of' => ->(value, values, numeric) { values.any? { |expected| equal_to?(value, expected, numeric: numeric) } },
+    'includes' => ->(value, values, numeric) { includes?(value, values, numeric: numeric) }
   }.freeze
 
   def self.match?(card, rule)
@@ -59,54 +62,6 @@ class KanbanAutomations::RuleMatcher
     operator = OPERATORS[condition[:filter_operator].to_s]
     return false unless attribute && operator
 
-    operator.call(attribute.call(card), Array(condition[:values]), attribute_key)
-  end
-
-  class << self
-    private
-
-    def equal_to?(value, expected, attribute_key)
-      return value.any? { |item| scalar_equal?(item, expected, attribute_key) } if value.is_a?(Array)
-
-      scalar_equal?(value, expected, attribute_key)
-    end
-
-    def scalar_equal?(value, expected, attribute_key)
-      return false if value.nil? || expected.nil?
-
-      if boolean_value?(value) || boolean_value?(expected)
-        ActiveModel::Type::Boolean.new.cast(value) == ActiveModel::Type::Boolean.new.cast(expected)
-      elsif NUMERIC_ATTRIBUTES.include?(attribute_key)
-        numeric_compare(value, expected, :==)
-      else
-        value.to_s == expected.to_s
-      end
-    end
-
-    def includes?(value, expected_values, attribute_key)
-      return expected_values.any? { |expected| value.to_s.include?(expected.to_s) } unless value.is_a?(Array)
-
-      expected_values.any? { |expected| value.any? { |item| scalar_equal?(item, expected, attribute_key) } }
-    end
-
-    # Ordering only means something between two numbers: a blank total, or a value typed
-    # as text, is a condition that does not match rather than an exception.
-    def numeric_compare(value, expected, operator)
-      left = numeric_value(value)
-      right = numeric_value(expected)
-      return false if left.nil? || right.nil?
-
-      left.public_send(operator, right)
-    end
-
-    def numeric_value(value)
-      BigDecimal(value.to_s)
-    rescue ArgumentError, TypeError
-      nil
-    end
-
-    def boolean_value?(value)
-      value == true || value == false || %w[true false].include?(value.to_s.downcase)
-    end
+    operator.call(attribute.call(card), Array(condition[:values]), NUMERIC_ATTRIBUTES.include?(attribute_key))
   end
 end
