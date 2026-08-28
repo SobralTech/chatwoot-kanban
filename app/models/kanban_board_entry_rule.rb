@@ -61,6 +61,20 @@ class KanbanBoardEntryRule < ApplicationRecord
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, id: :asc) }
 
+  after_commit :expire_account_activity_cache
+
+  # Asked once per conversation update across the whole account, so the answer is cached
+  # and busted whenever a rule is written.
+  def self.active_for_account?(account_id)
+    Rails.cache.fetch(account_activity_cache_key(account_id), expires_in: 1.hour) do
+      active.exists?(account_id: account_id)
+    end
+  end
+
+  def self.account_activity_cache_key(account_id)
+    "kanban_board_entry_rules/active/#{account_id}"
+  end
+
   # Position is the only thing moving and the rules are already valid, so this writes the
   # whole order in one statement instead of revalidating every rule.
   def self.apply_position_order!(ordered_ids)
@@ -77,6 +91,10 @@ class KanbanBoardEntryRule < ApplicationRecord
   end
 
   private
+
+  def expire_account_activity_cache
+    Rails.cache.delete(self.class.account_activity_cache_key(account_id))
+  end
 
   def validate_board_account
     return if kanban_board.blank? || account_id == kanban_board.account_id

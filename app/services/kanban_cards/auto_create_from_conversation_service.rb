@@ -11,8 +11,14 @@ class KanbanCards::AutoCreateFromConversationService
   def perform!
     return summary unless contact && inbox
 
-    eligible_boards.find_each do |kanban_board|
-      create_for_board(kanban_board)
+    eligible_boards.find_each do |board|
+      # The recurrence path names its board, and by then the decision to bring the contact
+      # back has already been made -- re-reading the entry rules there would reject the
+      # return precisely because the old conversation was closed and cleaned up.
+      rule = kanban_board.present? ? nil : matching_rule(board)
+      next if kanban_board.blank? && rule.blank?
+
+      create_for_board(board, rule)
     end
 
     summary
@@ -26,18 +32,31 @@ class KanbanCards::AutoCreateFromConversationService
     scope = KanbanBoard.accepting_inbox_for_account(conversation.account_id, inbox.id)
     return scope.where(id: kanban_board.id) if kanban_board.present?
 
-    scope.where(auto_create_cards_from_conversations: true).where.not(id: boards_with_terminal_history_ids)
+    scope.where.not(id: boards_with_terminal_history_ids)
   end
 
-  def create_for_board(kanban_board)
+  # The rule that admits this conversation: the first active one, by position, whose
+  # inboxes cover it and whose conditions it satisfies. Only that one is used, so a
+  # conversation matching several rules still gets a single card.
+  def matching_rule(board)
+    board.kanban_board_entry_rules.active.ordered.includes(:kanban_board_entry_rule_inboxes).find do |rule|
+      rule_accepts_inbox?(rule) && KanbanBoardEntryRules::Matcher.match?(conversation, rule)
+    end
+  end
+
+  def rule_accepts_inbox?(rule)
+    rule.all_inboxes? || rule.kanban_board_entry_rule_inboxes.any? { |join| join.inbox_id == inbox.id }
+  end
+
+  def create_for_board(kanban_board, rule)
     card = KanbanCard.transaction do
-      stage = first_active_stage(kanban_board)
+      stage = stage_for(kanban_board, rule)
       if stage.blank?
         skip_without_active_stage
         nil
       else
         stage.lock!
-        create_for_stage(kanban_board, stage)
+        create_for_stage(kanban_board, stage, rule)
       end
     end
     if card.present?
@@ -48,17 +67,29 @@ class KanbanCards::AutoCreateFromConversationService
     skip_existing_card
   end
 
+  # A rule may name its landing stage. If that stage was archived after the rule was
+  # written, the card falls back to the first active stage rather than not being created.
+  def stage_for(kanban_board, rule)
+    configured = rule&.kanban_stage
+    return configured if configured&.active? && configured.kanban_board_id == kanban_board.id
+
+    first_active_stage(kanban_board)
+  end
+
   def first_active_stage(kanban_board)
     kanban_board.kanban_stages.active.ordered.first
   end
 
-  def create_for_stage(kanban_board, stage)
+  def create_for_stage(kanban_board, stage, rule)
     if automatic_card_exists?(kanban_board)
       skip_existing_card
       nil
     else
       card = create_card!(kanban_board, stage)
-      KanbanCards::RecordEventService.card_created(card)
+      # Only matches are recorded, and on the card's own trail: rejections are close to
+      # the account's whole conversation traffic, so a log of them would bury the answer
+      # it was meant to give. "Why did this one not come in?" is the preview's job.
+      KanbanCards::RecordEventService.card_created(card, entry_rule: rule)
       summary[:created] += 1
       card
     end

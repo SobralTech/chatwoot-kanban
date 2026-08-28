@@ -100,17 +100,21 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
                      .transform_values { |members| members.map(&:user) }
   end
 
+  # The overview badge lists the inboxes a board takes in, which is the union of what its
+  # active entry rules name. A board whose rules cover every inbox contributes nothing
+  # here: the view reads `inbox_scope_mode` for that case.
   def overview_allowed_inboxes_by_board_id(board_ids)
-    KanbanBoardInbox.includes(:inbox)
-                    .where(account_id: Current.account.id, kanban_board_id: board_ids)
-                    .order(:inbox_id)
-                    .group_by(&:kanban_board_id)
-                    .transform_values { |board_inboxes| board_inboxes.map(&:inbox) }
+    KanbanBoardEntryRuleInbox.includes(:inbox)
+                             .where(account_id: Current.account.id, kanban_board_id: board_ids)
+                             .where(kanban_board_entry_rule_id: KanbanBoardEntryRule.active.select(:id))
+                             .order(:inbox_id)
+                             .group_by(&:kanban_board_id)
+                             .transform_values { |rule_inboxes| rule_inboxes.map(&:inbox).uniq }
   end
 
   def kanban_board_params
     params.require(:kanban_board).permit(
-      :name, :description, :position, :active, :auto_create_cards_from_conversations,
+      :name, :description, :position, :active,
       :won_stage_id, :lost_stage_id, :lost_reason_required,
       automation_settings: {}
     )

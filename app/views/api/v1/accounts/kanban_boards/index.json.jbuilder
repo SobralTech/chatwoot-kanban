@@ -1,7 +1,7 @@
 json.array! @kanban_boards do |kanban_board|
   json.partial! 'api/v1/accounts/kanban_boards/kanban_board', formats: [:json], kanban_board: kanban_board
   json.visibility_mode kanban_board.visibility_mode
-  json.inbox_scope_mode kanban_board.inbox_scope_mode
+  json.inbox_scope_mode kanban_board.derived_inbox_scope_mode
   json.cards_count @overview_cards_count_by_board_id.fetch(kanban_board.id, 0)
 
   json.stages_summary do

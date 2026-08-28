@@ -245,15 +245,14 @@ RSpec.describe KanbanCards::CreateFromConversationService do
       expect { service.perform! }.to change(KanbanCard.conversation, :count).by(1)
     end
 
-    it 'rejects conversation when inbox is not in selected_inboxes mode' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+    it 'rejects conversation when the entry rule does not name the inbox' do
+      restrict_board_to_inboxes(kanban_board)
 
       expect { service.perform! }.to raise_validation_error('Conversation inbox is not allowed by board scope')
     end
 
     it 'accepts admin conversation creation within board scope' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      restrict_board_to_inboxes(kanban_board, inbox)
       admin = create(:user, account: account, role: :administrator)
       create(:inbox_member, user: admin, inbox: inbox)
       admin_service = build_service(user: admin)
@@ -262,7 +261,7 @@ RSpec.describe KanbanCards::CreateFromConversationService do
     end
 
     it 'rejects admin conversation creation when inbox is not in board scope' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      restrict_board_to_inboxes(kanban_board)
       admin = create(:user, account: account, role: :administrator)
       create(:inbox_member, user: admin, inbox: inbox)
       admin_service = build_service(user: admin)

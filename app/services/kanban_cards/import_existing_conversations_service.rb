@@ -2,10 +2,11 @@ class KanbanCards::ImportExistingConversationsService
   BATCH_SIZE = 1000
   GROUP_IDENTIFIER_PATTERN = '%@g.us%'.freeze
 
-  def initialize(account:, kanban_board:, ignore_groups: false)
+  def initialize(account:, kanban_board:, ignore_groups: false, entry_rule: nil)
     @account = account
     @kanban_board = kanban_board
     @ignore_groups = ActiveModel::Type::Boolean.new.cast(ignore_groups)
+    @entry_rule = entry_rule
     @summary = summary_hash
   end
 
@@ -13,7 +14,8 @@ class KanbanCards::ImportExistingConversationsService
     return summary unless default_stage
 
     eligible_conversations.in_batches(of: BATCH_SIZE) do |batch|
-      import_batch(batch)
+      matching = matching_conversation_ids(batch)
+      import_batch(batch.where(id: matching)) if matching.present?
     end
 
     summary
@@ -21,13 +23,31 @@ class KanbanCards::ImportExistingConversationsService
 
   def estimated_count
     return 0 unless default_stage
+    return eligible_conversations.count unless filter_in_ruby?
 
-    eligible_conversations.count
+    count = 0
+    eligible_conversations.in_batches(of: BATCH_SIZE) { |batch| count += matching_conversation_ids(batch).size }
+    count
   end
 
   private
 
-  attr_reader :account, :kanban_board, :ignore_groups, :summary
+  attr_reader :account, :kanban_board, :ignore_groups, :entry_rule, :summary
+
+  # The inbox side of a rule is SQL, so it narrows the relation. The four conditions are
+  # run through the same matcher the automation uses, rather than restated as SQL: a
+  # retroactive import has to select exactly what the rule would have let in.
+  def filter_in_ruby?
+    entry_rule.present? && Array(entry_rule.conditions).present?
+  end
+
+  def matching_conversation_ids(batch)
+    return batch.pluck(:id) unless filter_in_ruby?
+
+    batch.select(:id, :assignee_id, :team_id, :priority, :cached_label_list).filter_map do |conversation|
+      conversation.id if KanbanBoardEntryRules::Matcher.match?(conversation, entry_rule)
+    end
+  end
 
   def import_batch(batch)
     inserted_rows = KanbanCard.transaction do
@@ -156,7 +176,7 @@ class KanbanCards::ImportExistingConversationsService
                .where("NOT EXISTS (#{existing_card_relation.to_sql})")
                .order(:id)
 
-    relation = relation.where(inbox_id: allowed_inbox_ids) if kanban_board.selected_inboxes?
+    relation = relation.where(inbox_id: allowed_inbox_ids) if allowed_inbox_ids
     relation = exclude_group_conversations(relation) if ignore_groups
     relation
   end
@@ -170,8 +190,17 @@ class KanbanCards::ImportExistingConversationsService
       .where.not('LOWER(COALESCE(contact_inboxes.source_id, ?)) LIKE ?', '', GROUP_IDENTIFIER_PATTERN)
   end
 
+  # nil means "do not narrow": either the chosen rule covers every inbox, or no rule was
+  # chosen and the board's own derived scope already decides what is importable.
   def allowed_inbox_ids
-    @allowed_inbox_ids ||= kanban_board.kanban_board_inboxes.pluck(:inbox_id)
+    return @allowed_inbox_ids if defined?(@allowed_inbox_ids)
+
+    @allowed_inbox_ids =
+      if entry_rule.present?
+        entry_rule.all_inboxes? ? nil : entry_rule.inbox_ids
+      else
+        kanban_board.derived_all_inboxes? ? nil : kanban_board.derived_allowed_inbox_ids
+      end
   end
 
   def existing_card_relation

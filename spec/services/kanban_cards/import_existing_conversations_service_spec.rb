@@ -81,15 +81,50 @@ RSpec.describe KanbanCards::ImportExistingConversationsService do
         .not_to change(KanbanCard.conversation, :count)
     end
 
-    it 'respects selected inbox scope' do
-      board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: board, inbox: inbox)
+    it 'respects the inbox scope the active entry rules derive' do
+      restrict_board_to_inboxes(board, inbox)
       selected_conversation = create(:conversation, account: account, inbox: inbox)
       create(:conversation, account: account, inbox: other_inbox)
 
       described_class.new(account: account, kanban_board: board).perform!
 
       expect(KanbanCard.conversation.pluck(:conversation_id)).to contain_exactly(selected_conversation.id)
+    end
+
+    it 'imports only the inboxes the chosen rule names' do
+      rule = restrict_board_to_inboxes(board, inbox)
+      selected_conversation = create(:conversation, account: account, inbox: inbox)
+      create(:conversation, account: account, inbox: other_inbox)
+
+      described_class.new(account: account, kanban_board: board, entry_rule: rule).perform!
+
+      expect(KanbanCard.conversation.pluck(:conversation_id)).to contain_exactly(selected_conversation.id)
+    end
+
+    it 'imports only the conversations the chosen rule conditions match' do
+      matching = create(:conversation, account: account, inbox: inbox, priority: 'urgent')
+      create(:conversation, account: account, inbox: inbox)
+      rule = create(
+        :kanban_board_entry_rule, account: account, kanban_board: board,
+                                  conditions: [{ attribute_key: 'priority', filter_operator: 'is_one_of', values: ['urgent'] }]
+      )
+
+      described_class.new(account: account, kanban_board: board, entry_rule: rule).perform!
+
+      expect(KanbanCard.conversation.pluck(:conversation_id)).to contain_exactly(matching.id)
+    end
+
+    it 'estimates the count the chosen rule would take in' do
+      create(:conversation, account: account, inbox: inbox, priority: 'urgent')
+      create(:conversation, account: account, inbox: inbox)
+      rule = create(
+        :kanban_board_entry_rule, account: account, kanban_board: board,
+                                  conditions: [{ attribute_key: 'priority', filter_operator: 'is_one_of', values: ['urgent'] }]
+      )
+
+      service = described_class.new(account: account, kanban_board: board, entry_rule: rule)
+
+      expect(service.estimated_count).to eq(1)
     end
 
     it 'excludes group conversations when ignore_groups is true' do

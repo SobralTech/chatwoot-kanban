@@ -1,5 +1,18 @@
 class CreateKanbanBoardEntryRules < ActiveRecord::Migration[7.1]
   def up
+    create_rules_table!
+    create_rule_inboxes_table!
+    backfill_entry_rules!
+  end
+
+  def down
+    drop_table :kanban_board_entry_rule_inboxes
+    drop_table :kanban_board_entry_rules
+  end
+
+  private
+
+  def create_rules_table!
     create_table :kanban_board_entry_rules do |t|
       t.references :account, null: false, foreign_key: true, index: false
       t.references :kanban_board, null: false, foreign_key: true, index: false
@@ -16,7 +29,9 @@ class CreateKanbanBoardEntryRules < ActiveRecord::Migration[7.1]
     add_index :kanban_board_entry_rules, [:kanban_board_id, :active]
     add_index :kanban_board_entry_rules, :account_id
     add_index :kanban_board_entry_rules, :kanban_stage_id
+  end
 
+  def create_rule_inboxes_table!
     create_table :kanban_board_entry_rule_inboxes do |t|
       t.references :account, null: false, foreign_key: true, index: false
       t.references :kanban_board, null: false, foreign_key: true, index: false
@@ -32,16 +47,7 @@ class CreateKanbanBoardEntryRules < ActiveRecord::Migration[7.1]
     add_index :kanban_board_entry_rule_inboxes, [:kanban_board_entry_rule_id, :inbox_id],
               unique: true, name: 'index_entry_rule_inboxes_on_rule_and_inbox'
     add_index :kanban_board_entry_rule_inboxes, :account_id
-
-    backfill_entry_rules!
   end
-
-  def down
-    drop_table :kanban_board_entry_rule_inboxes
-    drop_table :kanban_board_entry_rules
-  end
-
-  private
 
   # Boards that auto-created cards become an active rule; boards that only narrowed their
   # inbox scope become an inactive one, so the configuration survives even though an

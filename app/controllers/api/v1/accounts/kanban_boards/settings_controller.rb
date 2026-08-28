@@ -6,9 +6,8 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
 
   def update
     ActiveRecord::Base.transaction do
-      @kanban_board.update!(settings_params.except(:visible_user_ids, :allowed_inbox_ids))
+      @kanban_board.update!(settings_params.except(:visible_user_ids))
       replace_memberships!
-      replace_inboxes!
     end
 
     dispatch_kanban_board_event
@@ -20,10 +19,13 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
     service = KanbanCards::ImportExistingConversationsService.new(
       account: Current.account,
       kanban_board: @kanban_board,
-      ignore_groups: ignore_groups
+      ignore_groups: ignore_groups,
+      entry_rule: entry_rule
     )
 
-    KanbanCards::ImportExistingConversationsJob.perform_later(Current.account.id, @kanban_board.id, ignore_groups: ignore_groups)
+    KanbanCards::ImportExistingConversationsJob.perform_later(
+      Current.account.id, @kanban_board.id, ignore_groups: ignore_groups, entry_rule_id: entry_rule&.id
+    )
 
     render json: {
       status: 'accepted',
@@ -53,8 +55,6 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
       :name,
       :description,
       :visibility_mode,
-      :inbox_scope_mode,
-      :auto_create_cards_from_conversations,
       :won_recurrence_enabled,
       :won_recurrence_window_hours,
       :lost_recurrence_enabled,
@@ -63,9 +63,18 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
       :lost_stage_id,
       :lost_reason_required,
       automation_settings: {},
-      visible_user_ids: [],
-      allowed_inbox_ids: []
+      visible_user_ids: []
     )
+  end
+
+  # An import is scoped to one entry rule, so a board with several rules imports exactly
+  # what that rule would have let in rather than the union of all of them.
+  def entry_rule
+    return if params[:entry_rule_id].blank?
+
+    @entry_rule ||= KanbanBoardEntryRule.where(
+      account_id: Current.account.id, kanban_board_id: @kanban_board.id
+    ).find(params[:entry_rule_id])
   end
 
   def replace_memberships!
@@ -81,19 +90,6 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
     end
   end
 
-  def replace_inboxes!
-    return unless settings_params.key?(:allowed_inbox_ids) || @kanban_board.all_inboxes?
-
-    inbox_ids = normalized_ids(settings_params[:allowed_inbox_ids])
-    validate_account_inbox_ids!(inbox_ids)
-    KanbanBoardInbox.where(kanban_board_id: @kanban_board.id).delete_all
-    return if @kanban_board.all_inboxes? || inbox_ids.blank?
-
-    inbox_ids.each do |inbox_id|
-      KanbanBoardInbox.create!(account: Current.account, kanban_board: @kanban_board, inbox_id: inbox_id)
-    end
-  end
-
   def normalized_ids(ids)
     Array(ids).filter_map(&:presence).map(&:to_i).uniq
   end
@@ -103,15 +99,6 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
 
     valid_user_count = AccountUser.where(account_id: Current.account.id, user_id: user_ids).select(:user_id).distinct.count
     return if valid_user_count == user_ids.length
-
-    raise ActiveRecord::RecordInvalid, @kanban_board
-  end
-
-  def validate_account_inbox_ids!(inbox_ids)
-    return if inbox_ids.blank?
-
-    valid_inbox_count = Inbox.where(account_id: Current.account.id, id: inbox_ids).count
-    return if valid_inbox_count == inbox_ids.length
 
     raise ActiveRecord::RecordInvalid, @kanban_board
   end

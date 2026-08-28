@@ -152,33 +152,74 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
       expect(created_card).to be_present
     end
 
-    it 'creates on board when inbox is selected in selected_inboxes mode' do
-      board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: board, inbox: inbox)
+    it 'creates on board when the entry rule names the inbox' do
+      restrict_to_inboxes(board, inbox)
 
       expect { service.perform! }.to change(KanbanCard, :count).by(1)
     end
 
-    it 'ignores board in selected_inboxes mode when inbox is not selected' do
-      board.update!(inbox_scope_mode: 'selected_inboxes')
+    it 'ignores board when the entry rule does not name the inbox' do
+      restrict_to_inboxes(board)
 
       expect { service.perform! }.not_to change(KanbanCard, :count)
     end
 
     it 'creates only on eligible boards when multiple boards exist' do
-      board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: board, inbox: inbox)
-      second_board = create_eligible_board
-      second_board.update!(inbox_scope_mode: 'selected_inboxes')
+      restrict_to_inboxes(board, inbox)
+      restrict_to_inboxes(create_eligible_board)
 
       expect { service.perform! }.to change(KanbanCard, :count).by(1)
       expect(created_card.kanban_board_id).to eq(board.id)
     end
 
-    it 'does not create when automation is disabled' do
-      board.update!(auto_create_cards_from_conversations: false)
+    it 'does not create when the board has no active entry rule' do
+      board.kanban_board_entry_rules.each { |rule| rule.update!(active: false) }
 
       expect { service.perform! }.not_to change(KanbanCard, :count)
+    end
+
+    it 'does not create when the conversation fails the rule conditions' do
+      board.kanban_board_entry_rules.first.update!(
+        conditions: [{ attribute_key: 'priority', filter_operator: 'is_one_of', values: ['urgent'] }]
+      )
+
+      expect { service.perform! }.not_to change(KanbanCard, :count)
+    end
+
+    it 'creates when the conversation satisfies the rule conditions' do
+      conversation.update!(priority: 'urgent')
+      board.kanban_board_entry_rules.first.update!(
+        conditions: [{ attribute_key: 'priority', filter_operator: 'is_one_of', values: ['urgent'] }]
+      )
+
+      expect { service.perform! }.to change(KanbanCard, :count).by(1)
+    end
+
+    it 'lands the card in the stage the matching rule names' do
+      target = create(:kanban_stage, account: account, kanban_board: board, position: 2)
+      board.kanban_board_entry_rules.first.update!(kanban_stage: target)
+
+      service.perform!
+
+      expect(created_card.kanban_stage_id).to eq(target.id)
+    end
+
+    it 'uses the first matching rule by position when several match' do
+      target = create(:kanban_stage, account: account, kanban_board: board, position: 2)
+      board.kanban_board_entry_rules.first.update!(position: 2, kanban_stage: target)
+      create(:kanban_board_entry_rule, account: account, kanban_board: board, position: 1)
+
+      expect { service.perform! }.to change(KanbanCard, :count).by(1)
+      expect(created_card.kanban_stage_id).to eq(first_stage.id)
+    end
+
+    it 'records the matching rule on the card created event' do
+      rule = board.kanban_board_entry_rules.first
+
+      service.perform!
+
+      event = KanbanCardEvent.find_by(kanban_card_id: created_card.id, event_type: 'card_created')
+      expect(event.metadata).to include('entry_rule_id' => rule.id, 'entry_rule_name' => rule.name)
     end
 
     it 'does not create a card for a contact with unresolved terminal history on the board' do
@@ -324,14 +365,19 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
   end
 
   def create_eligible_board
-    kanban_board = create(
-      :kanban_board,
-      account: account,
-      auto_create_cards_from_conversations: true,
-      use_opportunity_card_reads: true
-    )
+    kanban_board = create(:kanban_board, account: account, use_opportunity_card_reads: true)
     create(:kanban_stage, account: account, kanban_board: kanban_board, position: 1)
+    create(:kanban_board_entry_rule, account: account, kanban_board: kanban_board)
     kanban_board
+  end
+
+  def restrict_to_inboxes(kanban_board, *inboxes)
+    rule = kanban_board.kanban_board_entry_rules.first
+    rule.update!(all_inboxes: false)
+    inboxes.each do |restricted_inbox|
+      create(:kanban_board_entry_rule_inbox, account: account, kanban_board_entry_rule: rule, inbox: restricted_inbox)
+    end
+    rule
   end
 
   def create_automatic_card(kanban_board: board, active: true)
@@ -383,7 +429,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
 
     labels_tags_taggings_query_count(collect_sql_queries { described_class.new(local_conversation).perform! })
   ensure
-    local_board&.update!(auto_create_cards_from_conversations: false)
+    local_board&.kanban_board_entry_rules&.each { |rule| rule.update!(active: false) }
   end
 
   def create_labeled_cards(kanban_board, stage, count)

@@ -152,6 +152,11 @@ Rails.application.routes.draw do
                 post :preview, on: :collection
                 patch :reorder, on: :collection
               end
+              resources :entry_rules, only: [:index, :create, :update, :destroy] do
+                patch :toggle, on: :member
+                post :preview, on: :collection
+                patch :reorder, on: :collection
+              end
               resources :automation_logs, only: [:index]
               get 'cards/lookup', to: 'cards#lookup'
               post 'cards/manual', to: 'cards#create_manual'

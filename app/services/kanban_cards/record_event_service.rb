@@ -8,14 +8,22 @@ class KanbanCards::RecordEventService
     )
   end
 
-  def self.card_created(card, user: nil, created_at: Time.current)
+  def self.card_created(card, user: nil, created_at: Time.current, entry_rule: nil)
     call(
       card: card,
       event_type: 'card_created',
       user: user,
-      metadata: card_created_metadata(card.attributes),
+      metadata: card_created_metadata(card.attributes).merge(entry_rule_metadata(entry_rule)),
       created_at: created_at
     )
+  end
+
+  # Names the entry rule that let the conversation in, so a card that appeared on its own
+  # can say which rule put it there.
+  def self.entry_rule_metadata(entry_rule)
+    return {} if entry_rule.blank?
+
+    { entry_rule_id: entry_rule.id, entry_rule_name: entry_rule.name }
   end
 
   # Shared with the bulk import, which builds its rows straight from the INSERT

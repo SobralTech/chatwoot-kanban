@@ -290,15 +290,14 @@ RSpec.describe KanbanCards::CreateManualCardService do
       expect { service.perform! }.to change(KanbanCard, :count).by(1)
     end
 
-    it 'rejects an unselected inbox in selected_inboxes mode' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+    it 'rejects an inbox the entry rule does not name' do
+      restrict_board_to_inboxes(kanban_board)
 
       expect { service.perform! }.to raise_validation_error('Inbox is not allowed by board scope')
     end
 
     it 'allows admin to create within board scope' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      restrict_board_to_inboxes(kanban_board, inbox)
       admin = create(:user, account: account, role: :administrator)
       admin_service = build_service(user: admin)
 
@@ -306,7 +305,7 @@ RSpec.describe KanbanCards::CreateManualCardService do
     end
 
     it 'rejects admin when inbox is not in board scope' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      restrict_board_to_inboxes(kanban_board)
       admin = create(:user, account: account, role: :administrator)
       admin_service = build_service(user: admin)
 
