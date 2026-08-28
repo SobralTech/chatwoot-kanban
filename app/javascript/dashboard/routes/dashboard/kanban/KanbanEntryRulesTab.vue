@@ -44,6 +44,7 @@ const formError = ref('');
 const showRemoveConfirmation = ref(false);
 const rulePendingRemoval = ref(null);
 const isRemoving = ref(false);
+const saveConfirmation = ref(null);
 const importPrompt = ref(null);
 const isImporting = ref(false);
 
@@ -170,39 +171,35 @@ const payloadFromForm = () => ({
   },
 });
 
-// A rule that reaches more conversations than before would leave the matching history
-// behind, so the import is offered right after saving one -- and only then.
-const offerRetroactiveImport = async (savedRule, previousRule) => {
-  if (previousRule && !isRuleWiderThan(savedRule, previousRule)) return;
+const draftRuleFromForm = () => ({
+  allInboxes: form.allInboxes,
+  inboxIds: form.allInboxes ? [] : form.inboxIds,
+  conditions: buildConditions(form.conditions),
+});
 
+const previewMatchingCount = async () => {
+  isSaving.value = true;
+  formError.value = '';
   try {
     const response = await KanbanBoardsAPI.previewEntryRule(
       props.boardId,
       payloadFromForm()
     );
-    const count = response.data?.count || 0;
-    if (count > 0) importPrompt.value = { rule: savedRule, count };
+    return response.data?.count || 0;
   } catch (error) {
-    // The rule is already saved; a failed estimate only costs the offer.
-    importPrompt.value = null;
+    formError.value = apiErrorMessage(
+      error,
+      t('KANBAN.ENTRY_RULES.PREVIEW_ERROR')
+    );
+    return null;
+  } finally {
+    isSaving.value = false;
   }
 };
 
-const saveRule = async () => {
-  if (!form.name.trim()) {
-    formError.value = t('KANBAN.ENTRY_RULES.NAME_REQUIRED');
-    return;
-  }
-  if (!form.allInboxes && !form.inboxIds.length) {
-    formError.value = t('KANBAN.ENTRY_RULES.INBOX_REQUIRED');
-    return;
-  }
-
+const persistRule = async (matchingCount = 0) => {
   isSaving.value = true;
   formError.value = '';
-  const previousRule = rules.value.find(
-    rule => rule.id === editingRuleId.value
-  );
 
   try {
     const response = editingRuleId.value
@@ -216,9 +213,12 @@ const saveRule = async () => {
     const savedRule = camelcaseKeys(response.data, { deep: true });
     showFormModal.value = false;
     await fetchRules();
-    await offerRetroactiveImport(savedRule, previousRule);
+    if (matchingCount > 0) {
+      importPrompt.value = { rule: savedRule, count: matchingCount };
+    }
     useAlert(t('KANBAN.ENTRY_RULES.SAVE_SUCCESS'));
   } catch (error) {
+    showFormModal.value = true;
     formError.value = apiErrorMessage(
       error,
       t('KANBAN.ENTRY_RULES.SAVE_ERROR')
@@ -226,6 +226,46 @@ const saveRule = async () => {
   } finally {
     isSaving.value = false;
   }
+};
+
+const saveRule = async () => {
+  if (!form.name.trim()) {
+    formError.value = t('KANBAN.ENTRY_RULES.NAME_REQUIRED');
+    return;
+  }
+  if (!form.allInboxes && !form.inboxIds.length) {
+    formError.value = t('KANBAN.ENTRY_RULES.INBOX_REQUIRED');
+    return;
+  }
+
+  const previousRule = rules.value.find(
+    rule => rule.id === editingRuleId.value
+  );
+  if (previousRule && !isRuleWiderThan(draftRuleFromForm(), previousRule)) {
+    await persistRule();
+    return;
+  }
+
+  const matchingCount = await previewMatchingCount();
+  if (matchingCount === null) return;
+  if (matchingCount === 0) {
+    await persistRule();
+    return;
+  }
+
+  saveConfirmation.value = { count: matchingCount };
+  showFormModal.value = false;
+};
+
+const cancelSaveConfirmation = () => {
+  saveConfirmation.value = null;
+  showFormModal.value = true;
+};
+
+const confirmSaveRule = async () => {
+  const matchingCount = saveConfirmation.value.count;
+  saveConfirmation.value = null;
+  await persistRule(matchingCount);
 };
 
 const toggleRule = async rule => {
@@ -469,6 +509,35 @@ onMounted(fetchRules);
             data-testid="kanban-entry-rule-save"
             :label="t('KANBAN.ENTRY_RULES.SAVE')"
             @click="saveRule"
+          />
+        </div>
+      </div>
+    </woot-modal>
+
+    <woot-modal v-if="saveConfirmation" show :on-close="cancelSaveConfirmation">
+      <div class="grid gap-4 p-8">
+        <h3 class="mb-0 text-lg font-medium text-n-slate-12">
+          {{ t('KANBAN.ENTRY_RULES.SAVE_CONFIRM_TITLE') }}
+        </h3>
+        <p class="mb-0 text-sm text-n-slate-11">
+          {{
+            t('KANBAN.ENTRY_RULES.SAVE_CONFIRM_BODY', {
+              count: saveConfirmation.count,
+            })
+          }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            color="slate"
+            :label="t('KANBAN.ENTRY_RULES.CANCEL')"
+            @click="cancelSaveConfirmation"
+          />
+          <Button
+            :is-loading="isSaving"
+            data-testid="kanban-entry-rule-save-confirm"
+            :label="t('KANBAN.ENTRY_RULES.SAVE_CONFIRM')"
+            @click="confirmSaveRule"
           />
         </div>
       </div>
