@@ -67,6 +67,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
     @overview_cards_count_by_stage_id = {}
     @overview_visible_users_by_board_id = {}
     @overview_allowed_inboxes_by_board_id = {}
+    @overview_all_inboxes_by_board_id = {}
 
     return if board_ids.blank?
 
@@ -78,6 +79,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
     @overview_cards_count_by_stage_id = active_kanban_card_counts(:kanban_stage_id, kanban_stage_id: stage_ids)
     @overview_visible_users_by_board_id = overview_visible_users_by_board_id(board_ids)
     @overview_allowed_inboxes_by_board_id = overview_allowed_inboxes_by_board_id(board_ids)
+    @overview_all_inboxes_by_board_id = overview_all_inboxes_by_board_id(board_ids)
   end
 
   def active_overview_stages(board_ids)
@@ -110,6 +112,14 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
                              .order(:inbox_id)
                              .group_by(&:kanban_board_id)
                              .transform_values { |rule_inboxes| rule_inboxes.map(&:inbox).uniq }
+  end
+
+  def overview_all_inboxes_by_board_id(board_ids)
+    KanbanBoardEntryRule.active
+                        .where(account_id: Current.account.id, kanban_board_id: board_ids)
+                        .group(:kanban_board_id)
+                        .pluck(:kanban_board_id, Arel.sql('BOOL_OR(all_inboxes)'))
+                        .to_h
   end
 
   def kanban_board_params
