@@ -11,15 +11,12 @@ class KanbanCards::AutoCreateFromConversationService
   def perform!
     return summary unless contact && inbox
 
-    eligible_boards.find_each do |board|
-      # The recurrence path names its board, and by then the decision to bring the contact
-      # back has already been made -- re-reading the entry rules there would reject the
-      # return precisely because the old conversation was closed and cleaned up.
-      rule = kanban_board.present? ? nil : matching_rule(board)
-      next if kanban_board.blank? && rule.blank?
+    boards = eligible_boards.to_a
+    return summary if boards.empty?
 
-      create_for_board(board, rule)
-    end
+    rules_by_board_id = preloaded_rules_by_board_id(boards)
+
+    boards.each { |board| create_for_eligible_board(board, rules_by_board_id) }
 
     summary
   end
@@ -38,8 +35,28 @@ class KanbanCards::AutoCreateFromConversationService
   # The rule that admits this conversation: the first active one, by position, whose
   # inboxes cover it and whose conditions it satisfies. Only that one is used, so a
   # conversation matching several rules still gets a single card.
-  def matching_rule(board)
-    board.kanban_board_entry_rules.active.ordered.includes(:kanban_board_entry_rule_inboxes).find do |rule|
+  def preloaded_rules_by_board_id(boards)
+    return {} if kanban_board.present?
+
+    KanbanBoardEntryRule.active
+                        .ordered
+                        .where(kanban_board_id: boards.map(&:id))
+                        .includes(:kanban_stage, :kanban_board_entry_rule_inboxes)
+                        .group_by(&:kanban_board_id)
+  end
+
+  def create_for_eligible_board(board, rules_by_board_id)
+    # The recurrence path names its board, and by then the decision to bring the contact
+    # back has already been made -- re-reading the entry rules there would reject the
+    # return precisely because the old conversation was closed and cleaned up.
+    rule = kanban_board.present? ? nil : matching_rule(rules_by_board_id[board.id])
+    return if kanban_board.blank? && rule.blank?
+
+    create_for_board(board, rule)
+  end
+
+  def matching_rule(rules)
+    Array(rules).find do |rule|
       rule_accepts_inbox?(rule) && KanbanBoardEntryRules::Matcher.match?(conversation, rule)
     end
   end
