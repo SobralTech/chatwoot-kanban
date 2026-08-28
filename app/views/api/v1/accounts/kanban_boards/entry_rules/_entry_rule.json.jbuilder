@@ -7,6 +7,6 @@ json.active entry_rule.active?
 json.all_inboxes entry_rule.all_inboxes?
 json.position entry_rule.position
 json.conditions entry_rule.conditions
-json.inbox_ids entry_rule.kanban_board_entry_rule_inboxes.order(:inbox_id).pluck(:inbox_id)
+json.inbox_ids entry_rule.kanban_board_entry_rule_inboxes.map(&:inbox_id).sort
 json.created_at entry_rule.created_at.to_i
 json.updated_at entry_rule.updated_at.to_i

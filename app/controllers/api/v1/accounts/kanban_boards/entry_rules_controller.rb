@@ -4,7 +4,7 @@ class Api::V1::Accounts::KanbanBoards::EntryRulesController < Api::V1::Accounts:
   before_action :fetch_entry_rule, only: [:update, :destroy, :toggle]
 
   def index
-    @entry_rules = scoped_rules.ordered
+    @entry_rules = scoped_rules.ordered.includes(:kanban_board_entry_rule_inboxes)
   end
 
   def create
@@ -45,7 +45,7 @@ class Api::V1::Accounts::KanbanBoards::EntryRulesController < Api::V1::Accounts:
     return render_unknown_rules if scoped_rules.where(id: ordered_ids).count != ordered_ids.size
 
     scoped_rules.apply_position_order!(ordered_ids)
-    @entry_rules = scoped_rules.ordered
+    @entry_rules = scoped_rules.ordered.includes(:kanban_board_entry_rule_inboxes)
     render :index
   end
 
@@ -107,6 +107,7 @@ class Api::V1::Accounts::KanbanBoards::EntryRulesController < Api::V1::Accounts:
       replace_inboxes!
       saved = true
     end
+    @entry_rule.kanban_board_entry_rule_inboxes.reset if saved
     saved
   end
 
