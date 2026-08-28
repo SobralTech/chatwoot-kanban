@@ -49,6 +49,8 @@ class KanbanCards::AutoCreateFromConversationService
   end
 
   def create_for_board(kanban_board, rule)
+    return skip_existing_card if automatic_card_exists?(kanban_board)
+
     card = KanbanCard.transaction do
       stage = stage_for(kanban_board, rule)
       if stage.blank?
