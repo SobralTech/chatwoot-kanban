@@ -44,7 +44,8 @@ class KanbanBoard < ApplicationRecord
   has_many :kanban_board_members, dependent: :destroy_async
   has_many :visible_users, through: :kanban_board_members, source: :user
   has_many :kanban_board_inboxes, dependent: :destroy_async
-  has_many :allowed_inboxes, through: :kanban_board_inboxes, source: :inbox
+  has_many :kanban_board_entry_rules, dependent: :destroy_async
+  has_many :kanban_board_entry_rule_inboxes, dependent: :delete_all
   has_many :kanban_custom_fields, dependent: :destroy_async
   has_many :kanban_reasons, dependent: :destroy_async
   has_many :kanban_automation_rules, dependent: :destroy_async
@@ -72,11 +73,21 @@ class KanbanBoard < ApplicationRecord
 
   scope :active, -> { where(active: true) }
   scope :ordered, -> { order(position: :asc, id: :asc) }
+  # A board's inbox scope is the union of the inboxes its active entry rules name. No
+  # active rule means nothing is narrowing the board, which reads as open rather than
+  # closed: a board still being set up has to stay usable by hand.
   scope :accepting_inbox, lambda { |inbox_id|
-    joins_sql = KanbanBoardInbox.where('kanban_board_inboxes.kanban_board_id = kanban_boards.id')
-                                .where(inbox_id: inbox_id)
-                                .select('1').to_sql
-    where("inbox_scope_mode = 'all_inboxes' OR (inbox_scope_mode = 'selected_inboxes' AND EXISTS (#{joins_sql}))")
+    active_rules = KanbanBoardEntryRule.active.where('kanban_board_entry_rules.kanban_board_id = kanban_boards.id')
+    named_inbox = KanbanBoardEntryRuleInbox
+                  .where('kanban_board_entry_rule_inboxes.kanban_board_id = kanban_boards.id')
+                  .where(inbox_id: inbox_id)
+                  .where(kanban_board_entry_rule_id: KanbanBoardEntryRule.active.select(:id))
+
+    where(
+      "NOT EXISTS (#{active_rules.select('1').to_sql}) " \
+      "OR EXISTS (#{active_rules.where(all_inboxes: true).select('1').to_sql}) " \
+      "OR EXISTS (#{named_inbox.select('1').to_sql})"
+    )
   }
   scope :accepting_inbox_for_account, lambda { |account_id, inbox_id|
     active.where(account_id: account_id).accepting_inbox(inbox_id)
@@ -92,12 +103,28 @@ class KanbanBoard < ApplicationRecord
     inbox_id = inbox_or_id.is_a?(Inbox) ? inbox_or_id.id : inbox_or_id.to_i
 
     return false if inbox_id.blank?
+    return false unless Inbox.exists?(account_id: account_id, id: inbox_id)
 
-    if all_inboxes?
-      Inbox.exists?(account_id: account_id, id: inbox_id)
-    else
-      kanban_board_inboxes.exists?(inbox_id: inbox_id)
-    end
+    return true if derived_all_inboxes?
+
+    kanban_board_entry_rule_inboxes.where(kanban_board_entry_rule_id: active_entry_rule_ids).exists?(inbox_id: inbox_id)
+  end
+
+  # The payload keeps the `inbox_scope_mode` / `allowed_inboxes` shape the dashboard has
+  # always read; only where the answer comes from has changed.
+  def derived_inbox_scope_mode
+    derived_all_inboxes? ? 'all_inboxes' : 'selected_inboxes'
+  end
+
+  def derived_allowed_inbox_ids
+    return [] if derived_all_inboxes?
+
+    kanban_board_entry_rule_inboxes.where(kanban_board_entry_rule_id: active_entry_rule_ids).distinct.pluck(:inbox_id).sort
+  end
+
+  def derived_all_inboxes?
+    active_rules = kanban_board_entry_rules.active
+    !active_rules.exists? || active_rules.exists?(all_inboxes: true)
   end
 
   def recurrence_window_hours_for(stage_id)
@@ -106,6 +133,10 @@ class KanbanBoard < ApplicationRecord
   end
 
   private
+
+  def active_entry_rule_ids
+    kanban_board_entry_rules.active.select(:id)
+  end
 
   def validate_won_stage_consistency
     return if won_stage.blank?

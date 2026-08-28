@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_26_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_28_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1089,6 +1089,35 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_120000) do
     t.index ["kanban_board_id"], name: "index_kanban_automation_rules_on_kanban_board_id"
   end
 
+  create_table "kanban_board_entry_rule_inboxes", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_board_id", null: false
+    t.bigint "kanban_board_entry_rule_id", null: false
+    t.bigint "inbox_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_kanban_board_entry_rule_inboxes_on_account_id"
+    t.index ["kanban_board_entry_rule_id", "inbox_id"], name: "index_entry_rule_inboxes_on_rule_and_inbox", unique: true
+    t.index ["kanban_board_id", "inbox_id"], name: "index_entry_rule_inboxes_on_board_and_inbox"
+  end
+
+  create_table "kanban_board_entry_rules", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "kanban_board_id", null: false
+    t.bigint "kanban_stage_id"
+    t.string "name", null: false
+    t.boolean "active", default: false, null: false
+    t.boolean "all_inboxes", default: false, null: false
+    t.integer "position", default: 0, null: false
+    t.jsonb "conditions", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_kanban_board_entry_rules_on_account_id"
+    t.index ["kanban_board_id", "active"], name: "index_kanban_board_entry_rules_on_kanban_board_id_and_active"
+    t.index ["kanban_board_id", "position"], name: "index_kanban_board_entry_rules_on_kanban_board_id_and_position"
+    t.index ["kanban_stage_id"], name: "index_kanban_board_entry_rules_on_kanban_stage_id"
+  end
+
   create_table "kanban_board_inboxes", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "kanban_board_id", null: false
@@ -1718,6 +1747,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_120000) do
   add_foreign_key "kanban_automation_rules", "accounts"
   add_foreign_key "kanban_automation_rules", "kanban_boards"
   add_foreign_key "kanban_automation_rules", "users", column: "created_by_id"
+  add_foreign_key "kanban_board_entry_rule_inboxes", "accounts"
+  add_foreign_key "kanban_board_entry_rule_inboxes", "inboxes"
+  add_foreign_key "kanban_board_entry_rule_inboxes", "kanban_board_entry_rules"
+  add_foreign_key "kanban_board_entry_rule_inboxes", "kanban_boards"
+  add_foreign_key "kanban_board_entry_rules", "accounts"
+  add_foreign_key "kanban_board_entry_rules", "kanban_boards"
+  add_foreign_key "kanban_board_entry_rules", "kanban_stages"
   add_foreign_key "kanban_board_inboxes", "accounts"
   add_foreign_key "kanban_board_inboxes", "inboxes"
   add_foreign_key "kanban_board_inboxes", "kanban_boards"
