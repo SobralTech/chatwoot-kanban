@@ -72,6 +72,7 @@ RSpec.describe KanbanCard, type: :model do
     source_cards = create_cards(first_stage, 3)
     create_cards(second_stage, 3)
     create_inactive_card(first_stage)
+    create(:kanban_board_entry_rule, account: account, kanban_board: board)
     conversation = create(:conversation, account: account, contact: contact, inbox: inbox)
 
     errors = run_concurrently(
@@ -104,6 +105,7 @@ RSpec.describe KanbanCard, type: :model do
 
   it 'creates one automatic card when concurrent creates use the same conversation' do
     create_cards(first_stage, 2)
+    create(:kanban_board_entry_rule, account: account, kanban_board: board)
     conversation = create(:conversation, account: account, contact: contact, inbox: inbox)
 
     errors = run_concurrently(
