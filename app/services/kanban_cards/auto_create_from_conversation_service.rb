@@ -116,7 +116,7 @@ class KanbanCards::AutoCreateFromConversationService
 
   def create_card!(kanban_board, stage)
     KanbanCard.create!(
-      account_id: conversation.account_id,
+      account: conversation.account,
       kanban_board: kanban_board,
       kanban_stage: stage,
       contact: contact,
@@ -126,7 +126,10 @@ class KanbanCards::AutoCreateFromConversationService
       origin: 'conversation',
       position: KanbanCard.top_position(kanban_board: kanban_board, kanban_stage: stage),
       active: true,
-      recreated_from_card_id: recreated_from_card_id
+      recreated_from_card_id: recreated_from_card_id,
+      # The taggable callback otherwise queries persisted custom contexts for every new
+      # card, even though automatic cards always start without tags.
+      custom_contexts: []
     )
   end
 

@@ -2,7 +2,7 @@ class KanbanCards::RecordEventService
   def self.call(card:, event_type:, user: nil, metadata: {}, created_at: Time.current)
     KanbanCardEvent.create!(
       **scope_attributes(card, user, created_at),
-      kanban_card_id: card.id,
+      kanban_card: card,
       event_type: event_type,
       metadata: metadata.merge(automation_metadata)
     )
@@ -103,9 +103,9 @@ class KanbanCards::RecordEventService
 
   def self.scope_attributes(card, user, created_at)
     {
-      account_id: card.account_id,
-      kanban_board_id: card.kanban_board_id,
-      user_id: user&.id,
+      account: card.account,
+      kanban_board: card.kanban_board,
+      user: user,
       created_at: created_at
     }
   end
