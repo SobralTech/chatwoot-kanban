@@ -10,8 +10,18 @@ const state = {
   },
 };
 
-let fetchRequestId = 0;
-let inFlightFetch = null;
+const requestStateByStore = new WeakMap();
+const unscopedRequestState = { requestId: 0, inFlightFetch: null };
+
+const requestStateFor = rootState => {
+  if (!rootState) return unscopedRequestState;
+
+  if (!requestStateByStore.has(rootState)) {
+    requestStateByStore.set(rootState, { requestId: 0, inFlightFetch: null });
+  }
+
+  return requestStateByStore.get(rootState);
+};
 
 export const getters = {
   kanbanBoards: _state => _state.records,
@@ -20,45 +30,51 @@ export const getters = {
 };
 
 export const actions = {
-  fetchBoards: ({ commit }, { force = false } = {}) => {
-    if (inFlightFetch && !force) return inFlightFetch;
+  fetchBoards: ({ commit, rootState }, { force = false } = {}) => {
+    const requestState = requestStateFor(rootState);
+    if (requestState.inFlightFetch && !force) {
+      return requestState.inFlightFetch;
+    }
 
-    fetchRequestId += 1;
-    const requestId = fetchRequestId;
+    requestState.requestId += 1;
+    const { requestId } = requestState;
 
     commit(types.SET_KANBAN_BOARDS_UI_FLAG, { isLoading: true, error: null });
 
     const request = (async () => {
       try {
         const response = await KanbanBoardsAPI.get();
-        if (requestId !== fetchRequestId) return;
+        if (requestId !== requestState.requestId) return;
         commit(types.SET_KANBAN_BOARDS, response.data);
       } catch (error) {
-        if (requestId !== fetchRequestId) return;
+        if (requestId !== requestState.requestId) return;
         const message = error?.response?.data?.error || error.message;
         commit(types.SET_KANBAN_BOARDS_UI_FLAG, { error: message });
         throw error;
       } finally {
-        if (requestId === fetchRequestId) {
+        if (requestId === requestState.requestId) {
           commit(types.SET_KANBAN_BOARDS_UI_FLAG, { isLoading: false });
         }
       }
     })();
 
-    inFlightFetch = request.finally(() => {
-      if (requestId === fetchRequestId) inFlightFetch = null;
+    requestState.inFlightFetch = request.finally(() => {
+      if (requestId === requestState.requestId) {
+        requestState.inFlightFetch = null;
+      }
     });
 
-    return inFlightFetch;
+    return requestState.inFlightFetch;
   },
 
   refreshBoards: async ({ dispatch }) => {
     return dispatch('fetchBoards', { force: true });
   },
 
-  resetBoards: ({ commit }) => {
-    fetchRequestId += 1;
-    inFlightFetch = null;
+  resetBoards: ({ commit, rootState }) => {
+    const requestState = requestStateFor(rootState);
+    requestState.requestId += 1;
+    requestState.inFlightFetch = null;
     commit(types.SET_KANBAN_BOARDS, []);
     commit(types.SET_KANBAN_BOARDS_UI_FLAG, {
       isLoading: false,
