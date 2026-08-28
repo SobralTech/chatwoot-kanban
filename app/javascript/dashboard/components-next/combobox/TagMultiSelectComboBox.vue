@@ -123,6 +123,13 @@ const toggleDropdown = () => {
   }
 };
 
+const handleEscape = event => {
+  if (!open.value) return;
+
+  open.value = false;
+  event.stopPropagation();
+};
+
 watch(
   () => props.modelValue,
   newValue => {
@@ -146,6 +153,7 @@ defineExpose({
       'group/combobox': !disabled,
     }"
     @click.prevent
+    @keydown.esc="handleEscape"
   >
     <OnClickOutside @trigger="open = false">
       <div
