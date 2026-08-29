@@ -956,26 +956,30 @@ const menuItems = computed(() => {
           isEffectivelyCollapsed
         "
       />
-      <Button
-        ghost
-        slate
-        sm
-        class="hidden md:inline-flex"
-        :class="
-          isEffectivelyCollapsed
-            ? 'self-center'
-            : 'self-start ltr:ml-1 rtl:mr-1'
-        "
-        :icon="
-          isEffectivelyCollapsed
-            ? 'i-lucide-panel-left-open'
-            : 'i-lucide-panel-left-close'
-        "
-        :title="sidebarToggleLabel"
-        :aria-label="sidebarToggleLabel"
-        data-sidebar-toggle
-        @click="toggleSidebar"
-      />
+      <div
+        class="hidden md:flex w-full"
+        :class="isEffectivelyCollapsed ? 'px-1 justify-center' : 'px-2'"
+      >
+        <Button
+          ghost
+          slate
+          sm
+          :justify="isEffectivelyCollapsed ? 'center' : 'start'"
+          :label="isEffectivelyCollapsed ? '' : sidebarToggleLabel"
+          :class="
+            isEffectivelyCollapsed ? '' : 'w-full !px-1.5 text-n-slate-11'
+          "
+          :icon="
+            isEffectivelyCollapsed
+              ? 'i-lucide-panel-left-open'
+              : 'i-lucide-panel-left-close'
+          "
+          :title="sidebarToggleLabel"
+          :aria-label="sidebarToggleLabel"
+          data-sidebar-toggle
+          @click="toggleSidebar"
+        />
+      </div>
       <div
         class="px-1 py-1.5 flex-shrink-0 flex w-full z-50 gap-2 items-center border-t border-n-weak shadow-[0px_-2px_4px_0px_rgba(27,28,29,0.02)]"
         :class="isEffectivelyCollapsed ? 'justify-center' : 'justify-between'"
