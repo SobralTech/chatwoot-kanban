@@ -1,7 +1,10 @@
 json.array! @kanban_boards do |kanban_board|
+  entry_rule_scope = @overview_entry_rule_scope_by_board_id.fetch(kanban_board.id, {})
+
   json.partial! 'api/v1/accounts/kanban_boards/kanban_board', formats: [:json], kanban_board: kanban_board
   json.visibility_mode kanban_board.visibility_mode
-  json.inbox_scope_mode @overview_all_inboxes_by_board_id.fetch(kanban_board.id, true) ? 'all_inboxes' : 'selected_inboxes'
+  json.inbox_scope_mode entry_rule_scope.fetch(:all_inboxes, true) ? 'all_inboxes' : 'selected_inboxes'
+  json.all_inbox_rule_names entry_rule_scope.fetch(:all_inbox_rule_names, [])
   json.cards_count @overview_cards_count_by_board_id.fetch(kanban_board.id, 0)
 
   json.stages_summary do

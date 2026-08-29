@@ -52,6 +52,8 @@
       "ERROR": "Could not load funnels.",
       "EMPTY_STAGES": "No stages configured.",
       "OPPORTUNITIES_COUNT": "{count} opportunities",
+      "ALL_INBOXES_VIA_RULE": "via {rule}",
+      "ALL_INBOXES_VIA_RULES": "via {rule} +{count}",
       "EXTRA_COUNT": "+{count}"
     },
     "BOARD_TEMPLATES": {

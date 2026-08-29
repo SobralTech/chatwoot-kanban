@@ -46,6 +46,23 @@ const extraItemsCount = (items = [], limit = 4) =>
 const inboxIcon = inbox =>
   getInboxIconByType(inbox.channelType, inbox.medium, 'line', inbox.name);
 
+const allInboxRuleSummary = board => {
+  const ruleNames = board.allInboxRuleNames || [];
+  if (!ruleNames.length) return '';
+
+  const additionalCount = ruleNames.length - 1;
+  if (additionalCount) {
+    return t('KANBAN.OVERVIEW.ALL_INBOXES_VIA_RULES', {
+      rule: ruleNames[0],
+      count: additionalCount,
+    });
+  }
+
+  return t('KANBAN.OVERVIEW.ALL_INBOXES_VIA_RULE', {
+    rule: ruleNames[0],
+  });
+};
+
 const retryFetch = () => {
   store.dispatch('kanbanBoards/fetchBoards');
 };
@@ -232,11 +249,20 @@ onMounted(async () => {
               >
                 <template v-if="board.inboxScopeMode !== 'selected_inboxes'">
                   <span
-                    class="inline-flex items-center gap-1.5 rounded-full border border-n-weak bg-n-surface-1 px-2.5 py-1 text-xs font-medium text-n-slate-11"
+                    class="inline-flex min-w-0 max-w-80 items-center gap-1.5 rounded-full border border-n-weak bg-n-surface-1 px-2.5 py-1 text-xs font-medium text-n-slate-11"
                     data-testid="overview-inbox-pill"
                   >
-                    <i class="i-lucide-inbox size-3.5" />
-                    {{ t('KANBAN.SETTINGS.INBOXES.ALL') }}
+                    <i class="i-lucide-inbox size-3.5 flex-shrink-0" />
+                    <span class="flex-shrink-0">
+                      {{ t('KANBAN.SETTINGS.INBOXES.ALL') }}
+                    </span>
+                    <span
+                      v-if="board.allInboxRuleNames?.length"
+                      class="truncate font-normal text-n-slate-10"
+                      :title="board.allInboxRuleNames.join(', ')"
+                    >
+                      {{ allInboxRuleSummary(board) }}
+                    </span>
                   </span>
                 </template>
                 <template v-else>
