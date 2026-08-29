@@ -221,8 +221,7 @@ const updateMatchMode = matchMode => {
                 :title="option.label"
                 :bg-color="option.color"
                 small
-                class="!m-0 !max-w-full !flex-1"
-                :class="{ '!min-w-0': group.truncateOption }"
+                class="!m-0 !h-6 !max-w-full !min-w-0 !px-1.5 !text-sm"
               />
               <span
                 v-else

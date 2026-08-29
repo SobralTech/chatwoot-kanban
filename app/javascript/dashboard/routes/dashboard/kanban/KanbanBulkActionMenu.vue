@@ -49,10 +49,6 @@ const props = defineProps({
     type: String,
     default: undefined,
   },
-  menuClass: {
-    type: String,
-    default: '',
-  },
   isBusy: {
     type: Boolean,
     default: false,
@@ -100,10 +96,7 @@ const reset = () => {
       {{ label }}
     </button>
     <template #content="{ hide }">
-      <div
-        class="w-64 max-w-[calc(100vw-2rem)]"
-        :class="[MENU_SURFACE_CLASSES, menuClass]"
-      >
+      <div class="w-64 max-w-[calc(100vw-2rem)]" :class="MENU_SURFACE_CLASSES">
         <slot name="header" />
         <p
           v-if="emptyText && !options.length"
