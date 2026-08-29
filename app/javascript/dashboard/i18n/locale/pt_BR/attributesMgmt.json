@@ -70,7 +70,7 @@
         },
         "BADGES": {
           "PRE_CHAT": "Pré-chat",
-          "RESOLUTION": "Resolução"
+          "RESOLUTION": "Finalização"
         }
       },
       "API": {
@@ -141,7 +141,7 @@
     },
     "BADGES": {
       "PRE_CHAT": "Pré-chat",
-      "RESOLUTION": "Resolução"
+      "RESOLUTION": "Finalização"
     }
   }
 }

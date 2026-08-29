@@ -544,12 +544,12 @@
     "INDEX": {
       "HEADER": {
         "TITLE": "Fluxos de Conversa",
-        "DESCRIPTION": "Configure regras e campos obrigatórios para a resolução de conversas."
+        "DESCRIPTION": "Configure regras e campos obrigatórios para a finalização de conversas."
       }
     },
     "REQUIRED_ATTRIBUTES": {
-      "TITLE": "Atributos obrigatórios para resolução",
-      "DESCRIPTION": "Ao resolver uma conversa, os agentes serão solicitados a preencher esses atributos caso ainda não o tenham feito.",
+      "TITLE": "Atributos obrigatórios para finalização",
+      "DESCRIPTION": "Ao finalizar uma conversa, os agentes serão solicitados a preencher esses atributos caso ainda não o tenham feito.",
       "NO_ATTRIBUTES": "Nenhum atributo adicionado ainda",
       "ADD": {
         "TITLE": "Adicionar Atributos",
@@ -560,10 +560,10 @@
         "ERROR": "Não foi possível atualizar os atributos obrigatórios. Por favor, tente novamente"
       },
       "MODAL": {
-        "TITLE": "Resolver conversa",
-        "DESCRIPTION": "Por favor, preencha os seguintes atributos personalizados antes de resolver esta conversa",
+        "TITLE": "Finalizar conversa",
+        "DESCRIPTION": "Por favor, preencha os seguintes atributos personalizados antes de finalizar esta conversa",
         "ACTIONS": {
-          "RESOLVE": "Resolver conversa",
+          "RESOLVE": "Finalizar conversa",
           "CANCEL": "Cancelar"
         },
         "PLACEHOLDERS": {
@@ -581,13 +581,13 @@
       "PAYWALL": {
         "TITLE": "Atualize para usar os atributos obrigatórios",
         "AVAILABLE_ON": "O recurso de atributos obrigatórios da conversa está disponível nos planos Business e Enterprise.",
-        "UPGRADE_PROMPT": "Atualize seu plano para solicitar que os agentes preencham os atributos obrigatórios antes da resolução da conversa.",
+        "UPGRADE_PROMPT": "Atualize seu plano para solicitar que os agentes preencham os atributos obrigatórios antes da finalização da conversa.",
         "UPGRADE_NOW": "Atualizar agora",
         "CANCEL_ANYTIME": "Você pode alterar ou cancelar seu plano a qualquer momento"
       },
       "ENTERPRISE_PAYWALL": {
         "AVAILABLE_ON": "O recurso de atributos obrigatórios de conversa está disponível nos planos pagos.",
-        "UPGRADE_PROMPT": "Atualize para um plano pago para exigir atributos obrigatórios antes da resolução da conversa.",
+        "UPGRADE_PROMPT": "Atualize para um plano pago para exigir atributos obrigatórios antes da finalização da conversa.",
         "ASK_ADMIN": "Entre em contato com seu administrador para fazer a atualização."
       }
     }
@@ -614,9 +614,9 @@
     "TOGGLE_MODAL": "Alternar Modal",
     "TITLE": {
       "OPEN_CONVERSATION": "Abrir conversa",
-      "RESOLVE_AND_NEXT": "Resolver e ir para o próximo",
+      "RESOLVE_AND_NEXT": "Finalizar e ir para o próximo",
       "NAVIGATE_DROPDOWN": "Navegar pelos itens suspensos",
-      "RESOLVE_CONVERSATION": "Resolver Conversa",
+      "RESOLVE_CONVERSATION": "Finalizar Conversa",
       "GO_TO_CONVERSATION_DASHBOARD": "Ir para Painel de Conversação",
       "ADD_ATTACHMENT": "Adicionar anexo",
       "GO_TO_CONTACTS_DASHBOARD": "Ir para Painel de Contatos",

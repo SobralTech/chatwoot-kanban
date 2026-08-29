@@ -45,26 +45,26 @@
         "NOTE": "Este ID é necessário para integrações via API"
       },
       "AUTO_RESOLVE": {
-        "TITLE": "Auto-resolver conversas",
-        "NOTE": "Esta configuração permite-lhe resolver automaticamente a conversa após um determinado período de inatividade.",
+        "TITLE": "Finalizar conversas automaticamente",
+        "NOTE": "Esta configuração permite-lhe finalizar automaticamente a conversa após um determinado período de inatividade.",
         "DURATION": {
           "LABEL": "Duração da inatividade",
-          "HELP": "Período de inatividade após o qual a conversa é automaticamente resolvida",
+          "HELP": "Período de inatividade após o qual a conversa é automaticamente finalizada",
           "PLACEHOLDER": "30",
-          "ERROR": "A duração de auto-resolução deve ser entre 10 minutos e 999 dias",
+          "ERROR": "A duração de finalização automática deve ser entre 10 minutos e 999 dias",
           "API": {
-            "SUCCESS": "Definições de auto-resolução atualizadas",
-            "ERROR": "Falha ao atualizar as definições de auto-resolução"
+            "SUCCESS": "Definições de finalização automática atualizadas",
+            "ERROR": "Falha ao atualizar as definições de finalização automática"
           }
         },
         "MESSAGE": {
-          "LABEL": "Mensagem personalizada de auto-resolução",
-          "PLACEHOLDER": "A conversa foi marcada como resolvida pelo sistema devido a 15 dias de inatividade",
-          "HELP": "Mensagem enviada ao cliente após a conversa ser automaticamente resolvida"
+          "LABEL": "Mensagem personalizada de finalização automática",
+          "PLACEHOLDER": "A conversa foi marcada como finalizada pelo sistema devido a 15 dias de inatividade",
+          "HELP": "Mensagem enviada ao cliente após a conversa ser automaticamente finalizada"
         },
         "PREFERENCES": "Preferências",
         "LABEL": {
-          "LABEL": "Adicionar etiqueta após auto-resolução",
+          "LABEL": "Adicionar etiqueta após finalização automática",
           "PLACEHOLDER": "Selecionar uma etiqueta"
         },
         "IGNORE_WAITING": {
@@ -94,7 +94,7 @@
       },
       "AUTO_RESOLVE_IGNORE_WAITING": {
         "LABEL": "Excluir conversas não atendidas",
-        "HELP": "Quando ativado, o sistema irá ignorar a resolução de conversas que ainda estão à espera de resposta de um agente."
+        "HELP": "Quando ativado, o sistema irá ignorar a finalização de conversas que ainda estão à espera de resposta de um agente."
       },
       "AUDIO_TRANSCRIPTION": {
         "TITLE": "Transcrever mensagens de áudio",
@@ -105,18 +105,18 @@
         }
       },
       "AUTO_RESOLVE_DURATION": {
-        "LABEL": "Duração de inatividade para resolução",
-        "HELP": "Duração após a qual a conversa deve ser automaticamente resolvida se não houver atividade",
+        "LABEL": "Duração de inatividade para finalização",
+        "HELP": "Duração após a qual a conversa deve ser automaticamente finalizada se não houver atividade",
         "PLACEHOLDER": "30",
-        "ERROR": "A duração de auto-resolução deve ser entre 10 minutos e 999 dias",
+        "ERROR": "A duração de finalização automática deve ser entre 10 minutos e 999 dias",
         "API": {
-          "SUCCESS": "Definições de auto-resolução atualizadas",
-          "ERROR": "Falha ao atualizar as definições de auto-resolução"
+          "SUCCESS": "Definições de finalização automática atualizadas",
+          "ERROR": "Falha ao atualizar as definições de finalização automática"
         },
         "UPDATE_BUTTON": "Atualização",
-        "MESSAGE_LABEL": "Mensagem personalizada de resolução",
-        "MESSAGE_PLACEHOLDER": "A conversa foi marcada como resolvida pelo sistema devido a 15 dias de inatividade",
-        "MESSAGE_HELP": "Esta mensagem é enviada ao cliente quando uma conversa é automaticamente resolvida pelo sistema devido à inatividade."
+        "MESSAGE_LABEL": "Mensagem personalizada de finalização",
+        "MESSAGE_PLACEHOLDER": "A conversa foi marcada como finalizada pelo sistema devido a 15 dias de inatividade",
+        "MESSAGE_HELP": "Esta mensagem é enviada ao cliente quando uma conversa é automaticamente finalizada pelo sistema devido à inatividade."
       },
       "FEATURES": {
         "INBOUND_EMAIL_ENABLED": "A sua conta tem a opção de continuar as conversas por e-mail ativa.",
@@ -141,7 +141,7 @@
   },
   "NOTIFICATIONS_PAGE": {
     "HEADER": "Notificações",
-    "MARK_ALL_DONE": "Marcar todos como resolvidos",
+    "MARK_ALL_DONE": "Marcar todos como finalizados",
     "DELETE_TITLE": "Excluído",
     "UNREAD_NOTIFICATION": {
       "TITLE": "Notificações não lidas",
@@ -226,7 +226,7 @@
       "UNMUTE_CONVERSATION": "Reativar conversa",
       "REMOVE_LABEL_FROM_CONVERSATION": "Remover etiqueta da conversa",
       "REOPEN_CONVERSATION": "Reabrir conversa",
-      "RESOLVE_CONVERSATION": "Resolver conversa",
+      "RESOLVE_CONVERSATION": "Finalizar conversa",
       "SEND_TRANSCRIPT": "Enviar transcrição por e-mail",
       "SNOOZE_CONVERSATION": "Adiar conversa",
       "UNTIL_NEXT_REPLY": "Até à próxima resposta",

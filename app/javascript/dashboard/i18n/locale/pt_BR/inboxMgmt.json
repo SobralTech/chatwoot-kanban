@@ -686,7 +686,7 @@
         "ENABLED": "Reabrir a mesma conversa",
         "DISABLED": "Criar novas conversas",
         "ENABLED_DESCRIPTION": "Quando um contado enviar mensagem novamente, a conversa anterior será reaberta.",
-        "DISABLED_DESCRIPTION": "Uma nova conversa será criada toda vez que a anterior estiver resolvida."
+        "DISABLED_DESCRIPTION": "Uma nova conversa será criada toda vez que a anterior estiver finalizada."
       },
       "ENABLE_HMAC": {
         "LABEL": "Ativar"
@@ -917,8 +917,8 @@
       "FORWARD_EMAIL_TITLE": "Encaminhar para o E-mail",
       "FORWARD_EMAIL_SUB_TEXT": "Comece a encaminhar seus e-mails para o seguinte endereço de e-mail.",
       "FORWARD_EMAIL_NOT_CONFIGURED": "O encaminhamento de e-mails para sua caixa de entrada está desativado nesta instalação. Para utilizar esse recurso, ele deve ser habilitado pelo administrador. Entre em contato com um para prosseguir.",
-      "ALLOW_MESSAGES_AFTER_RESOLVED": "Permitir mensagens após a resolução da conversa",
-      "ALLOW_MESSAGES_AFTER_RESOLVED_SUB_TEXT": "Permite que os usuários finais enviem mensagens mesmo depois que a conversa for resolvida.",
+      "ALLOW_MESSAGES_AFTER_RESOLVED": "Permitir mensagens após a finalização da conversa",
+      "ALLOW_MESSAGES_AFTER_RESOLVED_SUB_TEXT": "Permite que os usuários finais enviem mensagens mesmo depois que a conversa for finalizada.",
       "WHATSAPP_SECTION_SUBHEADER": "Esta chave de API é usada para a integração com as APIs do WhatsApp.",
       "WHATSAPP_SECTION_UPDATE_SUBHEADER": "Insira a nova chave API a ser utilizada para integração com as APIs do WhatsApp.",
       "WHATSAPP_SECTION_TITLE": "Chave API",

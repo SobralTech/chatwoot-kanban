@@ -164,36 +164,36 @@ pt:
       agent_name: Nome do agente
       conversations_count: Conversas atribuídas
       avg_first_response_time: Média de tempo da primeira resposta
-      avg_resolution_time: Média de tempo de resolução
-      resolution_count: Contagem de resolução
+      avg_resolution_time: Média de tempo de finalização
+      resolution_count: Contagem de finalização
       avg_customer_waiting_time: Tempo médio de espera cliente
     inbox_csv:
       inbox_name: Nome da caixa de entrada
       inbox_type: Tipo de caixa de entrada
       conversations_count: Num de conversas
       avg_first_response_time: Média de tempo da primeira resposta
-      avg_resolution_time: Média de tempo de resolução
+      avg_resolution_time: Média de tempo de finalização
     label_csv:
       label_title: Etiqueta
       conversations_count: Num de conversas
       avg_first_response_time: Média de tempo da primeira resposta
-      avg_resolution_time: Média de tempo de resolução
+      avg_resolution_time: Média de tempo de finalização
       avg_reply_time: Média de tempo de resposta
-      resolution_count: Contagem de resolução
+      resolution_count: Contagem de finalização
     team_csv:
       team_name: Nome da equipa
       conversations_count: Número de conversas
       avg_first_response_time: Média de tempo da primeira resposta
-      avg_resolution_time: Média de tempo de resolução
-      resolution_count: Contagem de resolução
+      avg_resolution_time: Média de tempo de finalização
+      resolution_count: Contagem de finalização
       avg_customer_waiting_time: Tempo médio de espera cliente
     conversation_csv:
       conversations_count: Conversas
       incoming_messages_count: Mensagens recebidas
       outgoing_messages_count: Mensagens enviadas
       avg_first_response_time: Média de tempo da primeira resposta
-      avg_resolution_time: Média de tempo de resolução
-      resolution_count: Resolution count
+      avg_resolution_time: Média de tempo de finalização
+      resolution_count: Contagem de finalização
       avg_customer_waiting_time: Tempo médio de espera cliente
     conversation_traffic_csv:
       timezone: Fuso Horário
@@ -226,7 +226,7 @@ pt:
       conversation_mention: 'Foi mencionado na conversa (#%{display_id})'
       sla_missed_first_response: 'SLA da primeira resposta não atingido na conversa (#%{display_id})'
       sla_missed_next_response: 'Objetivo de SLA de próxima resposta não atingido na conversa (#%{display_id})'
-      sla_missed_resolution: 'Objetivo de SLA de resolução não atingido na conversa (#%{display_id})'
+      sla_missed_resolution: 'Objetivo de SLA de finalização não atingido na conversa (#%{display_id})'
     attachment: 'Anexo'
     no_content: 'Sem conteúdo'
   conversations:
@@ -248,23 +248,23 @@ pt:
         error_code: 'Código de erro: %{error_code}'
     activity:
       captain:
-        resolved: 'A conversa foi marcada como resolvida por %{user_name} devido à inatividade'
-        resolved_with_reason: 'Conversation was marked resolved by %{user_name} (%{reason})'
-        resolved_by_tool: 'Conversation was marked resolved by %{user_name}: %{reason}'
+        resolved: 'A conversa foi marcada como finalizada por %{user_name} devido à inatividade'
+        resolved_with_reason: 'A conversa foi marcada como finalizada por %{user_name} (%{reason})'
+        resolved_by_tool: 'A conversa foi marcada como finalizada por %{user_name}: %{reason}'
         open: 'A conversa foi marcada como aberta por %{user_name}'
         open_with_reason: 'Conversation was marked open by %{user_name} (%{reason})'
         auto_opened_after_agent_reply: 'Conversation was marked open automatically after an agent reply'
       agent_bot:
         error_moved_to_open: 'Conversation was marked open by system due to an error with the agent bot.'
       status:
-        resolved: 'Conversa foi marcada como resolvida por %{user_name}'
-        contact_resolved: 'Conversa foi resolvida por %{contact_name}'
+        resolved: 'Conversa foi marcada como finalizada por %{user_name}'
+        contact_resolved: 'Conversa foi finalizada por %{contact_name}'
         open: 'Conversa foi reaberta por %{user_name}'
         pending: 'Conversa marcada como pendente por %{user_name}'
         snoozed: 'Conversa adiada por %{user_name}'
-        auto_resolved_days: 'Conversa auto-resolvida pelo sistema por causa dos %{count} dias sem inatividade'
-        auto_resolved_hours: 'A conversa foi marcada como resolvida pelo sistema devido a %{count} horas de inatividade'
-        auto_resolved_minutes: 'A conversa foi marcada como resolvida pelo sistema devido a %{count} minutos de inatividade'
+        auto_resolved_days: 'Conversa finalizada automaticamente pelo sistema por causa dos %{count} dias sem inatividade'
+        auto_resolved_hours: 'A conversa foi marcada como finalizada pelo sistema devido a %{count} horas de inatividade'
+        auto_resolved_minutes: 'A conversa foi marcada como finalizada pelo sistema devido a %{count} minutos de inatividade'
         system_auto_open: O sistema reabriu a conversa por ter sido recebida uma nova mensagem.
       priority:
         added: '%{user_name} definiu a prioridade para %{new_priority}'
@@ -294,10 +294,10 @@ pt:
       csat:
         not_sent_due_to_messaging_window: 'Inquérito CSAT não enviado devido a restrições de saída de mensagem'
       auto_resolve:
-        not_sent_due_to_messaging_window: 'Auto-resolução de mensagem não enviada devido a restrições na saída de mensagens'
+        not_sent_due_to_messaging_window: 'Mensagem de finalização automática não enviada devido a restrições na saída de mensagens'
       muted: '%{user_name} bloqueou a conversa'
       unmuted: '%{user_name} reativou a conversa'
-      auto_resolution_message: 'Resolving the conversation as it has been inactive for a while. Please start a new conversation if you need further assistance.'
+      auto_resolution_message: 'A finalizar a conversa, pois está inativa há algum tempo. Inicie uma nova conversa se precisar de mais ajuda.'
     templates:
       greeting_message_body: '%{account_name} normalmente responde em poucas horas.'
       ways_to_reach_you_message_body: 'Dê à equipe um jeito de contatá-lo.'

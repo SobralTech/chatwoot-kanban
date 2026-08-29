@@ -55,7 +55,7 @@
     "BOT_HANDOFF_ACTION": "Marcar como aberta e atribuir a você",
     "BOT_HANDOFF_REOPEN_ACTION": "Marcar conversa como aberta",
     "BOT_HANDOFF_SUCCESS": "Uma conversa foi atribuída a você",
-    "BOT_HANDOFF_ERROR": "Falha ao resolver conversas. Por favor, tente novamente.",
+    "BOT_HANDOFF_ERROR": "Falha ao finalizar conversas. Por favor, tente novamente.",
     "TWILIO_WHATSAPP_CAN_REPLY": "Você só pode responder a esta conversa usando um modelo de mensagem devido a",
     "TWILIO_WHATSAPP_24_HOURS_WINDOW": "Restrições de janela de mensagem de 24 horas",
     "OLD_INSTAGRAM_INBOX_REPLY_BANNER": "Esta conta do Instagram foi migrada para a nova caixa de entrada do canal do Instagram. Todas as novas mensagens serão mostradas lá. Você não poderá mais enviar mensagens desta conversa.",
@@ -103,7 +103,7 @@
       "JOIN_CALL": "Entrar na chamada"
     },
     "HEADER": {
-      "RESOLVE_ACTION": "Resolver",
+      "RESOLVE_ACTION": "Finalizar",
       "REOPEN_ACTION": "Reabrir",
       "OPEN_ACTION": "Abrir",
       "MORE_ACTIONS": "Mais ações",
@@ -179,7 +179,7 @@
     },
     "CARD_CONTEXT_MENU": {
       "PENDING": "Deixar pendente",
-      "RESOLVED": "Marcar como resolvida",
+      "RESOLVED": "Marcar como finalizada",
       "MARK_AS_UNREAD": "Marcar como não lida",
       "MARK_AS_READ": "Marcar como lida",
       "REOPEN": "Reabrir conversa",

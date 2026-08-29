@@ -603,7 +603,7 @@
         "ENABLED": "Reopen same conversation",
         "DISABLED": "Create new conversations",
         "ENABLED_DESCRIPTION": "When a contact messages again, the previous conversation will be reopened.",
-        "DISABLED_DESCRIPTION": "A new conversation will be created each time after the previous one is resolved."
+        "DISABLED_DESCRIPTION": "Será criada uma nova conversa sempre que a anterior for finalizada."
       },
       "ENABLE_HMAC": {
         "LABEL": "Ativar"
@@ -771,8 +771,8 @@
       "FORWARD_EMAIL_TITLE": "Encaminhar para e-mail",
       "FORWARD_EMAIL_SUB_TEXT": "Comece a encaminhar as suas mensagens de e-mail para o seguinte endereço.",
       "FORWARD_EMAIL_NOT_CONFIGURED": "Forwarding emails to your inbox is currently disabled on this installation. To use this feature, it must be enabled by your administrator. Please get in touch with them to proceed.",
-      "ALLOW_MESSAGES_AFTER_RESOLVED": "Permitir mensagens após a resolução da conversa",
-      "ALLOW_MESSAGES_AFTER_RESOLVED_SUB_TEXT": "Permitir que os utilizadores finais enviem mensagens após a conversa estar resolvida.",
+      "ALLOW_MESSAGES_AFTER_RESOLVED": "Permitir mensagens após a finalização da conversa",
+      "ALLOW_MESSAGES_AFTER_RESOLVED_SUB_TEXT": "Permitir que os utilizadores finais enviem mensagens após a conversa estar finalizada.",
       "WHATSAPP_SECTION_SUBHEADER": "Esta chave de API é usada para a integração com as APIs do WhatsApp.",
       "WHATSAPP_SECTION_UPDATE_SUBHEADER": "Insira a nova chave da API a ser usada para a integração com as APIs do WhatsApp.",
       "WHATSAPP_SECTION_TITLE": "Chave da API",

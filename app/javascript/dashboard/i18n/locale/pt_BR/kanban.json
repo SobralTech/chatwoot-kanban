@@ -904,7 +904,7 @@
       "CONVERSATION_STATUS": {
         "OPEN": "Aberta",
         "PENDING": "Pendente",
-        "RESOLVED": "Resolvida"
+        "RESOLVED": "Finalizada"
       },
       "RECENT_CONVERSATIONS_NOTE": "Mostrando as conversas mais recentes.",
       "HAS_CARD_BADGE": "Já tem cartão",

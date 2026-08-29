@@ -88,7 +88,7 @@
       "JOIN_CALL": "Join call"
     },
     "HEADER": {
-      "RESOLVE_ACTION": "Resolver",
+      "RESOLVE_ACTION": "Finalizar",
       "REOPEN_ACTION": "Reabrir",
       "OPEN_ACTION": "Abertas",
       "MORE_ACTIONS": "Mais ações",
@@ -151,7 +151,7 @@
     },
     "CARD_CONTEXT_MENU": {
       "PENDING": "Marcar como pendente",
-      "RESOLVED": "Marcar como resolvida",
+      "RESOLVED": "Marcar como finalizada",
       "MARK_AS_UNREAD": "Marcar como não lida",
       "MARK_AS_READ": "Marcar como lida",
       "REOPEN": "Reabrir conversa",

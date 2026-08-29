@@ -3,7 +3,7 @@
     "HEADER": "Acordo de Nível de Serviço",
     "ADD_ACTION": "Adicionar SLA",
     "ADD_ACTION_LONG": "Criar uma nova Política de SLA",
-    "DESCRIPTION": "Acordo de Nível de Serviço (SLAs em inglês) são acordos que definem expectativas claras entre seu time e os clientes. Estabelecem normas para tempos de resposta e de resolução, criando um quadro de responsabilização e garantindo uma experiência coerente e de qualidade.",
+    "DESCRIPTION": "Acordo de Nível de Serviço (SLAs em inglês) são acordos que definem expectativas claras entre seu time e os clientes. Estabelecem normas para tempos de resposta e de finalização, criando um quadro de responsabilização e garantindo uma experiência coerente e de qualidade.",
     "LEARN_MORE": "Saiba mais sobre SLA",
     "COUNT": "{n} SLA | {n} SLAs",
     "LOADING": "Buscando SLAs",
@@ -40,7 +40,7 @@
       "RESPONSE_TYPES": {
         "FRT": "Próximo limite de tempo de resposta",
         "NRT": "Próximo limite de tempo de resposta",
-        "RT": "Limite de tempo de resolução",
+        "RT": "Limite de tempo de finalização",
         "SHORT_HAND": {
           "FRT": "FRT",
           "NRT": "NRT",
@@ -69,7 +69,7 @@
         "PLACEHOLDER": "5"
       },
       "RESOLUTION_TIME": {
-        "LABEL": "Tempo de Resolução",
+        "LABEL": "Tempo de Finalização",
         "PLACEHOLDER": "60"
       },
       "BUSINESS_HOURS": {
@@ -109,7 +109,7 @@
       "TITLE": "Faltas de SLA",
       "FRT": "Primeira resposta",
       "NRT": "Próximo tempo de resposta",
-      "RT": "Tempo de resolução",
+      "RT": "Tempo de finalização",
       "SHOW_MORE": "{count} mais",
       "HIDE": "Ocultar {count} linhas"
     }

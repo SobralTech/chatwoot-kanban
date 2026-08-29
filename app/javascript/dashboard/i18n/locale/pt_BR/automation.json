@@ -135,7 +135,7 @@
       "CONVERSATION_CREATED": "Conversa Criada",
       "CONVERSATION_UPDATED": "Conversa Atualizada",
       "MESSAGE_CREATED": "Mensagem Criada",
-      "CONVERSATION_RESOLVED": "Conversa Resolvida",
+      "CONVERSATION_RESOLVED": "Conversa Finalizada",
       "CONVERSATION_OPENED": "Conversa Aberta"
     },
     "ACTIONS": {
@@ -149,7 +149,7 @@
       "SEND_EMAIL_TRANSCRIPT": "Enviar uma transcrição por e-mail",
       "MUTE_CONVERSATION": "Silenciar Conversa",
       "SNOOZE_CONVERSATION": "Adiar Conversa",
-      "RESOLVE_CONVERSATION": "Resolver Conversa",
+      "RESOLVE_CONVERSATION": "Finalizar Conversa",
       "SEND_WEBHOOK_EVENT": "Enviar evento de Webhook",
       "SEND_ATTACHMENT": "Enviar Anexo",
       "SEND_MESSAGE": "Enviar Mensagem",
