@@ -62,12 +62,7 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
   end
 
   def destroy_all
-    KanbanCard.transaction do
-      KanbanCard.lock_reorder_stages!([@kanban_stage.id])
-      KanbanCard.lock_active_cards_for_stages!(@kanban_board, [@kanban_stage.id])
-      @kanban_stage.kanban_cards.active.destroy_all
-      KanbanCard.normalize_positions_for_stage!(kanban_board: @kanban_board, kanban_stage: @kanban_stage)
-    end
+    KanbanCard.destroy_active_cards_for_stage!(kanban_board: @kanban_board, kanban_stage: @kanban_stage)
 
     KanbanCards::EventDispatcher.stage_cards_deleted(@kanban_board, stage_id: @kanban_stage.id)
     head :no_content

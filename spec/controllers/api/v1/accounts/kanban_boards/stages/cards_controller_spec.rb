@@ -373,6 +373,54 @@ RSpec.describe 'Kanban stage cards API', type: :request do
     end
   end
 
+  describe 'DELETE /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages/{kanban_stage.id}/cards' do
+    it 'deletes every card with a bounded number of queries' do
+      create_visible_cards(10)
+
+      sql_queries = collect_sql_queries do
+        delete stage_cards_path, headers: administrator.create_new_auth_token, as: :json
+      end
+
+      expect(response).to have_http_status(:no_content)
+      expect(kanban_stage.kanban_cards.active).to be_empty
+      expect(stage_card_deletion_query_count(sql_queries)).to be <= 20
+    end
+
+    it 'cleans up dependent data and keeps automation logs' do
+      card = create_visible_card
+      product = KanbanCardProduct.create!(
+        account: account,
+        kanban_card: card,
+        sku: 'bulk-delete-product',
+        name: 'Product',
+        unit_price: 10,
+        quantity: 1
+      )
+      event = create(:kanban_card_event, account: account, kanban_card: card)
+      note = create(:kanban_card_note, account: account, kanban_card: card)
+      note.attachments.attach(io: StringIO.new('attachment'), filename: 'attachment.txt', content_type: 'text/plain')
+      attachment_id = note.attachments.first.id
+      automation_rule = create(:kanban_automation_rule, account: account, kanban_board: kanban_board)
+      automation_log = create(:kanban_automation_log, account: account, kanban_automation_rule: automation_rule, kanban_card: card)
+      card.update_labels(['bulk-delete'])
+      tagging_ids = card.taggings.ids
+
+      delete stage_cards_path, headers: administrator.create_new_auth_token, as: :json
+
+      deleted_records_exist = [
+        KanbanCard.exists?(card.id),
+        KanbanCardProduct.exists?(product.id),
+        KanbanCardEvent.exists?(event.id),
+        KanbanCardNote.exists?(note.id),
+        ActiveStorage::Attachment.exists?(attachment_id)
+      ]
+      expect(response).to have_http_status(:no_content)
+      expect(deleted_records_exist).to all(be(false))
+      expect(ActsAsTaggableOn::Tagging.where(id: tagging_ids)).to be_empty
+      expect(automation_log.reload.kanban_card_id).to be_nil
+    end
+  end
+
   def stage_cards_path(stage: kanban_stage)
     "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}/cards"
   end
@@ -441,6 +489,12 @@ RSpec.describe 'Kanban stage cards API', type: :request do
       notes: sql_queries.count { |sql| sql.match?(/FROM "notes"|JOIN "notes"/) },
       labels_tags_taggings: labels_tags_taggings_query_count(sql_queries)
     }
+  end
+
+  def stage_card_deletion_query_count(sql_queries)
+    sql_queries.count do |sql|
+      sql.match?(/kanban_cards|kanban_card_|kanban_automation_logs|taggings/)
+    end
   end
 
   def labels_tags_taggings_query_count(sql_queries)

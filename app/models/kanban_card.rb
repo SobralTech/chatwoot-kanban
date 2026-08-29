@@ -162,6 +162,18 @@ class KanbanCard < ApplicationRecord
     end
   end
 
+  def self.destroy_active_cards_for_stage!(kanban_board:, kanban_stage:)
+    transaction do
+      lock_reorder_stages!([kanban_stage.id])
+      lock_active_cards_for_stages!(kanban_board, [kanban_stage.id])
+
+      cards = where(kanban_board: kanban_board, kanban_stage: kanban_stage).active
+      card_ids = cards.select(:id)
+      bulk_destroy_associations!(card_ids)
+      cards.delete_all
+    end
+  end
+
   # Where a card lands when it is dropped right after `after_card`, or at the top of the
   # stage when that is nil. The stage row is locked so two drops into the same slot cannot
   # settle on the same midpoint; the caller keeps that lock by wrapping this and the move
@@ -348,8 +360,36 @@ class KanbanCard < ApplicationRecord
     SQL
   end
 
+  def self.bulk_destroy_associations!(card_ids)
+    KanbanCardAssignee.where(kanban_card_id: card_ids).delete_all
+    KanbanCardProduct.where(kanban_card_id: card_ids).delete_all
+    KanbanCardFieldValue.where(kanban_card_id: card_ids).delete_all
+    KanbanCardEvent.where(kanban_card_id: card_ids).delete_all
+    bulk_destroy_notes!(card_ids)
+    # rubocop:disable Rails/SkipsModelValidations
+    KanbanAutomationLog.where(kanban_card_id: card_ids).update_all(kanban_card_id: nil)
+    # rubocop:enable Rails/SkipsModelValidations
+    bulk_destroy_taggings!(card_ids)
+  end
+
+  def self.bulk_destroy_notes!(card_ids)
+    notes = KanbanCardNote.where(kanban_card_id: card_ids)
+    attachments = ActiveStorage::Attachment.where(record_type: KanbanCardNote.polymorphic_name, record_id: notes.select(:id))
+
+    attachments.destroy_all
+    notes.delete_all
+  end
+
+  def self.bulk_destroy_taggings!(card_ids)
+    taggings = ActsAsTaggableOn::Tagging.where(taggable_type: polymorphic_name, taggable_id: card_ids)
+    return taggings.delete_all unless ActsAsTaggableOn.tags_counter || ActsAsTaggableOn.remove_unused_tags
+
+    taggings.destroy_all
+  end
+
   private_class_method :slot_position, :position_between,
-                       :bulk_normalize_positions_for_stage!, :bulk_sort_active_cards_for_stage!, :bulk_move_active_cards!
+                       :bulk_normalize_positions_for_stage!, :bulk_sort_active_cards_for_stage!, :bulk_move_active_cards!,
+                       :bulk_destroy_associations!, :bulk_destroy_notes!, :bulk_destroy_taggings!
 
   private
 
