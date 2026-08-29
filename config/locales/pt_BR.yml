@@ -71,7 +71,7 @@ pt_BR:
           request: 'Solicitação'
           assessment: 'Levantamento'
           proposal_sent: 'Proposta enviada'
-          follow_up: 'Follow-up'
+          follow_up: 'Acompanhamento'
           closed: 'Fechado'
           refused: 'Recusado'
         lost_reasons:
@@ -107,6 +107,14 @@ pt_BR:
       presence: não pode ficar em branco
     webhook:
       invalid: Eventos inválidos
+    kanban_card_field_value:
+      value:
+        invalid_for_field_type: 'é inválido para "%{field_key}" (esperava um valor %{field_type} válido)'
+        multiple_not_allowed: 'para "%{field_key}" não aceita vários valores'
+    kanban_card_note:
+      attachments:
+        too_many: 'Até 5 arquivos por nota.'
+        too_large: 'Cada arquivo deve ter no máximo 20 MB.'
     signup:
       disposable_email: Não permitimos e-mails descartáveis
       blocked_domain: Este domínio não é permitido. Se você acredita que isso é um erro, por favor contate o suporte.
