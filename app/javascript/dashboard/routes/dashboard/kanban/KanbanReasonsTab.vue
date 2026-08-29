@@ -167,11 +167,16 @@ onMounted(fetchReasons);
 </script>
 
 <template>
-  <div class="grid gap-4" data-testid="kanban-reasons-tab">
-    <p class="text-xs text-n-slate-10">
-      {{ t('KANBAN.BOARD_EDIT.AUTOSAVE_NOTE') }}
-    </p>
-    <div class="flex items-center justify-end">
+  <div class="grid gap-5" data-testid="kanban-reasons-tab">
+    <header class="flex flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h2 class="mb-0 text-base font-medium text-n-slate-12">
+          {{ t('KANBAN.REASONS.TITLE') }}
+        </h2>
+        <p class="mb-0 text-sm text-n-slate-11">
+          {{ t('KANBAN.REASONS.DESCRIPTION') }}
+        </p>
+      </div>
       <Button
         icon="i-lucide-plus"
         :label="t('KANBAN.REASONS.ADD_REASON')"
@@ -180,7 +185,7 @@ onMounted(fetchReasons);
         data-testid="kanban-reasons-add"
         @click="openAddReasonModal('lost')"
       />
-    </div>
+    </header>
 
     <p
       v-if="isLoading"
@@ -198,7 +203,7 @@ onMounted(fetchReasons);
       {{ loadError }}
     </p>
 
-    <div v-else class="grid gap-4 sm:grid-cols-2">
+    <div v-else class="grid gap-5 sm:grid-cols-2">
       <section
         class="grid content-start gap-3 rounded-lg border border-n-weak p-4"
       >
@@ -396,18 +401,18 @@ onMounted(fetchReasons);
             @input="formError = ''"
           />
 
-          <label class="grid gap-1 text-sm font-medium text-n-slate-12">
+          <label class="grid gap-1.5 text-sm font-medium text-n-slate-12">
             {{ t('KANBAN.REASONS.FORM.FIELD_DESCRIPTION') }}
             <textarea
               v-model="form.description"
               data-testid="kanban-reason-description"
               rows="3"
               :placeholder="t('KANBAN.REASONS.FORM.DESCRIPTION_PLACEHOLDER')"
-              class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+              class="!mb-0"
             />
           </label>
 
-          <div class="flex justify-end gap-2">
+          <div class="flex justify-end gap-2 border-t border-n-weak pt-4">
             <Button
               type="button"
               :label="t('KANBAN.REASONS.FORM.CANCEL')"

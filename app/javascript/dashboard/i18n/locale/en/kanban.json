@@ -83,7 +83,6 @@
       "SAVE_AND_EXIT": "Save and exit",
       "DISCARD_CONFIRM_TITLE": "Discard changes?",
       "DISCARD_CONFIRM_MESSAGE": "The changes made to this funnel's settings will be lost.",
-      "AUTOSAVE_NOTE": "Changes in this tab are saved automatically.",
       "WON_STAGE_REMOVED": "The stage set as Won was deleted. Choose another one.",
       "LOST_STAGE_REMOVED": "The stage set as Lost was deleted. Choose another one.",
       "LOADING": "Loading funnel...",
@@ -333,6 +332,8 @@
       "REMOVE_ALL_LABELS": "Remove all labels"
     },
     "CUSTOM_FIELDS": {
+      "TITLE": "Global custom fields",
+      "DESCRIPTION": "These fields appear on every card in this funnel.",
       "LOADING": "Loading custom fields...",
       "LOAD_ERROR": "Could not load custom fields.",
       "EMPTY": "No custom fields yet.",
@@ -635,6 +636,8 @@
       "CANCEL": "Cancel"
     },
     "REASONS": {
+      "TITLE": "Win and loss reasons",
+      "DESCRIPTION": "Agents pick one of these when a card is marked won or lost.",
       "ADD_REASON": "Add new reason",
       "LOST_COLUMN_TITLE": "Loss reasons",
       "WON_COLUMN_TITLE": "Win reasons",
@@ -1019,7 +1022,7 @@
       "NO_VALUES": "No values found",
       "NONE_OPTION": "None",
       "FIRST_STAGE": "First active stage",
-      "STAGE_LABEL": "Card lands in",
+      "STAGE_LABEL": "Cards land in:",
       "SAVE_CONFIRM_TITLE": "Save this entry rule?",
       "SAVE_CONFIRM_BODY": "{count} existing conversations match this rule. Save it and choose whether to import them.",
       "SAVE_CONFIRM": "Save rule",

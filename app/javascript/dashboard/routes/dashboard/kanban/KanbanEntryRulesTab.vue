@@ -415,9 +415,9 @@ onMounted(fetchRules);
 </script>
 
 <template>
-  <div class="grid gap-4">
-    <header class="flex items-center justify-between gap-3">
-      <div>
+  <div class="grid gap-5">
+    <header class="flex flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0">
         <h2 class="mb-0 text-base font-medium text-n-slate-12">
           {{ t('KANBAN.ENTRY_RULES.TITLE') }}
         </h2>
@@ -445,7 +445,7 @@ onMounted(fetchRules);
         :label="t('KANBAN.ENTRY_RULES.SEARCH_LABEL')"
         :placeholder="t('KANBAN.ENTRY_RULES.SEARCH_PLACEHOLDER')"
       />
-      <label class="grid gap-1 text-heading-3 text-n-slate-12">
+      <label class="grid gap-1.5 text-sm font-medium text-n-slate-12">
         {{ t('KANBAN.ENTRY_RULES.STATUS_FILTER_LABEL') }}
         <Select
           v-model="ruleStatus"
@@ -558,76 +558,97 @@ onMounted(fetchRules);
       v-model:show="showFormModal"
       :on-close="() => (showFormModal = false)"
     >
-      <div class="grid gap-4 p-8">
-        <h3 class="mb-0 text-lg font-medium text-n-slate-12">
-          {{
-            editingRuleId
-              ? t('KANBAN.ENTRY_RULES.EDIT_RULE')
-              : t('KANBAN.ENTRY_RULES.ADD_RULE')
-          }}
-        </h3>
-
-        <NextInput
-          v-model="form.name"
-          data-testid="kanban-entry-rule-name"
-          :label="t('KANBAN.ENTRY_RULES.NAME_LABEL')"
-        />
-
-        <label class="flex items-center gap-2 text-sm text-n-slate-12">
-          <Switch v-model="form.allInboxes" />
-          {{ t('KANBAN.ENTRY_RULES.ALL_INBOXES') }}
-        </label>
-
-        <TagMultiSelectComboBox
-          v-if="!form.allInboxes"
-          v-model="form.inboxIds"
-          data-testid="kanban-entry-rule-inboxes"
-          :options="inboxOptions"
-          :placeholder="t('KANBAN.SETTINGS.INBOXES.PLACEHOLDER')"
-          :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
-          :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
-        />
+      <div class="flex max-h-[85dvh] w-full flex-col">
+        <header class="flex-none border-b border-n-weak px-6 py-4">
+          <h3 class="mb-0 text-lg font-medium text-n-slate-12">
+            {{
+              editingRuleId
+                ? t('KANBAN.ENTRY_RULES.EDIT_RULE')
+                : t('KANBAN.ENTRY_RULES.ADD_RULE')
+            }}
+          </h3>
+        </header>
 
         <div
-          v-for="field in ENTRY_RULE_FIELDS"
-          :key="field.key"
-          class="grid gap-2 rounded-md border border-n-weak p-3"
+          class="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto px-6 py-5"
         >
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-sm font-medium text-n-slate-12">
-              {{ fieldLabels[field.key] }}
-            </span>
+          <label class="grid gap-1.5 text-sm font-medium text-n-slate-12">
+            {{ t('KANBAN.ENTRY_RULES.STAGE_LABEL') }}
             <Select
-              v-model="form.conditions[field.key].operator"
-              :options="operatorOptionsByField[field.key]"
+              v-model="form.kanbanStageId"
+              data-testid="kanban-entry-rule-stage"
+              full-width
+              class="font-normal"
+              :options="stageOptions"
+            />
+          </label>
+
+          <NextInput
+            v-model="form.name"
+            data-testid="kanban-entry-rule-name"
+            :label="t('KANBAN.ENTRY_RULES.NAME_LABEL')"
+          />
+
+          <div
+            class="grid gap-3 rounded-lg border border-n-weak bg-n-surface-2 p-4"
+          >
+            <label
+              class="flex items-center justify-between gap-3 text-sm font-medium text-n-slate-12"
+            >
+              {{ t('KANBAN.ENTRY_RULES.ALL_INBOXES') }}
+              <Switch v-model="form.allInboxes" />
+            </label>
+
+            <label
+              v-if="!form.allInboxes"
+              class="grid gap-1.5 text-sm font-medium text-n-slate-12"
+            >
+              {{ t('KANBAN.SETTINGS.INBOXES.SELECTED') }}
+              <TagMultiSelectComboBox
+                v-model="form.inboxIds"
+                data-testid="kanban-entry-rule-inboxes"
+                :options="inboxOptions"
+                :placeholder="t('KANBAN.SETTINGS.INBOXES.PLACEHOLDER')"
+                :search-placeholder="t('KANBAN.SETTINGS.INBOXES.SEARCH')"
+                :empty-state="t('KANBAN.SETTINGS.INBOXES.EMPTY')"
+              />
+            </label>
+          </div>
+
+          <div
+            v-for="field in ENTRY_RULE_FIELDS"
+            :key="field.key"
+            class="grid gap-3 rounded-lg border border-n-weak bg-n-surface-2 p-4"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-sm font-medium text-n-slate-12">
+                {{ fieldLabels[field.key] }}
+              </span>
+              <Select
+                v-model="form.conditions[field.key].operator"
+                class="font-normal"
+                :options="operatorOptionsByField[field.key]"
+              />
+            </div>
+            <TagMultiSelectComboBox
+              v-model="form.conditions[field.key].values"
+              :data-testid="`kanban-entry-rule-${field.key}`"
+              :options="valueOptionsByField[field.key]"
+              :placeholder="t('KANBAN.ENTRY_RULES.ANY_VALUE')"
+              :search-placeholder="t('KANBAN.ENTRY_RULES.SEARCH_VALUES')"
+              :empty-state="t('KANBAN.ENTRY_RULES.NO_VALUES')"
             />
           </div>
-          <TagMultiSelectComboBox
-            v-model="form.conditions[field.key].values"
-            :data-testid="`kanban-entry-rule-${field.key}`"
-            :options="valueOptionsByField[field.key]"
-            :placeholder="t('KANBAN.ENTRY_RULES.ANY_VALUE')"
-            :search-placeholder="t('KANBAN.ENTRY_RULES.SEARCH_VALUES')"
-            :empty-state="t('KANBAN.ENTRY_RULES.NO_VALUES')"
-          />
         </div>
 
-        <label class="grid gap-1 text-sm font-medium text-n-slate-12">
-          {{ t('KANBAN.ENTRY_RULES.STAGE_LABEL') }}
-          <Select
-            v-model="form.kanbanStageId"
-            data-testid="kanban-entry-rule-stage"
-            :options="stageOptions"
-          />
-        </label>
-
-        <p v-if="formError" class="mb-0 text-sm text-n-ruby-11">
-          {{ formError }}
-        </p>
-
-        <div class="flex justify-end gap-2">
+        <footer
+          class="flex flex-none flex-wrap items-center justify-end gap-2 border-t border-n-weak px-6 py-3"
+        >
+          <p v-if="formError" class="mb-0 mr-auto text-sm text-n-ruby-11">
+            {{ formError }}
+          </p>
           <Button
-            variant="ghost"
+            variant="outline"
             color="slate"
             :label="t('KANBAN.ENTRY_RULES.CANCEL')"
             @click="showFormModal = false"
@@ -638,12 +659,12 @@ onMounted(fetchRules);
             :label="t('KANBAN.ENTRY_RULES.SAVE')"
             @click="saveRule"
           />
-        </div>
+        </footer>
       </div>
     </woot-modal>
 
     <woot-modal v-if="saveConfirmation" show :on-close="cancelSaveConfirmation">
-      <div class="grid gap-4 p-8">
+      <div class="grid gap-5 px-6 py-5">
         <h3 class="mb-0 text-lg font-medium text-n-slate-12">
           {{ t('KANBAN.ENTRY_RULES.SAVE_CONFIRM_TITLE') }}
         </h3>
@@ -676,7 +697,7 @@ onMounted(fetchRules);
       show
       :on-close="() => (importPrompt = null)"
     >
-      <div class="grid gap-4 p-8">
+      <div class="grid gap-5 px-6 py-5">
         <h3 class="mb-0 text-lg font-medium text-n-slate-12">
           {{ t('KANBAN.ENTRY_RULES.IMPORT_TITLE') }}
         </h3>

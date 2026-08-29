@@ -678,7 +678,7 @@ onMounted(async () => {
     class="flex h-full min-h-0 w-full flex-col bg-n-surface-1 text-n-slate-12"
   >
     <header
-      class="flex flex-none items-center justify-between gap-4 border-b border-n-weak px-6 py-4"
+      class="flex flex-none flex-wrap items-center gap-x-4 gap-y-2 border-b border-n-weak px-6 py-2.5"
     >
       <Button
         data-testid="kanban-board-form-back"
@@ -691,8 +691,8 @@ onMounted(async () => {
         :title="backLabel"
         @click="goBack"
       />
-      <div class="flex min-w-0 flex-1 items-center gap-2">
-        <h1 class="min-w-0 truncate text-lg font-medium text-n-slate-12">
+      <div class="flex min-w-0 items-center gap-2">
+        <h1 class="min-w-0 truncate text-base font-medium text-n-slate-12">
           {{ pageTitle }}
         </h1>
         <span
@@ -703,7 +703,17 @@ onMounted(async () => {
           {{ t('KANBAN.BOARD_EDIT.UNSAVED_INDICATOR') }}
         </span>
       </div>
-      <div class="flex flex-none items-center gap-2">
+      <div
+        class="order-last w-full overflow-x-auto lg:order-none lg:w-auto lg:flex-1"
+      >
+        <TabBar
+          :tabs="tabItems"
+          :initial-active-tab="activeTabIndex"
+          @tab-changed="onTabChanged"
+        />
+      </div>
+
+      <div class="ml-auto flex flex-none items-center gap-2 lg:ml-0">
         <Button
           v-if="isDirty"
           data-testid="kanban-board-form-discard"
@@ -728,14 +738,6 @@ onMounted(async () => {
       </div>
     </header>
 
-    <div class="flex-none border-b border-n-weak px-6 py-3">
-      <TabBar
-        :tabs="tabItems"
-        :initial-active-tab="activeTabIndex"
-        @tab-changed="onTabChanged"
-      />
-    </div>
-
     <div
       v-if="isLoading"
       data-testid="kanban-board-form-loading"
@@ -752,16 +754,15 @@ onMounted(async () => {
       {{ loadError || t('KANBAN.BOARD_EDIT.ACCESS_DENIED') }}
     </div>
 
-    <div v-else class="min-h-0 flex-1 overflow-y-auto">
+    <div v-else class="min-h-0 flex-1 overflow-hidden">
       <section
         v-show="activeTabKey === 'stages'"
         data-testid="kanban-board-form-stages-tab"
-        class="grid gap-6 p-6 lg:grid-cols-2"
+        class="mx-auto flex h-full w-full max-w-5xl flex-col gap-5 overflow-y-auto px-6 py-5 lg:flex-row lg:overflow-hidden"
       >
-        <p class="text-xs text-n-slate-10 lg:col-span-2">
-          {{ t('KANBAN.BOARD_EDIT.AUTOSAVE_NOTE') }}
-        </p>
-        <div class="grid gap-4">
+        <div
+          class="grid content-start gap-5 lg:-mx-1 lg:min-w-0 lg:flex-1 lg:overflow-y-auto lg:px-1"
+        >
           <label
             class="flex items-center justify-between gap-3 text-sm font-medium text-n-slate-12"
           >
@@ -769,27 +770,27 @@ onMounted(async () => {
             <Switch v-model="form.active" @change="onActiveToggle" />
           </label>
 
-          <label class="grid gap-1 text-sm font-medium text-n-slate-12">
+          <label class="grid gap-1.5 text-sm font-medium text-n-slate-12">
             {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.NAME') }}
             <input
               v-model="form.name"
               data-testid="kanban-board-form-name"
               type="text"
-              class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+              class="!mb-0"
             />
           </label>
 
-          <label class="grid gap-1 text-sm font-medium text-n-slate-12">
+          <label class="grid gap-1.5 text-sm font-medium text-n-slate-12">
             {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.DESCRIPTION') }}
             <textarea
               v-model="form.description"
               data-testid="kanban-board-form-description"
               rows="3"
-              class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+              class="!mb-0"
             />
           </label>
 
-          <div class="grid gap-2 border-t border-n-weak pt-4">
+          <div class="grid gap-2 border-t border-n-weak pt-5">
             <h2 class="text-base font-medium text-n-slate-12">
               {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.AGENTS_TITLE') }}
             </h2>
@@ -806,129 +807,206 @@ onMounted(async () => {
         </div>
 
         <div
-          class="grid content-start gap-3 rounded-lg border border-n-weak bg-n-surface-2 p-4"
+          class="flex flex-col rounded-lg border border-n-weak bg-n-surface-2 lg:min-h-0 lg:flex-1"
         >
-          <div class="flex items-center justify-between gap-2">
+          <header
+            class="flex flex-none items-center justify-between gap-2 border-b border-n-weak px-4 py-3"
+          >
             <h2 class="text-base font-medium text-n-slate-12">
               {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGES_PANEL_TITLE') }}
             </h2>
-          </div>
+          </header>
 
           <div
-            v-if="!form.wonStageId || !form.lostStageId"
-            class="grid gap-2 sm:grid-cols-2"
+            class="grid content-start gap-3 p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto"
           >
-            <label class="grid gap-1 text-sm font-medium text-n-slate-12">
-              {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.WON_STAGE') }}
-              <Select
-                :model-value="form.wonStageId ?? ''"
-                data-testid="kanban-board-form-won-stage"
-                :options="wonStageOptions"
-                full-width
-                class="font-normal"
-                @update:model-value="onWonStageChange"
-              />
-            </label>
-            <label class="grid gap-1 text-sm font-medium text-n-slate-12">
-              {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.LOST_STAGE') }}
-              <Select
-                :model-value="form.lostStageId ?? ''"
-                data-testid="kanban-board-form-lost-stage"
-                :options="lostStageOptions"
-                full-width
-                class="font-normal"
-                @update:model-value="onLostStageChange"
-              />
-            </label>
-          </div>
-          <p
-            v-else
-            class="rounded-md bg-n-alpha-2 px-3 py-2 text-sm text-n-slate-11"
-          >
-            {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_HINT') }}
-          </p>
+            <div
+              v-if="!form.wonStageId || !form.lostStageId"
+              class="grid gap-2 sm:grid-cols-2"
+            >
+              <label class="grid gap-1.5 text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.WON_STAGE') }}
+                <Select
+                  :model-value="form.wonStageId ?? ''"
+                  data-testid="kanban-board-form-won-stage"
+                  :options="wonStageOptions"
+                  full-width
+                  class="font-normal"
+                  @update:model-value="onWonStageChange"
+                />
+              </label>
+              <label class="grid gap-1.5 text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.LOST_STAGE') }}
+                <Select
+                  :model-value="form.lostStageId ?? ''"
+                  data-testid="kanban-board-form-lost-stage"
+                  :options="lostStageOptions"
+                  full-width
+                  class="font-normal"
+                  @update:model-value="onLostStageChange"
+                />
+              </label>
+            </div>
 
-          <p v-if="hasStageSelectionConflict" class="text-sm text-n-ruby-11">
-            {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_SELECTION_CONFLICT') }}
-          </p>
-
-          <p
-            v-if="stageReconcileWarning"
-            data-testid="kanban-board-form-stage-reconcile-warning"
-            class="text-sm text-n-amber-11"
-          >
-            {{ stageReconcileWarning }}
-          </p>
-
-          <KanbanStageEditPanel
-            v-if="showCreateStageForm"
-            v-model:name="newStageName"
-            v-model:description="newStageDescription"
-            v-model:color="newStageColor"
-            v-model:sla-hours="newStageSlaHours"
-            show-color-picker
-            show-sla-hours
-            testid-prefix="kanban-board-form-new-stage"
-            save-testid="kanban-board-form-create-stage"
-            save-label-key="KANBAN.ACTIONS.CREATE_STAGE_CONFIRM"
-            :is-updating="isCreatingStage"
-            @save="createStage"
-            @cancel="closeCreateStageForm"
-          />
-
-          <p
-            v-if="stageError"
-            data-testid="kanban-board-form-stage-error"
-            class="text-sm text-n-ruby-11"
-          >
-            {{ stageError }}
-          </p>
-
-          <div class="grid gap-1">
-            <h3 class="text-sm font-medium text-n-slate-12">
-              {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.ACTIVE_STAGES_TITLE') }}
-            </h3>
-            <p class="text-xs text-n-slate-10">
-              {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.ACTIVE_STAGES_SUBTITLE') }}
+            <p v-if="hasStageSelectionConflict" class="text-sm text-n-ruby-11">
+              {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_SELECTION_CONFLICT') }}
             </p>
-          </div>
-          <p
-            v-if="regularStages.length === 0"
-            data-testid="kanban-board-form-empty-stages"
-            class="rounded-md border border-dashed border-n-weak px-3 py-4 text-sm text-n-slate-11"
-          >
-            {{ t('KANBAN.EMPTY_STAGES') }}
-          </p>
 
-          <Draggable
-            v-else
-            v-model="stageListModel"
-            item-key="id"
-            data-testid="kanban-board-form-stage-list"
-            class="grid gap-2"
-            handle=".stage-drag-handle"
-            ghost-class="opacity-60"
-            chosen-class="opacity-90"
-            :animation="180"
-            @end="onStageDragEnd"
-          >
-            <template #item="{ element: stage }">
-              <div :data-stage-id="stage.id" class="grid gap-2">
+            <p
+              v-if="stageReconcileWarning"
+              data-testid="kanban-board-form-stage-reconcile-warning"
+              class="text-sm text-n-amber-11"
+            >
+              {{ stageReconcileWarning }}
+            </p>
+
+            <p
+              v-if="stageError"
+              data-testid="kanban-board-form-stage-error"
+              class="text-sm text-n-ruby-11"
+            >
+              {{ stageError }}
+            </p>
+
+            <div class="grid gap-1">
+              <h3 class="text-sm font-medium text-n-slate-12">
+                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.ACTIVE_STAGES_TITLE') }}
+              </h3>
+              <p class="text-xs text-n-slate-10">
+                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.ACTIVE_STAGES_SUBTITLE') }}
+              </p>
+            </div>
+            <p
+              v-if="regularStages.length === 0"
+              data-testid="kanban-board-form-empty-stages"
+              class="rounded-md border border-dashed border-n-weak px-3 py-4 text-sm text-n-slate-11"
+            >
+              {{ t('KANBAN.EMPTY_STAGES') }}
+            </p>
+
+            <Draggable
+              v-else
+              v-model="stageListModel"
+              item-key="id"
+              data-testid="kanban-board-form-stage-list"
+              class="grid gap-2"
+              handle=".stage-drag-handle"
+              ghost-class="opacity-60"
+              chosen-class="opacity-90"
+              :animation="180"
+              @end="onStageDragEnd"
+            >
+              <template #item="{ element: stage }">
+                <div :data-stage-id="stage.id" class="grid gap-2">
+                  <div
+                    v-if="editingStageId !== stage.id"
+                    data-testid="kanban-board-form-stage-row"
+                    class="stage-drag-handle grid cursor-grab gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2"
+                  >
+                    <div class="flex items-center gap-3">
+                      <span
+                        class="i-lucide-grip-vertical size-4 text-n-slate-10"
+                      />
+                      <div class="flex min-w-0 flex-1 items-center gap-2">
+                        <span
+                          class="size-4 flex-none rounded-full"
+                          :style="{ backgroundColor: stage.color }"
+                        />
+                        <span class="min-w-0 truncate text-sm text-n-slate-12">
+                          {{ stage.name }}
+                        </span>
+                        <span
+                          data-testid="kanban-board-form-stage-card-count"
+                          class="flex-none rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
+                        >
+                          {{ getStageCardsCount(stage) }}
+                        </span>
+                      </div>
+                      <div class="flex flex-none items-center gap-1">
+                        <Button
+                          data-testid="kanban-board-form-edit-stage"
+                          icon="i-lucide-pencil"
+                          variant="ghost"
+                          color="slate"
+                          size="sm"
+                          :title="t('KANBAN.ACTIONS.EDIT_STAGE')"
+                          @click="openEditStage(stage)"
+                        />
+                        <Button
+                          data-testid="kanban-board-form-remove-stage"
+                          icon="i-lucide-trash"
+                          variant="ghost"
+                          color="ruby"
+                          size="sm"
+                          :title="t('KANBAN.ACTIONS.REMOVE_STAGE')"
+                          @click="openRemoveStageConfirmation(stage)"
+                        />
+                      </div>
+                    </div>
+                    <p
+                      v-if="stage.description"
+                      class="ml-7 truncate text-xs text-n-slate-11"
+                    >
+                      {{ stage.description }}
+                    </p>
+                  </div>
+
+                  <KanbanStageEditPanel
+                    v-else
+                    v-model:name="editStageName"
+                    v-model:description="editStageDescription"
+                    v-model:color="editStageColor"
+                    v-model:sla-hours="editStageSlaHours"
+                    show-color-picker
+                    show-sla-hours
+                    :is-updating="isUpdatingStage"
+                    @save="updateStage(stage)"
+                    @cancel="closeEditStage"
+                  />
+                </div>
+              </template>
+            </Draggable>
+
+            <div
+              v-if="terminalStages.length"
+              class="grid gap-3 border-t border-n-weak pt-4"
+            >
+              <div class="grid gap-1">
+                <h3 class="text-sm font-medium text-n-slate-12">
+                  {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_TITLE') }}
+                </h3>
+                <p class="text-xs text-n-slate-10">
+                  {{
+                    t('KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_SUBTITLE')
+                  }}
+                </p>
+                <p class="text-xs text-n-slate-10">
+                  {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_HINT') }}
+                </p>
+              </div>
+
+              <div
+                v-for="stage in terminalStages"
+                :key="stage.id"
+                :data-stage-id="stage.id"
+                class="grid gap-2"
+              >
                 <div
                   v-if="editingStageId !== stage.id"
                   data-testid="kanban-board-form-stage-row"
-                  class="stage-drag-handle grid cursor-grab gap-2 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2"
+                  class="grid gap-2 rounded-md border px-3 py-2"
+                  :class="terminalStageClasses(stage).panel"
                 >
                   <div class="flex items-center gap-3">
                     <span
-                      class="i-lucide-grip-vertical size-4 text-n-slate-10"
+                      class="size-4 flex-none rounded-full"
+                      :class="terminalStageClasses(stage).dot"
                     />
                     <div class="flex min-w-0 flex-1 items-center gap-2">
                       <span
-                        class="size-4 flex-none rounded-full"
-                        :style="{ backgroundColor: stage.color }"
-                      />
-                      <span class="min-w-0 truncate text-sm text-n-slate-12">
+                        class="min-w-0 truncate text-sm font-medium"
+                        :class="terminalStageClasses(stage).label"
+                      >
                         {{ stage.name }}
                       </span>
                       <span
@@ -938,26 +1016,15 @@ onMounted(async () => {
                         {{ getStageCardsCount(stage) }}
                       </span>
                     </div>
-                    <div class="flex flex-none items-center gap-1">
-                      <Button
-                        data-testid="kanban-board-form-edit-stage"
-                        icon="i-lucide-pencil"
-                        variant="ghost"
-                        color="slate"
-                        size="sm"
-                        :title="t('KANBAN.ACTIONS.EDIT_STAGE')"
-                        @click="openEditStage(stage)"
-                      />
-                      <Button
-                        data-testid="kanban-board-form-remove-stage"
-                        icon="i-lucide-trash"
-                        variant="ghost"
-                        color="ruby"
-                        size="sm"
-                        :title="t('KANBAN.ACTIONS.REMOVE_STAGE')"
-                        @click="openRemoveStageConfirmation(stage)"
-                      />
-                    </div>
+                    <Button
+                      data-testid="kanban-board-form-edit-stage"
+                      icon="i-lucide-pencil"
+                      variant="ghost"
+                      color="slate"
+                      size="sm"
+                      :title="t('KANBAN.ACTIONS.EDIT_STAGE')"
+                      @click="openEditStage(stage)"
+                    />
                   </div>
                   <p
                     v-if="stage.description"
@@ -971,100 +1038,41 @@ onMounted(async () => {
                   v-else
                   v-model:name="editStageName"
                   v-model:description="editStageDescription"
-                  v-model:color="editStageColor"
-                  v-model:sla-hours="editStageSlaHours"
-                  show-color-picker
-                  show-sla-hours
+                  :panel-class="terminalStageClasses(stage).panel"
                   :is-updating="isUpdatingStage"
                   @save="updateStage(stage)"
                   @cancel="closeEditStage"
                 />
               </div>
-            </template>
-          </Draggable>
-          <Button
-            v-if="!showCreateStageForm"
-            data-testid="kanban-board-form-create-stage-toggle"
-            icon="i-lucide-plus"
-            :label="t('KANBAN.ACTIONS.CREATE_STAGE')"
-            color="slate"
-            size="sm"
-            class="w-full border border-dashed border-n-weak"
-            @click="openCreateStageForm"
-          />
-
-          <div
-            v-if="terminalStages.length"
-            class="grid gap-3 border-t border-n-weak pt-4"
-          >
-            <div class="grid gap-1">
-              <h3 class="text-sm font-medium text-n-slate-12">
-                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_TITLE') }}
-              </h3>
-              <p class="text-xs text-n-slate-10">
-                {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.TERMINAL_STAGES_SUBTITLE') }}
-              </p>
             </div>
+          </div>
 
-            <div
-              v-for="stage in terminalStages"
-              :key="stage.id"
-              :data-stage-id="stage.id"
-              class="grid gap-2"
-            >
-              <div
-                v-if="editingStageId !== stage.id"
-                data-testid="kanban-board-form-stage-row"
-                class="grid gap-2 rounded-md border px-3 py-2"
-                :class="terminalStageClasses(stage).panel"
-              >
-                <div class="flex items-center gap-3">
-                  <span
-                    class="size-4 flex-none rounded-full"
-                    :class="terminalStageClasses(stage).dot"
-                  />
-                  <div class="flex min-w-0 flex-1 items-center gap-2">
-                    <span
-                      class="min-w-0 truncate text-sm font-medium"
-                      :class="terminalStageClasses(stage).label"
-                    >
-                      {{ stage.name }}
-                    </span>
-                    <span
-                      data-testid="kanban-board-form-stage-card-count"
-                      class="flex-none rounded-full bg-n-alpha-2 px-2 py-0.5 text-xs font-medium text-n-slate-11"
-                    >
-                      {{ getStageCardsCount(stage) }}
-                    </span>
-                  </div>
-                  <Button
-                    data-testid="kanban-board-form-edit-stage"
-                    icon="i-lucide-pencil"
-                    variant="ghost"
-                    color="slate"
-                    size="sm"
-                    :title="t('KANBAN.ACTIONS.EDIT_STAGE')"
-                    @click="openEditStage(stage)"
-                  />
-                </div>
-                <p
-                  v-if="stage.description"
-                  class="truncate text-xs text-n-slate-11"
-                >
-                  {{ stage.description }}
-                </p>
-              </div>
-
-              <KanbanStageEditPanel
-                v-else
-                v-model:name="editStageName"
-                v-model:description="editStageDescription"
-                :panel-class="terminalStageClasses(stage).panel"
-                :is-updating="isUpdatingStage"
-                @save="updateStage(stage)"
-                @cancel="closeEditStage"
-              />
-            </div>
+          <div class="flex-none border-t border-n-weak p-3">
+            <KanbanStageEditPanel
+              v-if="showCreateStageForm"
+              v-model:name="newStageName"
+              v-model:description="newStageDescription"
+              v-model:color="newStageColor"
+              v-model:sla-hours="newStageSlaHours"
+              show-color-picker
+              show-sla-hours
+              testid-prefix="kanban-board-form-new-stage"
+              save-testid="kanban-board-form-create-stage"
+              save-label-key="KANBAN.ACTIONS.CREATE_STAGE_CONFIRM"
+              :is-updating="isCreatingStage"
+              @save="createStage"
+              @cancel="closeCreateStageForm"
+            />
+            <Button
+              v-else
+              data-testid="kanban-board-form-create-stage-toggle"
+              icon="i-lucide-plus"
+              :label="t('KANBAN.ACTIONS.CREATE_STAGE')"
+              color="slate"
+              size="sm"
+              class="w-full border border-dashed border-n-weak"
+              @click="openCreateStageForm"
+            />
           </div>
         </div>
       </section>
@@ -1072,7 +1080,7 @@ onMounted(async () => {
       <section
         v-show="activeTabKey === 'custom_fields'"
         data-testid="kanban-board-form-custom-fields-tab"
-        class="mx-auto grid w-full max-w-2xl gap-6 p-6"
+        class="mx-auto h-full w-full max-w-5xl overflow-y-auto px-6 py-5"
       >
         <KanbanCustomFieldsTab v-if="boardId" :board-id="boardId" />
       </section>
@@ -1080,132 +1088,135 @@ onMounted(async () => {
       <section
         v-show="activeTabKey === 'settings'"
         data-testid="kanban-board-form-settings-tab"
-        class="grid gap-6 p-6 lg:w-3/4 xl:w-1/2"
+        class="mx-auto h-full w-full max-w-5xl overflow-y-auto px-6 py-5"
       >
-        <label
-          class="flex items-center justify-between gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2 text-sm font-medium text-n-slate-12"
-        >
-          {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.LOST_REASON_REQUIRED') }}
-          <input
-            v-model="form.lostReasonRequired"
-            type="checkbox"
-            class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
-          />
-        </label>
-
-        <section class="grid gap-4 border-b border-n-weak pb-6">
-          <h2 class="text-base font-medium text-n-slate-12">
-            {{ t('KANBAN.SETTINGS.AUTOMATIONS.TITLE') }}
-          </h2>
-          <p class="mb-0 text-sm text-n-slate-11">
-            {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.ENTRY_RULES_HINT') }}
-          </p>
-
-          <div
-            class="grid gap-3 rounded-md border border-n-weak bg-n-surface-2 p-3"
+        <div class="grid content-start gap-5">
+          <label
+            class="flex items-center justify-between gap-3 rounded-lg border border-n-weak bg-n-surface-2 p-4 text-sm font-medium text-n-slate-12"
           >
-            <h3 class="text-sm font-medium text-n-slate-12">
-              {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.TITLE') }}
-            </h3>
-            <p class="text-sm text-n-slate-11">
-              {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.DESCRIPTION') }}
+            {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.LOST_REASON_REQUIRED') }}
+            <Switch v-model="form.lostReasonRequired" />
+          </label>
+
+          <section class="grid gap-4 border-b border-n-weak pb-5">
+            <div class="grid gap-1">
+              <h2 class="text-base font-medium text-n-slate-12">
+                {{ t('KANBAN.SETTINGS.AUTOMATIONS.TITLE') }}
+              </h2>
+              <p class="mb-0 text-sm text-n-slate-11">
+                {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.ENTRY_RULES_HINT') }}
+              </p>
+            </div>
+
+            <div
+              class="grid gap-3 rounded-lg border border-n-weak bg-n-surface-2 p-4"
+            >
+              <div class="grid gap-1">
+                <h3 class="text-sm font-medium text-n-slate-12">
+                  {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.TITLE') }}
+                </h3>
+                <p class="mb-0 text-sm text-n-slate-11">
+                  {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.DESCRIPTION') }}
+                </p>
+              </div>
+
+              <label
+                class="flex items-center justify-between gap-3 text-sm text-n-slate-12"
+              >
+                {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_ENABLED') }}
+                <Switch
+                  v-model="form.wonRecurrenceEnabled"
+                  data-testid="kanban-board-form-won-recurrence-enabled"
+                />
+              </label>
+              <label
+                v-if="form.wonRecurrenceEnabled"
+                class="grid gap-1.5 text-sm font-medium text-n-slate-12"
+              >
+                {{
+                  t(
+                    'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_WINDOW_HOURS_LABEL'
+                  )
+                }}
+                <input
+                  :value="form.wonRecurrenceWindowHours"
+                  type="number"
+                  min="1"
+                  data-testid="kanban-board-form-won-recurrence-window-hours"
+                  class="!mb-0"
+                  :placeholder="
+                    t(
+                      'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
+                    )
+                  "
+                  @change="
+                    onWonRecurrenceWindowHoursChange($event.target.value)
+                  "
+                />
+              </label>
+
+              <label
+                class="flex items-center justify-between gap-3 text-sm text-n-slate-12"
+              >
+                {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_ENABLED') }}
+                <Switch
+                  v-model="form.lostRecurrenceEnabled"
+                  data-testid="kanban-board-form-lost-recurrence-enabled"
+                />
+              </label>
+              <label
+                v-if="form.lostRecurrenceEnabled"
+                class="grid gap-1.5 text-sm font-medium text-n-slate-12"
+              >
+                {{
+                  t(
+                    'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_WINDOW_HOURS_LABEL'
+                  )
+                }}
+                <input
+                  :value="form.lostRecurrenceWindowHours"
+                  type="number"
+                  min="1"
+                  data-testid="kanban-board-form-lost-recurrence-window-hours"
+                  class="!mb-0"
+                  :placeholder="
+                    t(
+                      'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
+                    )
+                  "
+                  @change="
+                    onLostRecurrenceWindowHoursChange($event.target.value)
+                  "
+                />
+              </label>
+            </div>
+          </section>
+
+          <section class="grid gap-3">
+            <h2 class="text-base font-medium text-n-ruby-11">
+              {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.DANGER_ZONE_TITLE') }}
+            </h2>
+            <p class="mb-0 text-sm text-n-slate-11">
+              {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.DANGER_ZONE_DESCRIPTION') }}
             </p>
-
-            <label
-              class="flex items-center justify-between gap-3 text-sm text-n-slate-12"
-            >
-              {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_ENABLED') }}
-              <input
-                v-model="form.wonRecurrenceEnabled"
-                type="checkbox"
-                data-testid="kanban-board-form-won-recurrence-enabled"
-                class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
-              />
-            </label>
-            <label
-              v-if="form.wonRecurrenceEnabled"
-              class="grid gap-1 text-sm font-medium text-n-slate-12"
-            >
-              {{
-                t(
-                  'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_WINDOW_HOURS_LABEL'
-                )
-              }}
-              <input
-                :value="form.wonRecurrenceWindowHours"
-                type="number"
-                min="1"
-                data-testid="kanban-board-form-won-recurrence-window-hours"
-                class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                :placeholder="
-                  t(
-                    'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
-                  )
-                "
-                @change="onWonRecurrenceWindowHoursChange($event.target.value)"
-              />
-            </label>
-
-            <label
-              class="flex items-center justify-between gap-3 text-sm text-n-slate-12"
-            >
-              {{ t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_ENABLED') }}
-              <input
-                v-model="form.lostRecurrenceEnabled"
-                type="checkbox"
-                data-testid="kanban-board-form-lost-recurrence-enabled"
-                class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
-              />
-            </label>
-            <label
-              v-if="form.lostRecurrenceEnabled"
-              class="grid gap-1 text-sm font-medium text-n-slate-12"
-            >
-              {{
-                t(
-                  'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_WINDOW_HOURS_LABEL'
-                )
-              }}
-              <input
-                :value="form.lostRecurrenceWindowHours"
-                type="number"
-                min="1"
-                data-testid="kanban-board-form-lost-recurrence-window-hours"
-                class="rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
-                :placeholder="
-                  t(
-                    'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
-                  )
-                "
-                @change="onLostRecurrenceWindowHoursChange($event.target.value)"
-              />
-            </label>
-          </div>
-        </section>
-
-        <section class="grid gap-3">
-          <h2 class="text-base font-medium text-n-ruby-11">
-            {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.DANGER_ZONE_TITLE') }}
-          </h2>
-          <p class="text-sm text-n-slate-11">
-            {{ t('KANBAN.BOARD_EDIT.SETTINGS_TAB.DANGER_ZONE_DESCRIPTION') }}
-          </p>
-          <Button
-            data-testid="kanban-board-form-delete"
-            icon="i-lucide-trash"
-            :label="t('KANBAN.BOARD_EDIT.SETTINGS_TAB.DELETE_FUNNEL')"
-            color="ruby"
-            size="sm"
-            class="w-fit"
-            :is-loading="isDeleting"
-            @click="openDeleteConfirmation"
-          />
-        </section>
+            <Button
+              data-testid="kanban-board-form-delete"
+              icon="i-lucide-trash"
+              :label="t('KANBAN.BOARD_EDIT.SETTINGS_TAB.DELETE_FUNNEL')"
+              color="ruby"
+              size="sm"
+              class="w-fit"
+              :is-loading="isDeleting"
+              @click="openDeleteConfirmation"
+            />
+          </section>
+        </div>
       </section>
 
       <section
         v-show="activeTabKey === 'entry_rules'"
         data-testid="kanban-board-form-entry-rules-tab"
+        class="mx-auto h-full w-full max-w-5xl overflow-y-auto px-6 py-5"
       >
         <KanbanEntryRulesTab
           v-if="boardId"
@@ -1217,6 +1228,7 @@ onMounted(async () => {
       <section
         v-show="activeTabKey === 'reasons'"
         data-testid="kanban-board-form-reasons-tab"
+        class="mx-auto h-full w-full max-w-5xl overflow-y-auto px-6 py-5"
       >
         <KanbanReasonsTab v-if="boardId" :board-id="boardId" />
       </section>
@@ -1224,6 +1236,7 @@ onMounted(async () => {
       <section
         v-show="activeTabKey === 'automations'"
         data-testid="kanban-board-form-automations-tab"
+        class="mx-auto h-full w-full max-w-5xl overflow-y-auto px-6 py-5"
       >
         <KanbanAutomationsTab
           v-if="boardId && isAdmin"
@@ -1327,14 +1340,14 @@ onMounted(async () => {
           </p>
         </div>
 
-        <label class="flex items-center gap-2 text-sm text-n-slate-12">
-          <input
+        <label
+          class="flex items-center justify-between gap-3 text-sm text-n-slate-12"
+        >
+          {{ t('KANBAN.SETTINGS.AUTOMATIONS.IGNORE_GROUPS') }}
+          <Switch
             v-model="ignoreGroupsForImport"
             data-testid="kanban-board-form-import-ignore-groups"
-            type="checkbox"
-            class="size-4 rounded border-n-weak text-n-brand focus:ring-n-brand"
           />
-          {{ t('KANBAN.SETTINGS.AUTOMATIONS.IGNORE_GROUPS') }}
         </label>
 
         <p

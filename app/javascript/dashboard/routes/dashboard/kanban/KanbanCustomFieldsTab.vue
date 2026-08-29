@@ -189,10 +189,25 @@ onMounted(fetchFields);
 </script>
 
 <template>
-  <div class="grid gap-4">
-    <p class="text-xs text-n-slate-10">
-      {{ t('KANBAN.BOARD_EDIT.AUTOSAVE_NOTE') }}
-    </p>
+  <div class="grid gap-5">
+    <header class="flex flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h2 class="mb-0 text-base font-medium text-n-slate-12">
+          {{ t('KANBAN.CUSTOM_FIELDS.TITLE') }}
+        </h2>
+        <p class="mb-0 text-sm text-n-slate-11">
+          {{ t('KANBAN.CUSTOM_FIELDS.DESCRIPTION') }}
+        </p>
+      </div>
+      <Button
+        data-testid="kanban-custom-fields-add"
+        icon="i-lucide-plus"
+        :label="t('KANBAN.CUSTOM_FIELDS.ADD_FIELD')"
+        color="slate"
+        size="sm"
+        @click="addRow"
+      />
+    </header>
     <div
       v-if="isLoading"
       data-testid="kanban-custom-fields-loading"
@@ -233,7 +248,7 @@ onMounted(fetchFields);
               data-testid="kanban-custom-field-key"
               type="text"
               :placeholder="t('KANBAN.CUSTOM_FIELDS.KEY_PLACEHOLDER')"
-              class="min-w-40 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none !mb-0 placeholder:text-n-slate-10 focus:border-n-brand"
+              class="min-w-40 flex-1 !mb-0"
               @input="onKeyInput(row)"
               @blur="onKeyBlur(row)"
             />
@@ -273,16 +288,6 @@ onMounted(fetchFields);
           </p>
         </div>
       </div>
-
-      <Button
-        data-testid="kanban-custom-fields-add"
-        icon="i-lucide-plus"
-        :label="t('KANBAN.CUSTOM_FIELDS.ADD_FIELD')"
-        color="slate"
-        size="sm"
-        class="w-fit"
-        @click="addRow"
-      />
     </template>
   </div>
 </template>

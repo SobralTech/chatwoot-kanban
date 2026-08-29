@@ -362,14 +362,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section
-    class="mx-auto grid w-full max-w-4xl gap-4 p-6"
-    data-testid="kanban-automations-tab"
-  >
-    <p class="text-xs text-n-slate-10">
-      {{ t('KANBAN.BOARD_EDIT.AUTOSAVE_NOTE') }}
-    </p>
-
+  <section class="grid gap-5" data-testid="kanban-automations-tab">
     <section
       class="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-n-brand/30 bg-n-blue-2 p-4"
     >

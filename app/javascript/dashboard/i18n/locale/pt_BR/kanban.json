@@ -87,7 +87,6 @@
       "DISCARD_DRAFT_TITLE": "Descartar funil em criação?",
       "DISCARD_DRAFT_MESSAGE": "Este funil nunca foi ativado. Sair agora exclui o funil junto com suas etapas, campos customizados e motivos.",
       "DISCARD_DRAFT_CONFIRM": "Descartar funil",
-      "AUTOSAVE_NOTE": "As alterações desta aba são salvas automaticamente.",
       "WON_STAGE_REMOVED": "A etapa definida como Ganho foi excluída. Escolha outra.",
       "LOST_STAGE_REMOVED": "A etapa definida como Perdido foi excluída. Escolha outra.",
       "ACTIVATE_LOCKED_HELP": "Defina as etapas de Ganho e Perdido na aba Etapas e Dados para ativar este funil.",
@@ -348,6 +347,8 @@
       "REMOVE_ALL_LABELS": "Remover todas as etiquetas"
     },
     "CUSTOM_FIELDS": {
+      "TITLE": "Campos personalizados globais",
+      "DESCRIPTION": "Estes campos aparecem em todos os cartões deste funil.",
       "LOADING": "Carregando campos personalizados...",
       "LOAD_ERROR": "Não foi possível carregar os campos personalizados.",
       "EMPTY": "Nenhum campo personalizado ainda.",
@@ -650,6 +651,8 @@
       "CANCEL": "Cancelar"
     },
     "REASONS": {
+      "TITLE": "Motivos de perda e ganho",
+      "DESCRIPTION": "Os agentes escolhem um destes ao marcar um cartão como ganho ou perdido.",
       "ADD_REASON": "Adicionar novo motivo",
       "LOST_COLUMN_TITLE": "Motivos de Perda",
       "WON_COLUMN_TITLE": "Motivos de Ganho",
@@ -1067,7 +1070,7 @@
       "NO_VALUES": "Nenhum valor encontrado",
       "NONE_OPTION": "Nenhum",
       "FIRST_STAGE": "Primeira etapa ativa",
-      "STAGE_LABEL": "O cartão ficará em",
+      "STAGE_LABEL": "Os cartões ficarão em:",
       "SAVE_CONFIRM_TITLE": "Salvar esta regra de entrada?",
       "SAVE_CONFIRM_BODY": "{count} conversas existentes correspondem a esta regra. Salve-a e escolha se deseja importá-las.",
       "SAVE_CONFIRM": "Salvar regra",

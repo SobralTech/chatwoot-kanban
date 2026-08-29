@@ -70,12 +70,12 @@ const testid = suffix => `${props.testidPrefix}-${suffix}`;
         v-model="name"
         :data-testid="testid('name')"
         type="text"
-        class="reset-base !mb-0 h-10 w-0 min-w-0 flex-1 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+        class="!mb-0 h-10 w-0 min-w-0 flex-1"
         :placeholder="t('KANBAN.ACTIONS.STAGE_NAME_PLACEHOLDER')"
       />
       <label
         v-if="showSlaHours"
-        class="grid w-32 max-w-full min-w-0 flex-none gap-1 text-xs font-medium text-n-slate-11"
+        class="grid w-32 max-w-full min-w-0 flex-none gap-1.5 text-xs font-medium text-n-slate-11"
       >
         {{ t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS') }}
         <input
@@ -84,7 +84,7 @@ const testid = suffix => `${props.testidPrefix}-${suffix}`;
           type="number"
           min="1"
           step="1"
-          class="reset-base !mb-0 h-10 w-full min-w-0 rounded-md border border-n-weak bg-n-surface-1 px-3 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+          class="!mb-0 h-10 w-full min-w-0"
           :placeholder="t('KANBAN.BOARD_EDIT.STAGES_TAB.SLA_HOURS_PLACEHOLDER')"
         />
       </label>
@@ -96,12 +96,21 @@ const testid = suffix => `${props.testidPrefix}-${suffix}`;
       v-model="description"
       :data-testid="testid('description')"
       rows="2"
-      class="!mb-0 rounded-md border border-n-weak bg-n-surface-1 px-3 py-2 text-sm font-normal text-n-slate-12 outline-none placeholder:text-n-slate-10 focus:border-n-brand"
+      class="!mb-0"
       :placeholder="
         t('KANBAN.BOARD_EDIT.STAGES_TAB.STAGE_DESCRIPTION_PLACEHOLDER')
       "
     />
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="flex flex-wrap justify-end gap-2 border-t border-n-weak pt-3">
+      <Button
+        type="button"
+        icon="i-lucide-x"
+        :label="t('KANBAN.ACTIONS.CANCEL')"
+        variant="outline"
+        color="slate"
+        size="sm"
+        @click="$emit('cancel')"
+      />
       <Button
         type="button"
         :data-testid="saveTestid"
@@ -112,14 +121,6 @@ const testid = suffix => `${props.testidPrefix}-${suffix}`;
         :disabled="!name.trim()"
         :is-loading="isUpdating"
         @click="$emit('save')"
-      />
-      <Button
-        type="button"
-        icon="i-lucide-x"
-        :label="t('KANBAN.ACTIONS.CANCEL')"
-        color="slate"
-        size="sm"
-        @click="$emit('cancel')"
       />
     </div>
   </div>
