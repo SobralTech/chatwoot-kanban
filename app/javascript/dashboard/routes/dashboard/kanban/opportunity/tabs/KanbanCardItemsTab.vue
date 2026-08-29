@@ -40,6 +40,7 @@ const emit = defineEmits(['totalChanged', 'cardChanged']);
 const CATALOG_ITEM_TYPE = 'catalog';
 import { debounce } from '@chatwoot/utils';
 
+import KanbanAmountInput from '../items/KanbanAmountInput.vue';
 import KanbanCardDiscountFooter from '../items/KanbanCardDiscountFooter.vue';
 import KanbanCustomItemForm from '../items/KanbanCustomItemForm.vue';
 
@@ -353,12 +354,6 @@ defineExpose({ reload: loadCardProducts });
     data-testid="kanban-opportunity-products-tab"
     class="grid min-w-0 gap-5"
   >
-    <span
-      data-testid="kanban-opportunity-products-autosaved"
-      class="inline-flex w-fit items-center rounded-full bg-n-teal-2 px-2 py-0.5 text-xs font-medium text-n-teal-11"
-    >
-      {{ t('KANBAN.OPPORTUNITY_DETAILS.AUTOSAVED_TAB') }}
-    </span>
     <section class="grid gap-3 rounded-lg border border-n-weak p-3">
       <h3 class="mb-0 text-sm font-medium text-n-slate-12">
         {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SEARCH_LABEL') }}
@@ -376,6 +371,8 @@ defineExpose({ reload: loadCardProducts });
           v-model="priceList"
           data-testid="kanban-opportunity-product-price-list"
           :options="PRICE_LIST_OPTIONS"
+          full-width
+          class="[&_select]:h-10"
         />
       </div>
 
@@ -477,7 +474,7 @@ defineExpose({ reload: loadCardProducts });
                 min="1"
                 :max="product.stockQuantity || 1"
                 data-testid="kanban-opportunity-product-add-quantity"
-                class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                class="reset-base !mb-0 block h-10 w-full rounded-lg border-none bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak transition-colors hover:outline-n-slate-6 focus:outline-n-brand tabular-nums"
               />
             </label>
             <div class="grid gap-1 text-xs font-medium text-n-slate-12">
@@ -543,10 +540,19 @@ defineExpose({ reload: loadCardProducts });
     </section>
 
     <section class="grid gap-3 rounded-lg border border-n-weak p-3">
-      <div class="flex items-center justify-between gap-3">
-        <h3 class="mb-0 text-sm font-medium text-n-slate-12">
-          {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.LINKED_TITLE') }}
-        </h3>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <h3 class="mb-0 text-sm font-medium text-n-slate-12">
+            {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.LINKED_TITLE') }}
+          </h3>
+          <span
+            data-testid="kanban-opportunity-products-autosaved"
+            class="inline-flex items-center gap-1 text-xs text-n-slate-10"
+          >
+            <i class="i-lucide-check size-3" />
+            {{ t('KANBAN.OPPORTUNITY_DETAILS.AUTOSAVED_TAB') }}
+          </span>
+        </div>
         <NextButton
           type="button"
           outline
@@ -593,9 +599,9 @@ defineExpose({ reload: loadCardProducts });
         data-testid="kanban-opportunity-linked-products"
         class="grid gap-2 overflow-x-auto"
       >
-        <table class="w-full min-w-[36rem] text-left text-sm">
+        <table class="w-full min-w-[30rem] text-left text-sm">
           <thead>
-            <tr class="text-xs uppercase text-n-slate-10">
+            <tr class="text-xs text-n-slate-10">
               <th class="pb-2 font-medium">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_PRODUCT')
@@ -604,17 +610,17 @@ defineExpose({ reload: loadCardProducts });
               <th class="pb-2 font-medium">
                 {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_SKU') }}
               </th>
-              <th class="pb-2 font-medium">
+              <th class="pb-2 pr-2 text-right font-medium">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_QUANTITY')
                 }}
               </th>
-              <th class="pb-2 font-medium">
+              <th class="pb-2 pr-2 text-right font-medium">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_UNIT_PRICE')
                 }}
               </th>
-              <th class="pb-2 font-medium">
+              <th class="pb-2 pr-2 text-right font-medium">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_SUBTOTAL')
                 }}
@@ -654,17 +660,17 @@ defineExpose({ reload: loadCardProducts });
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.NO_SKU')
                 }}
               </td>
-              <td class="py-2 pr-2 text-n-slate-11">
+              <td class="py-2 pr-2 text-right tabular-nums text-n-slate-11">
                 <span
                   v-if="editingQuantityId === product.id"
-                  class="flex items-center gap-1"
+                  class="flex items-center justify-end gap-1"
                 >
                   <input
                     v-model.number="editingQuantityValue"
                     type="number"
                     min="1"
                     data-testid="kanban-opportunity-product-quantity-input"
-                    class="w-16 rounded-md border border-n-weak bg-n-surface-1 px-2 py-1 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                    class="reset-base !mb-0 block h-10 w-full rounded-lg border-none bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak transition-colors hover:outline-n-slate-6 focus:outline-n-brand w-20 text-right tabular-nums"
                   />
                   <button
                     type="button"
@@ -689,7 +695,7 @@ defineExpose({ reload: loadCardProducts });
                     <i class="i-lucide-x size-4" />
                   </button>
                 </span>
-                <span v-else class="flex items-center gap-1">
+                <span v-else class="flex items-center justify-end gap-1">
                   {{ product.quantity }}
                   <button
                     type="button"
@@ -704,21 +710,20 @@ defineExpose({ reload: loadCardProducts });
                   </button>
                 </span>
               </td>
-              <td class="py-2 pr-2 text-n-slate-11">
+              <td class="py-2 pr-2 text-right tabular-nums text-n-slate-11">
                 <span
                   v-if="
                     canEditUnitPrice(product) &&
                     editingUnitPriceId === product.id
                   "
-                  class="flex items-center gap-1"
+                  class="flex items-center justify-end gap-1"
                 >
-                  <input
-                    v-model.number="editingUnitPriceValue"
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <KanbanAmountInput
+                    v-model="editingUnitPriceValue"
+                    class="w-28"
                     data-testid="kanban-opportunity-product-unit-price-input"
-                    class="w-24 rounded-md border border-n-weak bg-n-surface-1 px-2 py-1 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                    unit="currency"
+                    @enter="saveUnitPrice(product)"
                   />
                   <button
                     type="button"
@@ -745,7 +750,7 @@ defineExpose({ reload: loadCardProducts });
                     <i class="i-lucide-x size-4" />
                   </button>
                 </span>
-                <span v-else class="flex items-center gap-1">
+                <span v-else class="flex items-center justify-end gap-1">
                   {{ formatCurrency(product.unitPrice) }}
                   <button
                     v-if="canEditUnitPrice(product)"
@@ -763,7 +768,9 @@ defineExpose({ reload: loadCardProducts });
                   </button>
                 </span>
               </td>
-              <td class="py-2 pr-2 font-medium text-n-slate-12">
+              <td
+                class="py-2 pr-2 text-right font-medium tabular-nums text-n-slate-12"
+              >
                 {{ formatCurrency(product.subtotal) }}
               </td>
               <td class="py-2 text-right">

@@ -5,6 +5,7 @@ import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Select from 'dashboard/components-next/select/Select.vue';
+import KanbanAmountInput from './KanbanAmountInput.vue';
 import { useAlert } from 'dashboard/composables';
 import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
@@ -121,45 +122,53 @@ const changeType = nextType => {
 
 <template>
   <div class="grid gap-2 border-t border-n-weak pt-3 text-sm">
-    <div class="flex items-center justify-between gap-2 text-n-slate-11">
+    <div class="flex items-center justify-between gap-3 text-n-slate-11">
       <span>
         {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SUBTOTAL_LABEL') }}
       </span>
-      <span data-testid="kanban-opportunity-products-subtotal">
+      <span
+        data-testid="kanban-opportunity-products-subtotal"
+        class="tabular-nums"
+      >
         {{ formattedItemsTotal }}
       </span>
     </div>
-    <div
-      class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem_10rem] sm:items-end"
-    >
+
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <span class="font-medium text-n-slate-12">
         {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_LABEL') }}
       </span>
-      <Select
-        :model-value="type"
-        data-testid="kanban-opportunity-discount-type"
-        :options="DISCOUNT_TYPE_OPTIONS"
-        @update:model-value="changeType"
-      />
-      <input
-        v-model="amount"
-        type="number"
-        min="0"
-        :max="type === 'percent' ? 100 : undefined"
-        step="0.01"
-        data-testid="kanban-opportunity-discount-input"
-        class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-        :disabled="isSaving"
-        @blur="save"
-        @keyup.enter.prevent="save"
-      />
+      <div class="flex items-center gap-2">
+        <Select
+          :model-value="type"
+          data-testid="kanban-opportunity-discount-type"
+          :options="DISCOUNT_TYPE_OPTIONS"
+          full-width
+          class="w-36 [&_select]:h-10"
+          @update:model-value="changeType"
+        />
+        <KanbanAmountInput
+          v-model="amount"
+          class="w-32"
+          data-testid="kanban-opportunity-discount-input"
+          :unit="type === DISCOUNT_PERCENT ? 'percent' : 'currency'"
+          :max="type === DISCOUNT_PERCENT ? 100 : null"
+          :disabled="isSaving"
+          @blur="save"
+          @enter="save"
+        />
+      </div>
     </div>
+
     <div
       v-if="discountValue(discount)"
-      class="flex items-center justify-between gap-2 text-n-slate-11"
+      class="flex items-center justify-between gap-3 text-n-slate-11"
     >
       <span />
-      <span data-testid="kanban-opportunity-discount-value">
+      <span
+        data-testid="kanban-opportunity-discount-value"
+        class="tabular-nums"
+      >
         {{
           t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.DISCOUNT_APPLIED', {
             value: formattedDiscount,
@@ -167,6 +176,7 @@ const changeType = nextType => {
         }}
       </span>
     </div>
+
     <p
       v-if="error"
       data-testid="kanban-opportunity-discount-error"
@@ -174,13 +184,17 @@ const changeType = nextType => {
     >
       {{ error }}
     </p>
+
     <div
-      class="flex items-center justify-between gap-2 font-medium text-n-slate-12"
+      class="flex items-center justify-between gap-3 border-t border-n-weak pt-2 font-semibold text-n-slate-12"
     >
-      <span>{{
-        t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.TOTAL_LABEL')
-      }}</span>
-      <span data-testid="kanban-opportunity-products-total">
+      <span>
+        {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.TOTAL_LABEL') }}
+      </span>
+      <span
+        data-testid="kanban-opportunity-products-total"
+        class="tabular-nums"
+      >
         {{ formattedTotal }}
       </span>
     </div>

@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import NextButton from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAdmin } from 'dashboard/composables/useAdmin';
@@ -88,12 +89,13 @@ onMounted(() => load());
 
     <ol
       v-else
-      class="grid gap-5"
+      class="grid list-none gap-5 ps-0"
       data-testid="kanban-opportunity-timeline-list"
     >
       <li
         v-for="item in items"
         :key="`${item.itemType}-${item.id}`"
+        class="group/timeline"
         :data-testid="
           item.itemType === 'event'
             ? 'kanban-opportunity-timeline-event'
@@ -111,20 +113,18 @@ onMounted(() => load());
       </li>
     </ol>
 
-    <button
+    <NextButton
       v-if="hasMore && !loadError"
       type="button"
-      class="mx-auto rounded-md border border-n-weak px-3 py-2 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-1 disabled:cursor-not-allowed disabled:opacity-50"
+      outline
+      slate
+      sm
+      class="mx-auto"
       data-testid="kanban-opportunity-timeline-load-more"
-      :disabled="isLoadingMore"
+      :is-loading="isLoadingMore"
+      :label="t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.LOAD_MORE')"
       @click="load(true)"
-    >
-      {{
-        isLoadingMore
-          ? t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.LOADING')
-          : t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.LOAD_MORE')
-      }}
-    </button>
+    />
 
     <Dialog
       ref="deleteDialogRef"

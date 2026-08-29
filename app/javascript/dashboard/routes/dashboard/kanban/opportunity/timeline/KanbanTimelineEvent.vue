@@ -153,9 +153,14 @@ const automationLogLink = computed(() => ({
       <i class="i-lucide-zap size-4" />
     </div>
     <KanbanTimelineAvatar v-else :user="event.user" />
-    <div class="min-w-0 flex-1 border-b border-n-weak pb-4">
+    <div
+      class="min-w-0 flex-1 border-b border-n-weak pb-4 group-last/timeline:border-0 group-last/timeline:pb-0"
+    >
+      <!-- Vue condenses whitespace-only text nodes between elements, so each
+      join in the sentence needs an explicit space. -->
       <p class="mb-1 text-sm leading-5 text-n-slate-12">
         <span class="font-medium">{{ authorName }}</span>
+        {{ ' ' }}
         <template v-if="isAutomationEvent">
           <router-link
             v-if="automationRuleId && boardId"
@@ -165,6 +170,7 @@ const automationLogLink = computed(() => ({
             {{ automationRuleLabel }}
           </router-link>
           <span v-else>{{ automationRuleLabel }}</span>
+          {{ ' ' }}
           {{ message }}
         </template>
         <template v-else>{{ message }}</template>

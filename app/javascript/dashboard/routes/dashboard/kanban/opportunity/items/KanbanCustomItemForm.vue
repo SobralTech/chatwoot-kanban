@@ -8,6 +8,8 @@ import Select from 'dashboard/components-next/select/Select.vue';
 import { useAlert } from 'dashboard/composables';
 import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
 
+import KanbanAmountInput from './KanbanAmountInput.vue';
+
 const props = defineProps({
   boardId: {
     type: [Number, String],
@@ -100,7 +102,7 @@ const submit = async () => {
         v-model="name"
         type="text"
         data-testid="kanban-opportunity-custom-item-name"
-        class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+        class="reset-base !mb-0 block h-10 w-full rounded-lg border-none bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak transition-colors hover:outline-n-slate-6 focus:outline-n-brand font-normal"
       />
     </label>
     <label class="grid gap-1 text-xs font-medium text-n-slate-12">
@@ -110,18 +112,15 @@ const submit = async () => {
         type="number"
         min="1"
         data-testid="kanban-opportunity-custom-item-quantity"
-        class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+        class="reset-base !mb-0 block h-10 w-full rounded-lg border-none bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak transition-colors hover:outline-n-slate-6 focus:outline-n-brand text-right font-normal tabular-nums"
       />
     </label>
     <label class="grid gap-1 text-xs font-medium text-n-slate-12">
       {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_UNIT_PRICE') }}
-      <input
-        v-model.number="unitPrice"
-        type="number"
-        min="0"
-        step="0.01"
+      <KanbanAmountInput
+        v-model="unitPrice"
         data-testid="kanban-opportunity-custom-item-unit-price"
-        class="rounded-md border border-n-weak bg-n-surface-1 px-2 py-1.5 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+        unit="currency"
       />
     </label>
     <div class="grid gap-1 text-xs font-medium text-n-slate-12 sm:col-span-2">
@@ -130,6 +129,8 @@ const submit = async () => {
         v-model="itemType"
         data-testid="kanban-opportunity-custom-item-type"
         :options="ITEM_TYPE_OPTIONS"
+        full-width
+        class="[&_select]:h-10"
       />
     </div>
     <p v-if="error" class="mb-0 text-xs text-n-ruby-11 sm:col-span-3">

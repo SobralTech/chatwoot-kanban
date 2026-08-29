@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import NextButton from 'dashboard/components-next/button/Button.vue';
 import { formatBytes } from 'shared/helpers/FileHelper';
 import { dynamicTime, shortTimestamp } from 'shared/helpers/timeHelper';
 import KanbanTimelineAvatar from './KanbanTimelineAvatar.vue';
@@ -73,20 +74,22 @@ const saveEdit = async () => {
             v-if="canManage && !isEditing"
             class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
           >
-            <button
+            <NextButton
               type="button"
-              class="rounded px-2 py-1 text-xs text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 focus:outline-none focus:ring-1 focus:ring-n-brand"
+              ghost
+              slate
+              xs
+              :label="t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.EDIT_NOTE')"
               @click="startEditing"
-            >
-              {{ t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.EDIT_NOTE') }}
-            </button>
-            <button
+            />
+            <NextButton
               type="button"
-              class="rounded px-2 py-1 text-xs text-n-ruby-11 hover:bg-n-ruby-2 focus:outline-none focus:ring-1 focus:ring-n-ruby-8"
+              ghost
+              ruby
+              xs
+              :label="t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.DELETE_NOTE')"
               @click="emit('requestDelete', note)"
-            >
-              {{ t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.DELETE_NOTE') }}
-            </button>
+            />
           </div>
         </div>
 
@@ -94,25 +97,26 @@ const saveEdit = async () => {
           <textarea
             v-model="draft"
             rows="3"
-            class="mt-2 w-full resize-y rounded-md border border-n-weak bg-n-background px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+            class="mb-0 mt-2 block w-full resize-y rounded-lg border-none bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak transition-colors hover:outline-n-slate-6 focus:outline-n-brand"
           />
           <div class="mt-2 flex items-center gap-2">
-            <button
+            <NextButton
               type="button"
-              class="rounded-md bg-n-brand px-2.5 py-1.5 text-xs font-medium text-white hover:bg-n-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
+              sm
+              :label="t('KANBAN.OPPORTUNITY_DETAILS.SAVE')"
+              :is-loading="isSaving"
               :disabled="isSaving || !draft.trim()"
               @click="saveEdit"
-            >
-              {{ t('KANBAN.OPPORTUNITY_DETAILS.SAVE') }}
-            </button>
-            <button
+            />
+            <NextButton
               type="button"
-              class="rounded-md border border-n-weak px-2.5 py-1.5 text-xs text-n-slate-12 hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand"
+              outline
+              slate
+              sm
+              :label="t('KANBAN.OPPORTUNITY_DETAILS.CANCEL')"
               :disabled="isSaving"
               @click="cancelEditing"
-            >
-              {{ t('KANBAN.OPPORTUNITY_DETAILS.CANCEL') }}
-            </button>
+            />
           </div>
         </template>
         <p

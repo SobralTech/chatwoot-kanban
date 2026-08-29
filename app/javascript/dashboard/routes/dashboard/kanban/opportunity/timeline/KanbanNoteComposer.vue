@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
+import NextButton from 'dashboard/components-next/button/Button.vue';
 import { useAlert } from 'dashboard/composables';
 
 const props = defineProps({
@@ -71,7 +72,7 @@ const submit = async () => {
     <textarea
       v-model="content"
       rows="3"
-      class="w-full resize-y rounded-md border border-n-weak bg-n-background px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+      class="mb-0 block w-full resize-y rounded-lg border-none bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak transition-colors hover:outline-n-slate-6 focus:outline-n-brand"
       :placeholder="t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.NOTE_PLACEHOLDER')"
       data-testid="kanban-opportunity-note-input"
     />
@@ -84,16 +85,16 @@ const submit = async () => {
           class="hidden"
           @change="addFiles"
         />
-        <button
+        <NextButton
           type="button"
-          class="rounded-md border border-n-weak px-3 py-2 text-sm text-n-slate-12 hover:bg-n-alpha-1 focus:outline-none focus:ring-1 focus:ring-n-brand"
+          outline
+          slate
+          sm
+          icon="i-lucide-paperclip"
           data-testid="kanban-opportunity-note-attach"
-          :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.ATTACH')"
+          :label="t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.ATTACH')"
           @click="fileInput?.click()"
-        >
-          <i class="i-lucide-paperclip mr-1 inline-block size-4" />
-          {{ t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.ATTACH') }}
-        </button>
+        />
         <span v-if="files.length" class="text-xs text-n-slate-10">
           {{
             t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.ATTACHMENT_COUNT', {
@@ -103,18 +104,18 @@ const submit = async () => {
           }}
         </span>
       </div>
-      <button
+      <NextButton
         type="submit"
-        class="rounded-md bg-n-brand px-3 py-2 text-sm font-medium text-white hover:bg-n-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
+        sm
         data-testid="kanban-opportunity-note-submit"
+        :label="t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.ADD_NOTE')"
+        :is-loading="isSaving"
         :disabled="isSaving || !content.trim()"
-      >
-        {{ t('KANBAN.OPPORTUNITY_DETAILS.TIMELINE.ADD_NOTE') }}
-      </button>
+      />
     </div>
     <ul
       v-if="files.length"
-      class="flex flex-wrap gap-2"
+      class="flex list-none flex-wrap gap-2 ps-0"
       data-testid="kanban-opportunity-note-selected-files"
     >
       <li
