@@ -177,9 +177,7 @@ const resetReason = () => {
     data-testid="kanban-bulk-actions"
     class="fixed bottom-4 left-1/2 z-30 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl border border-n-strong bg-n-alpha-3 px-3 py-2 shadow-lg backdrop-blur"
   >
-    <div
-      class="flex flex-nowrap items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden"
-    >
+    <div class="flex flex-nowrap items-center gap-1 overflow-x-auto">
       <div
         class="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-n-alpha-2 px-2.5 py-1.5"
       >

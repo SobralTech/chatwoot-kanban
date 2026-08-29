@@ -36,6 +36,43 @@ body {
   width: 100%;
 }
 
+@layer base {
+  * {
+    scrollbar-color: auto;
+    scrollbar-width: auto;
+  }
+
+  @supports (-moz-appearance: none) {
+    * {
+      scrollbar-color: rgb(var(--blue-9)) transparent;
+      scrollbar-width: thin;
+    }
+  }
+
+  *::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    background-color: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--blue-9));
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-button {
+    -webkit-appearance: none;
+    background-color: transparent;
+    display: none;
+    height: 0;
+    width: 0;
+  }
+}
+
 .tooltip {
   @apply bg-n-solid-2 text-n-slate-12 py-1 px-2 z-40 text-xs rounded-md max-w-96;
 }
@@ -64,32 +101,6 @@ body {
   .no-scrollbar {
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
-  }
-
-  .conversations-list {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-
-    &::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      background-color: transparent;
-      border-radius: 9999px;
-    }
-
-    &:hover {
-      scrollbar-color: rgb(var(--blue-9)) transparent;
-
-      &::-webkit-scrollbar {
-        width: 8px;
-      }
-
-      &::-webkit-scrollbar-thumb {
-        background-color: rgb(var(--blue-9));
-      }
-    }
   }
 
   /**
