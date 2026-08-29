@@ -27,6 +27,12 @@ const props = defineProps({
   stages: { type: Array, default: () => [] },
 });
 
+const RULE_STATUS = {
+  ALL: 'all',
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+};
+
 const { t } = useI18n();
 
 const inboxes = useMapGetter('inboxes/getAllInboxes');
@@ -37,6 +43,8 @@ const labels = useMapGetter('labels/getLabels');
 const isLoading = ref(false);
 const loadError = ref('');
 const rules = ref([]);
+const ruleSearch = ref('');
+const ruleStatus = ref(RULE_STATUS.ALL);
 const showFormModal = ref(false);
 const editingRuleId = ref(null);
 const isSaving = ref(false);
@@ -61,10 +69,59 @@ const noneOption = computed(() => ({
   label: t('KANBAN.ENTRY_RULES.NONE_OPTION'),
 }));
 
+const fieldLabels = computed(() => ({
+  labels: t('KANBAN.ENTRY_RULES.FIELDS.LABELS'),
+  assignee_id: t('KANBAN.ENTRY_RULES.FIELDS.ASSIGNEE_ID'),
+  team_id: t('KANBAN.ENTRY_RULES.FIELDS.TEAM_ID'),
+  priority: t('KANBAN.ENTRY_RULES.FIELDS.PRIORITY'),
+}));
+
+const operatorLabels = computed(() => ({
+  is_one_of: t('KANBAN.ENTRY_RULES.OPERATORS.IS_ONE_OF'),
+  is_not_one_of: t('KANBAN.ENTRY_RULES.OPERATORS.IS_NOT_ONE_OF'),
+  includes_any: t('KANBAN.ENTRY_RULES.OPERATORS.INCLUDES_ANY'),
+  includes_all: t('KANBAN.ENTRY_RULES.OPERATORS.INCLUDES_ALL'),
+  not_includes: t('KANBAN.ENTRY_RULES.OPERATORS.NOT_INCLUDES'),
+}));
+
 const toOptions = (items, labelKey = 'name') =>
   items.map(item => ({ value: String(item.id), label: item[labelKey] }));
 
 const inboxOptions = computed(() => toOptions(inboxes.value));
+
+const ruleStatusOptions = computed(() => [
+  {
+    value: RULE_STATUS.ALL,
+    label: t('KANBAN.ENTRY_RULES.STATUS_ALL'),
+  },
+  {
+    value: RULE_STATUS.ACTIVE,
+    label: t('KANBAN.ENTRY_RULES.STATUS_ACTIVE'),
+  },
+  {
+    value: RULE_STATUS.INACTIVE,
+    label: t('KANBAN.ENTRY_RULES.STATUS_INACTIVE'),
+  },
+]);
+
+const isFilteringRules = computed(
+  () => Boolean(ruleSearch.value.trim()) || ruleStatus.value !== RULE_STATUS.ALL
+);
+
+const filteredRules = computed(() => {
+  const search = ruleSearch.value.trim().toLowerCase();
+  if (!search && ruleStatus.value === RULE_STATUS.ALL) return rules.value;
+
+  return rules.value.filter(rule => {
+    const matchesName = !search || rule.name.toLowerCase().includes(search);
+    const matchesStatus =
+      ruleStatus.value === RULE_STATUS.ALL ||
+      (ruleStatus.value === RULE_STATUS.ACTIVE && rule.active) ||
+      (ruleStatus.value === RULE_STATUS.INACTIVE && !rule.active);
+
+    return matchesName && matchesStatus;
+  });
+});
 
 const valueOptionsByField = computed(() => ({
   labels: [
@@ -75,12 +132,21 @@ const valueOptionsByField = computed(() => ({
   team_id: [noneOption.value, ...toOptions(teams.value)],
   priority: [
     noneOption.value,
-    ...['low', 'medium', 'high', 'urgent'].map(priority => ({
-      value: priority,
-      label: t(`KANBAN.ENTRY_RULES.PRIORITY.${priority.toUpperCase()}`),
-    })),
+    { value: 'low', label: t('KANBAN.ENTRY_RULES.PRIORITY.LOW') },
+    { value: 'medium', label: t('KANBAN.ENTRY_RULES.PRIORITY.MEDIUM') },
+    { value: 'high', label: t('KANBAN.ENTRY_RULES.PRIORITY.HIGH') },
+    { value: 'urgent', label: t('KANBAN.ENTRY_RULES.PRIORITY.URGENT') },
   ],
 }));
+
+const valueLabelsByField = computed(() =>
+  Object.fromEntries(
+    Object.entries(valueOptionsByField.value).map(([attributeKey, options]) => [
+      attributeKey,
+      new Map(options.map(option => [String(option.value), option.label])),
+    ])
+  )
+);
 
 const operatorOptionsByField = computed(() =>
   Object.fromEntries(
@@ -88,7 +154,7 @@ const operatorOptionsByField = computed(() =>
       field.key,
       field.operators.map(operator => ({
         value: operator,
-        label: t(`KANBAN.ENTRY_RULES.OPERATORS.${operator.toUpperCase()}`),
+        label: operatorLabels.value[operator],
       })),
     ])
   )
@@ -112,10 +178,28 @@ const ruleInboxSummary = rule => {
 };
 
 const ruleConditionSummary = rule => {
-  const count = (rule.conditions || []).length;
-  return count
-    ? t('KANBAN.ENTRY_RULES.CONDITION_COUNT', { count })
-    : t('KANBAN.ENTRY_RULES.NO_CONDITIONS');
+  if (!rule.conditions?.length) {
+    return t('KANBAN.ENTRY_RULES.NO_CONDITIONS');
+  }
+
+  return rule.conditions
+    .map(condition => {
+      const values = condition.values
+        .map(
+          value =>
+            valueLabelsByField.value[condition.attributeKey].get(
+              String(value)
+            ) ?? String(value)
+        )
+        .join(', ');
+
+      return t('KANBAN.ENTRY_RULES.CONDITION_SUMMARY', {
+        field: fieldLabels.value[condition.attributeKey],
+        operator: operatorLabels.value[condition.filterOperator],
+        values,
+      });
+    })
+    .join(' · ');
 };
 
 const fetchRules = async () => {
@@ -350,6 +434,35 @@ onMounted(fetchRules);
       />
     </header>
 
+    <div
+      v-if="!isLoading && !loadError && rules.length"
+      class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]"
+    >
+      <NextInput
+        v-model="ruleSearch"
+        type="search"
+        data-testid="kanban-entry-rule-search"
+        :label="t('KANBAN.ENTRY_RULES.SEARCH_LABEL')"
+        :placeholder="t('KANBAN.ENTRY_RULES.SEARCH_PLACEHOLDER')"
+      />
+      <label class="grid gap-1 text-heading-3 text-n-slate-12">
+        {{ t('KANBAN.ENTRY_RULES.STATUS_FILTER_LABEL') }}
+        <Select
+          v-model="ruleStatus"
+          full-width
+          data-testid="kanban-entry-rule-status-filter"
+          :options="ruleStatusOptions"
+        />
+      </label>
+    </div>
+
+    <p
+      v-if="!isLoading && !loadError && rules.length && isFilteringRules"
+      class="mb-0 text-xs text-n-slate-10"
+    >
+      {{ t('KANBAN.ENTRY_RULES.FILTER_REORDER_HINT') }}
+    </p>
+
     <p v-if="isLoading" class="text-sm text-n-slate-11">
       {{ t('KANBAN.ENTRY_RULES.LOADING') }}
     </p>
@@ -370,9 +483,18 @@ onMounted(fetchRules);
       {{ t('KANBAN.ENTRY_RULES.EMPTY') }}
     </p>
 
+    <p
+      v-else-if="!filteredRules.length"
+      data-testid="kanban-entry-rules-filter-empty"
+      class="rounded-md border border-dashed border-n-weak px-3 py-4 text-sm text-n-slate-11"
+    >
+      {{ t('KANBAN.ENTRY_RULES.FILTER_EMPTY') }}
+    </p>
+
     <Draggable
       v-else
-      v-model="rules"
+      :list="filteredRules"
+      :disabled="isFilteringRules"
       item-key="id"
       handle=".entry-rule-handle"
       class="grid gap-2"
@@ -384,19 +506,25 @@ onMounted(fetchRules);
           class="flex items-center gap-3 rounded-md border border-n-weak bg-n-surface-2 px-3 py-2"
         >
           <span
+            v-if="!isFilteringRules"
             class="entry-rule-handle i-lucide-grip-vertical flex-none cursor-grab text-n-slate-10"
           />
           <div class="min-w-0 flex-1">
             <p class="mb-0 truncate text-sm font-medium text-n-slate-12">
               {{ rule.name }}
             </p>
-            <p class="mb-0 truncate text-xs text-n-slate-11">
-              {{
-                t('KANBAN.ENTRY_RULES.ROW_SUMMARY', {
-                  inboxes: ruleInboxSummary(rule),
-                  conditions: ruleConditionSummary(rule),
-                })
-              }}
+            <p
+              class="mb-0 truncate text-xs text-n-slate-11"
+              :title="ruleInboxSummary(rule)"
+            >
+              {{ ruleInboxSummary(rule) }}
+            </p>
+            <p
+              class="mb-0 truncate text-xs text-n-slate-10"
+              data-testid="kanban-entry-rule-condition-summary"
+              :title="ruleConditionSummary(rule)"
+            >
+              {{ ruleConditionSummary(rule) }}
             </p>
           </div>
           <Switch
@@ -467,7 +595,7 @@ onMounted(fetchRules);
         >
           <div class="flex items-center justify-between gap-2">
             <span class="text-sm font-medium text-n-slate-12">
-              {{ t(`KANBAN.ENTRY_RULES.FIELDS.${field.key.toUpperCase()}`) }}
+              {{ fieldLabels[field.key] }}
             </span>
             <Select
               v-model="form.conditions[field.key].operator"
