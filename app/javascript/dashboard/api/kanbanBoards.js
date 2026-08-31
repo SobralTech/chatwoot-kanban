@@ -174,6 +174,10 @@ class KanbanBoardsAPI extends ApiClient {
     });
   }
 
+  getBoardCards(boardId, params = {}) {
+    return axios.get(`${this.url}/${boardId}/cards`, { params });
+  }
+
   createManualCard(boardId, payload) {
     return axios.post(`${this.url}/${boardId}/cards/manual`, payload);
   }
