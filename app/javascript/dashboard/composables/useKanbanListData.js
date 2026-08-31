@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import camelcaseKeys from 'camelcase-keys';
 
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
@@ -14,10 +15,41 @@ const normalizeStage = rawStage => ({
   nextCursor: rawStage.pagination?.next_cursor || null,
 });
 
+// The funnel endpoint names the card priority `priority`; the row reads the name
+// the board payload uses.
+const normalizeCard = rawCard => ({
+  ...camelcaseKeys(rawCard, { deep: true }),
+  cardPriority: rawCard.priority,
+});
+
+// The assignee a card is grouped under: the first by name, the same one the
+// server ordered the funnel by, so a card with several lands in one group only.
+const primaryAssigneeId = card =>
+  [...(card.assignees || [])].sort(
+    (first, second) =>
+      first.name.toLowerCase().localeCompare(second.name.toLowerCase()) ||
+      first.id - second.id
+  )[0]?.id;
+
+const GROUP_KEY_READERS = {
+  assignee: card => String(primaryAssigneeId(card) ?? 'unassigned'),
+  priority: card => card.cardPriority || 'none',
+};
+
+// Only the assignee groups are named by the server; a priority group is named by
+// the same label the filter menu already gives that priority.
+const GROUP_LABEL_KEYS = {
+  assignee: () => 'KANBAN.LIST.GROUP_BY.UNASSIGNED',
+  priority: key => `KANBAN.FILTERS.PRIORITY.${key.toUpperCase()}`,
+};
+
 /**
- * The list reads the funnel one group at a time: the board request brings every
- * group already ordered, with its first page of cards, its count and its value
- * total, and each group pages on from there without touching the others.
+ * The list reads the funnel one group at a time. Grouped by stage, the board
+ * request brings every stage already ordered, with its first page of cards, its
+ * count and its value total, and each stage pages on from there. Grouped by
+ * assignee or priority, the funnel endpoint answers with the cards already
+ * ordered by the criterion plus a summary per group: the list is cut where the
+ * criterion changes, and every group but the last one loaded is complete.
  */
 export function useKanbanListData({
   board,
@@ -25,12 +57,18 @@ export function useKanbanListData({
   currentFilterParams,
   isLoading,
 }) {
-  // Only stage grouping is served here; the other criteria come with the
-  // "group by" dropdown and read the board cards endpoint instead.
+  const { t } = useI18n();
+
   const groupBy = ref('stage');
   const loadingGroupKeys = ref([]);
+  const cards = ref([]);
+  const cardGroups = ref([]);
+  const nextCursor = ref(null);
 
-  const groups = computed(() =>
+  const isStageGrouping = computed(() => groupBy.value === 'stage');
+  const groupKeyOf = card => GROUP_KEY_READERS[groupBy.value](card);
+
+  const stageGroups = computed(() =>
     (board.value?.stages || []).map(stage => ({
       key: String(stage.id),
       stageId: stage.id,
@@ -43,10 +81,42 @@ export function useKanbanListData({
     }))
   );
 
+  const criterionGroups = computed(() => {
+    const lastCard = cards.value[cards.value.length - 1];
+    const partialGroupKey = lastCard ? groupKeyOf(lastCard) : null;
+
+    return cardGroups.value.map(group => ({
+      key: group.key,
+      name: group.name || t(GROUP_LABEL_KEYS[groupBy.value](group.key)),
+      cards: cards.value.filter(card => groupKeyOf(card) === group.key),
+      cardsCount: group.count,
+      totalValue: group.totalValue,
+      hasMore: !!nextCursor.value && group.key === partialGroupKey,
+    }));
+  });
+
+  const groups = computed(() =>
+    isStageGrouping.value ? stageGroups.value : criterionGroups.value
+  );
+
   const isGroupLoading = groupKey => loadingGroupKeys.value.includes(groupKey);
 
   const findStage = stageId =>
     board.value?.stages?.find(stage => stage.id === stageId);
+
+  const fetchCriterionPage = async cursor => {
+    const { data } = await KanbanBoardsAPI.getBoardCards(boardId.value, {
+      limit: PAGE_LIMIT,
+      group_by: groupBy.value,
+      ...(cursor ? { cursor } : {}),
+      ...currentFilterParams(),
+    });
+    const page = (data.cards || []).map(normalizeCard);
+
+    cards.value = cursor ? [...cards.value, ...page] : page;
+    nextCursor.value = data.pagination?.next_cursor || null;
+    if (!cursor) cardGroups.value = camelcaseKeys(data.groups || []);
+  };
 
   const fetchList = async () => {
     isLoading.value = true;
@@ -59,6 +129,7 @@ export function useKanbanListData({
         ...camelcaseKeys(data, { deep: true }),
         stages: (data.stages || []).map(normalizeStage),
       };
+      if (!isStageGrouping.value) await fetchCriterionPage();
     } finally {
       isLoading.value = false;
     }
@@ -75,23 +146,33 @@ export function useKanbanListData({
     stage.nextCursor = data.pagination?.next_cursor || null;
   };
 
-  const loadMoreForGroup = async groupKey => {
+  const fetchStagePage = async groupKey => {
     const stage = findStage(Number(groupKey));
-    if (!stage?.nextCursor || isGroupLoading(groupKey)) return;
+    const { data } = await KanbanBoardsAPI.getStageCards(
+      boardId.value,
+      stage.id,
+      {
+        limit: PAGE_LIMIT,
+        cursor: stage.nextCursor,
+        ...currentFilterParams(),
+      }
+    );
+    appendStagePage(stage, data);
+  };
+
+  const hasMoreInGroup = groupKey =>
+    isStageGrouping.value
+      ? !!findStage(Number(groupKey))?.nextCursor
+      : !!nextCursor.value;
+
+  const loadMoreForGroup = async groupKey => {
+    if (isGroupLoading(groupKey) || !hasMoreInGroup(groupKey)) return;
 
     loadingGroupKeys.value = [...loadingGroupKeys.value, groupKey];
 
     try {
-      const { data } = await KanbanBoardsAPI.getStageCards(
-        boardId.value,
-        stage.id,
-        {
-          limit: PAGE_LIMIT,
-          cursor: stage.nextCursor,
-          ...currentFilterParams(),
-        }
-      );
-      appendStagePage(stage, data);
+      if (isStageGrouping.value) await fetchStagePage(groupKey);
+      else await fetchCriterionPage(nextCursor.value);
     } finally {
       loadingGroupKeys.value = loadingGroupKeys.value.filter(
         key => key !== groupKey

@@ -1124,6 +1124,13 @@
     "LIST": {
       "ADD_ITEM": "New item",
       "EMPTY_GROUP": "No cards in this group.",
+      "GROUP_BY": {
+        "LABEL": "Group by",
+        "STAGE": "Stage",
+        "ASSIGNEE": "Assignee",
+        "PRIORITY": "Priority",
+        "UNASSIGNED": "Unassigned"
+      },
       "LOAD_MORE": "Load more"
     }
   }

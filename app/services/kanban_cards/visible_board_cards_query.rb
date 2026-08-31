@@ -1,5 +1,5 @@
 class KanbanCards::VisibleBoardCardsQuery
-  Result = Struct.new(:cards, :has_more, :next_cursor, :total_count, keyword_init: true)
+  Result = Struct.new(:cards, :has_more, :next_cursor, :total_count, :groups, keyword_init: true)
   RefreshRequiredError = Class.new(StandardError)
 
   DEFAULT_LIMIT = 20
@@ -14,6 +14,17 @@ class KanbanCards::VisibleBoardCardsQuery
       INNER JOIN users ON users.id = kanban_card_assignees.user_id
       WHERE kanban_card_assignees.kanban_card_id = kanban_cards.id
     ), '')
+  SQL
+
+  # The single assignee a card is grouped under: the same one ASSIGNEE_ORDER_SQL
+  # sorts it by, so a card with several assignees lands in exactly one group.
+  PRIMARY_ASSIGNEE_ID_SQL = <<~SQL.squish.freeze
+    (SELECT kanban_card_assignees.user_id
+     FROM kanban_card_assignees
+     INNER JOIN users ON users.id = kanban_card_assignees.user_id
+     WHERE kanban_card_assignees.kanban_card_id = kanban_cards.id
+     ORDER BY LOWER(users.name) ASC, users.id ASC
+     LIMIT 1)
   SQL
 
   # rubocop:disable Metrics/ParameterLists
@@ -42,7 +53,8 @@ class KanbanCards::VisibleBoardCardsQuery
       cards: payload_cards(page_ids),
       has_more: ids.length > effective_limit,
       next_cursor: next_cursor_for(page_ids, ids),
-      total_count: anchor.nil? ? visible_cards.count : nil
+      total_count: anchor.nil? ? visible_cards.count : nil,
+      groups: anchor.nil? ? group_summaries : nil
     )
   end
 
@@ -51,7 +63,7 @@ class KanbanCards::VisibleBoardCardsQuery
   attr_reader :account, :kanban_board, :limit, :cursor, :due_date_from, :due_date_to, :without_due_date, :group_by
 
   def empty_result
-    Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0)
+    Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0, groups: [])
   end
 
   def valid_board?
@@ -73,6 +85,45 @@ class KanbanCards::VisibleBoardCardsQuery
     conditions << card_table[:due_at].gteq(due_date_from) if due_date_from.present?
     conditions << card_table[:due_at].lteq(due_date_to) if due_date_to.present?
     conditions.reduce(:and)
+  end
+
+  # Counting on every page would re-scan the funnel on each load-more click, so the
+  # group headers read their count and value from the first page only. Stage groups
+  # are left out: the board payload already carries a total per stage column.
+  def group_summaries
+    case group_by
+    when 'assignee' then assignee_group_summaries
+    when 'priority' then priority_group_summaries
+    end
+  end
+
+  def assignee_group_summaries
+    metrics = KanbanCards::Totals.grouped_metrics(visible_cards, PRIMARY_ASSIGNEE_ID_SQL)
+    names = User.where(id: metrics.keys.compact).pluck(:id, :name).to_h
+
+    metrics
+      .map { |user_id, metric| group_summary(user_id&.to_s || 'unassigned', names[user_id], metric) }
+      .sort_by { |group| [group[:name].present? ? 1 : 0, group[:name].to_s.downcase] }
+  end
+
+  def priority_group_summaries
+    metrics = KanbanCards::Totals.metrics(visible_cards, priority_conditions)
+
+    priority_conditions.keys.filter_map do |key|
+      metric = metrics.fetch(key)
+      group_summary(key, nil, metric) if metric.count.positive?
+    end
+  end
+
+  # Ordered like COALESCE(priority, -1): the cards without one come first.
+  def priority_conditions
+    @priority_conditions ||= { 'none' => card_table[:priority].eq(nil) }.merge(
+      KanbanCard.priorities.transform_values { |value| card_table[:priority].eq(value) }
+    )
+  end
+
+  def group_summary(key, name, metric)
+    { key: key, name: name, count: metric.count, total_value: KanbanCards::Totals.decimal_string(metric.value) }
   end
 
   def paginated_card_ids(anchor)

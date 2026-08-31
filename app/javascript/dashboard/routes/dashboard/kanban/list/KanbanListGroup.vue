@@ -51,6 +51,7 @@ const isExpanded = ref(true);
           "
         />
         <span
+          v-if="group.color"
           class="size-2.5 flex-shrink-0 rounded-full"
           :style="{ backgroundColor: group.color }"
           aria-hidden="true"
@@ -96,7 +97,7 @@ const isExpanded = ref(true);
       />
 
       <p
-        v-if="!group.cards.length"
+        v-if="!group.cards.length && !group.cardsCount"
         class="px-2 py-2 text-sm text-n-slate-10"
         data-testid="kanban-list-group-empty"
       >
