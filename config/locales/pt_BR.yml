@@ -102,7 +102,7 @@ pt_BR:
       reporting_timezone:
         invalid: não é um fuso horário válido
       support_email:
-        invalid: is not a valid email address
+        invalid: não é um endereço de e-mail válido
     validations:
       presence: não pode ficar em branco
     webhook:
@@ -122,6 +122,11 @@ pt_BR:
       email_already_exists: 'Você já se cadastrou para uma conta com %{email}'
       invalid_params: 'Inválido, por favor, verifique os parâmetros de inscrição e tente novamente'
       failed: Registro falhou
+    conversation_assistant:
+      not_ready: 'A resposta do assistente ainda não está pronta'
+      suggested_reply_blank: 'A resposta sugerida está vazia'
+      outside_messaging_window: 'Não é possível enviar esta resposta porque a janela de mensagens com o cliente expirou'
+      send_failed: 'Não foi possível enviar a mensagem ao cliente'
     voice:
       call_already_accepted: '%{agent_name} já está atendendo a chamada.'
     assignment_policy:
@@ -139,6 +144,9 @@ pt_BR:
     saml:
       feature_not_enabled: SAML não está habilitado para esta conta
       sso_not_enabled: O SSO via SAML não está habilitado para esta instalação
+    conversations:
+      unread_counts:
+        feature_not_enabled: A contagem de conversas não lidas não está habilitada para esta conta
     data_import:
       data_type:
         invalid: Tipo de dado inválido
@@ -182,7 +190,7 @@ pt_BR:
         contact_phone_required: 'Número de telefone do contato é obrigatório'
         permission_request_failed: 'Falha ao enviar solicitação de permissão de chamada'
     openai:
-      invalid_api_key: 'OpenAI API key is invalid or revoked. Please check your key in your OpenAI dashboard.'
+      invalid_api_key: 'A chave de API da OpenAI é inválida ou foi revogada. Verifique-a no painel da OpenAI.'
     inboxes:
       imap:
         socket_error: Por favor, verifique a conexão de rede, endereço IMAP e tente novamente.
@@ -540,6 +548,7 @@ pt_BR:
       go_to_homepage: Site
       visit_website: Visite o site
       appearance:
+        title: Aparência
         system: Sistema
         light: Claro
         dark: Escuro

@@ -1,5 +1,9 @@
 {
   "CONVERSATION": {
+    "MESSAGES_GAP": "Algumas mensagens entre estas seções não foram carregadas",
+    "NEW_MESSAGES": "Novas mensagens",
+    "NEW_MESSAGE": "Nova mensagem",
+    "SCROLL_TO_BOTTOM": "Rolar até a mensagem mais recente",
     "SELECT_A_CONVERSATION": "Por favor, selecione uma conversa no painel da esquerda",
     "CSAT_REPLY_MESSAGE": "Por favor, classifique a conversa",
     "404": "Desculpe, não conseguimos encontrar a conversa. Por favor, tente novamente",
@@ -82,7 +86,7 @@
     "NO_RESPONSE": "Sem resposta",
     "RESPONSE": "Resposta",
     "RATING_TITLE": "Classificação",
-    "FEEDBACK_TITLE": "Feedback",
+    "FEEDBACK_TITLE": "Comentários",
     "REPLY_MESSAGE_NOT_FOUND": "Mensagem não disponível",
     "CARD": {
       "SHOW_LABELS": "Mostrar etiquetas",
@@ -94,13 +98,19 @@
       "OUTGOING_CALL": "Chamada realizada",
       "CALL_IN_PROGRESS": "Chamada em andamento",
       "NO_ANSWER": "Sem resposta",
+      "NO_ANSWER_OUTBOUND_LABEL": "Sem resposta",
+      "NO_ANSWER_OUTBOUND_SUBTEXT": "O contato não atendeu",
       "MISSED_CALL": "Chamada perdida",
+      "MISSED_CALL_INBOUND_SUBTEXT": "Nenhum agente atendeu",
+      "MISSED_CALL_DECLINED_BY": "Recusada por {agentName}",
       "CALL_ENDED": "Chamada encerrada",
       "NOT_ANSWERED_YET": "Ainda não respondido",
+      "CALLING": "Chamando…",
       "THEY_ANSWERED": "Eles responderam",
       "YOU_ANSWERED": "Você respondeu",
       "AGENT_ANSWERED": "{agentName} respondeu",
-      "JOIN_CALL": "Entrar na chamada"
+      "JOIN_CALL": "Entrar na chamada",
+      "CALL_BACK": "Retornar a chamada"
     },
     "HEADER": {
       "RESOLVE_ACTION": "Finalizar",
@@ -123,7 +133,13 @@
         "DUE": "venceu"
       },
       "SHOW_CONVERSATION_LIST": "Mostrar lista de conversas",
-      "HIDE_CONVERSATION_LIST": "Ocultar lista de conversas"
+      "HIDE_CONVERSATION_LIST": "Ocultar lista de conversas",
+      "WHATSAPP_CALL": "Iniciar chamada do WhatsApp",
+      "WHATSAPP_CALL_FAILED": "Não foi possível iniciar a chamada do WhatsApp.",
+      "VOICE_CALL": "Iniciar chamada",
+      "VOICE_CALL_FAILED": "Não foi possível iniciar a chamada.",
+      "WHATSAPP_CALL_PERMISSION_REQUESTED": "A solicitação de permissão para chamada foi enviada ao contato. Tente novamente quando ela for aceita.",
+      "WHATSAPP_CALL_PERMISSION_PENDING": "A solicitação de permissão para chamada já foi enviada recentemente. Tente novamente quando o contato aceitá-la."
     },
     "RESOLVE_DROPDOWN": {
       "MARK_PENDING": "Deixar pendente",
@@ -258,6 +274,7 @@
       "DRAG_DROP": "Arraste e solte aqui para anexar",
       "START_AUDIO_RECORDING": "Iniciar gravação de áudio",
       "STOP_AUDIO_RECORDING": "Parar gravação de áudio",
+      "CANCEL_AUDIO_RECORDING": "Cancelar gravação de áudio",
       "COPILOT_THINKING": "O Copiloto está pensando",
       "EMAIL_HEAD": {
         "TO": "Para",
@@ -307,7 +324,9 @@
       "INSERT_IN_MESSAGE": "Inserir na mensagem",
       "SEND_TO_CUSTOMER": "Enviar ao cliente",
       "SENT_TO_CUSTOMER": "Resposta do assistente enviada ao cliente",
-      "SENT": "Enviada"
+      "SENT": "Enviada",
+      "LOAD_MORE": "Carregar mensagens anteriores",
+      "THINKING": "Pensando..."
     },
     "VISIBLE_TO_AGENTS": "Mensagem Privada: Apenas visível para você e seu time",
     "CHANGE_STATUS": "Estado da conversa mudou",
@@ -373,7 +392,11 @@
       "HANDLED_IN_ANOTHER_TAB": "Sendo atendida em outra aba",
       "REJECT_CALL": "Recusar",
       "JOIN_CALL": "Entrar na chamada",
-      "END_CALL": "Encerrar chamada"
+      "END_CALL": "Encerrar chamada",
+      "MUTE": "Silenciar microfone",
+      "UNMUTE": "Ativar microfone",
+      "VIEW_CHAT_HISTORY": "Ver histórico da conversa",
+      "GO_TO_CONVERSATION": "Ir para a conversa"
     }
   },
   "EMAIL_TRANSCRIPT": {

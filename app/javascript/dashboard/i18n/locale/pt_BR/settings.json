@@ -172,9 +172,9 @@
       "AVAILABILITY": {
         "LABEL": "Disponibilidade",
         "STATUS": {
-          "ONLINE": "Online",
+          "ONLINE": "Disponível",
           "BUSY": "Ocupado",
-          "OFFLINE": "Offline"
+          "OFFLINE": "Indisponível"
         },
         "SET_AVAILABILITY_SUCCESS": "Disponibilidade foi definida com sucesso",
         "SET_AVAILABILITY_ERROR": "Não foi possível definir a disponibilidade, por favor tente novamente",
@@ -259,6 +259,8 @@
     },
     "MEDIA": {
       "IMAGE_UNAVAILABLE": "Esta imagem não está mais disponível.",
+      "AUDIO_UNAVAILABLE": "Este áudio não está mais disponível.",
+      "VIDEO_UNAVAILABLE": "Este vídeo não está mais disponível.",
       "LOADING_FAILED": "Falha no carregamento"
     }
   },
@@ -287,6 +289,7 @@
     "PARTICIPATING_CONVERSATIONS": "Participantes",
     "UNATTENDED_CONVERSATIONS": "Não atendidas",
     "REPORTS": "Relatórios",
+    "REPORTS_KANBAN": "Kanban",
     "SETTINGS": "Configurações",
     "CONTACTS": "Contatos",
     "ACTIVE": "Ativo",
@@ -298,7 +301,7 @@
     "CAPTAIN_RESPONSES": "FAQs",
     "CAPTAIN_TOOLS": "Ferramentas",
     "CAPTAIN_SCENARIOS": "Cenários",
-    "CAPTAIN_PLAYGROUND": "Playground",
+    "CAPTAIN_PLAYGROUND": "Ambiente de testes",
     "CAPTAIN_INBOXES": "Caixas de Entrada",
     "CAPTAIN_SETTINGS": "Configurações",
     "HOME": "Principal",

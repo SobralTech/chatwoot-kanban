@@ -130,6 +130,9 @@
       "ATLEAST_ONE_ACTION_REQUIRED": "Pelo menos uma ação é necessária"
     },
     "NONE_OPTION": "Nenhuma",
+    "KANBAN_STAGE_PLACEHOLDER": "Selecione o funil e a etapa",
+    "KANBAN_BOARD_PLACEHOLDER": "Selecione o funil",
+    "KANBAN_AGENT_PLACEHOLDER": "Selecione os agentes",
     "LAST_RESPONDING_AGENT": "Último Agente que Respondeu",
     "EVENTS": {
       "CONVERSATION_CREATED": "Conversa Criada",
@@ -141,7 +144,7 @@
     "ACTIONS": {
       "ASSIGN_AGENT": "Atribuir ao Agente",
       "ASSIGN_TEAM": "Atribuir um Time",
-      "REMOVE_ASSIGNED_AGENT": "Remove Assigned Agent",
+      "REMOVE_ASSIGNED_AGENT": "Remover agente atribuído",
       "REMOVE_ASSIGNED_TEAM": "Remover Time Atribuído",
       "ADD_LABEL": "Adicionar uma Etiqueta",
       "REMOVE_LABEL": "Remover uma Etiqueta",
@@ -156,6 +159,9 @@
       "ADD_PRIVATE_NOTE": "Adicionar uma Nota Privada",
       "CHANGE_PRIORITY": "Alterar Prioridade",
       "ADD_SLA": "Adicionar SLA",
+      "ADD_TO_KANBAN_BOARD": "Adicionar ao funil",
+      "MOVE_KANBAN_CARD": "Mover cartão do funil",
+      "ASSIGN_KANBAN_CARD": "Atribuir cartão do funil",
       "OPEN_CONVERSATION": "Abrir conversa",
       "PENDING_CONVERSATION": "Marcar conversa como pendente"
     },

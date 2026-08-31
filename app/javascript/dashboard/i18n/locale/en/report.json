@@ -7,7 +7,7 @@
     "DATA_FETCHING_FAILED": "Failed to fetch data, please try again later.",
     "SUMMARY_FETCHING_FAILED": "Failed to fetch summary, please try again later.",
     "KANBAN": {
-      "HEADER": "Funnel reports",
+      "HEADER": "Kanban reports",
       "DESCRIPTION": "Understand how opportunities move through your Kanban boards, from open cards to won and lost outcomes.",
       "FILTERS": {
         "BOARD": "Select board",
@@ -34,7 +34,7 @@
         "Y_AXIS": "Cards"
       },
       "FUNNEL": {
-        "TITLE": "Funnel by stage",
+        "TITLE": "Kanban by stage",
         "VALUE": "{count} · {conversion}%"
       },
       "TABLE": {
@@ -71,8 +71,8 @@
         }
       },
       "STATES": {
-        "LOADING": "Loading funnel data...",
-        "ERROR": "Could not load funnel reports. Please try again.",
+        "LOADING": "Loading Kanban data...",
+        "ERROR": "Could not load Kanban reports. Please try again.",
         "DOWNLOAD_ERROR": "Could not download this report.",
         "NO_DATA": "There is no data for the selected filters.",
         "NO_BOARD": "No Kanban board available",

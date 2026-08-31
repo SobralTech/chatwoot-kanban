@@ -1,7 +1,7 @@
 {
   "COMPONENTS": {
     "FILE_BUBBLE": {
-      "DOWNLOAD": "Download",
+      "DOWNLOAD": "Baixar",
       "UPLOADING": "Enviando..."
     },
     "FORM_BUBBLE": {

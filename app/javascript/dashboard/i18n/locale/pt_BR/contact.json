@@ -20,7 +20,9 @@
     "CALL": "Chamada",
     "CALL_INITIATED": "Efetuando chamada…",
     "CALL_FAILED": "Não foi possível iniciar a chamada. Tente novamente.",
-    "CLICK_TO_EDIT": "Click to edit",
+    "WHATSAPP_CALL_PERMISSION_REQUESTED": "A solicitação de permissão para chamada foi enviada ao contato. Tente novamente quando ela for aceita.",
+    "WHATSAPP_CALL_PERMISSION_PENDING": "A solicitação de permissão para chamada já foi enviada recentemente. Tente novamente quando o contato aceitá-la.",
+    "CLICK_TO_EDIT": "Clique para editar",
     "VOICE_INBOX_PICKER": {
       "TITLE": "Escolha uma caixa de entrada de voz"
     },

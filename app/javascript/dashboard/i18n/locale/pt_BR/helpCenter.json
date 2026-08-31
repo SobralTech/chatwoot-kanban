@@ -734,7 +734,7 @@
       "EDIT_ARTICLE": {
         "MORE_PROPERTIES": "Mais propriedades",
         "UNCATEGORIZED": "Não categorizado",
-        "EDITOR_PLACEHOLDER": "Write your content here. Type '/' for formatting options."
+        "EDITOR_PLACEHOLDER": "Escreva seu conteúdo aqui. Digite '/' para ver as opções de formatação."
       },
       "ARTICLE_PROPERTIES": {
         "ARTICLE_PROPERTIES": "Propriedades do artigo",
@@ -775,6 +775,28 @@
       }
     },
     "PORTAL_SETTINGS": {
+      "LAYOUT_CONTENT": {
+        "HEADER": "Aparência",
+        "DESCRIPTION": "Escolha o layout que melhor se adapta à forma como seus visitantes leem.",
+        "LAYOUT": {
+          "CLASSIC": {
+            "TITLE": "Clássico",
+            "DESCRIPTION": "Uma página inicial acolhedora com pesquisa e tópicos em destaque."
+          },
+          "SIDEBAR": {
+            "TITLE": "Documentação",
+            "DESCRIPTION": "Navegação lado a lado que mantém cada guia a um clique de distância."
+          }
+        },
+        "SOCIAL_LINKS": {
+          "HEADER": "Links sociais",
+          "DESCRIPTION": "Adicione o identificador de cada rede e a central de ajuda montará o link completo. Exibido no rodapé do layout de documentação.",
+          "PLACEHOLDER": "identificador",
+          "ADD": "Adicionar link social",
+          "REMOVE": "Remover"
+        },
+        "SAVE": "Salvar alterações"
+      },
       "FORM": {
         "AVATAR": {
           "LABEL": "Logotipo",

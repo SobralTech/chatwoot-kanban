@@ -52,8 +52,8 @@
       "ERROR": "Não foi possível carregar os funis.",
       "EMPTY_STAGES": "Nenhuma etapa configurada.",
       "OPPORTUNITIES_COUNT": "{count} oportunidades",
-      "ALL_INBOXES_VIA_RULE": "via {rule}",
-      "ALL_INBOXES_VIA_RULES": "via {rule} +{count}",
+      "ALL_INBOXES_VIA_RULE": "por {rule}",
+      "ALL_INBOXES_VIA_RULES": "por {rule} +{count}",
       "EXTRA_COUNT": "+{count}"
     },
     "BOARD_TEMPLATES": {
@@ -180,6 +180,12 @@
         "DAY": "Vence no próximo dia",
         "WEEK": "Vence na próxima semana",
         "MONTH": "Vence no próximo mês"
+      },
+      "CREATED_DATE": {
+        "TITLE": "Data de criação",
+        "DAY": "Criado no último dia",
+        "WEEK": "Criado na última semana",
+        "MONTH": "Criado no último mês"
       },
       "SLA": {
         "TITLE": "Paradas",
@@ -1084,7 +1090,8 @@
         "LABELS": "Etiquetas",
         "ASSIGNEE_ID": "Agente atribuído",
         "TEAM_ID": "Equipe",
-        "PRIORITY": "Prioridade"
+        "PRIORITY": "Prioridade",
+        "CONVERSATION_TYPE": "Tipo de conversa"
       },
       "OPERATORS": {
         "IS_ONE_OF": "é um destes",
@@ -1098,7 +1105,81 @@
         "MEDIUM": "Média",
         "HIGH": "Alta",
         "URGENT": "Urgente"
+      },
+      "CONVERSATION_TYPE": {
+        "GROUP": "Grupo",
+        "INDIVIDUAL": "Individual"
       }
+    },
+    "VIEW_SWITCHER": {
+      "KANBAN": "Kanban",
+      "DASHBOARD": "Dashboard",
+      "AGENDA": "Agenda",
+      "LIST": "Lista",
+      "TOGGLE": "Alternar visualização"
+    },
+    "DASHBOARD": {
+      "TILES": {
+        "OPEN": "Oportunidades no funil",
+        "NEW_THIS_MONTH": "Novas oportunidades",
+        "ACTIVE_AGENTS": "Agentes ativos",
+        "WIN_RATE": "Taxa de conversão",
+        "OPEN_VALUE": "Valor total em aberto",
+        "WITH_CONVERSATION": "Oportunidades com conversa",
+        "TOP_STAGES": "Etapas com mais oportunidades"
+      },
+      "CHARTS": {
+        "WON_LOST": "Ganhos x perdidos",
+        "WON": "Ganhos",
+        "LOST": "Perdidos",
+        "STAGE_FUNNEL": "Funil por etapa",
+        "ORIGIN": "Origem da oportunidade",
+        "ORIGIN_CONVERSATION": "Da conversa",
+        "ORIGIN_MANUAL": "Manual"
+      },
+      "EMPTY": "Ainda não há dados neste funil.",
+      "ERROR": "Não foi possível carregar o painel do funil."
+    },
+    "AGENDA": {
+      "TODAY": "Hoje",
+      "MONTH": "Mês",
+      "WEEK": "Semana",
+      "PREVIOUS": "Período anterior",
+      "NEXT": "Próximo período",
+      "CLOSE": "Fechar",
+      "ADD_FOR_DATE": "Adicionar cartão para {date}",
+      "NO_DATE_ITEMS": "Itens sem data",
+      "MY_ITEMS_TODAY": "Meus itens de hoje",
+      "DAY_SUMMARY": "Resumo do dia",
+      "DAY_SUMMARY_EMPTY": "Escolha um dia na grade para ver o resumo.",
+      "DAY_SUMMARY_MINE": "{count} atribuídos a mim",
+      "BUSIEST_DAY": "Dia mais movimentado",
+      "QUIETEST_DAY": "Dia mais tranquilo",
+      "DAY_WITH_COUNT": "{date} · {count} itens",
+      "NO_ITEMS_MONTH": "Nenhum item neste mês",
+      "MORE_ITEMS": "+{count} mais",
+      "LOAD_MORE": "Carregar mais",
+      "LOADING_NO_DATE": "Carregando itens...",
+      "SEARCHING": "Buscando cartões...",
+      "SEARCH_ERROR": "Não foi possível buscar cartões.",
+      "NO_SEARCH_RESULTS": "Nenhum cartão aberto encontrado.",
+      "ADD_POPOVER": {
+        "CREATE_NEW": "Criar novo cartão",
+        "SCHEDULE_EXISTING": "Agendar cartão existente",
+        "SEARCH_PLACEHOLDER": "Buscar por assunto ou contato"
+      }
+    },
+    "LIST": {
+      "ADD_ITEM": "Novo item",
+      "EMPTY_GROUP": "Não há cartões neste grupo.",
+      "GROUP_BY": {
+        "LABEL": "Agrupar por",
+        "STAGE": "Etapa",
+        "ASSIGNEE": "Responsável",
+        "PRIORITY": "Prioridade",
+        "UNASSIGNED": "Não atribuído"
+      },
+      "LOAD_MORE": "Carregar mais"
     }
   }
 }

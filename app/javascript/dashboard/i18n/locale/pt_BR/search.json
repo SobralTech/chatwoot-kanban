@@ -65,6 +65,21 @@
       "NO_AGENTS": "Nenhum agente encontrado",
       "NO_CONTACTS": "Comece a pesquisar para ver os resultados",
       "NO_INBOXES": "Nenhuma caixa de entrada encontrada"
+    },
+    "PREVIEW_ATTACHMENT": {
+      "AUDIO": "Áudio",
+      "CONTACT": "Contato",
+      "EMBED": "Conteúdo incorporado",
+      "FILE": "Arquivo",
+      "IMAGE": "Imagem",
+      "INSTAGRAM_POST": "Publicação do Instagram",
+      "INSTAGRAM_REEL": "Reel do Instagram",
+      "INSTAGRAM_STORY": "Story do Instagram",
+      "LINK": "Link",
+      "LOCATION": "Localização",
+      "SHARED_CONTENT": "Conteúdo compartilhado",
+      "STORY_MENTION": "Menção em story",
+      "VIDEO": "Vídeo"
     }
   }
 }

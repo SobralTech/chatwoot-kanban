@@ -6,6 +6,79 @@
     "DOWNLOAD_CONVERSATION_REPORTS": "Baixar relatórios de conversas",
     "DATA_FETCHING_FAILED": "Falha ao buscar dados, tente novamente mais tarde.",
     "SUMMARY_FETCHING_FAILED": "Não foi possível obter o resumo. Tente novamente mais tarde.",
+    "KANBAN": {
+      "HEADER": "Relatórios do Kanban",
+      "DESCRIPTION": "Entenda como as oportunidades avançam pelos seus quadros Kanban, desde cartões abertos até resultados ganhos e perdidos.",
+      "FILTERS": {
+        "BOARD": "Selecionar quadro",
+        "GROUP_BY": "Agrupar por",
+        "AGENTS": "Agentes",
+        "INBOXES": "Caixas de entrada",
+        "LABELS": "Etiquetas",
+        "DAY": "Dia",
+        "WEEK": "Semana"
+      },
+      "SUMMARY": {
+        "INFO": "Métricas calculadas a partir do quadro, período e filtros selecionados.",
+        "OPEN": "Cartões abertos",
+        "WON": "Cartões ganhos",
+        "LOST": "Cartões perdidos",
+        "AVERAGE_TICKET": "Ticket médio",
+        "CONVERSION": "Conversão"
+      },
+      "CHART": {
+        "TITLE": "Ganhos e perdidos ao longo do tempo",
+        "WON": "Ganhos",
+        "LOST": "Perdidos",
+        "X_AXIS": "Período",
+        "Y_AXIS": "Cartões"
+      },
+      "FUNNEL": {
+        "TITLE": "Kanban por etapa",
+        "VALUE": "{count} · {conversion}%"
+      },
+      "TABLE": {
+        "DOWNLOAD": "Baixar CSV",
+        "EMPTY_VALUE": "—",
+        "NO_DURATION": "Sem duração concluída",
+        "SECONDS": "{value}s",
+        "MINUTES": "{value}min",
+        "HOURS": "{value}h",
+        "TITLES": {
+          "CONVERSION": "Conversão por etapa",
+          "STAGE_TIMES": "Tempo por etapa",
+          "REASONS": "Motivos de perda",
+          "AGENTS": "Desempenho dos agentes",
+          "PRODUCTS": "Produtos vendidos"
+        },
+        "HEADERS": {
+          "STAGE": "Etapa",
+          "COUNT": "Cartões",
+          "CONVERSION": "Conversão",
+          "AVERAGE_TIME": "Tempo médio",
+          "MEDIAN_TIME": "Tempo mediano",
+          "COMPLETED": "Etapas concluídas",
+          "REASON": "Motivo",
+          "PERCENTAGE": "Participação",
+          "AGENT": "Agente",
+          "WON": "Ganhos",
+          "LOST": "Perdidos",
+          "REVENUE": "Receita",
+          "SKU": "SKU",
+          "PRODUCT": "Produto",
+          "QUANTITY": "Quantidade",
+          "CARDS": "Cartões ganhos"
+        }
+      },
+      "STATES": {
+        "LOADING": "Carregando dados do Kanban...",
+        "ERROR": "Não foi possível carregar os relatórios do Kanban. Tente novamente.",
+        "DOWNLOAD_ERROR": "Não foi possível baixar este relatório.",
+        "NO_DATA": "Não há dados para os filtros selecionados.",
+        "NO_BOARD": "Nenhum quadro Kanban disponível",
+        "NO_BOARD_DESCRIPTION": "Peça a um administrador acesso a um quadro Kanban."
+      }
+    },
     "METRICS": {
       "CONVERSATIONS": {
         "NAME": "Conversas",
