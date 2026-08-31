@@ -32,17 +32,22 @@
 # also the board's manual scope -- the conversation picker and the card filters read it as
 # SQL, which a jsonb condition could not serve.
 class KanbanBoardEntryRule < ApplicationRecord
-  CONDITION_ATTRIBUTES = %w[labels assignee_id team_id priority].freeze
+  CONDITION_ATTRIBUTES = %w[labels assignee_id team_id priority conversation_type].freeze
 
   # Absence is a value rather than an operator, so `assignee_id is_one_of [7, none]` reads
   # as "Ana or nobody" -- a rule that a presence operator could not express in one line.
   NONE_VALUE = 'none'.freeze
 
+  # WhatsApp group JIDs end in this suffix wherever the group identity surfaces --
+  # conversation, contact, or contact_inbox -- so both matching engines check it the same way.
+  GROUP_IDENTIFIER_SUFFIX = '@g.us'.freeze
+
   OPERATORS_BY_ATTRIBUTE = {
     'labels' => %w[includes_any includes_all not_includes],
     'assignee_id' => %w[is_one_of is_not_one_of],
     'team_id' => %w[is_one_of is_not_one_of],
-    'priority' => %w[is_one_of is_not_one_of]
+    'priority' => %w[is_one_of is_not_one_of],
+    'conversation_type' => %w[is_one_of is_not_one_of]
   }.freeze
 
   belongs_to :account

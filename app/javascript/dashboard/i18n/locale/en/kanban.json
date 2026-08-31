@@ -1042,7 +1042,8 @@
         "LABELS": "Labels",
         "ASSIGNEE_ID": "Assigned agent",
         "TEAM_ID": "Team",
-        "PRIORITY": "Priority"
+        "PRIORITY": "Priority",
+        "CONVERSATION_TYPE": "Conversation type"
       },
       "OPERATORS": {
         "IS_ONE_OF": "is one of",
@@ -1056,6 +1057,10 @@
         "MEDIUM": "Medium",
         "HIGH": "High",
         "URGENT": "Urgent"
+      },
+      "CONVERSATION_TYPE": {
+        "GROUP": "Group",
+        "INDIVIDUAL": "Individual"
       }
     }
   }

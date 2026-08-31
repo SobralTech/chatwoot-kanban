@@ -15,7 +15,8 @@ class KanbanBoardEntryRules::Matcher
     'labels' => ->(conversation) { conversation.cached_label_list_array },
     'assignee_id' => ->(conversation) { conversation.assignee_id },
     'team_id' => ->(conversation) { conversation.team_id },
-    'priority' => ->(conversation) { conversation.priority }
+    'priority' => ->(conversation) { conversation.priority },
+    'conversation_type' => ->(conversation) { conversation_type_for(conversation) }
   }.freeze
 
   # Each operator sees the live value already normalised to an array, so "no assignee" and
@@ -73,6 +74,21 @@ class KanbanBoardEntryRules::Matcher
       return values.empty? if expected.to_s == KanbanBoardEntryRule::NONE_VALUE
 
       values.any? { |value| scalar_equal?(value, expected, numeric: numeric) }
+    end
+
+    def conversation_type_for(conversation)
+      group_conversation?(conversation) ? 'group' : 'individual'
+    end
+
+    # Checked wherever a WhatsApp group's identity can surface, since which one is set
+    # varies by how the conversation was created.
+    def group_conversation?(conversation)
+      [
+        conversation.identifier,
+        conversation.contact&.identifier,
+        conversation.contact&.phone_number,
+        conversation.contact_inbox&.source_id
+      ].any? { |value| value.to_s.downcase.end_with?(KanbanBoardEntryRule::GROUP_IDENTIFIER_SUFFIX) }
     end
   end
 end

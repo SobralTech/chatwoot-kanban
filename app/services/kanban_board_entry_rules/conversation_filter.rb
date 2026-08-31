@@ -7,6 +7,8 @@ class KanbanBoardEntryRules::ConversationFilter
   FALSE_PREDICATE = Arel.sql('FALSE')
   TRUE_PREDICATE = Arel.sql('TRUE')
   CONVERSATIONS = Conversation.arel_table
+  CONTACTS = Contact.arel_table
+  CONTACT_INBOXES = ContactInbox.arel_table
 
   def self.apply(relation, rule)
     new(rule).apply(relation)
@@ -20,6 +22,9 @@ class KanbanBoardEntryRules::ConversationFilter
     predicates = conditions.map { |condition| condition_predicate(condition) }
     return if predicates.include?(UNSUPPORTED)
 
+    # The group/individual predicate reads contact and contact_inbox columns, which the
+    # caller's relation does not join by default.
+    relation = relation.left_joins(:contact, :contact_inbox) if conditions.any? { |c| c[:attribute_key].to_s == 'conversation_type' }
     predicates.reduce(relation) { |scope, predicate| scope.where(predicate) }
   end
 
@@ -39,6 +44,8 @@ class KanbanBoardEntryRules::ConversationFilter
       scalar_predicate(attribute_key, operator, Array(condition[:values]), method(:numeric_condition_value))
     when 'priority'
       scalar_predicate(attribute_key, operator, Array(condition[:values]), method(:priority_condition_value))
+    when 'conversation_type'
+      conversation_type_predicate(operator, Array(condition[:values]))
     else
       UNSUPPORTED
     end
@@ -108,6 +115,37 @@ class KanbanBoardEntryRules::ConversationFilter
     predicates << column.in(values) if values.present?
     predicates << column.eq(nil) if include_none
     boolean_predicate(any_predicate(predicates))
+  end
+
+  def conversation_type_predicate(operator, expected_values)
+    match = boolean_predicate(any_predicate(expected_values.map { |value| conversation_type_value_predicate(value) }))
+
+    case operator
+    when 'is_one_of'
+      match
+    when 'is_not_one_of'
+      negate(match)
+    else
+      UNSUPPORTED
+    end
+  end
+
+  def conversation_type_value_predicate(value)
+    case value.to_s
+    when 'group'
+      group_conversation_predicate
+    when 'individual'
+      negate(group_conversation_predicate)
+    else
+      FALSE_PREDICATE
+    end
+  end
+
+  # Same suffix check as the Ruby matcher, across whichever column happens to carry the
+  # WhatsApp group's identity for this conversation.
+  def group_conversation_predicate
+    columns = [CONVERSATIONS[:identifier], CONTACTS[:identifier], CONTACTS[:phone_number], CONTACT_INBOXES[:source_id]]
+    boolean_predicate(any_predicate(columns.map { |column| column.matches("%#{KanbanBoardEntryRule::GROUP_IDENTIFIER_SUFFIX}") }))
   end
 
   def numeric_condition_value(value)

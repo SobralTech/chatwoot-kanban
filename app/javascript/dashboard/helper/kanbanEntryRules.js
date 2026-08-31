@@ -10,6 +10,7 @@ export const ENTRY_RULE_FIELDS = [
   { key: 'assignee_id', operators: ['is_one_of', 'is_not_one_of'] },
   { key: 'team_id', operators: ['is_one_of', 'is_not_one_of'] },
   { key: 'priority', operators: ['is_one_of', 'is_not_one_of'] },
+  { key: 'conversation_type', operators: ['is_one_of', 'is_not_one_of'] },
 ];
 
 export const emptyConditionForm = () =>

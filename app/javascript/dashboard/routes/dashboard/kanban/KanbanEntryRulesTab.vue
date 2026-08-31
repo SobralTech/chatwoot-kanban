@@ -74,6 +74,7 @@ const fieldLabels = computed(() => ({
   assignee_id: t('KANBAN.ENTRY_RULES.FIELDS.ASSIGNEE_ID'),
   team_id: t('KANBAN.ENTRY_RULES.FIELDS.TEAM_ID'),
   priority: t('KANBAN.ENTRY_RULES.FIELDS.PRIORITY'),
+  conversation_type: t('KANBAN.ENTRY_RULES.FIELDS.CONVERSATION_TYPE'),
 }));
 
 const operatorLabels = computed(() => ({
@@ -136,6 +137,16 @@ const valueOptionsByField = computed(() => ({
     { value: 'medium', label: t('KANBAN.ENTRY_RULES.PRIORITY.MEDIUM') },
     { value: 'high', label: t('KANBAN.ENTRY_RULES.PRIORITY.HIGH') },
     { value: 'urgent', label: t('KANBAN.ENTRY_RULES.PRIORITY.URGENT') },
+  ],
+  conversation_type: [
+    {
+      value: 'group',
+      label: t('KANBAN.ENTRY_RULES.CONVERSATION_TYPE.GROUP'),
+    },
+    {
+      value: 'individual',
+      label: t('KANBAN.ENTRY_RULES.CONVERSATION_TYPE.INDIVIDUAL'),
+    },
   ],
 }));
 
