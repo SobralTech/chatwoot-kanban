@@ -28,4 +28,19 @@ RSpec.describe KanbanReports::WonLostQuery, type: :service do
     expect(result[:series].length).to eq(8)
     expect(result[:series].last[:period]).to eq('2026-08-08')
   end
+
+  it 'groups the series by month' do
+    result = described_class.new(
+      **report_query_options(
+        since: Time.zone.parse('2026-03-01 00:00:00 UTC'),
+        until: report_end,
+        group_by: 'month'
+      )
+    ).call
+
+    expect(result[:series].pluck(:period)).to eq(
+      %w[2026-03-01 2026-04-01 2026-05-01 2026-06-01 2026-07-01 2026-08-01]
+    )
+    expect(result[:series].last[:won]).to eq(1)
+  end
 end
