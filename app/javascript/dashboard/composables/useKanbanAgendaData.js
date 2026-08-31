@@ -4,6 +4,7 @@ import {
   endOfMonth,
   endOfWeek,
   format,
+  isWithinInterval,
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
@@ -31,8 +32,10 @@ const normalizeCards = data => camelcaseKeys(data?.cards || [], { deep: true });
 export function useKanbanAgendaData({ boardId }) {
   const cardsByDay = ref({});
   const cardsWithoutDate = ref([]);
+  const todayCards = ref([]);
   const withoutDateCount = ref(0);
   const withoutDateCursor = ref(null);
+  const hasLoadedWithoutDate = ref(false);
   const isLoading = ref(false);
   const isLoadingWithoutDate = ref(false);
   // A month request is several pages long; a faster month switch must win.
@@ -80,9 +83,22 @@ export function useKanbanAgendaData({ boardId }) {
       if (generation !== monthGeneration) return;
 
       cardsByDay.value = groupByDay(cards);
+      // Browsing to another month drops today from the grid, so the cards due
+      // today are kept aside while a loaded range still covers them.
+      const today = new Date();
+      if (isWithinInterval(today, { start: from, end: to })) {
+        todayCards.value = cardsByDay.value[toDayKey(today)] || [];
+      }
     } finally {
       if (generation === monthGeneration) isLoading.value = false;
     }
+  };
+
+  // Until someone opens the list, only its counter is on screen, and the
+  // counter rides on a single-card page instead of a full one.
+  const fetchWithoutDateCount = async () => {
+    const data = await fetchPage({ without_due_date: true, limit: 1 });
+    withoutDateCount.value = data.pagination?.total_count || 0;
   };
 
   const fetchWithoutDate = async ({ reset = false } = {}) => {
@@ -96,6 +112,7 @@ export function useKanbanAgendaData({ boardId }) {
         ? cards
         : [...cardsWithoutDate.value, ...cards];
       withoutDateCursor.value = data.pagination?.next_cursor || null;
+      hasLoadedWithoutDate.value = true;
       if (data.pagination?.total_count != null) {
         withoutDateCount.value = data.pagination.total_count;
       }
@@ -106,15 +123,29 @@ export function useKanbanAgendaData({ boardId }) {
 
   const fetchMore = () => fetchWithoutDate();
 
+  const openWithoutDateList = () =>
+    hasLoadedWithoutDate.value
+      ? Promise.resolve()
+      : fetchWithoutDate({ reset: true });
+
+  // A card change only has to reload the list the user actually opened.
+  const refreshWithoutDate = () =>
+    hasLoadedWithoutDate.value
+      ? fetchWithoutDate({ reset: true })
+      : fetchWithoutDateCount();
+
   return {
     cardsByDay,
     cardsWithoutDate,
     fetchMonth,
     fetchMore,
-    fetchWithoutDate,
+    fetchWithoutDateCount,
     hasMoreWithoutDate,
     isLoading,
     isLoadingWithoutDate,
+    openWithoutDateList,
+    refreshWithoutDate,
+    todayCards,
     withoutDateCount,
   };
 }
