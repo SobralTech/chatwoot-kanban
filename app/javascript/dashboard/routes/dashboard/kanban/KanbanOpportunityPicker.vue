@@ -41,6 +41,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  initialDueAt: {
+    type: String,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['created', 'close']);
@@ -530,6 +534,8 @@ const createManualCard = async () => {
     contact_id: selectedContact.value.id,
     subject: trimmedSubject.value,
   };
+
+  if (props.initialDueAt) card.due_at = props.initialDueAt;
 
   if (selectedConversation.value) {
     card.conversation_display_id = selectedConversation.value.id;

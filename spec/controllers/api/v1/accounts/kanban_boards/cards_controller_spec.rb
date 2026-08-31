@@ -33,6 +33,15 @@ RSpec.describe 'Kanban Cards API', type: :request do
       )
     end
 
+    it 'creates a manual card with a due date' do
+      due_at = 2.days.from_now.change(usec: 0)
+
+      post_manual_card(params: manual_card_payload.merge(due_at: due_at.iso8601))
+
+      expect(KanbanCard.last.due_at).to eq(due_at)
+      expect(response.parsed_body['due_at']).to eq(due_at.iso8601)
+    end
+
     it 'emits kanban.card.created with a compact payload' do
       allow(Rails.configuration.dispatcher).to receive(:dispatch)
 

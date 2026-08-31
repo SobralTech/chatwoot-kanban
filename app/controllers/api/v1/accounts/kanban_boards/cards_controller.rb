@@ -41,6 +41,7 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
       contact: @contact,
       inbox: @inbox,
       subject: manual_card_params[:subject],
+      due_at: manual_card_params[:due_at],
       conversation: @conversation
     ).perform!
 
@@ -167,7 +168,9 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   def manual_card_params
-    @manual_card_params ||= params.require(:card).permit(:kanban_stage_id, :contact_id, :inbox_id, :subject, :conversation_display_id)
+    @manual_card_params ||= params.require(:card).permit(
+      :kanban_stage_id, :contact_id, :inbox_id, :subject, :conversation_display_id, :due_at
+    )
   end
 
   def action_name_policy

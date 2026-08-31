@@ -1098,9 +1098,19 @@
       "WEEK": "Week",
       "PREVIOUS": "Previous period",
       "NEXT": "Next period",
+      "CLOSE": "Close",
+      "ADD_FOR_DATE": "Add card for day {date}",
       "NO_DATE_ITEMS": "Items without a date",
       "MORE_ITEMS": "+{count} more",
-      "LOAD_MORE": "Load more"
+      "LOAD_MORE": "Load more",
+      "SEARCHING": "Searching cards...",
+      "SEARCH_ERROR": "Could not search cards.",
+      "NO_SEARCH_RESULTS": "No open cards found.",
+      "ADD_POPOVER": {
+        "CREATE_NEW": "Create new card",
+        "SCHEDULE_EXISTING": "Schedule existing card",
+        "SEARCH_PLACEHOLDER": "Search by subject or contact"
+      }
     },
     "LIST": {
       "COMING_SOON": "Coming soon"
