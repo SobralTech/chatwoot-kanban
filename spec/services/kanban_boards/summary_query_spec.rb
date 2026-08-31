@@ -96,6 +96,35 @@ RSpec.describe KanbanBoards::SummaryQuery do
         expect(result.average_ticket).to eq('10.00')
       end
     end
+
+    it 'returns the dashboard metrics from visible cards' do
+      other_inbox = create(:inbox, account: account)
+      second_agent = create(:user, account: account, role: :agent)
+      visible_manual = create_card(stage: regular_stage, inbox: inbox, assignees: [agent])
+      visible_conversation = create_card(
+        stage: regular_stage,
+        inbox: inbox,
+        assignees: [second_agent],
+        origin: :conversation
+      )
+      create_card(stage: regular_stage, inbox: other_inbox, assignees: [second_agent], origin: :conversation)
+      create_card(stage: won_stage, inbox: inbox, assignees: [agent], origin: :conversation)
+      visible_manual.update!(created_at: 2.months.ago)
+
+      result = query.call
+
+      expect(result.new_leads_this_month).to eq(2)
+      expect(result.active_agents_count).to eq(2)
+      expect(result.leads_with_conversation_count).to eq(1)
+      expect(result.origin_summary).to eq(conversation: 1, manual: 1)
+      expect(result.visible_cards_count).to eq(3)
+      expect(result.visible_stages_summary).to include(
+        id: regular_stage.id,
+        name: regular_stage.name,
+        cards_count: 2
+      )
+      expect(visible_conversation.conversation_id).to be_present
+    end
   end
 
   def query(**options)
@@ -112,14 +141,17 @@ RSpec.describe KanbanBoards::SummaryQuery do
     )
   end
 
-  def create_card(stage:, inbox:, assignees: [], stage_entered_at: Time.current)
+  def create_card(stage:, inbox:, assignees: [], stage_entered_at: Time.current, origin: :manual)
+    contact = create(:contact, account: account)
     card = create(
       :kanban_card,
       account: account,
       kanban_board: kanban_board,
       kanban_stage: stage,
       inbox: inbox,
-      contact: create(:contact, account: account)
+      contact: contact,
+      origin: origin,
+      conversation: origin == :conversation ? create(:conversation, account: account, inbox: inbox, contact: contact) : nil
     )
     card.update!(stage_entered_at: stage_entered_at)
     card.update_assignees!(assignees.map(&:id)) if assignees.present?

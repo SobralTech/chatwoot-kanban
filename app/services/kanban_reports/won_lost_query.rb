@@ -28,9 +28,16 @@ class KanbanReports::WonLostQuery < KanbanReports::BaseQuery
         won: events.count { |event| event.event_type == 'won' },
         lost: events.count { |event| event.event_type == 'lost' }
       }
-      bucket = group_by == 'week' ? bucket + 1.week : bucket + 1.day
+      bucket = next_bucket(bucket)
     end
 
     rows
+  end
+
+  def next_bucket(bucket)
+    return bucket.next_month if group_by == 'month'
+    return bucket + 1.week if group_by == 'week'
+
+    bucket + 1.day
   end
 end

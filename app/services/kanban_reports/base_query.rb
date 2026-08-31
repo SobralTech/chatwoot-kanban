@@ -1,5 +1,5 @@
 class KanbanReports::BaseQuery
-  GROUP_BY_VALUES = %w[day week].freeze
+  GROUP_BY_VALUES = %w[day week month].freeze
   STAGE_EVENT_TYPES = %w[card_created stage_changed board_changed reopened won lost].freeze
   TERMINAL_EVENT_TYPES = %w[won lost].freeze
 
@@ -90,6 +90,7 @@ class KanbanReports::BaseQuery
   def period_bucket(time)
     local_time = time.in_time_zone(report_timezone)
     return local_time.beginning_of_week(:monday) if group_by == 'week'
+    return local_time.beginning_of_month if group_by == 'month'
 
     local_time.beginning_of_day
   end

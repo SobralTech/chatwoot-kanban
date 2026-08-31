@@ -1071,7 +1071,26 @@
       "TOGGLE": "Switch view"
     },
     "DASHBOARD": {
-      "COMING_SOON": "Coming soon"
+      "TILES": {
+        "OPEN": "Leads in funnel",
+        "NEW_THIS_MONTH": "New leads",
+        "ACTIVE_AGENTS": "Active agents",
+        "WIN_RATE": "Win rate",
+        "OPEN_VALUE": "Total open value",
+        "WITH_CONVERSATION": "Leads with conversation",
+        "TOP_STAGES": "Stages with most leads"
+      },
+      "CHARTS": {
+        "WON_LOST": "Won vs Lost",
+        "WON": "Won",
+        "LOST": "Lost",
+        "STAGE_FUNNEL": "Funnel by stage",
+        "ORIGIN": "Lead origin",
+        "ORIGIN_CONVERSATION": "From conversation",
+        "ORIGIN_MANUAL": "Manual"
+      },
+      "EMPTY": "No data yet in this funnel.",
+      "ERROR": "Could not load the funnel dashboard."
     },
     "AGENDA": {
       "COMING_SOON": "Coming soon"
