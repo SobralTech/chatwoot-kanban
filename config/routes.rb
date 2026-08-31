@@ -158,6 +158,7 @@ Rails.application.routes.draw do
                 patch :reorder, on: :collection
               end
               resources :automation_logs, only: [:index]
+              get 'cards', to: 'cards#index'
               get 'cards/lookup', to: 'cards#lookup'
               post 'cards/manual', to: 'cards#create_manual'
               post 'cards/bulk_actions', to: 'cards/bulk_actions#create'

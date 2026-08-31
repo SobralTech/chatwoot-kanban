@@ -1,4 +1,6 @@
 class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::BaseController # rubocop:disable Metrics/ClassLength
+  include KanbanCardFilterParams
+
   CardSnapshot = Data.define(:stage, :priority, :due_at, :labels)
 
   before_action :fetch_kanban_board
@@ -8,6 +10,23 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   before_action :fetch_kanban_card, only: [:show, :update, :destroy, :reorder, :move, :reopen]
   before_action :authorize_mutation_target, only: [:show, :update, :destroy, :reorder, :move, :reopen]
   before_action :fetch_kanban_stage, only: [:update]
+
+  def index
+    @limit = board_cards_limit
+    @result = KanbanCards::VisibleBoardCardsQuery.new(
+      account: Current.account,
+      kanban_board: @kanban_board,
+      visible_cards: visible_cards_scope,
+      limit: @limit,
+      cursor: params[:cursor],
+      due_date_from: params[:due_date_from],
+      due_date_to: params[:due_date_to],
+      without_due_date: ActiveModel::Type::Boolean.new.cast(params[:without_due_date]),
+      group_by: sanitized_group_by
+    ).call
+  rescue KanbanCards::VisibleBoardCardsQuery::RefreshRequiredError
+    render json: { error: 'refresh_required' }, status: :conflict
+  end
 
   def show
     render_card
@@ -82,6 +101,18 @@ class Api::V1::Accounts::KanbanBoards::CardsController < Api::V1::Accounts::Base
   end
 
   private
+
+  def board_cards_limit
+    (params[:limit] || KanbanCards::VisibleBoardCardsQuery::DEFAULT_LIMIT).to_i.clamp(
+      1,
+      KanbanCards::VisibleBoardCardsQuery::MAX_LIMIT
+    )
+  end
+
+  def sanitized_group_by
+    params[:group_by].to_s.presence_in(KanbanCards::VisibleBoardCardsQuery::GROUP_BY_VALUES) ||
+      KanbanCards::VisibleBoardCardsQuery::DEFAULT_GROUP_BY
+  end
 
   def fetch_kanban_board
     @kanban_board = policy_scope(KanbanBoard).find(params[:kanban_board_id])
