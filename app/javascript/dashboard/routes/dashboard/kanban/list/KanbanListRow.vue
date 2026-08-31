@@ -116,13 +116,12 @@ const cardValue = computed(() => Number(props.card.value) || 0);
       </span>
 
       <span
+        v-if="cardValue > 0"
         data-testid="kanban-list-row-value"
-        class="w-20 flex-shrink-0 font-medium text-n-slate-11 ltr:text-right rtl:text-left"
+        class="flex-shrink-0 font-medium text-n-slate-11"
         :title="formatCurrency(cardValue)"
       >
-        <template v-if="cardValue > 0">
-          {{ formatCompactCurrency(cardValue) }}
-        </template>
+        {{ formatCompactCurrency(cardValue) }}
       </span>
     </span>
   </article>
