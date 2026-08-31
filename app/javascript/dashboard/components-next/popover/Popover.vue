@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { vOnClickOutside } from '@vueuse/components';
 import { useBreakpoints, breakpointsTailwind } from '@vueuse/core';
 import { useDropdownPosition } from 'dashboard/composables/useDropdownPosition';
@@ -24,10 +24,13 @@ const props = defineProps({
 
 const emit = defineEmits(['show', 'hide']);
 
+const POINT_POPOVER_OPEN_EVENT = 'point-popover-open';
+
 const isActive = ref(false);
 const triggerRef = ref(null);
 const popoverRef = ref(null);
 const mobileContentRef = ref(null);
+const pointPosition = ref(null);
 
 const breakpoints = useBreakpoints(breakpointsTailwind);
 const belowMd = breakpoints.smaller('md');
@@ -42,6 +45,7 @@ const { fixedPosition, updatePosition } = useDropdownPosition(
 );
 
 const show = async () => {
+  pointPosition.value = null;
   isActive.value = true;
   if (!isMobile.value) {
     await nextTick();
@@ -50,9 +54,29 @@ const show = async () => {
   emit('show');
 };
 
+const showAt = async ({ x, y }) => {
+  window.dispatchEvent(new CustomEvent(POINT_POPOVER_OPEN_EVENT));
+  isActive.value = true;
+  await nextTick();
+
+  const margin = 16;
+  const { width = 0, height = 0 } =
+    popoverRef.value?.getBoundingClientRect() || {};
+  pointPosition.value = {
+    left: `${Math.max(margin, Math.min(x, window.innerWidth - width - margin))}px`,
+    top: `${Math.max(
+      margin,
+      Math.min(y, window.innerHeight - height - margin)
+    )}px`,
+    maxHeight: `${window.innerHeight - margin * 2}px`,
+  };
+  emit('show');
+};
+
 const hide = () => {
   if (!isActive.value) return;
   isActive.value = false;
+  pointPosition.value = null;
   emit('hide');
 };
 
@@ -73,6 +97,9 @@ const handleClickOutside = event => {
   hide();
 };
 
+onMounted(() => window.addEventListener(POINT_POPOVER_OPEN_EVENT, hide));
+onUnmounted(() => window.removeEventListener(POINT_POPOVER_OPEN_EVENT, hide));
+
 // Selectors for teleported elements that should not trigger close
 const clickOutsideIgnore = [
   'dialog.ProseMirror-prompt-backdrop',
@@ -86,7 +113,7 @@ useKeyboardEvents({
   },
 });
 
-defineExpose({ show, hide, toggle });
+defineExpose({ show, showAt, hide, toggle });
 </script>
 
 <template>
@@ -124,8 +151,8 @@ defineExpose({ show, hide, toggle });
       ref="popoverRef"
       v-on-click-outside="[handleClickOutside, { ignore: clickOutsideIgnore }]"
       data-popover-content
-      :class="fixedPosition.class"
-      :style="fixedPosition.style"
+      :class="pointPosition ? 'fixed z-[9999]' : fixedPosition.class"
+      :style="pointPosition || fixedPosition.style"
       class="flex flex-col bg-n-alpha-3 backdrop-blur-[100px] shadow-xl rounded-xl"
     >
       <div
