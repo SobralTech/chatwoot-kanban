@@ -275,6 +275,7 @@ const mountView = async (
         KanbanStageColumn: false,
         KanbanStageHeader: false,
         KanbanBoardHeader: false,
+        KanbanBoardIdentityBar: false,
         KanbanStageDraft: false,
         OnClickOutside: {
           template: '<div><slot /></div>',
