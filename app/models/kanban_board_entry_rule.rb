@@ -3,7 +3,7 @@
 # Table name: kanban_board_entry_rules
 #
 #  id              :bigint           not null, primary key
-#  active          :boolean          default(FALSE), not null
+#  active          :boolean          default(TRUE), not null
 #  all_inboxes     :boolean          default(FALSE), not null
 #  conditions      :jsonb            not null
 #  name            :string           not null

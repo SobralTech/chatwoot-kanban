@@ -26,7 +26,7 @@ RSpec.describe 'Kanban board entry rules API', type: :request do
            as: :json
 
       expect(response).to have_http_status(:success)
-      expect(response.parsed_body).to include('name' => 'Vendas urgentes', 'all_inboxes' => false, 'active' => false)
+      expect(response.parsed_body).to include('name' => 'Vendas urgentes', 'all_inboxes' => false, 'active' => true)
       expect(response.parsed_body['inbox_ids']).to eq([inbox.id])
       expect(kanban_board.kanban_board_entry_rules.count).to eq(1)
     end
