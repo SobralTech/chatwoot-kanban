@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 import { formatCompactCurrency } from 'dashboard/helper/kanbanCurrency';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
+import KanbanAgendaCreatePopover from './KanbanAgendaCreatePopover.vue';
 
 const props = defineProps({
   date: {
@@ -32,7 +33,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['cardClick']);
+const emit = defineEmits(['cardClick', 'createNew', 'scheduleExisting']);
 
 const { t } = useI18n();
 
@@ -53,6 +54,14 @@ const stageColor = card =>
 const cardTitle = card =>
   card.subject || card.contact?.name || t('KANBAN.CARD.UNKNOWN_CONTACT');
 
+const createNewCard = () => {
+  emit('createNew', props.date);
+};
+
+const scheduleExistingCard = () => {
+  emit('scheduleExisting', props.date);
+};
+
 // Collapsing again on a month change keeps a tall cell from surviving into a
 // day the user never expanded.
 watch(
@@ -69,7 +78,7 @@ watch(
     :class="isOutsideMonth ? 'bg-n-solid-1' : 'bg-n-background'"
     :data-testid="`kanban-agenda-day-${date.getDate()}`"
   >
-    <div class="flex items-center justify-between gap-1">
+    <div class="relative flex items-center justify-between gap-1">
       <span
         class="flex size-6 flex-shrink-0 items-center justify-center rounded-full text-xs"
         :class="[
@@ -79,13 +88,20 @@ watch(
       >
         {{ date.getDate() }}
       </span>
-      <span
-        v-if="dayTotal > 0"
-        class="truncate text-xs text-n-slate-11"
-        :title="String(dayTotal)"
-      >
-        {{ formatCompactCurrency(dayTotal) }}
-      </span>
+      <div class="flex min-w-0 items-center gap-1">
+        <span
+          v-if="dayTotal > 0"
+          class="truncate text-xs text-n-slate-11"
+          :title="String(dayTotal)"
+        >
+          {{ formatCompactCurrency(dayTotal) }}
+        </span>
+        <KanbanAgendaCreatePopover
+          :date="date"
+          @create-new="createNewCard"
+          @schedule-existing="scheduleExistingCard"
+        />
+      </div>
     </div>
 
     <ul class="m-0 flex min-h-0 list-none flex-col gap-1 overflow-y-auto p-0">

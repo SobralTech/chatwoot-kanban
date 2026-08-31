@@ -28,7 +28,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['cardClick']);
+const emit = defineEmits(['cardClick', 'createNew', 'scheduleExisting']);
 
 const today = new Date();
 
@@ -72,6 +72,8 @@ const cardsFor = date => props.cardsByDay[toDayKey(date)] || [];
           :is-today="isSameDay(day, today)"
           :class="isWeekMode ? 'min-h-96' : 'min-h-24'"
           @card-click="emit('cardClick', $event)"
+          @create-new="emit('createNew', $event)"
+          @schedule-existing="emit('scheduleExisting', $event)"
         />
       </div>
     </div>

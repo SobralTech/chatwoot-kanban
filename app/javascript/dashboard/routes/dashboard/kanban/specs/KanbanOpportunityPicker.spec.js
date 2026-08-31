@@ -376,6 +376,30 @@ describe('KanbanOpportunityPicker', () => {
     });
   });
 
+  it('includes the prefilled due date when creating from the agenda', async () => {
+    setUpContactSearch();
+    const wrapper = mountPicker({
+      initialDueAt: '2026-09-02T03:00:00.000Z',
+    });
+
+    await searchAndSelectContact(wrapper);
+    await selectConversation(wrapper);
+    await wrapper
+      .find('[data-testid="kanban-manual-card-subject"]')
+      .setValue('Scheduled card');
+    await wrapper
+      .find('[data-testid="kanban-manual-card-form"]')
+      .trigger('submit');
+    await flushPromises();
+
+    expect(KanbanBoardsAPI.createManualCard).toHaveBeenCalledWith(10, {
+      card: expect.objectContaining({
+        subject: 'Scheduled card',
+        due_at: '2026-09-02T03:00:00.000Z',
+      }),
+    });
+  });
+
   it('renders duplicate subject errors beside the subject field', async () => {
     setUpContactSearch();
     KanbanBoardsAPI.createManualCard.mockRejectedValue({

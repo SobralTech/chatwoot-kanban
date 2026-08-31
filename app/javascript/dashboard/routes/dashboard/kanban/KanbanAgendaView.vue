@@ -25,7 +25,9 @@ import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import { conversationUrl, frontendURL } from 'dashboard/helper/URLHelper';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import KanbanAgendaCalendar from './agenda/KanbanAgendaCalendar.vue';
+import KanbanAgendaCardPicker from './agenda/KanbanAgendaCardPicker.vue';
 import KanbanOpportunityPanel from './opportunity/KanbanOpportunityPanel.vue';
+import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
 import KanbanBoardViewShell from './board/KanbanBoardViewShell.vue';
 
 const { t } = useI18n();
@@ -42,6 +44,8 @@ const selectedCardId = ref(null);
 const isNoDateListOpen = ref(false);
 const cardPendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
+const selectedAgendaDate = ref(null);
+const agendaCreateMode = ref(null);
 
 const boardId = computed(() => Number(route.params.boardId));
 
@@ -64,6 +68,13 @@ const VIEW_MODES = [
 
 const isWeekMode = computed(() => viewMode.value === 'week');
 const stages = computed(() => board.value?.stages || []);
+const manualCreationStage = computed(() =>
+  stages.value.find(
+    stage =>
+      stage.id !== board.value?.wonStageId &&
+      stage.id !== board.value?.lostStageId
+  )
+);
 const stageColors = computed(() =>
   Object.fromEntries(
     stages.value.map(stage => [
@@ -161,6 +172,38 @@ const refreshAgenda = () =>
     fetchMonth(referenceDate.value),
     fetchWithoutDate({ reset: true }),
   ]);
+
+const openAgendaCreate = (mode, date) => {
+  selectedAgendaDate.value = date;
+  agendaCreateMode.value = mode;
+};
+
+const closeAgendaCreate = () => {
+  agendaCreateMode.value = null;
+  selectedAgendaDate.value = null;
+};
+
+const selectedDueAt = computed(() => selectedAgendaDate.value?.toISOString());
+
+const onManualCardCreated = async () => {
+  closeAgendaCreate();
+  useAlert(t('KANBAN.ADD_ITEM.CREATE_SUCCESS'));
+  await refreshAgenda();
+};
+
+const scheduleExistingCard = async card => {
+  try {
+    await KanbanBoardsAPI.updateCardDetailsById(boardId.value, card.id, {
+      due_at: selectedDueAt.value,
+    });
+    closeAgendaCreate();
+    await refreshAgenda();
+    useAlert(t('KANBAN.CARD.DUE_DATE_UPDATE_SUCCESS'));
+  } catch (error) {
+    closeAgendaCreate();
+    useAlert(t('KANBAN.CARD.DUE_DATE_UPDATE_ERROR'));
+  }
+};
 
 const fetchBoard = async () => {
   const response = await KanbanBoardsAPI.showBoard(boardId.value);
@@ -378,6 +421,8 @@ onMounted(loadAgenda);
         :is-week-mode="isWeekMode"
         :class="{ 'opacity-50': isLoading }"
         @card-click="openCard"
+        @create-new="openAgendaCreate('create', $event)"
+        @schedule-existing="openAgendaCreate('schedule', $event)"
       />
 
       <section
@@ -462,6 +507,39 @@ onMounted(loadAgenda);
       @board-changed="onBoardChanged"
       @remove-card="openRemoveCardConfirmation"
     />
+
+    <woot-modal
+      v-if="agendaCreateMode === 'create' && manualCreationStage"
+      show
+      :show-close-button="false"
+      size="modal-narrow"
+      :on-close="closeAgendaCreate"
+    >
+      <KanbanOpportunityPicker
+        :kanban-board-id="boardId"
+        :kanban-stage-id="manualCreationStage.id"
+        :kanban-stage-name="manualCreationStage.name"
+        :inbox-scope-mode="board.inboxScopeMode"
+        :allowed-inbox-ids="board.allowedInboxIds"
+        :initial-due-at="selectedDueAt"
+        @created="onManualCardCreated"
+        @close="closeAgendaCreate"
+      />
+    </woot-modal>
+
+    <woot-modal
+      v-if="agendaCreateMode === 'schedule'"
+      show
+      :show-close-button="false"
+      size="modal-narrow"
+      :on-close="closeAgendaCreate"
+    >
+      <KanbanAgendaCardPicker
+        :board-id="boardId"
+        @close="closeAgendaCreate"
+        @scheduled="scheduleExistingCard"
+      />
+    </woot-modal>
 
     <woot-delete-modal
       v-model:show="showRemoveCardConfirmation"

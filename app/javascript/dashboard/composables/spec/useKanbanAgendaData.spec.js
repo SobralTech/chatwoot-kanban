@@ -84,4 +84,19 @@ describe('useKanbanAgendaData', () => {
     expect(withoutDateCount.value).toBe(4);
     expect(hasMoreWithoutDate.value).toBe(true);
   });
+
+  it('replaces the old day when a card is rescheduled', async () => {
+    KanbanBoardsAPI.getBoardCards
+      .mockResolvedValueOnce(page([cardPayload(7, '2026-08-10T12:00:00.000Z')]))
+      .mockResolvedValueOnce(
+        page([cardPayload(7, '2026-08-14T12:00:00.000Z')])
+      );
+
+    const { cardsByDay, fetchMonth } = useKanbanAgendaData({ boardId });
+    await fetchMonth(new Date(2026, 7, 1));
+    await fetchMonth(new Date(2026, 7, 1));
+
+    expect(cardsByDay.value['2026-08-10']).toBeUndefined();
+    expect(cardsByDay.value['2026-08-14'].map(card => card.id)).toEqual([7]);
+  });
 });
