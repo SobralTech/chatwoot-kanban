@@ -8,9 +8,13 @@ import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import { useAlert } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
+import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useKanbanBoardFiltersState } from 'dashboard/composables/useKanbanBoardFiltersState';
+import { useKanbanCardFields } from 'dashboard/composables/useKanbanCardFields';
 import { useKanbanListData } from 'dashboard/composables/useKanbanListData';
 import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
+import { apiErrorMessage } from 'dashboard/helper/kanbanApiError';
+import { getCardStatusChangeErrorMessage } from 'dashboard/helper/kanbanCardStatus';
 import { conversationUrl, frontendURL } from 'dashboard/helper/URLHelper';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import KanbanBoardViewShell from './board/KanbanBoardViewShell.vue';
@@ -23,11 +27,13 @@ import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
+const { isAdmin } = useAdmin();
 
 const currentUserId = useMapGetter('getCurrentUserID');
 const agents = useMapGetter('agents/getAgents');
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
 const inboxes = useMapGetter('inboxes/getAllInboxes');
+const storeLabels = useMapGetter('labels/getLabels');
 
 const board = ref(null);
 const isFetchingBoard = ref(false);
@@ -35,9 +41,11 @@ const selectedCardId = ref(null);
 const addItemStage = ref(null);
 const cardPendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
+const busyCardIds = ref(new Set());
 
 const boardId = computed(() => Number(route.params.boardId));
 const stages = computed(() => board.value?.stages || []);
+const assignableUsers = computed(() => board.value?.assignableUsers || []);
 
 const {
   activeBoardFilterCount,
@@ -137,6 +145,44 @@ const openCard = card => {
   selectedCardId.value = card.id;
 };
 
+const isCardBusy = card => busyCardIds.value.has(card.id);
+
+const setCardBusy = (card, busy) => {
+  const nextIds = new Set(busyCardIds.value);
+  nextIds[busy ? 'add' : 'delete'](card.id);
+  busyCardIds.value = nextIds;
+};
+
+const withCardAction = async (card, action) => {
+  if (isCardBusy(card)) return false;
+
+  setCardBusy(card, true);
+  try {
+    return await action();
+  } finally {
+    setCardBusy(card, false);
+  }
+};
+
+const cardFields = useKanbanCardFields({
+  t,
+  boardIdFor: () => boardId.value,
+  patchCard: (card, partial) => Object.assign(card, partial),
+  resolveLabels: titles =>
+    titles.map(
+      title =>
+        (storeLabels.value || []).find(label => label.title === title) || {
+          title,
+        }
+    ),
+  resolveAssignees: ids =>
+    ids
+      .map(id =>
+        assignableUsers.value.find(user => Number(user.id) === Number(id))
+      )
+      .filter(Boolean),
+});
+
 const closeCardDetails = () => {
   selectedCardId.value = null;
 };
@@ -161,17 +207,119 @@ const onManualCardCreated = async () => {
 };
 
 const moveCardToStage = async (card, targetStageId) => {
-  try {
-    await KanbanBoardsAPI.reorderCardById(boardId.value, card.id, {
-      card: { kanban_stage_id: Number(targetStageId), after_card_id: null },
-    });
-    await loadList();
-    return true;
-  } catch (error) {
-    useAlert(t('KANBAN.ACTIONS.REORDER_CARD_ERROR'));
-    return false;
-  }
+  return withCardAction(card, async () => {
+    try {
+      await KanbanBoardsAPI.reorderCardById(boardId.value, card.id, {
+        card: { kanban_stage_id: Number(targetStageId), after_card_id: null },
+      });
+      await loadList();
+      useAlert(t('KANBAN.CARD.MOVE_SUCCESS'));
+      return true;
+    } catch (error) {
+      useAlert(apiErrorMessage(error, t('KANBAN.ACTIONS.REORDER_CARD_ERROR')));
+      return false;
+    }
+  });
 };
+
+const moveCardToBoard = async (card, { boardId: targetBoardId, stageId }) =>
+  withCardAction(card, async () => {
+    const targetBoard = boards.value.find(
+      item => Number(item.id) === Number(targetBoardId)
+    );
+    if (!targetBoard) return false;
+
+    try {
+      await KanbanBoardsAPI.moveCardToBoard(boardId.value, card.id, {
+        target_kanban_board_id: targetBoard.id,
+        kanban_stage_id: stageId,
+      });
+      await loadList();
+      useAlert(
+        t('KANBAN.CARD.MOVE_BOARD_SUCCESS', { board: targetBoard.name })
+      );
+      return true;
+    } catch (error) {
+      const errorCode = error?.response?.data?.error;
+      let errorMessage = t('KANBAN.CARD.MOVE_BOARD_ERROR');
+      if (errorCode === 'card_already_in_target_board') {
+        errorMessage = t('KANBAN.CARD.MOVE_BOARD_ERROR_DUPLICATE', {
+          board: targetBoard.name,
+        });
+      } else if (errorCode === 'inbox_not_allowed') {
+        errorMessage = t('KANBAN.CARD.MOVE_BOARD_ERROR_INBOX', {
+          board: targetBoard.name,
+        });
+      }
+      useAlert(errorMessage);
+      return false;
+    }
+  });
+
+const updateCardPriority = (card, priority) =>
+  withCardAction(card, async () => {
+    const updated = await cardFields.updateDetail(card, 'priority', priority, {
+      patchKey: 'cardPriority',
+    });
+    if (updated) await loadList();
+  });
+
+const updateCardDueDate = (card, dueDate) =>
+  withCardAction(card, async () => {
+    const updated = await cardFields.updateDetail(card, 'dueAt', dueDate);
+    if (updated) {
+      await loadList();
+      useAlert(t('KANBAN.CARD.DUE_DATE_UPDATE_SUCCESS'));
+    }
+  });
+
+const updateCardLabels = (card, labels) =>
+  withCardAction(card, async () => {
+    const updated = await cardFields.updateLabels(card, labels);
+    if (updated) await loadList();
+  });
+
+const assignAgent = (card, userId) =>
+  withCardAction(card, async () => {
+    const numericUserId = Number(userId);
+    const currentIds = (card.assignees || []).map(assignee =>
+      Number(assignee.id)
+    );
+    const nextIds = currentIds.includes(numericUserId)
+      ? currentIds.filter(id => id !== numericUserId)
+      : [...currentIds, numericUserId];
+    const updated = await cardFields.updateAssignees(card, nextIds);
+    if (updated) {
+      await loadList();
+      useAlert(t('KANBAN.CARD.ASSIGN_SUCCESS'));
+    }
+  });
+
+const onChangeCardStatus = (card, { targetStageId, reasonId, reopen }) =>
+  withCardAction(card, async () => {
+    try {
+      if (reopen) {
+        await KanbanBoardsAPI.reopenCardById(boardId.value, card.id);
+      } else {
+        await KanbanBoardsAPI.updateCardById(boardId.value, card.id, {
+          card: {
+            kanban_stage_id: targetStageId,
+            kanban_reason_id: reasonId || null,
+          },
+        });
+      }
+      await loadList();
+      useAlert(
+        t(
+          reopen
+            ? 'KANBAN.CARD.STATUS.REOPEN_SUCCESS'
+            : 'KANBAN.CARD.STATUS.UPDATE_SUCCESS'
+        )
+      );
+    } catch (error) {
+      useAlert(getCardStatusChangeErrorMessage(error, { reopen, t }));
+    }
+  });
 
 const conversationPath = card =>
   frontendURL(
@@ -182,12 +330,6 @@ const conversationPath = card =>
     { card_id: card.id }
   );
 
-const openConversation = card => {
-  if (!card?.conversationId) return;
-
-  exitThen(() => router.push(conversationPath(card)));
-};
-
 const openConversationInNewTab = card => {
   if (!card?.conversationId) return;
 
@@ -197,6 +339,27 @@ const openConversationInNewTab = card => {
       '_blank',
       'noopener,noreferrer'
     )
+  );
+};
+
+const openConversation = (card, event = {}) => {
+  if (!card?.conversationId) return;
+
+  if (event.metaKey || event.ctrlKey) {
+    openConversationInNewTab(card);
+    return;
+  }
+
+  exitThen(() =>
+    router.push({
+      name: 'kanban_board_conversation',
+      params: {
+        accountId: route.params.accountId,
+        boardId: boardId.value,
+        conversationId: card.conversationId,
+      },
+      query: { card_id: card.id, kanban_view: 'list' },
+    })
   );
 };
 
@@ -328,9 +491,25 @@ onMounted(loadList);
           v-for="group in groups"
           :key="group.key"
           :group="group"
+          :board="board"
+          :boards="boards"
+          :stages="stages"
+          :assignable-users="assignableUsers"
+          :is-admin="isAdmin"
+          :is-card-busy="isCardBusy"
           :can-add-card="canAddCardInGroup(group)"
           :is-loading-more="isGroupLoading(group.key)"
           @open-card="openCard"
+          @open-conversation="openConversation"
+          @open-conversation-in-new-tab="openConversationInNewTab"
+          @remove-card="openRemoveCardConfirmation"
+          @update-priority="updateCardPriority"
+          @change-status="onChangeCardStatus"
+          @move-card-to-stage="moveCardToStage"
+          @move-card-to-board="moveCardToBoard"
+          @assign-agent="assignAgent"
+          @update-due-date="updateCardDueDate"
+          @update-labels="updateCardLabels"
           @add-card="openAddItem"
           @load-more="loadMoreForGroup"
         />

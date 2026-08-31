@@ -50,16 +50,23 @@ export const routes = [
     name: 'kanban_board_conversation',
     component: ConversationView,
     meta,
-    props: route => ({
-      conversationId: route.params.conversationId,
-      backRoute: {
-        name: 'kanban_board_show',
-        params: {
-          accountId: route.params.accountId,
-          boardId: route.params.boardId,
+    props: route => {
+      const backRouteName =
+        route.query.kanban_view === 'list'
+          ? 'kanban_board_list'
+          : 'kanban_board_show';
+
+      return {
+        conversationId: route.params.conversationId,
+        backRoute: {
+          name: backRouteName,
+          params: {
+            accountId: route.params.accountId,
+            boardId: route.params.boardId,
+          },
         },
-      },
-    }),
+      };
+    },
   },
   {
     path: frontendURL('accounts/:accountId/kanban/new'),

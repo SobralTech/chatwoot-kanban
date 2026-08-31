@@ -7,7 +7,7 @@ import {
   formatCompactCurrency,
   formatCurrency,
 } from 'dashboard/helper/kanbanCurrency';
-import KanbanListRow from './KanbanListRow.vue';
+import KanbanConversationCard from '../KanbanConversationCard.vue';
 
 defineProps({
   group: {
@@ -22,9 +22,47 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  board: {
+    type: Object,
+    required: true,
+  },
+  boards: {
+    type: Array,
+    default: () => [],
+  },
+  stages: {
+    type: Array,
+    default: () => [],
+  },
+  assignableUsers: {
+    type: Array,
+    default: () => [],
+  },
+  isAdmin: {
+    type: Boolean,
+    default: false,
+  },
+  isCardBusy: {
+    type: Function,
+    required: true,
+  },
 });
 
-const emit = defineEmits(['openCard', 'addCard', 'loadMore']);
+const emit = defineEmits([
+  'openCard',
+  'openConversation',
+  'openConversationInNewTab',
+  'removeCard',
+  'updatePriority',
+  'changeStatus',
+  'moveCardToStage',
+  'moveCardToBoard',
+  'assignAgent',
+  'updateDueDate',
+  'updateLabels',
+  'addCard',
+  'loadMore',
+]);
 
 const { t } = useI18n();
 
@@ -89,11 +127,49 @@ const isExpanded = ref(true);
     </header>
 
     <div v-show="isExpanded" class="flex flex-col gap-0.5 px-1.5 pb-2">
-      <KanbanListRow
+      <KanbanConversationCard
         v-for="card in group.cards"
         :key="card.id"
         :card="card"
-        @open-details="emit('openCard', $event)"
+        variant="list"
+        :is-busy="isCardBusy(card)"
+        :board="board"
+        :boards="boards"
+        :stages="stages"
+        :assignable-users="assignableUsers"
+        :is-admin="isAdmin"
+        :won-stage-id="board.wonStageId"
+        :lost-stage-id="board.lostStageId"
+        :reasons="board.reasons || []"
+        :lost-reason-required="!!board.lostReasonRequired"
+        @open-details="emit('openCard', card)"
+        @open-conversation="
+          (cardValue, event) => emit('openConversation', cardValue, event)
+        "
+        @open-conversation-in-new-tab="emit('openConversationInNewTab', $event)"
+        @remove-card="emit('removeCard', card)"
+        @update-priority="
+          (cardValue, priority) => emit('updatePriority', cardValue, priority)
+        "
+        @change-status="
+          (cardValue, payload) => emit('changeStatus', cardValue, payload)
+        "
+        @move-to-stage="
+          (cardValue, stageId) => emit('moveCardToStage', cardValue, stageId)
+        "
+        @move-to-board="
+          (cardValue, payload) => emit('moveCardToBoard', cardValue, payload)
+        "
+        @assign-agent="
+          (cardValue, userId) => emit('assignAgent', cardValue, userId)
+        "
+        @update-due-date="
+          (cardValue, dueDate) => emit('updateDueDate', cardValue, dueDate)
+        "
+        @update-labels="
+          (cardValue, labelTitles) =>
+            emit('updateLabels', cardValue, labelTitles)
+        "
       />
 
       <p

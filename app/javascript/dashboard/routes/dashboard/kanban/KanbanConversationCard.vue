@@ -96,6 +96,11 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  variant: {
+    type: String,
+    default: 'board',
+    validator: value => ['board', 'list'].includes(value),
+  },
 });
 
 const emit = defineEmits([
@@ -118,6 +123,7 @@ const store = useStore();
 const accountLabels = computed(() => store.getters['labels/getLabels'] || []);
 const view = ref('root');
 const dueDateInput = ref('');
+const actionsPopover = ref(null);
 const { isTerminalStage } = useKanbanStageOrder({
   stages: toRef(props, 'stages'),
   wonStageId: toRef(props, 'wonStageId'),
@@ -414,6 +420,17 @@ const openCard = event => {
   emit('openDetails', props.card);
 };
 
+const openActionsMenu = event => {
+  if (props.variant !== 'list') return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  if (props.isBusy) return;
+
+  event.currentTarget?.focus?.();
+  actionsPopover.value?.showAt({ x: event.clientX, y: event.clientY });
+};
+
 const toggleSelection = async event => {
   const checkbox = event.target;
   emit('toggleSelect', props.card, event);
@@ -428,17 +445,25 @@ const toggleSelection = async event => {
 <template>
   <article
     tabindex="0"
-    class="card-drag-handle group relative cursor-pointer select-none rounded-lg border border-n-weak bg-n-surface-1 p-3 transition-colors hover:border-n-brand"
-    :class="{
-      'border-n-brand ring-1 ring-n-brand': isSelected,
-      'border-l-2 border-n-ruby-9': stageSlaStatusValue === SLA_STALE,
-      'no-drag': isBusy,
-    }"
+    class="group relative cursor-pointer select-none rounded-lg transition-colors"
+    :class="[
+      variant === 'board'
+        ? 'card-drag-handle border border-n-weak bg-n-surface-1 p-3 hover:border-n-brand'
+        : 'flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2 text-left hover:bg-n-alpha-1',
+      {
+        'border-n-brand ring-1 ring-n-brand': variant === 'board' && isSelected,
+        'border-l-2 border-n-ruby-9':
+          variant === 'board' && stageSlaStatusValue === SLA_STALE,
+        'no-drag': isBusy,
+      },
+    ]"
     :data-card-id="card.id"
     :data-conversation-id="card.conversationId"
     @click="openCard"
+    @contextmenu="openActionsMenu"
   >
     <label
+      v-if="variant === 'board'"
       class="no-drag absolute top-1.5 z-10 flex size-7 items-center justify-center rounded-md bg-n-surface-1 shadow-sm opacity-0 transition-opacity group-hover:opacity-100 ltr:right-11 rtl:left-11"
       :class="{ 'opacity-100': isSelectionMode || isSelected }"
       @click.stop
@@ -455,8 +480,14 @@ const toggleSelection = async event => {
       class="no-drag absolute top-1.5 z-10 inline-flex ltr:right-1.5 rtl:left-1.5"
       @click.stop
     >
-      <Popover align="end" disable-mobile-view @hide="resetView">
+      <Popover
+        ref="actionsPopover"
+        align="end"
+        disable-mobile-view
+        @hide="resetView"
+      >
         <button
+          v-if="variant === 'board'"
           type="button"
           data-testid="kanban-card-actions"
           class="no-drag flex size-8 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 shadow-sm hover:bg-n-alpha-2 focus:outline-none focus:ring-1 focus:ring-n-brand disabled:cursor-not-allowed disabled:opacity-50"
@@ -802,7 +833,80 @@ const toggleSelection = async event => {
       </Popover>
     </span>
 
-    <div class="min-w-0 text-left">
+    <template v-if="variant === 'list'">
+      <span class="flex flex-shrink-0 rounded-full" :title="contactName">
+        <Avatar
+          :name="contactName"
+          :src="contactThumbnail"
+          :size="28"
+          rounded-full
+        />
+      </span>
+
+      <span class="min-w-32 flex-1">
+        <span
+          class="block truncate text-sm font-medium leading-4 text-n-slate-12"
+          :title="subject || contactName"
+        >
+          {{ subject || contactName }}
+        </span>
+        <span
+          class="mt-1 flex min-w-0 items-center gap-1 text-xs leading-4 text-n-slate-11"
+        >
+          <span class="max-w-40 truncate" :title="contactName">
+            {{ contactName }}
+          </span>
+          <ChannelIcon
+            :inbox="namedInbox"
+            class="size-3.5 flex-shrink-0 text-n-slate-11"
+          />
+          <InboxName :inbox="namedInbox" :show-icon="false" class="min-w-0" />
+        </span>
+      </span>
+
+      <span class="flex flex-shrink-0 items-center gap-2 text-xs ms-auto">
+        <CardPriorityIcon :priority="priority" show-empty class="!size-3.5" />
+        <KanbanDueDateBadge v-if="hasDueDate" :due-at="dueAt" />
+
+        <span
+          v-if="visibleAssignees.length"
+          class="-space-x-1 flex flex-shrink-0 items-center"
+        >
+          <span
+            v-for="assignee in visibleAssignees"
+            :key="assignee.id"
+            data-testid="kanban-list-row-assignee"
+            class="flex flex-shrink-0 rounded-full ring-2 ring-n-solid-2"
+            :title="assignee.name"
+          >
+            <Avatar
+              :name="assignee.name"
+              :src="assignee.avatarUrl"
+              :size="20"
+              rounded-full
+            />
+          </span>
+          <span
+            v-if="extraAssigneeCount"
+            data-testid="kanban-list-row-assignee-overflow"
+            class="flex size-5 flex-shrink-0 items-center justify-center rounded-full bg-n-slate-3 text-[9px] font-medium leading-none text-n-slate-11 ring-2 ring-n-solid-2"
+          >
+            {{ extraAssigneeLabel }}
+          </span>
+        </span>
+
+        <span
+          v-if="cardValue > 0"
+          data-testid="kanban-list-row-value"
+          class="flex-shrink-0 font-medium text-n-slate-11"
+          :title="fullCardValue"
+        >
+          {{ formattedCardValue }}
+        </span>
+      </span>
+    </template>
+
+    <div v-else class="min-w-0 text-left">
       <p
         v-if="subject"
         class="truncate text-sm font-semibold leading-4 text-n-slate-12 ltr:pr-8 rtl:pl-8"
