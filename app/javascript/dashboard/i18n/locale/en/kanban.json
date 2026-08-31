@@ -1093,7 +1093,14 @@
       "ERROR": "Could not load the funnel dashboard."
     },
     "AGENDA": {
-      "COMING_SOON": "Coming soon"
+      "TODAY": "Today",
+      "MONTH": "Month",
+      "WEEK": "Week",
+      "PREVIOUS": "Previous period",
+      "NEXT": "Next period",
+      "NO_DATE_ITEMS": "Items without a date",
+      "MORE_ITEMS": "+{count} more",
+      "LOAD_MORE": "Load more"
     },
     "LIST": {
       "COMING_SOON": "Coming soon"
