@@ -1,6 +1,7 @@
 module KanbanCardFilterParams
   CARD_STATUSES = %w[open won lost].freeze
   DUE_DATES = %w[none overdue day week month].freeze
+  CREATED_DATES = %w[day week month].freeze
 
   private
 
@@ -30,17 +31,13 @@ module KanbanCardFilterParams
       end
   end
 
-  def sanitized_card_statuses
-    sanitized_filter_values(:card_statuses, CARD_STATUSES)
-  end
+  def sanitized_card_statuses = sanitized_filter_values(:card_statuses, CARD_STATUSES)
 
-  def sanitized_priorities
-    sanitized_filter_values(:priorities, KanbanCard.priorities.keys + ['none'])
-  end
+  def sanitized_priorities = sanitized_filter_values(:priorities, KanbanCard.priorities.keys + ['none'])
 
-  def sanitized_due_dates
-    sanitized_filter_values(:due_dates, DUE_DATES)
-  end
+  def sanitized_due_dates = sanitized_filter_values(:due_dates, DUE_DATES)
+
+  def sanitized_created_dates = sanitized_filter_values(:created_dates, CREATED_DATES)
 
   def sanitized_labels
     return @sanitized_labels if defined?(@sanitized_labels)
@@ -98,6 +95,7 @@ module KanbanCardFilterParams
       filtered_card_statuses: sanitized_card_statuses,
       filtered_priorities: sanitized_priorities,
       filtered_due_dates: sanitized_due_dates,
+      filtered_created_dates: sanitized_created_dates,
       filtered_labels: sanitized_labels,
       match_mode: sanitized_match_mode,
       search_query: sanitized_search_query

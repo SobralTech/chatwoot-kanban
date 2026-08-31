@@ -7,8 +7,8 @@ class KanbanCards::VisibleCardsScope
   # rubocop:disable Metrics/ParameterLists
   def initialize(account:, user:, kanban_board:, account_user: nil,
                  filtered_inbox_ids: nil, filtered_assignee_ids: nil, filtered_card_statuses: nil,
-                 filtered_priorities: nil, filtered_due_dates: nil, filtered_labels: nil, match_mode: nil,
-                 search_query: nil)
+                 filtered_priorities: nil, filtered_due_dates: nil, filtered_created_dates: nil, filtered_labels: nil,
+                 match_mode: nil, search_query: nil)
     @account = account
     @user = user
     @kanban_board = kanban_board
@@ -18,6 +18,7 @@ class KanbanCards::VisibleCardsScope
     @filtered_card_statuses = normalized_filter(filtered_card_statuses)
     @filtered_priorities = normalized_filter(filtered_priorities)
     @filtered_due_dates = normalized_filter(filtered_due_dates)
+    @filtered_created_dates = normalized_filter(filtered_created_dates)
     @filtered_labels = normalized_filter(filtered_labels)
     @match_mode = match_mode
     @search_query = search_query
@@ -39,7 +40,7 @@ class KanbanCards::VisibleCardsScope
 
   attr_reader :account, :user, :kanban_board,
               :filtered_inbox_ids, :filtered_assignee_ids, :filtered_card_statuses,
-              :filtered_priorities, :filtered_due_dates, :filtered_labels, :match_mode, :search_query
+              :filtered_priorities, :filtered_due_dates, :filtered_created_dates, :filtered_labels, :match_mode, :search_query
 
   def visibility_condition
     KanbanCards::VisibilityCondition.new(account: account, user: user, account_user: @account_user).call
@@ -66,6 +67,7 @@ class KanbanCards::VisibleCardsScope
       card_status_condition,
       priority_condition,
       due_date_condition,
+      created_date_condition,
       label_condition
     ].compact
   end
@@ -143,6 +145,25 @@ class KanbanCards::VisibleCardsScope
 
     now = Time.current
     card_table[:due_at].gteq(now).and(card_table[:due_at].lteq(now + duration))
+  end
+
+  def created_date_condition
+    return if filtered_created_dates.blank?
+
+    conditions = filtered_created_dates.filter_map do |created_date|
+      created_date_window_condition(created_date)
+    end
+    or_condition(conditions)
+  end
+
+  # Unlike due_at, created_at always looks backward from now: a "week" bucket means
+  # created within the last week, not the next one.
+  def created_date_window_condition(created_date)
+    duration = { 'day' => 1.day, 'week' => 1.week, 'month' => 1.month }[created_date]
+    return unless duration
+
+    now = Time.current
+    card_table[:created_at].gteq(now - duration).and(card_table[:created_at].lteq(now))
   end
 
   def label_condition

@@ -172,6 +172,12 @@
         "WEEK": "Due in the next week",
         "MONTH": "Due in the next month"
       },
+      "CREATED_DATE": {
+        "TITLE": "Created date",
+        "DAY": "Created in the last day",
+        "WEEK": "Created in the last week",
+        "MONTH": "Created in the last month"
+      },
       "SLA": {
         "TITLE": "Stalled",
         "STALE": "Past the stage time limit"

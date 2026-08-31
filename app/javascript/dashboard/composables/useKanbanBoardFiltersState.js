@@ -17,6 +17,7 @@ export function useKanbanBoardFiltersState({
     priorities: [],
     stageSla: [],
     dueDates: [],
+    createdDates: [],
     labels: [],
     matchMode: 'any',
   });
@@ -29,6 +30,7 @@ export function useKanbanBoardFiltersState({
       priorities: [...new Set(filters?.priorities || [])],
       stageSla: [...new Set(filters?.stageSla || [])],
       dueDates: [...new Set(filters?.dueDates || [])],
+      createdDates: [...new Set(filters?.createdDates || [])],
       labels: [...new Set(filters?.labels || [])],
       matchMode: filters?.matchMode === 'all' ? 'all' : 'any',
     });
@@ -56,6 +58,7 @@ export function useKanbanBoardFiltersState({
       boardFilters.value.priorities,
       boardFilters.value.stageSla,
       boardFilters.value.dueDates,
+      boardFilters.value.createdDates,
       boardFilters.value.labels,
     ].reduce((count, values) => count + values.length, 0)
   );
@@ -96,6 +99,7 @@ export function useKanbanBoardFiltersState({
       priorities: 'priorities',
       stageSla: 'stage_sla',
       dueDates: 'due_dates',
+      createdDates: 'created_dates',
       labels: 'labels',
     };
 

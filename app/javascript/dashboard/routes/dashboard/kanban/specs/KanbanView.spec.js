@@ -2623,6 +2623,7 @@ describe('KanbanView filters', () => {
       priorities: [],
       stageSla: [],
       dueDates: [],
+      createdDates: [],
       labels: [],
       matchMode: 'any',
     });
@@ -2648,6 +2649,7 @@ describe('KanbanView filters', () => {
       priorities: [],
       stageSla: [],
       dueDates: [],
+      createdDates: [],
       labels: [],
       matchMode: 'any',
     });

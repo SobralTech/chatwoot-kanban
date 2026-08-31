@@ -18,6 +18,7 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
     sanitized_card_statuses
     sanitized_priorities
     sanitized_due_dates
+    sanitized_created_dates
     sanitized_labels
     sanitized_match_mode
     sanitized_terminal_period
