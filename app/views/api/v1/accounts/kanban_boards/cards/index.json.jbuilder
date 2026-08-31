@@ -9,6 +9,8 @@ json.cards do
   end
 end
 
+json.groups @result.groups if @result.groups
+
 json.pagination do
   json.limit @limit
   json.has_more @result.has_more

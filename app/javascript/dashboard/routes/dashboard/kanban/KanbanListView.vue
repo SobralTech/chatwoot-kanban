@@ -16,6 +16,7 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import KanbanBoardViewShell from './board/KanbanBoardViewShell.vue';
 import KanbanFilterMenu from './KanbanFilterMenu.vue';
 import KanbanListGroup from './list/KanbanListGroup.vue';
+import KanbanListGroupBySelect from './list/KanbanListGroupBySelect.vue';
 import KanbanOpportunityPanel from './opportunity/KanbanOpportunityPanel.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
 
@@ -55,13 +56,19 @@ const {
   stages,
 });
 
-const { fetchList, groups, isGroupLoading, isLoading, loadMoreForGroup } =
-  useKanbanListData({
-    board,
-    boardId,
-    currentFilterParams,
-    isLoading: isFetchingBoard,
-  });
+const {
+  fetchList,
+  groupBy,
+  groups,
+  isGroupLoading,
+  isLoading,
+  loadMoreForGroup,
+} = useKanbanListData({
+  board,
+  boardId,
+  currentFilterParams,
+  isLoading: isFetchingBoard,
+});
 
 const { isTerminalStage } = useKanbanStageOrder({
   stages,
@@ -90,9 +97,10 @@ const agentFilterOptions = computed(() =>
   }))
 );
 
-// A card only reaches a terminal stage by being won or lost, so those groups
-// carry no creation button.
-const canAddCardInGroup = group => !isTerminalStage({ id: group.stageId });
+// Creating a card puts it in a stage, so only a stage group can offer it - and a
+// card only reaches a terminal stage by being won or lost.
+const canAddCardInGroup = group =>
+  !!group.stageId && !isTerminalStage({ id: group.stageId });
 
 const loadList = async () => {
   try {
@@ -250,6 +258,7 @@ const cardTitle = card =>
   card.subject || card.contact?.name || t('KANBAN.CARD.UNKNOWN_CONTACT');
 
 watch(searchInput, () => scheduleSearch(runSearch));
+watch(groupBy, loadList);
 watch(boardId, loadList);
 
 onMounted(loadList);
@@ -284,29 +293,33 @@ onMounted(loadList);
           </Input>
         </div>
 
-        <div
-          data-testid="kanban-list-filter-menu-container"
-          class="flex flex-shrink-0 items-center overflow-hidden rounded-lg lg:ms-auto"
-          :class="{
-            'border border-n-weak bg-n-alpha-1': hasActiveBoardFilters,
-          }"
-        >
-          <KanbanFilterMenu
-            :model-value="boardFilters"
-            :inbox-options="inboxFilterOptions"
-            :agent-options="agentFilterOptions"
-            :active-count="activeBoardFilterCount"
-            @update:model-value="updateBoardFilters"
-          />
-          <button
-            v-if="hasActiveBoardFilters"
-            type="button"
-            data-testid="kanban-list-clear-filters"
-            class="h-10 border-n-weak px-3 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-2 ltr:border-l rtl:border-r"
-            @click="clearBoardFilters"
+        <div class="flex flex-shrink-0 items-center gap-2 lg:ms-auto">
+          <KanbanListGroupBySelect v-model="groupBy" />
+
+          <div
+            data-testid="kanban-list-filter-menu-container"
+            class="flex flex-shrink-0 items-center overflow-hidden rounded-lg"
+            :class="{
+              'border border-n-weak bg-n-alpha-1': hasActiveBoardFilters,
+            }"
           >
-            {{ t('KANBAN.FILTERS.CLEAR_ALL') }}
-          </button>
+            <KanbanFilterMenu
+              :model-value="boardFilters"
+              :inbox-options="inboxFilterOptions"
+              :agent-options="agentFilterOptions"
+              :active-count="activeBoardFilterCount"
+              @update:model-value="updateBoardFilters"
+            />
+            <button
+              v-if="hasActiveBoardFilters"
+              type="button"
+              data-testid="kanban-list-clear-filters"
+              class="h-10 border-n-weak px-3 text-sm font-medium text-n-slate-12 hover:bg-n-alpha-2 ltr:border-l rtl:border-r"
+              @click="clearBoardFilters"
+            >
+              {{ t('KANBAN.FILTERS.CLEAR_ALL') }}
+            </button>
+          </div>
         </div>
       </div>
 

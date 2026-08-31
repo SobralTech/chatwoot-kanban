@@ -26,6 +26,17 @@ class KanbanCards::Totals
       end
     end
 
+    # The same pair, one row per value of a grouping expression - for a criterion
+    # whose groups are only known once the scope has been scanned.
+    def grouped_metrics(scope, group_expression)
+      expression = Arel.sql(group_expression)
+
+      totals_scope(scope)
+        .group(expression)
+        .pluck(expression, *expressions(nil))
+        .to_h { |key, count, value| [key, Metric.new(count.to_i, BigDecimal(value.to_s))] }
+    end
+
     # Money crosses the wire as a plain decimal string. BigDecimal#to_s would emit
     # scientific notation ("0.43e3"), so every serializer formats through here and
     # the payload reads the same whichever query produced it.
