@@ -4,6 +4,7 @@ import {
   endOfMonth,
   endOfWeek,
   format,
+  isWithinInterval,
   startOfMonth,
   startOfWeek,
 } from 'date-fns';
@@ -31,6 +32,7 @@ const normalizeCards = data => camelcaseKeys(data?.cards || [], { deep: true });
 export function useKanbanAgendaData({ boardId }) {
   const cardsByDay = ref({});
   const cardsWithoutDate = ref([]);
+  const todayCards = ref([]);
   const withoutDateCount = ref(0);
   const withoutDateCursor = ref(null);
   const isLoading = ref(false);
@@ -80,6 +82,12 @@ export function useKanbanAgendaData({ boardId }) {
       if (generation !== monthGeneration) return;
 
       cardsByDay.value = groupByDay(cards);
+      // Browsing to another month drops today from the grid, so the cards due
+      // today are kept aside while a loaded range still covers them.
+      const today = new Date();
+      if (isWithinInterval(today, { start: from, end: to })) {
+        todayCards.value = cardsByDay.value[toDayKey(today)] || [];
+      }
     } finally {
       if (generation === monthGeneration) isLoading.value = false;
     }
@@ -115,6 +123,7 @@ export function useKanbanAgendaData({ boardId }) {
     hasMoreWithoutDate,
     isLoading,
     isLoadingWithoutDate,
+    todayCards,
     withoutDateCount,
   };
 }

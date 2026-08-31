@@ -31,9 +31,18 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  isSelected: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(['cardClick', 'createNew', 'scheduleExisting']);
+const emit = defineEmits([
+  'cardClick',
+  'createNew',
+  'daySelect',
+  'scheduleExisting',
+]);
 
 const { t } = useI18n();
 
@@ -74,9 +83,13 @@ watch(
 
 <template>
   <div
-    class="flex min-h-0 flex-col gap-1 border-b border-r border-n-weak p-1.5"
-    :class="isOutsideMonth ? 'bg-n-solid-1' : 'bg-n-background'"
+    class="flex min-h-0 cursor-pointer flex-col gap-1 border-b border-r border-n-weak p-1.5"
+    :class="[
+      isOutsideMonth ? 'bg-n-solid-1' : 'bg-n-background',
+      isSelected ? 'outline-1 -outline-offset-1 outline outline-n-brand' : '',
+    ]"
     :data-testid="`kanban-agenda-day-${date.getDate()}`"
+    @click="emit('daySelect', date)"
   >
     <div class="relative flex items-center justify-between gap-1">
       <span

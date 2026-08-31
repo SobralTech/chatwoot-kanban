@@ -26,9 +26,18 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  selectedDate: {
+    type: Date,
+    default: null,
+  },
 });
 
-const emit = defineEmits(['cardClick', 'createNew', 'scheduleExisting']);
+const emit = defineEmits([
+  'cardClick',
+  'createNew',
+  'daySelect',
+  'scheduleExisting',
+]);
 
 const today = new Date();
 
@@ -70,8 +79,10 @@ const cardsFor = date => props.cardsByDay[toDayKey(date)] || [];
           :max-visible="isWeekMode ? 8 : 3"
           :is-outside-month="!isWeekMode && !isSameMonth(day, referenceDate)"
           :is-today="isSameDay(day, today)"
+          :is-selected="!!selectedDate && isSameDay(day, selectedDate)"
           :class="isWeekMode ? 'min-h-96' : 'min-h-24'"
           @card-click="emit('cardClick', $event)"
+          @day-select="emit('daySelect', $event)"
           @create-new="emit('createNew', $event)"
           @schedule-existing="emit('scheduleExisting', $event)"
         />

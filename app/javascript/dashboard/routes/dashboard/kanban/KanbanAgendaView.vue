@@ -26,6 +26,7 @@ import { conversationUrl, frontendURL } from 'dashboard/helper/URLHelper';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import KanbanAgendaCalendar from './agenda/KanbanAgendaCalendar.vue';
 import KanbanAgendaCardPicker from './agenda/KanbanAgendaCardPicker.vue';
+import KanbanAgendaSidebar from './agenda/KanbanAgendaSidebar.vue';
 import KanbanOpportunityPanel from './opportunity/KanbanOpportunityPanel.vue';
 import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
 import KanbanBoardViewShell from './board/KanbanBoardViewShell.vue';
@@ -35,13 +36,14 @@ const route = useRoute();
 const router = useRouter();
 
 const boards = useMapGetter('kanbanBoards/kanbanBoards');
+const currentUserId = useMapGetter('getCurrentUserID');
 
 const board = ref(null);
 const viewMode = ref('month');
 const referenceDate = ref(new Date());
 const weekStart = ref(startOfWeek(new Date()));
 const selectedCardId = ref(null);
-const isNoDateListOpen = ref(false);
+const selectedDay = ref(null);
 const cardPendingRemoval = ref(null);
 const showRemoveCardConfirmation = ref(false);
 const selectedAgendaDate = ref(null);
@@ -58,6 +60,7 @@ const {
   hasMoreWithoutDate,
   isLoading,
   isLoadingWithoutDate,
+  todayCards,
   withoutDateCount,
 } = useKanbanAgendaData({ boardId });
 
@@ -128,6 +131,7 @@ const showMonth = async date => {
   if (isSameMonth(date, referenceDate.value)) return;
 
   referenceDate.value = date;
+  selectedDay.value = null;
   await fetchMonth(date);
 };
 
@@ -140,6 +144,7 @@ const goToPeriod = async direction => {
 
   const nextMonth = addMonths(referenceDate.value, direction);
   referenceDate.value = nextMonth;
+  selectedDay.value = null;
   await fetchMonth(nextMonth);
 };
 
@@ -165,6 +170,10 @@ const setViewMode = mode => {
 
 const openCard = card => {
   selectedCardId.value = card.id;
+};
+
+const selectDay = date => {
+  selectedDay.value = date;
 };
 
 const refreshAgenda = () =>
@@ -413,75 +422,37 @@ onMounted(loadAgenda);
         </span>
       </div>
 
-      <KanbanAgendaCalendar
-        :weeks="visibleWeeks"
-        :reference-date="referenceDate"
-        :cards-by-day="cardsByDay"
-        :stage-colors="stageColors"
-        :is-week-mode="isWeekMode"
-        :class="{ 'opacity-50': isLoading }"
-        @card-click="openCard"
-        @create-new="openAgendaCreate('create', $event)"
-        @schedule-existing="openAgendaCreate('schedule', $event)"
-      />
+      <div class="flex min-w-0 flex-col gap-3 xl:flex-row">
+        <KanbanAgendaCalendar
+          :weeks="visibleWeeks"
+          :reference-date="referenceDate"
+          :cards-by-day="cardsByDay"
+          :stage-colors="stageColors"
+          :is-week-mode="isWeekMode"
+          :selected-date="selectedDay"
+          :class="{ 'opacity-50': isLoading }"
+          class="min-w-0 flex-1"
+          @card-click="openCard"
+          @day-select="selectDay"
+          @create-new="openAgendaCreate('create', $event)"
+          @schedule-existing="openAgendaCreate('schedule', $event)"
+        />
 
-      <section
-        class="rounded-xl bg-n-solid-2 p-4 shadow outline-1 outline outline-n-container"
-        data-testid="kanban-agenda-no-date"
-      >
-        <button
-          type="button"
-          class="flex w-full items-center justify-between gap-2 text-sm font-medium text-n-slate-12"
-          @click="isNoDateListOpen = !isNoDateListOpen"
-        >
-          <span class="flex items-center gap-2">
-            <span>{{ t('KANBAN.AGENDA.NO_DATE_ITEMS') }}</span>
-            <span
-              class="rounded-full bg-n-alpha-2 px-2 text-xs text-n-slate-11"
-              data-testid="kanban-agenda-no-date-count"
-            >
-              {{ withoutDateCount }}
-            </span>
-          </span>
-          <i
-            class="size-4"
-            :class="
-              isNoDateListOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'
-            "
-          />
-        </button>
-
-        <div v-if="isNoDateListOpen" class="mt-3 flex flex-col gap-1">
-          <button
-            v-for="card in cardsWithoutDate"
-            :key="card.id"
-            type="button"
-            class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-n-alpha-2"
-            :data-card-id="card.id"
-            @click="openCard(card)"
-          >
-            <span
-              class="size-2 flex-shrink-0 rounded-full"
-              :style="{ backgroundColor: stageColors[card.kanbanStageId] }"
-              aria-hidden="true"
-            />
-            <span class="truncate text-sm text-n-slate-12">
-              {{ cardTitle(card) }}
-            </span>
-          </button>
-
-          <NextButton
-            v-if="hasMoreWithoutDate"
-            :label="t('KANBAN.AGENDA.LOAD_MORE')"
-            variant="link"
-            color="slate"
-            size="sm"
-            :is-loading="isLoadingWithoutDate"
-            class="self-start"
-            @click="fetchMore"
-          />
-        </div>
-      </section>
+        <KanbanAgendaSidebar
+          :cards-by-day="cardsByDay"
+          :cards-without-date="cardsWithoutDate"
+          :without-date-count="withoutDateCount"
+          :has-more-without-date="hasMoreWithoutDate"
+          :is-loading-without-date="isLoadingWithoutDate"
+          :today-cards="todayCards"
+          :reference-date="referenceDate"
+          :selected-date="selectedDay"
+          :current-user-id="currentUserId"
+          :stage-colors="stageColors"
+          @card-click="openCard"
+          @load-more="fetchMore"
+        />
+      </div>
     </div>
 
     <KanbanOpportunityPanel
