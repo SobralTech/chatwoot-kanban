@@ -1113,7 +1113,9 @@
       }
     },
     "LIST": {
-      "COMING_SOON": "Coming soon"
+      "ADD_ITEM": "New item",
+      "EMPTY_GROUP": "No cards in this group.",
+      "LOAD_MORE": "Load more"
     }
   }
 }
