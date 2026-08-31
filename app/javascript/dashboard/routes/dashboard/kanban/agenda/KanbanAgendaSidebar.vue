@@ -50,11 +50,16 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['cardClick', 'loadMore']);
+const emit = defineEmits(['cardClick', 'loadMore', 'openList']);
 
 const { t } = useI18n();
 
 const isNoDateListOpen = ref(false);
+
+const toggleNoDateList = () => {
+  isNoDateListOpen.value = !isNoDateListOpen.value;
+  if (isNoDateListOpen.value) emit('openList');
+};
 
 const mineCount = cards =>
   cards.filter(card =>
@@ -109,7 +114,7 @@ const cardTitle = card =>
       <button
         type="button"
         class="flex w-full items-center justify-between gap-2 text-sm font-medium text-n-slate-12"
-        @click="isNoDateListOpen = !isNoDateListOpen"
+        @click="toggleNoDateList"
       >
         <span class="flex items-center gap-2">
           <span>{{ t('KANBAN.AGENDA.NO_DATE_ITEMS') }}</span>
@@ -128,7 +133,17 @@ const cardTitle = card =>
         />
       </button>
 
-      <div v-if="isNoDateListOpen" class="mt-3 flex flex-col gap-1">
+      <div
+        v-if="isNoDateListOpen"
+        class="mt-3 flex max-h-64 flex-col gap-1 overflow-y-auto"
+      >
+        <p
+          v-if="isLoadingWithoutDate && !cardsWithoutDate.length"
+          class="text-sm text-n-slate-11"
+        >
+          {{ t('KANBAN.AGENDA.LOADING_NO_DATE') }}
+        </p>
+
         <button
           v-for="card in cardsWithoutDate"
           :key="card.id"

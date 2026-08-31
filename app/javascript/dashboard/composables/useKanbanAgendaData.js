@@ -35,6 +35,7 @@ export function useKanbanAgendaData({ boardId }) {
   const todayCards = ref([]);
   const withoutDateCount = ref(0);
   const withoutDateCursor = ref(null);
+  const hasLoadedWithoutDate = ref(false);
   const isLoading = ref(false);
   const isLoadingWithoutDate = ref(false);
   // A month request is several pages long; a faster month switch must win.
@@ -93,6 +94,13 @@ export function useKanbanAgendaData({ boardId }) {
     }
   };
 
+  // Until someone opens the list, only its counter is on screen, and the
+  // counter rides on a single-card page instead of a full one.
+  const fetchWithoutDateCount = async () => {
+    const data = await fetchPage({ without_due_date: true, limit: 1 });
+    withoutDateCount.value = data.pagination?.total_count || 0;
+  };
+
   const fetchWithoutDate = async ({ reset = false } = {}) => {
     const cursor = reset ? undefined : withoutDateCursor.value;
     isLoadingWithoutDate.value = true;
@@ -104,6 +112,7 @@ export function useKanbanAgendaData({ boardId }) {
         ? cards
         : [...cardsWithoutDate.value, ...cards];
       withoutDateCursor.value = data.pagination?.next_cursor || null;
+      hasLoadedWithoutDate.value = true;
       if (data.pagination?.total_count != null) {
         withoutDateCount.value = data.pagination.total_count;
       }
@@ -114,15 +123,28 @@ export function useKanbanAgendaData({ boardId }) {
 
   const fetchMore = () => fetchWithoutDate();
 
+  const openWithoutDateList = () =>
+    hasLoadedWithoutDate.value
+      ? Promise.resolve()
+      : fetchWithoutDate({ reset: true });
+
+  // A card change only has to reload the list the user actually opened.
+  const refreshWithoutDate = () =>
+    hasLoadedWithoutDate.value
+      ? fetchWithoutDate({ reset: true })
+      : fetchWithoutDateCount();
+
   return {
     cardsByDay,
     cardsWithoutDate,
     fetchMonth,
     fetchMore,
-    fetchWithoutDate,
+    fetchWithoutDateCount,
     hasMoreWithoutDate,
     isLoading,
     isLoadingWithoutDate,
+    openWithoutDateList,
+    refreshWithoutDate,
     todayCards,
     withoutDateCount,
   };

@@ -56,10 +56,12 @@ const {
   cardsWithoutDate,
   fetchMonth,
   fetchMore,
-  fetchWithoutDate,
+  fetchWithoutDateCount,
   hasMoreWithoutDate,
   isLoading,
   isLoadingWithoutDate,
+  openWithoutDateList,
+  refreshWithoutDate,
   todayCards,
   withoutDateCount,
 } = useKanbanAgendaData({ boardId });
@@ -177,10 +179,7 @@ const selectDay = date => {
 };
 
 const refreshAgenda = () =>
-  Promise.all([
-    fetchMonth(referenceDate.value),
-    fetchWithoutDate({ reset: true }),
-  ]);
+  Promise.all([fetchMonth(referenceDate.value), refreshWithoutDate()]);
 
 const openAgendaCreate = (mode, date) => {
   selectedAgendaDate.value = date;
@@ -224,7 +223,7 @@ const loadAgenda = async () => {
     await Promise.all([
       fetchBoard(),
       fetchMonth(referenceDate.value),
-      fetchWithoutDate({ reset: true }),
+      fetchWithoutDateCount(),
     ]);
   } catch (error) {
     useAlert(t('KANBAN.ERROR'));
@@ -451,6 +450,7 @@ onMounted(loadAgenda);
           :stage-colors="stageColors"
           @card-click="openCard"
           @load-more="fetchMore"
+          @open-list="openWithoutDateList"
         />
       </div>
     </div>

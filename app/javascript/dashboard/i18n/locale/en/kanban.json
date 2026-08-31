@@ -1111,6 +1111,7 @@
       "NO_ITEMS_MONTH": "No items this month",
       "MORE_ITEMS": "+{count} more",
       "LOAD_MORE": "Load more",
+      "LOADING_NO_DATE": "Loading items...",
       "SEARCHING": "Searching cards...",
       "SEARCH_ERROR": "Could not search cards.",
       "NO_SEARCH_RESULTS": "No open cards found.",
