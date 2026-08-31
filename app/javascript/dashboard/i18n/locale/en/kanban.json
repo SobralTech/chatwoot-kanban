@@ -1062,6 +1062,22 @@
         "GROUP": "Group",
         "INDIVIDUAL": "Individual"
       }
+    },
+    "VIEW_SWITCHER": {
+      "KANBAN": "Kanban",
+      "DASHBOARD": "Dashboard",
+      "AGENDA": "Agenda",
+      "LIST": "List",
+      "TOGGLE": "Switch view"
+    },
+    "DASHBOARD": {
+      "COMING_SOON": "Coming soon"
+    },
+    "AGENDA": {
+      "COMING_SOON": "Coming soon"
+    },
+    "LIST": {
+      "COMING_SOON": "Coming soon"
     }
   }
 }

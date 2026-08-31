@@ -1,6 +1,9 @@
 import { frontendURL } from '../../../helper/URLHelper';
 import KanbanOverview from './KanbanOverview.vue';
 import KanbanView from './KanbanView.vue';
+import KanbanAgendaView from './KanbanAgendaView.vue';
+import KanbanDashboardView from './KanbanDashboardView.vue';
+import KanbanListView from './KanbanListView.vue';
 import KanbanBoardForm from './KanbanBoardForm.vue';
 import KanbanBoardCreate from './KanbanBoardCreate.vue';
 import ConversationView from '../conversation/ConversationView.vue';
@@ -20,6 +23,24 @@ export const routes = [
     path: frontendURL('accounts/:accountId/kanban/:boardId'),
     name: 'kanban_board_show',
     component: KanbanView,
+    meta,
+  },
+  {
+    path: frontendURL('accounts/:accountId/kanban/:boardId/dashboard'),
+    name: 'kanban_board_dashboard',
+    component: KanbanDashboardView,
+    meta,
+  },
+  {
+    path: frontendURL('accounts/:accountId/kanban/:boardId/agenda'),
+    name: 'kanban_board_agenda',
+    component: KanbanAgendaView,
+    meta,
+  },
+  {
+    path: frontendURL('accounts/:accountId/kanban/:boardId/list'),
+    name: 'kanban_board_list',
+    component: KanbanListView,
     meta,
   },
   {

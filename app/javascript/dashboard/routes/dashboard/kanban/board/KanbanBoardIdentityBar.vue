@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import InlineInput from 'dashboard/components-next/inline-input/InlineInput.vue';
+import KanbanViewSwitcher from './KanbanViewSwitcher.vue';
 
 defineProps({
   boards: {
@@ -42,6 +43,10 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  activeView: {
+    type: String,
+    default: '',
+  },
 });
 
 const emit = defineEmits([
@@ -72,6 +77,7 @@ const { t } = useI18n();
       :title="t('KANBAN.ACTIONS.BACK_TO_OVERVIEW')"
       @click="emit('goToOverview')"
     />
+    <KanbanViewSwitcher :active-view="activeView" />
     <OnClickOutside @trigger="emit('closeBoardDropdown')">
       <div class="relative inline-flex min-w-0 max-w-full flex-col">
         <button
