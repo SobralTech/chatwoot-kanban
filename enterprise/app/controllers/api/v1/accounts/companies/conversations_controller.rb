@@ -11,5 +11,6 @@ class Api::V1::Accounts::Companies::ConversationsController < Api::V1::Accounts:
       Current.user,
       Current.account
     ).perform.order(last_activity_at: :desc).limit(20)
+    @conversation_serialization_data = Conversations::SerializationData.new(conversations: @conversations).call
   end
 end

@@ -165,7 +165,7 @@ class Message < ApplicationRecord
     {
       inbox_id: conversation.inbox_id,
       assignee_id: conversation.assignee_id,
-      unread_count: conversation.unread_incoming_messages.count,
+      unread_count: conversation.unread_incoming_messages_count,
       last_activity_at: conversation.last_activity_at.to_i,
       contact_inbox: { source_id: conversation.contact_inbox.source_id }
     }

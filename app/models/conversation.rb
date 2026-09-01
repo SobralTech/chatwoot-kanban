@@ -214,6 +214,14 @@ class Conversation < ApplicationRecord
     unread_messages.where(account_id: account_id).incoming.last(10)
   end
 
+  def unread_incoming_messages_count
+    return @preloaded_unread_incoming_messages_count if defined?(@preloaded_unread_incoming_messages_count)
+
+    unread_incoming_messages.count
+  end
+
+  attr_writer :preloaded_unread_incoming_messages_count
+
   def cached_label_list_array
     (cached_label_list || '').split(',').map(&:strip)
   end

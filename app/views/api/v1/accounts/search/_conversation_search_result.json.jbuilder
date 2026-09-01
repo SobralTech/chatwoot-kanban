@@ -2,7 +2,12 @@ json.id conversation.display_id
 json.account_id conversation.account_id
 json.created_at conversation.created_at.to_i
 json.last_activity_at conversation.last_activity_at.to_i
-if (message = conversation.last_useful_message)
+message = if @conversation_search_serialization_data
+            @conversation_search_serialization_data[conversation.id]
+          else
+            conversation.last_useful_message
+          end
+if message
   json.message do
     json.partial! 'message', formats: [:json], message: message
   end

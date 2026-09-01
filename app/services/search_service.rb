@@ -1,9 +1,7 @@
 class SearchService
   pattr_initialize [:current_user!, :current_account!, :params!, :search_type!]
 
-  def account_user
-    @account_user ||= current_account.account_users.find_by(user: current_user)
-  end
+  def account_user = @account_user ||= current_account.account_users.find_by(user: current_user)
 
   def perform
     case search_type
@@ -113,7 +111,9 @@ class SearchService
   end
 
   def message_base_query
-    query = current_account.messages.includes(conversation: :contact)
+    query = current_account.messages.includes(:sender,
+                                              { attachments: { file_attachment: :blob } },
+                                              { conversation: { contact: { avatar_attachment: :blob } } })
                            .where('created_at >= ?', 3.months.ago)
                            .where.not(message_type: :activity)
     query = query.where(inbox_id: accessable_inbox_ids) unless should_skip_inbox_filtering?

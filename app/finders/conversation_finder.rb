@@ -44,21 +44,17 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
     apply_all_conversations_inbox_visibility
     list_base = @conversations
 
-    base_count = count_base.count
-    unassigned_count = count_base.unassigned.count
-    assigned_count = base_count - unassigned_count
-    all_count = all_conversations_view? ? list_base.count : base_count
-    mine_count = count_base.assigned_to(current_user).count
+    counts = conversation_counts(count_base, list_base)
 
     filter_by_assignee_type
 
     {
       conversations: conversations,
       count: {
-        mine_count: mine_count,
-        assigned_count: assigned_count,
-        unassigned_count: unassigned_count,
-        all_count: all_count
+        mine_count: counts.fetch(:mine),
+        assigned_count: counts.fetch(:assigned),
+        unassigned_count: counts.fetch(:unassigned),
+        all_count: counts.fetch(:all)
       }
     }
   end
@@ -70,23 +66,42 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
     apply_all_conversations_inbox_visibility
     list_base = @conversations
 
-    base_count = count_base.count
-    unassigned_count = count_base.unassigned.count
-    assigned_count = base_count - unassigned_count
-    all_count = all_conversations_view? ? list_base.count : base_count
-    mine_count = count_base.assigned_to(current_user).count
+    counts = conversation_counts(count_base, list_base)
 
     {
       count: {
-        mine_count: mine_count,
-        assigned_count: assigned_count,
-        unassigned_count: unassigned_count,
-        all_count: all_count
+        mine_count: counts.fetch(:mine),
+        assigned_count: counts.fetch(:assigned),
+        unassigned_count: counts.fetch(:unassigned),
+        all_count: counts.fetch(:all)
       }
     }
   end
 
   private
+
+  def conversation_counts(count_base, list_base)
+    table = Conversation.arel_table
+    total, unassigned, mine = count_relation(count_base).pick(
+      table[:id].count,
+      table[:id].count.filter(table[:assignee_id].eq(nil)),
+      table[:id].count.filter(table[:assignee_id].eq(current_user.id))
+    )
+
+    {
+      mine: mine.to_i,
+      assigned: total.to_i - unassigned.to_i,
+      unassigned: unassigned.to_i,
+      all: all_conversations_view? ? list_base.count : total.to_i
+    }
+  end
+
+  # Keeping the original relation as a derived table preserves whether its joins
+  # intentionally produce duplicates and whether a filter added DISTINCT.
+  def count_relation(scope)
+    selected_scope = scope.reorder(nil).reselect(:id, :assignee_id)
+    Conversation.from("(#{selected_scope.to_sql}) conversations")
+  end
 
   def set_up
     set_inboxes
@@ -178,8 +193,6 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
 
     allowed_message_types = [Message.message_types[:incoming], Message.message_types[:outgoing]]
     @conversations = conversations.joins(:messages).where('unaccent(messages.content) ILIKE unaccent(:search)', search: "%#{params[:q]}%")
-                                  .where(messages: { message_type: allowed_message_types }).includes(:messages)
-                                  .where('unaccent(messages.content) ILIKE unaccent(:search)', search: "%#{params[:q]}%")
                                   .where(messages: { message_type: allowed_message_types })
   end
 

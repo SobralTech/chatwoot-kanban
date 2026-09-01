@@ -105,13 +105,18 @@ describe ConversationFinder do
       end
 
       it 'returns the correct meta' do
-        result = conversation_finder.perform
+        sql_queries = []
+        callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+        result = ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') { conversation_finder.perform }
+
         expect(result[:count]).to eq({
                                        mine_count: 2,
                                        assigned_count: 3,
                                        unassigned_count: 1,
                                        all_count: 4
                                      })
+        aggregate_queries = sql_queries.count { |sql| sql.include?('FILTER (WHERE "conversations"."assignee_id"') }
+        expect(aggregate_queries).to eq(1)
       end
     end
 
