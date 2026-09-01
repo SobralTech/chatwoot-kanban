@@ -1,5 +1,9 @@
 class Webhooks::WahaEventsJob < ApplicationJob
-  queue_as :low
+  # Live inbound WhatsApp traffic, on the same queue as the other realtime channel
+  # webhooks. It must not sit on :low, which is the lowest-priority queue and also
+  # carries the bulk history-import work — an import would delay every incoming
+  # message behind it.
+  queue_as :default
 
   # A delivery ack can arrive while the mirror (message.any) is still being
   # created — creating it takes ~1s (contact/conversation resolution) while the
