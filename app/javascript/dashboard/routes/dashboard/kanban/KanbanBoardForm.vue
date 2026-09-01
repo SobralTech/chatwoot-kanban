@@ -99,6 +99,61 @@ const form = reactive({
   automationSettings: {},
 });
 
+// Recurrence windows are stored in hours; these units let the UI accept
+// days/weeks without changing the stored value's shape.
+const RECURRENCE_WINDOW_UNITS = [
+  { value: 'hours', hours: 1 },
+  { value: 'days', hours: 24 },
+  { value: 'weeks', hours: 24 * 7 },
+];
+
+const recurrenceUnitOptions = computed(() =>
+  RECURRENCE_WINDOW_UNITS.map(unit => ({
+    value: unit.value,
+    label: t(
+      `KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.UNITS.${unit.value.toUpperCase()}`
+    ),
+  }))
+);
+
+const recurrenceUnitHours = unit =>
+  RECURRENCE_WINDOW_UNITS.find(item => item.value === unit)?.hours || 1;
+
+const hoursToRecurrenceWindow = hours => {
+  if (!hours) return { amount: null, unit: 'hours' };
+  const unit = [...RECURRENCE_WINDOW_UNITS]
+    .reverse()
+    .find(item => hours % item.hours === 0);
+  return { amount: hours / unit.hours, unit: unit.value };
+};
+
+const useRecurrenceWindow = fieldName => {
+  const state = reactive({ amount: null, unit: 'hours' });
+
+  const commit = () => {
+    form[fieldName] =
+      state.amount === null || state.amount === ''
+        ? null
+        : Number(state.amount) * recurrenceUnitHours(state.unit);
+  };
+
+  return {
+    state,
+    sync: hours => Object.assign(state, hoursToRecurrenceWindow(hours)),
+    onAmountChange: raw => {
+      state.amount = raw === '' ? null : Number(raw);
+      commit();
+    },
+    onUnitChange: unit => {
+      state.unit = unit;
+      commit();
+    },
+  };
+};
+
+const wonRecurrenceWindow = useRecurrenceWindow('wonRecurrenceWindowHours');
+const lostRecurrenceWindow = useRecurrenceWindow('lostRecurrenceWindowHours');
+
 const { isTerminalStage, isWonStage, regularStages, terminalStages } =
   useKanbanStageOrder({
     stages,
@@ -218,6 +273,9 @@ const applySettings = payload => {
   form.lostRecurrenceWindowHours = settings.lostRecurrenceWindowHours ?? null;
   form.automationSettings = settings.automationSettings || {};
 
+  wonRecurrenceWindow.sync(form.wonRecurrenceWindowHours);
+  lostRecurrenceWindow.sync(form.lostRecurrenceWindowHours);
+
   savedSnapshot.value = normalizeForDiff(form);
 };
 
@@ -335,14 +393,6 @@ const onLostStageChange = value => {
   }
 
   form.lostStageId = nextStageId;
-};
-
-const onWonRecurrenceWindowHoursChange = value => {
-  form.wonRecurrenceWindowHours = value === '' ? null : Number(value);
-};
-
-const onLostRecurrenceWindowHoursChange = value => {
-  form.lostRecurrenceWindowHours = value === '' ? null : Number(value);
 };
 
 const closeImportExistingConversationsModal = () => {
@@ -1138,21 +1188,30 @@ onMounted(async () => {
                     'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_WINDOW_HOURS_LABEL'
                   )
                 }}
-                <input
-                  :value="form.wonRecurrenceWindowHours"
-                  type="number"
-                  min="1"
-                  data-testid="kanban-board-form-won-recurrence-window-hours"
-                  class="!mb-0"
-                  :placeholder="
-                    t(
-                      'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
-                    )
-                  "
-                  @change="
-                    onWonRecurrenceWindowHoursChange($event.target.value)
-                  "
-                />
+                <div class="flex items-center gap-2">
+                  <input
+                    :value="wonRecurrenceWindow.state.amount"
+                    type="number"
+                    min="1"
+                    data-testid="kanban-board-form-won-recurrence-window-hours"
+                    class="!mb-0 w-24"
+                    :placeholder="
+                      t(
+                        'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
+                      )
+                    "
+                    @change="
+                      wonRecurrenceWindow.onAmountChange($event.target.value)
+                    "
+                  />
+                  <Select
+                    :model-value="wonRecurrenceWindow.state.unit"
+                    data-testid="kanban-board-form-won-recurrence-window-unit"
+                    :options="recurrenceUnitOptions"
+                    class="font-normal"
+                    @update:model-value="wonRecurrenceWindow.onUnitChange"
+                  />
+                </div>
               </label>
 
               <label
@@ -1173,21 +1232,30 @@ onMounted(async () => {
                     'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_WINDOW_HOURS_LABEL'
                   )
                 }}
-                <input
-                  :value="form.lostRecurrenceWindowHours"
-                  type="number"
-                  min="1"
-                  data-testid="kanban-board-form-lost-recurrence-window-hours"
-                  class="!mb-0"
-                  :placeholder="
-                    t(
-                      'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
-                    )
-                  "
-                  @change="
-                    onLostRecurrenceWindowHoursChange($event.target.value)
-                  "
-                />
+                <div class="flex items-center gap-2">
+                  <input
+                    :value="lostRecurrenceWindow.state.amount"
+                    type="number"
+                    min="1"
+                    data-testid="kanban-board-form-lost-recurrence-window-hours"
+                    class="!mb-0 w-24"
+                    :placeholder="
+                      t(
+                        'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
+                      )
+                    "
+                    @change="
+                      lostRecurrenceWindow.onAmountChange($event.target.value)
+                    "
+                  />
+                  <Select
+                    :model-value="lostRecurrenceWindow.state.unit"
+                    data-testid="kanban-board-form-lost-recurrence-window-unit"
+                    :options="recurrenceUnitOptions"
+                    class="font-normal"
+                    @update:model-value="lostRecurrenceWindow.onUnitChange"
+                  />
+                </div>
               </label>
             </div>
           </section>
