@@ -385,4 +385,33 @@ describe WebhookListener do
       end
     end
   end
+
+  describe 'payload construction' do
+    let(:event_name) { :'message.created' }
+
+    it 'does not serialize the payload when nothing subscribes to the event' do
+      expect(message).not_to receive(:webhook_data)
+
+      listener.message_created(message_created_event)
+    end
+
+    it 'serializes the payload once when an account webhook subscribes' do
+      create(:webhook, account: account, subscriptions: ['message_created'])
+
+      expect(message).to receive(:webhook_data).once.and_call_original
+
+      listener.message_created(message_created_event)
+    end
+
+    it 'still delivers to api inbox webhooks when no account webhook subscribes' do
+      api_channel = create(:channel_api, account: account, webhook_url: 'https://example.com/hook')
+      api_inbox = create(:inbox, account: account, channel: api_channel)
+      api_conversation = create(:conversation, account: account, inbox: api_inbox)
+      api_message = create(:message, message_type: 'outgoing', account: account, inbox: api_inbox, conversation: api_conversation)
+
+      expect(WebhookJob).to receive(:perform_later).with(api_channel.webhook_url, anything, :api_inbox_webhook, anything)
+
+      listener.message_created(Events::Base.new(event_name, Time.zone.now, message: api_message))
+    end
+  end
 end
