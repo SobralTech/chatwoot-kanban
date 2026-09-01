@@ -5,6 +5,11 @@
 # additional_attributes['edit_of']. Replies, reactions, deletes and edits all
 # depend on resolving that anchor the same way, so every consumer reads it here.
 module Waha::Anchoring
+  # The same trailing-stanza extraction as `stanza_of`, expressed in SQL. Kept
+  # byte-identical to the expression behind index_messages_on_inbox_and_source_stanza
+  # so the planner can use it.
+  STANZA_SQL = "regexp_replace(source_id, '^.*_', '')".freeze
+
   module_function
 
   # edit_of points at the original message's source_id for every edit mirror;
@@ -33,6 +38,6 @@ module Waha::Anchoring
     stanza = stanza_of(source_id)
     return inbox.messages.none if stanza.blank?
 
-    inbox.messages.where('source_id LIKE ?', "%_#{stanza}")
+    inbox.messages.where("#{STANZA_SQL} = ?", stanza)
   end
 end
