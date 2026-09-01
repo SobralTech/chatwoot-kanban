@@ -4,7 +4,8 @@ class KanbanReports::AgentsQuery < KanbanReports::BaseQuery
     assignees = assignees_by_card(card_ids_for_events(terminal_events))
     users = users_by_id(assignees)
     rows = rows_by_user(terminal_events, assignees)
-    rows = rows.filter_map { |user_id, counts| agent_row(users[user_id], counts) }
+    won_metrics = won_metrics_by_user(rows)
+    rows = rows.filter_map { |user_id, counts| agent_row(users[user_id], counts, won_metrics[user_id]) }
 
     rows.sort_by { |row| [-row[:won], -row[:lost], row[:agent_name].to_s] }
   end
@@ -31,12 +32,19 @@ class KanbanReports::AgentsQuery < KanbanReports::BaseQuery
     end
   end
 
-  def agent_row(user, counts)
+  def won_metrics_by_user(rows)
+    won_card_ids = rows.values.flat_map { |counts| counts[:won] }.uniq
+    scope = filtered_cards.where(id: won_card_ids).joins(:kanban_card_assignees)
+
+    KanbanCards::Totals.grouped_metrics(scope, 'kanban_card_assignees.user_id')
+  end
+
+  def agent_row(user, counts, won_metric)
     return if user.blank?
 
     won_ids = counts[:won].uniq
     lost_ids = counts[:lost].uniq
-    won_metric = metric_for(won_ids)
+    won_metric ||= KanbanCards::Totals::Metric.new(0, BigDecimal(0))
     total_terminal_count = won_ids.length + lost_ids.length
 
     {

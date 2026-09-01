@@ -30,4 +30,22 @@ RSpec.describe KanbanReports::AgentsQuery, type: :service do
 
     expect(result).to be_empty
   end
+
+  it 'aggregates won value for every agent in one totals query' do
+    second_agent = create(:user, account: account, role: :agent)
+    second_card = create(:kanban_card, account: account, kanban_board: board, kanban_stage: won_stage, inbox: inbox)
+    KanbanCardAssignee.create!(account: account, kanban_card: second_card, user: second_agent)
+    report_event(card: second_card, event_type: 'won', at: report_start + 2.days, metadata: { stage_id: won_stage.id })
+    sql_queries = []
+    callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+
+    ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+      described_class.new(**report_query_options).call
+    end
+
+    totals_queries = sql_queries.count do |sql|
+      sql.include?('kanban_card_product_totals')
+    end
+    expect(totals_queries).to eq(1)
+  end
 end

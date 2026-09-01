@@ -29,7 +29,12 @@ class KanbanReports::DashboardQuery < KanbanReports::BaseQuery
       business_hours: business_hours,
       agent_ids: agent_ids,
       inbox_ids: inbox_ids,
-      labels: labels
+      labels: labels,
+      query_cache: dashboard_query_cache
     }
+  end
+
+  def dashboard_query_cache
+    @dashboard_query_cache ||= {}
   end
 end

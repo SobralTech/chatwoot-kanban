@@ -14,15 +14,22 @@ class KanbanBoards::SummaryQuery
 
   def call
     metrics = KanbanCards::Totals.metrics(visible_cards, metric_conditions)
+    open_metric = metrics.fetch(:open)
+    won_metric = metrics.fetch(:won_this_month)
 
     Result.new(
-      **metrics,
-      average_ticket: average_ticket_for(metrics.fetch(:won_this_month)),
-      new_leads_this_month: visible_cards.where(created_at: current_month_range).count,
+      open: open_metric,
+      won_this_month: won_metric,
+      lost_this_month: metrics.fetch(:lost_this_month),
+      average_ticket: average_ticket_for(won_metric),
+      new_leads_this_month: metrics.fetch(:new_leads_this_month).count,
       active_agents_count: KanbanCardAssignee.where(kanban_card_id: open_cards.select(:id)).distinct.count(:user_id),
-      leads_with_conversation_count: open_cards.where.not(conversation_id: nil).count,
-      origin_summary: origin_summary,
-      visible_cards_count: visible_cards.count,
+      leads_with_conversation_count: metrics.fetch(:leads_with_conversation).count,
+      origin_summary: {
+        conversation: metrics.fetch(:conversation_origin).count,
+        manual: metrics.fetch(:manual_origin).count
+      },
+      visible_cards_count: metrics.fetch(:visible_cards).count,
       visible_stages_summary: visible_stages_summary,
       stages_summary: stages_summary
     )
@@ -36,11 +43,22 @@ class KanbanBoards::SummaryQuery
   # stages counts every card as open and reports won and lost at zero without a
   # branch here - and all three still come out of a single scan.
   def metric_conditions
+    open = open_condition
+
     {
-      open: card_table[:kanban_stage_id].not_in(KanbanStage.special_stage_ids(kanban_board)),
+      open: open,
       won_this_month: entered_stage_this_month(kanban_board.won_stage_id),
-      lost_this_month: entered_stage_this_month(kanban_board.lost_stage_id)
+      lost_this_month: entered_stage_this_month(kanban_board.lost_stage_id),
+      new_leads_this_month: card_table[:created_at].between(current_month_range),
+      leads_with_conversation: open.and(card_table[:conversation_id].not_eq(nil)),
+      conversation_origin: open.and(card_table[:origin].eq('conversation')),
+      manual_origin: open.and(card_table[:origin].eq('manual')),
+      visible_cards: nil
     }
+  end
+
+  def open_condition
+    card_table[:kanban_stage_id].not_in(KanbanStage.special_stage_ids(kanban_board))
   end
 
   def entered_stage_this_month(stage_id)
@@ -66,12 +84,7 @@ class KanbanBoards::SummaryQuery
   end
 
   def open_cards
-    @open_cards ||= visible_cards.where.not(kanban_stage_id: KanbanStage.special_stage_ids(kanban_board))
-  end
-
-  def origin_summary
-    counts = open_cards.group(:origin).count
-    { conversation: counts.fetch('conversation', 0), manual: counts.fetch('manual', 0) }
+    @open_cards ||= visible_cards.where(open_condition)
   end
 
   def visible_stages_summary

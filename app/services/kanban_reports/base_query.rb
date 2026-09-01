@@ -5,7 +5,7 @@ class KanbanReports::BaseQuery
 
   # rubocop:disable Metrics/ParameterLists
   def initialize(account:, kanban_board:, user: nil, current_user: nil, since: nil, until: nil, group_by: 'day',
-                 timezone_offset: nil, business_hours: false, agent_ids: [], inbox_ids: [], labels: [])
+                 timezone_offset: nil, business_hours: false, agent_ids: [], inbox_ids: [], labels: [], query_cache: nil)
     @account = account
     @kanban_board = kanban_board
     @user = user || current_user
@@ -20,6 +20,7 @@ class KanbanReports::BaseQuery
     @agent_ids = normalized_ids(agent_ids)
     @inbox_ids = normalized_ids(inbox_ids)
     @labels = normalized_values(labels)
+    @query_cache = query_cache || {}
     validate_group_by!
   end
   # rubocop:enable Metrics/ParameterLists
@@ -30,7 +31,7 @@ class KanbanReports::BaseQuery
               :timezone_offset, :agent_ids, :inbox_ids, :labels
 
   def filtered_cards
-    @filtered_cards ||= begin
+    @query_cache[:filtered_cards] ||= begin
       scope = KanbanCards::VisibleCardsScope.new(
         account: account,
         user: user,
@@ -58,29 +59,24 @@ class KanbanReports::BaseQuery
   end
 
   def unique_terminal_events
-    unique_events_by_card(period_events(types: TERMINAL_EVENT_TYPES), &:event_type)
+    @query_cache[:unique_terminal_events] ||=
+      period_events(types: TERMINAL_EVENT_TYPES)
+      .select('DISTINCT ON (kanban_card_id, event_type) kanban_card_events.*')
+      .reorder(:kanban_card_id, :event_type, :created_at, :id)
+      .to_a
   end
 
-  def unique_events_by_card(events)
-    seen = {}
-    events.each_with_object([]) do |event, result|
-      key = [event.kanban_card_id, yield(event)]
-      next if seen[key]
-
-      seen[key] = true
-      result << event
-    end
-  end
-
-  def stage_entry(event)
-    metadata = event.metadata || {}
-    stage_id = case event.event_type
-               when 'card_created', 'won', 'lost'
-                 metadata['stage_id']
-               when 'stage_changed', 'board_changed', 'reopened'
-                 metadata['to_stage_id']
-               end
-    stage_id.presence&.to_i
+  def stage_id_sql
+    <<~SQL.squish
+      CASE event_type
+      WHEN 'card_created' THEN NULLIF(metadata ->> 'stage_id', '')::bigint
+      WHEN 'won' THEN NULLIF(metadata ->> 'stage_id', '')::bigint
+      WHEN 'lost' THEN NULLIF(metadata ->> 'stage_id', '')::bigint
+      WHEN 'stage_changed' THEN NULLIF(metadata ->> 'to_stage_id', '')::bigint
+      WHEN 'board_changed' THEN NULLIF(metadata ->> 'to_stage_id', '')::bigint
+      WHEN 'reopened' THEN NULLIF(metadata ->> 'to_stage_id', '')::bigint
+      END
+    SQL
   end
 
   def stages
@@ -124,8 +120,6 @@ class KanbanReports::BaseQuery
   end
 
   def metric_for_scope(scope)
-    return KanbanCards::Totals::Metric.new(0, BigDecimal(0)) unless scope.exists?
-
     KanbanCards::Totals.metric(scope)
   end
 

@@ -1,9 +1,17 @@
 class KanbanReports::ProductsQuery < KanbanReports::BaseQuery
   def call
     won_card_ids = card_ids_for_events(unique_won_events)
-    products = KanbanCardProduct.where(account_id: account.id, kanban_card_id: won_card_ids)
-    rows = products.to_a.group_by { |product| [product.sku, product.name] }
-    rows = rows.map { |(sku, name), product_rows| product_row(sku, name, product_rows) }
+    rows = KanbanCardProduct
+           .where(account_id: account.id, kanban_card_id: won_card_ids)
+           .group(:sku, :name)
+           .pluck(
+             :sku,
+             :name,
+             Arel.sql('SUM(quantity)'),
+             Arel.sql('SUM(unit_price * quantity)'),
+             Arel.sql('COUNT(DISTINCT kanban_card_id)')
+           )
+           .map { |sku, name, quantity, revenue, cards_count| product_row(sku, name, quantity, revenue, cards_count) }
 
     rows.sort_by { |row| [-row[:revenue].to_d, row[:product_name].to_s] }
   end
@@ -14,13 +22,13 @@ class KanbanReports::ProductsQuery < KanbanReports::BaseQuery
     unique_terminal_events.select { |event| event.event_type == 'won' }
   end
 
-  def product_row(sku, name, products)
+  def product_row(sku, name, quantity, revenue, cards_count)
     {
       sku: sku,
       product_name: name,
-      quantity: products.sum(&:quantity),
-      revenue: KanbanCards::Totals.decimal_string(products.sum(&:subtotal)),
-      cards_count: products.map(&:kanban_card_id).uniq.length
+      quantity: quantity,
+      revenue: KanbanCards::Totals.decimal_string(revenue),
+      cards_count: cards_count
     }
   end
 end
