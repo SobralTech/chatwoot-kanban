@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { isSameDay, isSameMonth } from 'date-fns';
 
 import { toDayKey } from 'dashboard/composables/useKanbanAgendaData';
+import { useLocale } from 'shared/composables/useLocale';
 import KanbanAgendaDayCell from './KanbanAgendaDayCell.vue';
 
 const props = defineProps({
@@ -40,12 +41,13 @@ const emit = defineEmits([
 ]);
 
 const today = new Date();
+const { resolvedLocale } = useLocale();
 
 // Taken from the rendered dates so the weekday headers follow the same locale
 // and week start the grid was built with.
 const weekdayLabels = computed(() =>
   (props.weeks[0] || []).map(date =>
-    date.toLocaleDateString(undefined, { weekday: 'short' })
+    date.toLocaleDateString(resolvedLocale.value, { weekday: 'short' })
   )
 );
 

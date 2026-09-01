@@ -24,6 +24,7 @@ import {
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
 import { conversationUrl, frontendURL } from 'dashboard/helper/URLHelper';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import { useLocale } from 'shared/composables/useLocale';
 import KanbanAgendaCalendar from './agenda/KanbanAgendaCalendar.vue';
 import KanbanAgendaCardPicker from './agenda/KanbanAgendaCardPicker.vue';
 import KanbanAgendaSidebar from './agenda/KanbanAgendaSidebar.vue';
@@ -32,6 +33,7 @@ import KanbanOpportunityPicker from './KanbanOpportunityPicker.vue';
 import KanbanBoardViewShell from './board/KanbanBoardViewShell.vue';
 
 const { t } = useI18n();
+const { resolvedLocale } = useLocale();
 const route = useRoute();
 const router = useRouter();
 
@@ -114,15 +116,21 @@ const visibleWeeks = computed(() =>
 
 const periodLabel = computed(() => {
   if (!isWeekMode.value) {
-    return referenceDate.value.toLocaleDateString(undefined, {
+    return referenceDate.value.toLocaleDateString(resolvedLocale.value, {
       month: 'long',
       year: 'numeric',
     });
   }
 
   const options = { day: 'numeric', month: 'short' };
-  const start = weekStart.value.toLocaleDateString(undefined, options);
-  const end = endOfWeek(weekStart.value).toLocaleDateString(undefined, options);
+  const start = weekStart.value.toLocaleDateString(
+    resolvedLocale.value,
+    options
+  );
+  const end = endOfWeek(weekStart.value).toLocaleDateString(
+    resolvedLocale.value,
+    options
+  );
 
   return `${start} – ${end}`;
 });

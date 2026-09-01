@@ -6,6 +6,7 @@ import { isSameMonth, parseISO } from 'date-fns';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import { toDayKey } from 'dashboard/composables/useKanbanAgendaData';
 import { DEFAULT_KANBAN_STAGE_COLOR } from 'dashboard/helper/kanbanStageColors';
+import { useLocale } from 'shared/composables/useLocale';
 
 const props = defineProps({
   cardsByDay: {
@@ -53,6 +54,7 @@ const props = defineProps({
 const emit = defineEmits(['cardClick', 'loadMore', 'openList']);
 
 const { t } = useI18n();
+const { resolvedLocale } = useLocale();
 
 const isNoDateListOpen = ref(false);
 
@@ -96,7 +98,10 @@ const quietestDay = computed(() =>
 );
 
 const formatDay = date =>
-  date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  date.toLocaleDateString(resolvedLocale.value, {
+    day: 'numeric',
+    month: 'short',
+  });
 
 const cardTitle = card =>
   card.subject || card.contact?.name || t('KANBAN.CARD.UNKNOWN_CONTACT');
