@@ -102,4 +102,47 @@ RSpec.describe NotificationFinder do
       end
     end
   end
+
+  describe 'query cost' do
+    let(:params) { {} }
+
+    def count_queries
+      count = 0
+      subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |_, _, _, _, payload|
+        count += 1 unless payload[:name].in?(%w[SCHEMA TRANSACTION])
+      end
+      yield
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+      count
+    end
+
+    it 'counts unread notifications only once when read notifications are excluded' do
+      finder = described_class.new(user, account, params)
+
+      expect(count_queries { finder.unread_count }).to eq(1)
+      expect(count_queries { finder.count }).to eq(0)
+      expect(finder.unread_count).to eq(finder.count)
+    end
+
+    it 'still reports a distinct unread count when read notifications are included' do
+      finder = described_class.new(user, account, { includes: ['read'] })
+
+      expect(finder.unread_count).to eq(3)
+      expect(finder.count).to eq(5)
+    end
+
+    it 'skips the conversation visibility subquery for administrators' do
+      administrator = create(:user, account: account, role: :administrator)
+      create(:notification, account: account, user: administrator, primary_actor: conversation)
+
+      queries = []
+      subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |_, _, _, _, payload|
+        queries << payload[:sql] unless payload[:name].in?(%w[SCHEMA TRANSACTION])
+      end
+      described_class.new(administrator, account, params).count
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+
+      expect(queries.count { |sql| sql.include?('FROM "conversations"') }).to eq(0)
+    end
+  end
 end

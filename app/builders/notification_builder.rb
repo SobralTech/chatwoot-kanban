@@ -1,5 +1,5 @@
 class NotificationBuilder
-  pattr_initialize [:notification_type!, :user!, :account!, :primary_actor!, :secondary_actor]
+  pattr_initialize [:notification_type!, :user!, :account!, :primary_actor!, :secondary_actor, :batch_context]
 
   def perform
     build_notification
@@ -54,11 +54,17 @@ class NotificationBuilder
     conversation = primary_actor.is_a?(Conversation) ? primary_actor : primary_actor.try(:conversation)
     return true if conversation.blank?
 
-    account_user = AccountUser.find_by(account_id: account.id, user_id: user.id)
+    # batch_context is supplied when notifying many users about one conversation, so the
+    # membership lookups below are resolved from memory instead of once per user.
+    account_user = if batch_context
+                     batch_context.account_user_for(user.id)
+                   else
+                     AccountUser.find_by(account_id: account.id, user_id: user.id)
+                   end
     return false if account_user.blank?
 
     ConversationPolicy.new(
-      { user: user, account: account, account_user: account_user },
+      { user: user, account: account, account_user: account_user, batch_context: batch_context },
       conversation
     ).show?
   end

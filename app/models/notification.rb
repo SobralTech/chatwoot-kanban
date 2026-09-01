@@ -200,11 +200,16 @@ class Notification < ApplicationRecord
   end
 
   def user_subscribed_to_notification?(delivery_type)
-    notification_setting = user.notification_settings.find_by(account_id: account.id)
     return false if notification_setting.blank?
 
     # Check if the user has subscribed to the specified type of notification
     notification_setting.public_send("#{delivery_type}_#{notification_type}?")
+  end
+
+  def notification_setting
+    return @notification_setting if defined?(@notification_setting)
+
+    @notification_setting = user.notification_settings.find_by(account_id: account.id)
   end
 
   def dispatch_create_event

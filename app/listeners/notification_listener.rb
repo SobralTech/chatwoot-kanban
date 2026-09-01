@@ -3,12 +3,15 @@ class NotificationListener < BaseListener
     conversation, account = extract_conversation_and_account(event)
     return if conversation.pending?
 
+    batch_context = ConversationPolicy::BatchContext.new(account, conversation)
+
     conversation.inbox.members.each do |agent|
       NotificationBuilder.new(
         notification_type: 'conversation_creation',
         user: agent,
         account: account,
-        primary_actor: conversation
+        primary_actor: conversation,
+        batch_context: batch_context
       ).perform
     end
   end
@@ -17,12 +20,15 @@ class NotificationListener < BaseListener
     conversation, account = extract_conversation_and_account(event)
     return if conversation.pending?
 
+    batch_context = ConversationPolicy::BatchContext.new(account, conversation)
+
     conversation.inbox.members.each do |agent|
       NotificationBuilder.new(
         notification_type: 'conversation_creation',
         user: agent,
         account: account,
-        primary_actor: conversation
+        primary_actor: conversation,
+        batch_context: batch_context
       ).perform
     end
   end

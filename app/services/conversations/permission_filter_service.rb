@@ -8,10 +8,15 @@ class Conversations::PermissionFilterService
   end
 
   def perform
-    return conversations if user.is_a?(AgentBot)
-    return conversations if user_role == 'administrator'
+    return conversations if unrestricted?
 
     access_list_restricted(accessible_conversations)
+  end
+
+  # True when the user can see every conversation in the account. Callers use this to skip
+  # building a subquery that would span the whole conversations table without filtering anything.
+  def unrestricted?
+    user.is_a?(AgentBot) || user_role == 'administrator'
   end
 
   def access_list_restricted(scope)
@@ -29,7 +34,9 @@ class Conversations::PermissionFilterService
   end
 
   def account_user
-    AccountUser.find_by(account_id: account.id, user_id: user.id)
+    return @account_user if defined?(@account_user)
+
+    @account_user = AccountUser.find_by(account_id: account.id, user_id: user.id)
   end
 
   def user_role

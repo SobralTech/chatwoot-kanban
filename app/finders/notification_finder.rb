@@ -15,17 +15,15 @@ class NotificationFinder
   end
 
   def unread_count
-    if type_included?('read')
-      # If we're including read notifications, filter to unread
-      @notifications.where(read_at: nil).count
-    else
-      # Already filtered to unread notifications, just count
-      @notifications.count
-    end
+    # If we're including read notifications, filter to unread.
+    # Otherwise the scope is already unread-only and the counts are identical.
+    return @unread_count ||= @notifications.where(read_at: nil).count if type_included?('read')
+
+    count
   end
 
   def count
-    @notifications.count
+    @count ||= @notifications.count
   end
 
   private
@@ -42,11 +40,15 @@ class NotificationFinder
   end
 
   def filter_hidden_conversation_notifications
-    visible_conversation_ids = Conversations::PermissionFilterService.new(
+    permission_filter = Conversations::PermissionFilterService.new(
       @current_account.conversations,
       current_user,
       @current_account
-    ).perform.select(:id)
+    )
+    # The subquery would span every conversation in the account without excluding anything.
+    return if permission_filter.unrestricted?
+
+    visible_conversation_ids = permission_filter.perform.select(:id)
 
     visible_notifications = @notifications.where(primary_actor_type: 'Conversation', primary_actor_id: visible_conversation_ids)
 

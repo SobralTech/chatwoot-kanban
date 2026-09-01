@@ -63,4 +63,54 @@ describe Messages::NewMessageNotificationService do
       end
     end
   end
+
+  describe 'query cost' do
+    let(:account) { create(:account) }
+    let(:inbox) { create(:inbox, account: account) }
+
+    def count_queries
+      count = 0
+      subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |_, _, _, _, payload|
+        count += 1 unless payload[:name].in?(%w[SCHEMA TRANSACTION])
+      end
+      yield
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+      count
+    end
+
+    def add_members(number)
+      number.times { create(:inbox_member, inbox: inbox, user: create(:user, account: account)) }
+    end
+
+    def incoming_message
+      conversation = create(:conversation, account: account, inbox: inbox)
+      create(:message, message_type: 'incoming', account: account, inbox: inbox, conversation: conversation)
+    end
+
+    it 'resolves conversation access without querying once per inbox member' do
+      add_members(2)
+      small = count_queries { described_class.new(message: incoming_message).perform }
+
+      add_members(8)
+      large = count_queries { described_class.new(message: incoming_message).perform }
+
+      # Some cost is inherently per notified member; what must not grow is the
+      # per-member membership and access lookups this service batches.
+      expect(large - small).to be < (8 * 4)
+    end
+
+    it 'checks for already notified users in a single query' do
+      add_members(4)
+      message = incoming_message
+
+      queries = []
+      subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |_, _, _, _, payload|
+        queries << payload[:sql] unless payload[:name].in?(%w[SCHEMA TRANSACTION])
+      end
+      described_class.new(message: message).perform
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+
+      expect(queries.count { |sql| sql.include?('"notifications"."secondary_actor_id"') }).to eq(1)
+    end
+  end
 end
