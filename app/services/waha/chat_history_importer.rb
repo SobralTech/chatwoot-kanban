@@ -103,7 +103,13 @@ class Waha::ChatHistoryImporter
     contact_inbox = Waha::ContactResolver.from_payload(channel: channel, jid: chat_id, payload: sample).perform
     return unless contact_inbox
 
-    contact_inbox.conversations.last || create_conversation(contact_inbox)
+    # An import runs alongside live traffic, so the same chat can be resolved here
+    # and by an inbound webhook at the same time. Both would find no conversation
+    # and create one; the contact_inbox row serializes them.
+    ::Conversation.transaction do
+      contact_inbox.lock!
+      contact_inbox.conversations.last || create_conversation(contact_inbox)
+    end
   end
 
   def create_conversation(contact_inbox)

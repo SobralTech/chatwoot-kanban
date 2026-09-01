@@ -29,16 +29,25 @@ class Waha::IncomingMessageService
     # Downloading media can block for up to a minute, so it happens before the
     # transaction opens rather than pinning a connection for the whole fetch.
     media_attacher.download
+    persist
+  end
 
+  private
+
+  def persist
     ActiveRecord::Base.transaction do
+      # Re-check under the transaction: the download above can take up to a minute,
+      # and the same event can be in flight twice (Sidekiq delivers at least once,
+      # and WAHA retries webhooks it considers failed). Checking again here narrows
+      # the window between the dedupe check and the insert to the transaction itself.
+      next if message_already_exists?
+
       set_conversation unless @conversation
       create_message
       clear_pending_editor
       clear_migrated_reactions
     end
   end
-
-  private
 
   def chat_id
     # `_data.Info.Chat` is always the conversation JID regardless of direction
@@ -87,6 +96,12 @@ class Waha::IncomingMessageService
   # conversation (Message#reopen_conversation reopens it if resolved) instead
   # of spawning a new one.
   def set_conversation
+    # A contact sending several messages in a row is the normal case on WhatsApp,
+    # and those arrive as separate webhooks processed by separate workers. Without
+    # this lock each of them finds no conversation and creates one, splitting the
+    # contact across duplicates. The contact_inbox row is the natural serialization
+    # point for "this contact in this inbox" and is held only for this transaction.
+    @contact_inbox.lock!
     @conversation = @contact_inbox.conversations.last
 
     return if @conversation
