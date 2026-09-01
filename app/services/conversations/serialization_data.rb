@@ -51,7 +51,7 @@ class Conversations::SerializationData
                .reorder(nil)
                .select('DISTINCT ON (messages.conversation_id) messages.*')
                .order('messages.conversation_id ASC, messages.created_at DESC')
-               .preload(:sender, attachments: { file_attachment: :blob })
+               .preload({ sender: { avatar_attachment: :blob } }, { attachments: { file_attachment: :blob } })
                .index_by(&:conversation_id)
 
     messages.each_value do |message|

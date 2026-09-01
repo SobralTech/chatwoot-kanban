@@ -16,7 +16,7 @@ class Conversations::SearchSerializationData
                       .reorder(nil)
                       .select('DISTINCT ON (messages.conversation_id) messages.*')
                       .order('messages.conversation_id ASC, messages.created_at DESC')
-                      .preload(:sender, attachments: { file_attachment: :blob })
+                      .preload({ sender: { avatar_attachment: :blob } }, { attachments: { file_attachment: :blob } })
                       .index_by(&:conversation_id)
 
     messages.each_value do |message|
@@ -32,7 +32,7 @@ class Conversations::SearchSerializationData
   def preload_conversation_associations
     ActiveRecord::Associations::Preloader.new(
       records: conversations,
-      associations: [:inbox, :assignee, :assignee_agent_bot, { contact: { avatar_attachment: :blob } }]
+      associations: [:inbox, :assignee_agent_bot, { assignee: { avatar_attachment: :blob } }, { contact: { avatar_attachment: :blob } }]
     ).call
   end
 

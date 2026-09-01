@@ -21,4 +21,23 @@ RSpec.describe Conversations::SerializationData, type: :service do
     expect(message_queries).to eq(3)
     expect(conversations.map(&:unread_incoming_messages_count)).to eq([1, 1, 1])
   end
+
+  it 'preloads sender avatars so serializing senders issues no per-message queries' do
+    account = create(:account)
+    inbox = create(:inbox, account: account)
+    conversations = create_list(:conversation, 3, account: account, inbox: inbox)
+    conversations.each do |conversation|
+      create(:message, :incoming, account: account, inbox: inbox, conversation: conversation, sender: conversation.contact)
+    end
+
+    result = described_class.new(conversations: conversations).call
+
+    sql_queries = []
+    callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+    ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+      result.last_messages.each_value { |message| message.sender.push_event_data }
+    end
+
+    expect(sql_queries.count { |sql| sql.include?('active_storage_attachments') }).to eq(0)
+  end
 end

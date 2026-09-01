@@ -111,7 +111,7 @@ class SearchService
   end
 
   def message_base_query
-    query = current_account.messages.includes(:sender,
+    query = current_account.messages.includes({ sender: { avatar_attachment: :blob } },
                                               { attachments: { file_attachment: :blob } },
                                               { conversation: { contact: { avatar_attachment: :blob } } })
                            .where('created_at >= ?', 3.months.ago)
@@ -165,9 +165,9 @@ class SearchService
     account_user.administrator? || user_has_access_to_all_inboxes?
   end
 
-  def user_has_access_to_all_inboxes?
-    accessable_inbox_ids.sort == current_account.inboxes.pluck(:id).sort
-  end
+  def all_account_inbox_ids = @all_account_inbox_ids ||= current_account.inboxes.pluck(:id)
+
+  def user_has_access_to_all_inboxes? = accessable_inbox_ids.sort == all_account_inbox_ids.sort
 
   def use_gin_search = current_account.feature_enabled?('search_with_gin')
 
