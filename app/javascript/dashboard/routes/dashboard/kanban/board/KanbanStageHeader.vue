@@ -218,7 +218,7 @@ const toggleCollapseOnDoubleClick = () => {
           />
         </div>
 
-        <div class="flex flex-shrink-0 gap-1">
+        <div class="flex flex-shrink-0 gap-1" @dblclick.stop>
           <NextButton
             icon="i-lucide-chevrons-right-left"
             ghost
