@@ -29,11 +29,11 @@ const scheduleExistingCard = hide => {
   <Popover align="end" disable-mobile-view>
     <button
       type="button"
-      class="flex size-6 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-brand"
+      class="flex size-7 flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-brand"
       :aria-label="t('KANBAN.AGENDA.ADD_FOR_DATE', { date: date.getDate() })"
       data-testid="kanban-agenda-add"
     >
-      <i class="i-lucide-plus size-4" />
+      <i class="i-lucide-plus size-5" />
     </button>
 
     <template #content="{ hide }">
