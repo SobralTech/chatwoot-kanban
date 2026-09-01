@@ -183,10 +183,10 @@ const isExpanded = ref(true);
       <NextButton
         v-if="group.hasMore"
         :label="t('KANBAN.LIST.LOAD_MORE')"
-        variant="link"
-        color="slate"
+        variant="solid"
+        color="blue"
         size="sm"
-        class="self-start"
+        class="self-center"
         data-testid="kanban-list-group-load-more"
         :is-loading="isLoadingMore"
         @click="emit('loadMore', group.key)"
