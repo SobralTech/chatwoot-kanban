@@ -10,13 +10,13 @@
 #  inbox_scope_mode                     :string           default("all_inboxes"), not null
 #  lost_reason_required                 :boolean          default(FALSE), not null
 #  lost_recurrence_enabled              :boolean          default(FALSE), not null
-#  lost_recurrence_window_hours         :integer
+#  lost_recurrence_window_minutes       :integer
 #  name                                 :string           not null
 #  position                             :integer          default(0), not null
 #  use_opportunity_card_reads           :boolean          default(TRUE), not null
 #  visibility_mode                      :string           default("all_agents"), not null
 #  won_recurrence_enabled               :boolean          default(FALSE), not null
-#  won_recurrence_window_hours          :integer
+#  won_recurrence_window_minutes        :integer
 #  created_at                           :datetime         not null
 #  updated_at                           :datetime         not null
 #  account_id                           :bigint           not null
@@ -127,9 +127,9 @@ class KanbanBoard < ApplicationRecord
     !active_rules.exists? || active_rules.exists?(all_inboxes: true)
   end
 
-  def recurrence_window_hours_for(stage_id)
-    return won_recurrence_window_hours if stage_id == won_stage_id && won_recurrence_enabled?
-    return lost_recurrence_window_hours if stage_id == lost_stage_id && lost_recurrence_enabled?
+  def recurrence_window_minutes_for(stage_id)
+    return won_recurrence_window_minutes if stage_id == won_stage_id && won_recurrence_enabled?
+    return lost_recurrence_window_minutes if stage_id == lost_stage_id && lost_recurrence_enabled?
   end
 
   private
@@ -169,7 +169,7 @@ class KanbanBoard < ApplicationRecord
   def validate_recurrence_windows
     %i[won lost].each do |stage_type|
       enabled = public_send("#{stage_type}_recurrence_enabled")
-      window_attribute = "#{stage_type}_recurrence_window_hours"
+      window_attribute = "#{stage_type}_recurrence_window_minutes"
 
       errors.add(window_attribute, :blank) if enabled && public_send(window_attribute).blank?
     end

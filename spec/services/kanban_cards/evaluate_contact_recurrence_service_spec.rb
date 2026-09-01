@@ -5,7 +5,7 @@ RSpec.describe KanbanCards::EvaluateContactRecurrenceService do
   let(:contact) { create(:contact, account: account) }
   let(:inbox) { create(:inbox, account: account, name: 'Current inbox') }
   let(:conversation) { create(:conversation, account: account, contact: contact, inbox: inbox) }
-  let(:board) { create(:kanban_board, account: account, won_recurrence_enabled: true, won_recurrence_window_hours: 12) }
+  let(:board) { create(:kanban_board, account: account, won_recurrence_enabled: true, won_recurrence_window_minutes: 720) }
   let!(:regular_stage) { create(:kanban_stage, account: account, kanban_board: board, position: 1) }
   let!(:won_stage) { create(:kanban_stage, account: account, kanban_board: board, position: 2) }
   let!(:lost_stage) { create(:kanban_stage, account: account, kanban_board: board, position: 3) }
@@ -45,7 +45,7 @@ RSpec.describe KanbanCards::EvaluateContactRecurrenceService do
     end
 
     it 'uses the lost recurrence window independently from the won window' do
-      board.update!(lost_recurrence_enabled: true, lost_recurrence_window_hours: 48)
+      board.update!(lost_recurrence_enabled: true, lost_recurrence_window_minutes: 2880)
       terminal_card = create_terminal_card(lost_stage, stage_entered_at: 24.hours.ago)
 
       expect { service.perform! }.not_to change(KanbanCard, :count)
@@ -98,7 +98,7 @@ RSpec.describe KanbanCards::EvaluateContactRecurrenceService do
     end
 
     it 'creates in the board and inbox passed to the service' do
-      other_board = create(:kanban_board, account: account, won_recurrence_enabled: true, won_recurrence_window_hours: 1)
+      other_board = create(:kanban_board, account: account, won_recurrence_enabled: true, won_recurrence_window_minutes: 60)
       other_stage = create(:kanban_stage, account: account, kanban_board: other_board, position: 1)
       other_won_stage = create(:kanban_stage, account: account, kanban_board: other_board, position: 2)
       other_lost_stage = create(:kanban_stage, account: account, kanban_board: other_board, position: 3)

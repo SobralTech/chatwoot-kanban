@@ -403,17 +403,11 @@
         "IMPORT_ERROR": "Could not start existing conversation import.",
         "RECURRENCE": {
           "TITLE": "Recurrence",
-          "DESCRIPTION": "Create a new card automatically when a contact with a won or lost card starts a new conversation after the configured window.",
+          "DESCRIPTION": "Create a new card automatically when a contact with a won or lost card sends a new message after the configured window.",
           "WON_ENABLED": "Re-open won contacts",
-          "WON_WINDOW_HOURS_LABEL": "Time after won before recreating",
+          "WON_WINDOW_LABEL": "Time before recreating the card",
           "LOST_ENABLED": "Re-open lost contacts",
-          "LOST_WINDOW_HOURS_LABEL": "Time after lost before recreating",
-          "WINDOW_HOURS_PLACEHOLDER": "Amount",
-          "UNITS": {
-            "HOURS": "Hours",
-            "DAYS": "Days",
-            "WEEKS": "Weeks"
-          }
+          "LOST_WINDOW_LABEL": "Time before recreating the card"
         }
       },
       "DELETE": {

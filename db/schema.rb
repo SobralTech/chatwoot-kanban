@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_31_162200) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_01_170000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1154,9 +1154,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_31_162200) do
     t.bigint "lost_stage_id"
     t.boolean "lost_reason_required", default: false, null: false
     t.boolean "won_recurrence_enabled", default: false, null: false
-    t.integer "won_recurrence_window_hours"
+    t.integer "won_recurrence_window_minutes"
     t.boolean "lost_recurrence_enabled", default: false, null: false
-    t.integer "lost_recurrence_window_hours"
+    t.integer "lost_recurrence_window_minutes"
     t.jsonb "automation_settings", default: {}, null: false
     t.index ["account_id", "active"], name: "index_kanban_boards_on_account_id_and_active"
     t.index ["account_id", "name"], name: "index_active_kanban_boards_on_account_id_and_name", unique: true, where: "(active = true)"

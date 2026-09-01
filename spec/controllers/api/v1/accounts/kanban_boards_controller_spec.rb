@@ -1061,9 +1061,9 @@ RSpec.describe 'Kanban Boards API', type: :request do
         description: 'Pipeline comercial',
         visibility_mode: 'selected_agents',
         won_recurrence_enabled: true,
-        won_recurrence_window_hours: 12,
+        won_recurrence_window_minutes: 12,
         lost_recurrence_enabled: true,
-        lost_recurrence_window_hours: 48
+        lost_recurrence_window_minutes: 48
       )
       inbox = create(:inbox, account: account)
       create(:kanban_board_member, account: account, kanban_board: kanban_board, user: agent)
@@ -1083,9 +1083,9 @@ RSpec.describe 'Kanban Boards API', type: :request do
         'inbox_scope_mode' => 'selected_inboxes',
         'allowed_inbox_ids' => [inbox.id],
         'won_recurrence_enabled' => true,
-        'won_recurrence_window_hours' => 12,
+        'won_recurrence_window_minutes' => 12,
         'lost_recurrence_enabled' => true,
-        'lost_recurrence_window_hours' => 48
+        'lost_recurrence_window_minutes' => 48
       )
       expect(response.parsed_body).not_to include('visible_users', 'allowed_inboxes')
     end
@@ -1111,9 +1111,9 @@ RSpec.describe 'Kanban Boards API', type: :request do
                 name: 'Vendas',
                 description: 'Pipeline comercial',
                 won_recurrence_enabled: true,
-                won_recurrence_window_hours: 12,
+                won_recurrence_window_minutes: 12,
                 lost_recurrence_enabled: true,
-                lost_recurrence_window_hours: 48
+                lost_recurrence_window_minutes: 48
               }
             },
             as: :json
@@ -1123,9 +1123,9 @@ RSpec.describe 'Kanban Boards API', type: :request do
         name: 'Vendas',
         description: 'Pipeline comercial',
         won_recurrence_enabled: true,
-        won_recurrence_window_hours: 12,
+        won_recurrence_window_minutes: 12,
         lost_recurrence_enabled: true,
-        lost_recurrence_window_hours: 48
+        lost_recurrence_window_minutes: 48
       )
     end
 

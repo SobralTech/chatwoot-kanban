@@ -60,9 +60,9 @@ const settingsResponse = (overrides = {}) => ({
   lost_stage_id: 200,
   lost_reason_required: false,
   won_recurrence_enabled: false,
-  won_recurrence_window_hours: null,
+  won_recurrence_window_minutes: null,
   lost_recurrence_enabled: false,
-  lost_recurrence_window_hours: null,
+  lost_recurrence_window_minutes: null,
   ...overrides,
 });
 

@@ -12,9 +12,9 @@ class KanbanCards::EvaluateContactRecurrenceService
       reference_card = latest_terminal_card
       next if reference_card.blank?
 
-      window_hours = kanban_board.recurrence_window_hours_for(reference_card.kanban_stage_id)
-      next if window_hours.blank?
-      next unless Time.current - reference_card.stage_entered_at >= window_hours.hours
+      window_minutes = kanban_board.recurrence_window_minutes_for(reference_card.kanban_stage_id)
+      next if window_minutes.blank?
+      next unless Time.current - reference_card.stage_entered_at >= window_minutes.minutes
       next if active_pipeline_card_exists?
 
       KanbanCards::AutoCreateFromConversationService.new(

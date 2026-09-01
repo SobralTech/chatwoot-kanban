@@ -64,7 +64,7 @@ RSpec.describe KanbanCardListener do
 
     context 'when the contact has a terminal card on the board' do
       let(:kanban_board) do
-        create(:kanban_board, account: conversation.account, won_recurrence_enabled: true, won_recurrence_window_hours: 1)
+        create(:kanban_board, account: conversation.account, won_recurrence_enabled: true, won_recurrence_window_minutes: 1)
       end
       let(:regular_stage) { create(:kanban_stage, account: conversation.account, kanban_board: kanban_board, position: 1) }
       let!(:won_stage) { create(:kanban_stage, account: conversation.account, kanban_board: kanban_board, position: 2) }

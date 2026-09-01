@@ -223,7 +223,7 @@ RSpec.describe KanbanCards::AutoCreateFromConversationService do
     end
 
     it 'does not create a card for a contact with unresolved terminal history on the board' do
-      board.update!(won_stage: first_stage, won_recurrence_enabled: true, won_recurrence_window_hours: 24)
+      board.update!(won_stage: first_stage, won_recurrence_enabled: true, won_recurrence_window_minutes: 24)
       create(
         :kanban_card,
         account: account,

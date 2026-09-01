@@ -12,6 +12,8 @@ import { useKanbanStageOrder } from 'dashboard/composables/useKanbanStageOrder';
 import { useStore } from 'dashboard/composables/store';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import Button from 'dashboard/components-next/button/Button.vue';
+import DurationInput from 'dashboard/components-next/input/DurationInput.vue';
+import { DURATION_UNITS } from 'dashboard/components-next/input/constants';
 import Select from 'dashboard/components-next/select/Select.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
 import TabBar from 'dashboard/components-next/tabbar/TabBar.vue';
@@ -93,66 +95,23 @@ const form = reactive({
   lostStageId: null,
   lostReasonRequired: false,
   wonRecurrenceEnabled: false,
-  wonRecurrenceWindowHours: null,
+  wonRecurrenceWindowMinutes: null,
   lostRecurrenceEnabled: false,
-  lostRecurrenceWindowHours: null,
+  lostRecurrenceWindowMinutes: null,
   automationSettings: {},
 });
 
-// Recurrence windows are stored in hours; these units let the UI accept
-// days/weeks without changing the stored value's shape.
-const RECURRENCE_WINDOW_UNITS = [
-  { value: 'hours', hours: 1 },
-  { value: 'days', hours: 24 },
-  { value: 'weeks', hours: 24 * 7 },
-];
-
-const recurrenceUnitOptions = computed(() =>
-  RECURRENCE_WINDOW_UNITS.map(unit => ({
-    value: unit.value,
-    label: t(
-      `KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.UNITS.${unit.value.toUpperCase()}`
-    ),
-  }))
-);
-
-const recurrenceUnitHours = unit =>
-  RECURRENCE_WINDOW_UNITS.find(item => item.value === unit)?.hours || 1;
-
-const hoursToRecurrenceWindow = hours => {
-  if (!hours) return { amount: null, unit: 'hours' };
-  const unit = [...RECURRENCE_WINDOW_UNITS]
-    .reverse()
-    .find(item => hours % item.hours === 0);
-  return { amount: hours / unit.hours, unit: unit.value };
+// DurationInput stores/edits everything in minutes and picks its own unit for
+// display; this just chooses the least fiddly unit to land on when a saved
+// value first loads (e.g. 4320 shows as 3 days instead of 4320 minutes).
+const pickDurationUnit = minutes => {
+  if (minutes && minutes % (24 * 60) === 0) return DURATION_UNITS.DAYS;
+  if (minutes && minutes % 60 === 0) return DURATION_UNITS.HOURS;
+  return DURATION_UNITS.MINUTES;
 };
 
-const useRecurrenceWindow = fieldName => {
-  const state = reactive({ amount: null, unit: 'hours' });
-
-  const commit = () => {
-    form[fieldName] =
-      state.amount === null || state.amount === ''
-        ? null
-        : Number(state.amount) * recurrenceUnitHours(state.unit);
-  };
-
-  return {
-    state,
-    sync: hours => Object.assign(state, hoursToRecurrenceWindow(hours)),
-    onAmountChange: raw => {
-      state.amount = raw === '' ? null : Number(raw);
-      commit();
-    },
-    onUnitChange: unit => {
-      state.unit = unit;
-      commit();
-    },
-  };
-};
-
-const wonRecurrenceWindow = useRecurrenceWindow('wonRecurrenceWindowHours');
-const lostRecurrenceWindow = useRecurrenceWindow('lostRecurrenceWindowHours');
+const wonRecurrenceWindowUnit = ref(DURATION_UNITS.MINUTES);
+const lostRecurrenceWindowUnit = ref(DURATION_UNITS.MINUTES);
 
 const { isTerminalStage, isWonStage, regularStages, terminalStages } =
   useKanbanStageOrder({
@@ -244,9 +203,9 @@ const normalizeForDiff = source => ({
   lostStageId: source.lostStageId ?? null,
   lostReasonRequired: !!source.lostReasonRequired,
   wonRecurrenceEnabled: !!source.wonRecurrenceEnabled,
-  wonRecurrenceWindowHours: source.wonRecurrenceWindowHours ?? null,
+  wonRecurrenceWindowMinutes: source.wonRecurrenceWindowMinutes ?? null,
   lostRecurrenceEnabled: !!source.lostRecurrenceEnabled,
-  lostRecurrenceWindowHours: source.lostRecurrenceWindowHours ?? null,
+  lostRecurrenceWindowMinutes: source.lostRecurrenceWindowMinutes ?? null,
 });
 
 const isDirty = computed(
@@ -268,13 +227,18 @@ const applySettings = payload => {
   form.lostStageId = settings.lostStageId ?? null;
   form.lostReasonRequired = settings.lostReasonRequired || false;
   form.wonRecurrenceEnabled = settings.wonRecurrenceEnabled || false;
-  form.wonRecurrenceWindowHours = settings.wonRecurrenceWindowHours ?? null;
+  form.wonRecurrenceWindowMinutes = settings.wonRecurrenceWindowMinutes ?? null;
   form.lostRecurrenceEnabled = settings.lostRecurrenceEnabled || false;
-  form.lostRecurrenceWindowHours = settings.lostRecurrenceWindowHours ?? null;
+  form.lostRecurrenceWindowMinutes =
+    settings.lostRecurrenceWindowMinutes ?? null;
   form.automationSettings = settings.automationSettings || {};
 
-  wonRecurrenceWindow.sync(form.wonRecurrenceWindowHours);
-  lostRecurrenceWindow.sync(form.lostRecurrenceWindowHours);
+  wonRecurrenceWindowUnit.value = pickDurationUnit(
+    form.wonRecurrenceWindowMinutes
+  );
+  lostRecurrenceWindowUnit.value = pickDurationUnit(
+    form.lostRecurrenceWindowMinutes
+  );
 
   savedSnapshot.value = normalizeForDiff(form);
 };
@@ -334,9 +298,9 @@ const buildSettingsPayload = () => ({
     lost_stage_id: form.lostStageId,
     lost_reason_required: form.lostReasonRequired,
     won_recurrence_enabled: form.wonRecurrenceEnabled,
-    won_recurrence_window_hours: form.wonRecurrenceWindowHours,
+    won_recurrence_window_minutes: form.wonRecurrenceWindowMinutes,
     lost_recurrence_enabled: form.lostRecurrenceEnabled,
-    lost_recurrence_window_hours: form.lostRecurrenceWindowHours,
+    lost_recurrence_window_minutes: form.lostRecurrenceWindowMinutes,
   },
 });
 
@@ -649,8 +613,15 @@ const resolveNavigation = proceed => {
 const keepEditing = () => resolveNavigation(false);
 
 const restoreSavedSettings = () => {
-  if (savedSnapshot.value)
-    Object.assign(form, normalizeForDiff(savedSnapshot.value));
+  if (!savedSnapshot.value) return;
+
+  Object.assign(form, normalizeForDiff(savedSnapshot.value));
+  wonRecurrenceWindowUnit.value = pickDurationUnit(
+    form.wonRecurrenceWindowMinutes
+  );
+  lostRecurrenceWindowUnit.value = pickDurationUnit(
+    form.lostRecurrenceWindowMinutes
+  );
 };
 
 const discardSettings = () => {
@@ -1184,32 +1155,13 @@ onMounted(async () => {
                 class="grid gap-1.5 text-sm font-medium text-n-slate-12"
               >
                 {{
-                  t(
-                    'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_WINDOW_HOURS_LABEL'
-                  )
+                  t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WON_WINDOW_LABEL')
                 }}
-                <div class="flex items-center gap-2">
-                  <input
-                    :value="wonRecurrenceWindow.state.amount"
-                    type="number"
+                <div class="grid grid-cols-[3fr_1fr] gap-2">
+                  <DurationInput
+                    v-model="form.wonRecurrenceWindowMinutes"
+                    v-model:unit="wonRecurrenceWindowUnit"
                     min="1"
-                    data-testid="kanban-board-form-won-recurrence-window-hours"
-                    class="!mb-0 w-24"
-                    :placeholder="
-                      t(
-                        'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
-                      )
-                    "
-                    @change="
-                      wonRecurrenceWindow.onAmountChange($event.target.value)
-                    "
-                  />
-                  <Select
-                    :model-value="wonRecurrenceWindow.state.unit"
-                    data-testid="kanban-board-form-won-recurrence-window-unit"
-                    :options="recurrenceUnitOptions"
-                    class="font-normal"
-                    @update:model-value="wonRecurrenceWindow.onUnitChange"
                   />
                 </div>
               </label>
@@ -1228,32 +1180,13 @@ onMounted(async () => {
                 class="grid gap-1.5 text-sm font-medium text-n-slate-12"
               >
                 {{
-                  t(
-                    'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_WINDOW_HOURS_LABEL'
-                  )
+                  t('KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.LOST_WINDOW_LABEL')
                 }}
-                <div class="flex items-center gap-2">
-                  <input
-                    :value="lostRecurrenceWindow.state.amount"
-                    type="number"
+                <div class="grid grid-cols-[3fr_1fr] gap-2">
+                  <DurationInput
+                    v-model="form.lostRecurrenceWindowMinutes"
+                    v-model:unit="lostRecurrenceWindowUnit"
                     min="1"
-                    data-testid="kanban-board-form-lost-recurrence-window-hours"
-                    class="!mb-0 w-24"
-                    :placeholder="
-                      t(
-                        'KANBAN.SETTINGS.AUTOMATIONS.RECURRENCE.WINDOW_HOURS_PLACEHOLDER'
-                      )
-                    "
-                    @change="
-                      lostRecurrenceWindow.onAmountChange($event.target.value)
-                    "
-                  />
-                  <Select
-                    :model-value="lostRecurrenceWindow.state.unit"
-                    data-testid="kanban-board-form-lost-recurrence-window-unit"
-                    :options="recurrenceUnitOptions"
-                    class="font-normal"
-                    @update:model-value="lostRecurrenceWindow.onUnitChange"
                   />
                 </div>
               </label>

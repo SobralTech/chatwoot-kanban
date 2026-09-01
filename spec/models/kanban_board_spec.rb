@@ -107,14 +107,14 @@ RSpec.describe KanbanBoard do
       board = build(:kanban_board, won_recurrence_enabled: true)
 
       expect(board).not_to be_valid
-      expect(board.errors[:won_recurrence_window_hours]).to be_present
+      expect(board.errors[:won_recurrence_window_minutes]).to be_present
     end
 
     it 'requires the lost recurrence window when recurrence is enabled' do
       board = build(:kanban_board, lost_recurrence_enabled: true)
 
       expect(board).not_to be_valid
-      expect(board.errors[:lost_recurrence_window_hours]).to be_present
+      expect(board.errors[:lost_recurrence_window_minutes]).to be_present
     end
 
     it 'allows recurrence to remain disabled without a window' do

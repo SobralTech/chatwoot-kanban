@@ -7,9 +7,9 @@ json.visible_user_ids @kanban_board.kanban_board_members.order(:user_id).pluck(:
 json.inbox_scope_mode @kanban_board.derived_inbox_scope_mode
 json.allowed_inbox_ids @kanban_board.derived_allowed_inbox_ids
 json.won_recurrence_enabled @kanban_board.won_recurrence_enabled
-json.won_recurrence_window_hours @kanban_board.won_recurrence_window_hours
+json.won_recurrence_window_minutes @kanban_board.won_recurrence_window_minutes
 json.lost_recurrence_enabled @kanban_board.lost_recurrence_enabled
-json.lost_recurrence_window_hours @kanban_board.lost_recurrence_window_hours
+json.lost_recurrence_window_minutes @kanban_board.lost_recurrence_window_minutes
 json.won_stage_id @kanban_board.won_stage_id
 json.lost_stage_id @kanban_board.lost_stage_id
 json.lost_reason_required @kanban_board.lost_reason_required
