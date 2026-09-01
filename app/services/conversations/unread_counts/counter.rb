@@ -3,8 +3,15 @@ class Conversations::UnreadCounts::Counter
   UNASSIGNED_PERMISSION = 'conversation_unassigned_manage'.freeze
   PARTICIPATING_PERMISSION = 'conversation_participating_manage'.freeze
   BUILD_LOCK_TTL = 15.minutes.to_i
-  BUILD_WAIT_TIMEOUT = 30.seconds.to_i
+  # Must stay well under the request timeout: a waiter that outlives the request
+  # can only ever be killed by it, never answer. Giving up early instead renders a
+  # badge from the partially built cache, which the next poll corrects.
+  BUILD_WAIT_TIMEOUT = 5.seconds.to_i
   BUILD_WAIT_INTERVAL = 0.1.seconds
+  # One retry after a wait. The loop used to be unbounded, so a lock leaked by a
+  # process killed mid-build (its TTL is 15 minutes) pinned a request thread —
+  # and its database connection — for every poll until the TTL expired.
+  BUILD_ATTEMPTS = 2
 
   attr_reader :account, :user
 
@@ -45,9 +52,8 @@ class Conversations::UnreadCounts::Counter
   def ensure_cache_ready!(ready:, lock_key:)
     lock_manager = Redis::LockManager.new
 
-    loop do
+    BUILD_ATTEMPTS.times do
       return if ready.call
-
       return if lock_manager.with_lock(lock_key, BUILD_LOCK_TTL) { yield unless ready.call }
 
       wait_for_cache_ready(ready)
