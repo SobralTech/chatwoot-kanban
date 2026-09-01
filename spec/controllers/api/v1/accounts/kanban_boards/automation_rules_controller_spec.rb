@@ -49,6 +49,21 @@ RSpec.describe 'Kanban automation rules API', type: :request do
     expect(response.parsed_body['payload'].map { |rule| rule['executions_count'] }).to eq([0, 0])
   end
 
+  it 'loads execution counts in one query for the whole rule list' do
+    rules = Array.new(3) { |index| create(:kanban_automation_rule, account: account, kanban_board: board, position: index + 1) }
+    rules.each { |rule| create(:kanban_automation_log, account: account, kanban_automation_rule: rule) }
+    sql_queries = []
+    callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+
+    ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+      get rules_path, headers: administrator.create_new_auth_token, as: :json
+    end
+
+    log_queries = sql_queries.count { |sql| sql.match?(/FROM "kanban_automation_logs"|JOIN "kanban_automation_logs"/) }
+    expect(response.parsed_body['payload'].pluck('executions_count')).to eq([1, 1, 1])
+    expect(log_queries).to eq(1)
+  end
+
   it 'returns a keyed validation error for an invalid payload' do
     invalid_params = rule_params.deep_dup
     invalid_params[:automation_rule][:event_name] = 'conversation_created'

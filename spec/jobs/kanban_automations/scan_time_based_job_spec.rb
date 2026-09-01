@@ -49,4 +49,30 @@ RSpec.describe KanbanAutomations::ScanTimeBasedJob do
 
     described_class.perform_now
   end
+
+  it 'correlates no-reply message checks to candidate conversations' do
+    no_reply_rule = create(
+      :kanban_automation_rule,
+      account: account, kanban_board: board, active: true,
+      event_name: 'no_reply', threshold_hours: 1
+    )
+    conversation = create(:conversation, account: account)
+    no_reply_card = create(
+      :kanban_card, :conversation_origin,
+      account: account, kanban_board: board, kanban_stage: stage, conversation: conversation
+    )
+    create(:message, :incoming, account: account, inbox: conversation.inbox, conversation: conversation, created_at: 2.hours.ago)
+    allow(Redis::Alfred).to receive(:set).and_return(true)
+    sql_queries = []
+    callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+
+    expect(KanbanAutomations::RunRulesJob).to receive(:perform_later).with(
+      no_reply_card.id, [no_reply_rule.id], 'no_reply', anything
+    )
+
+    ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') { described_class.perform_now }
+
+    candidate_query = sql_queries.find { |sql| sql.include?('EXISTS') && sql.include?('messages') }
+    expect(candidate_query).to include('messages.conversation_id = kanban_cards.conversation_id')
+  end
 end

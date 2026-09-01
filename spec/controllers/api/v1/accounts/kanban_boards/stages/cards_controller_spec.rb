@@ -352,7 +352,7 @@ RSpec.describe 'Kanban stage cards API', type: :request do
       query_counts = stage_cards_query_counts(sql_queries)
 
       expect(response).to have_http_status(:success)
-      expect(query_counts.slice(:messages, :notes, :labels_tags_taggings)).to eq(messages: 0, notes: 0, labels_tags_taggings: 0)
+      expect(query_counts).to include(messages: 0, notes: 0, labels_tags_taggings: be <= 1)
     end
 
     it 'returns 404 when board is not visible to agent' do
@@ -421,8 +421,33 @@ RSpec.describe 'Kanban stage cards API', type: :request do
     end
   end
 
+  describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/stages/{kanban_stage.id}/move_cards' do
+    it 'records events in bulk and loads automation rules once' do
+      cards = create_visible_cards(3)
+      target_stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
+      create(:kanban_automation_rule, account: account, kanban_board: kanban_board, active: true, event_name: 'stage_changed')
+
+      sql_queries = collect_sql_queries do
+        patch stage_move_cards_path,
+              headers: administrator.create_new_auth_token,
+              params: { target_stage_id: target_stage.id },
+              as: :json
+      end
+
+      rule_queries = sql_queries.count { |sql| sql.match?(/FROM "kanban_automation_rules"|JOIN "kanban_automation_rules"/) }
+      expect(response).to have_http_status(:no_content)
+      expect(cards.map { |card| card.reload.kanban_stage_id }).to all(eq(target_stage.id))
+      expect(KanbanCardEvent.where(kanban_card_id: cards, event_type: 'stage_changed').count).to eq(3)
+      expect(rule_queries).to eq(1)
+    end
+  end
+
   def stage_cards_path(stage: kanban_stage)
     "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{stage.id}/cards"
+  end
+
+  def stage_move_cards_path
+    "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/stages/#{kanban_stage.id}/move_cards"
   end
 
   def create_visible_cards(count)

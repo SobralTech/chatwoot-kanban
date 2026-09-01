@@ -53,6 +53,24 @@ RSpec.describe KanbanAutomations::TriggerService do
     end
   end
 
+  describe '.call_many' do
+    it 'loads rules once and enqueues one job per card' do
+      first_rule = create_rule(position: 1)
+      second_rule = create_rule(position: 2)
+      cards = create_list(:kanban_card, 3, account: account, kanban_board: board, kanban_stage: stage)
+
+      expect do
+        described_class.call_many(
+          card_ids: cards.map(&:id),
+          kanban_board: board,
+          event_name: 'card_created'
+        )
+      end.to have_enqueued_job(KanbanAutomations::RunRulesJob)
+        .with(satisfy { |card_id| cards.map(&:id).include?(card_id) }, [first_rule.id, second_rule.id], 'card_created', anything)
+        .exactly(3).times
+    end
+  end
+
   describe KanbanAutomations::RunRulesJob do
     it 'stops after the first matching rule marked stop_after_match' do
       first_rule = create_rule(position: 1, stop_after_match: true)

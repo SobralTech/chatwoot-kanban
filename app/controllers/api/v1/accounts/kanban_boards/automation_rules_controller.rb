@@ -8,7 +8,7 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
   before_action :check_authorization
 
   def index
-    @automation_rules = scoped_rules.ordered
+    load_automation_rules
   end
 
   def create
@@ -47,7 +47,7 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
     return render_unknown_rules if scoped_rules.where(id: ordered_ids).count != ordered_ids.size
 
     scoped_rules.apply_position_order!(ordered_ids)
-    @automation_rules = scoped_rules.ordered
+    load_automation_rules
     render :index
   end
 
@@ -76,6 +76,15 @@ class Api::V1::Accounts::KanbanBoards::AutomationRulesController < Api::V1::Acco
 
   def scoped_rules
     policy_scope(KanbanAutomationRule).where(kanban_board_id: @kanban_board.id)
+  end
+
+  def load_automation_rules
+    @automation_rules = scoped_rules.ordered.to_a
+    @automation_execution_counts = KanbanAutomationLog
+                                   .where(kanban_automation_rule_id: @automation_rules.map(&:id))
+                                   .where('created_at >= ?', 7.days.ago)
+                                   .group(:kanban_automation_rule_id)
+                                   .count
   end
 
   def render_unknown_rules

@@ -1,4 +1,6 @@
 class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accounts::BaseController
+  EVENT_INSERT_BATCH_SIZE = 1000
+
   include KanbanCardFilterParams
 
   SORT_BY_VALUES = %w[created_at_desc created_at_asc name_asc].freeze
@@ -140,19 +142,34 @@ class Api::V1::Accounts::KanbanBoards::Stages::CardsController < Api::V1::Accoun
   end
 
   def record_and_trigger_stage_changes(card_ids, source_stage, target_stage)
-    KanbanCard.where(id: card_ids).find_each do |card|
-      KanbanCards::RecordEventService.call(
-        card: card,
-        event_type: 'stage_changed',
-        user: Current.user,
-        metadata: {
-          from_stage_id: source_stage.id,
-          to_stage_id: target_stage.id,
-          from_stage_name: source_stage.name,
-          to_stage_name: target_stage.name
-        }
-      )
-      KanbanAutomations::TriggerService.call(card: card, event_name: 'stage_changed', user: Current.user)
+    return if card_ids.blank?
+
+    record_stage_change_events(card_ids, source_stage, target_stage)
+    KanbanAutomations::TriggerService.call_many(
+      card_ids: card_ids,
+      kanban_board: @kanban_board,
+      event_name: 'stage_changed',
+      user: Current.user
+    )
+  end
+
+  def record_stage_change_events(card_ids, source_stage, target_stage)
+    metadata = {
+      from_stage_id: source_stage.id,
+      to_stage_id: target_stage.id,
+      from_stage_name: source_stage.name,
+      to_stage_name: target_stage.name
+    }
+    recorded_at = Time.current
+    rows = card_ids.map do |card_id|
+      {
+        account_id: Current.account.id, kanban_board_id: @kanban_board.id, kanban_card_id: card_id,
+        user_id: Current.user.id, event_type: 'stage_changed', metadata: metadata, created_at: recorded_at
+      }
+    end
+
+    rows.each_slice(EVENT_INSERT_BATCH_SIZE) do |batch|
+      KanbanCardEvent.insert_all!(batch) # rubocop:disable Rails/SkipsModelValidations
     end
   end
 end
