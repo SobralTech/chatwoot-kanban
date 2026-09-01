@@ -944,7 +944,7 @@ watch(searchInput, () => {
           class="flex min-h-0 flex-1 overflow-x-auto p-4"
           :class="[
             isDraggingBoard
-              ? 'snap-none'
+              ? 'snap-none [&_*]:!cursor-grabbing'
               : 'snap-x snap-mandatory lg:snap-none',
             isReloadingBoard
               ? 'opacity-60 pointer-events-none transition-opacity'
