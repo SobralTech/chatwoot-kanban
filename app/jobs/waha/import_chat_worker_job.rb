@@ -1,24 +1,28 @@
 class Waha::ImportChatWorkerJob < ApplicationJob
   queue_as :low
 
-  THROTTLE = 0.5
+  # Pause between chats. Applied as an enqueue delay rather than a sleep so the
+  # worker hands its Sidekiq thread back between chats instead of pinning it.
+  THROTTLE = 0.5.seconds
 
-  # One member of a channel's bounded import pool. It claims pending chats one at
-  # a time (atomically, so workers never collide) and imports each until the queue
-  # is drained, then the worker that empties it finalizes the import.
+  # One member of a channel's bounded import pool. It claims a single pending chat
+  # (atomically, so workers never collide), imports it and hands off to a successor
+  # job. Doing one chat per execution keeps a multi-hour import from holding a
+  # Sidekiq thread — and its database connection — for its whole duration, which
+  # would otherwise starve every other queue in the process.
+  #
+  # The pool size is preserved exactly: each execution enqueues at most one
+  # successor, and the worker that finds the queue drained finalizes the import.
   def perform(channel_id, window)
     @channel = Channel::Waha.find_by(id: channel_id)
     return unless @channel
 
     @window = window
-    loop do
-      row = WahaImportChat.claim_next(@channel.id)
-      break unless row
+    row = WahaImportChat.claim_next(@channel.id)
+    return finalize_if_last if row.nil?
 
-      import_chat(row)
-      sleep THROTTLE
-    end
-    finalize_if_last
+    import_chat(row)
+    self.class.set(wait: THROTTLE).perform_later(@channel.id, @window)
   end
 
   private
