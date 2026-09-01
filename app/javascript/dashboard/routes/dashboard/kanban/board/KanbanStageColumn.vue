@@ -182,6 +182,8 @@ const { t } = useI18n();
       :header-class="stageAccent(stage)?.header"
       :is-card-drag-disabled="isCardDragDisabled"
       :sortable-options="sortableOptions"
+      :is-terminal-stage="isTerminalStage"
+      :stage-accent="stageAccent"
       @toggle-collapse="emit('toggleCollapse')"
       @drag-change="(...args) => emit('dragChange', ...args)"
     />

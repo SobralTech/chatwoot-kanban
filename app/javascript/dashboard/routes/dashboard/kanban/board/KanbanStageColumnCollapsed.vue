@@ -24,6 +24,14 @@ defineProps({
     type: Object,
     default: () => ({}),
   },
+  isTerminalStage: {
+    type: Function,
+    required: true,
+  },
+  stageAccent: {
+    type: Function,
+    required: true,
+  },
 });
 
 const emit = defineEmits(['toggleCollapse', 'dragChange']);
@@ -46,6 +54,12 @@ const { t } = useI18n();
     >
       <i class="i-lucide-chevrons-right-left size-4" />
     </button>
+    <span
+      class="size-2.5 flex-shrink-0 rounded-full"
+      :class="stageAccent(stage)?.dot"
+      :style="isTerminalStage(stage) ? null : { backgroundColor: stage.color }"
+      aria-hidden="true"
+    />
     <span
       class="stage-drag-handle min-h-0 flex-1 cursor-grab select-none truncate text-xs font-semibold text-n-slate-12 [writing-mode:vertical-rl]"
       :title="stage.name"
