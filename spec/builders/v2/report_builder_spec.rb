@@ -481,4 +481,57 @@ describe V2::ReportBuilder do
       end
     end
   end
+
+  describe '#conversation_metrics' do
+    it 'does not issue more queries as the number of agents grows' do
+      administrator = create(:user, account: account, role: :administrator)
+      inbox = create(:inbox, account: account)
+      Current.user = administrator
+      Current.account = account
+
+      count_queries = lambda do |&block|
+        count = 0
+        subscriber = ActiveSupport::Notifications.subscribe('sql.active_record') do |_, _, _, _, payload|
+          count += 1 unless payload[:name].in?(%w[SCHEMA TRANSACTION])
+        end
+        block.call
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+        count
+      end
+
+      add_agents = lambda do |number|
+        Array.new(number) do
+          agent = create(:user, account: account, role: :agent)
+          create(:conversation, account: account, inbox: inbox, assignee: agent, status: :open)
+          agent
+        end
+      end
+
+      add_agents.call(2)
+      baseline = count_queries.call { described_class.new(account, { type: :agent, page: 1 }).conversation_metrics }
+
+      add_agents.call(10)
+      grown = count_queries.call { described_class.new(account, { type: :agent, page: 1 }).conversation_metrics }
+
+      expect(grown).to eq(baseline)
+    ensure
+      Current.reset
+    end
+
+    it 'reports the same open and unattended counts per agent' do
+      administrator = create(:user, account: account, role: :administrator)
+      inbox = create(:inbox, account: account)
+      agent = create(:user, account: account, role: :agent)
+      create(:conversation, account: account, inbox: inbox, assignee: agent, status: :open, first_reply_created_at: nil)
+      Current.user = administrator
+      Current.account = account
+
+      metrics = described_class.new(account, { type: :agent, page: 1 }).conversation_metrics
+      agent_metric = metrics.find { |entry| entry[:id] == agent.id }
+
+      expect(agent_metric[:metric]).to eq({ open: 1, unattended: 1 })
+    ensure
+      Current.reset
+    end
+  end
 end

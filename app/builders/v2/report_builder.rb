@@ -112,17 +112,32 @@ class V2::ReportBuilder
   end
 
   def agent_metrics
-    account_users = @account.account_users.page(params[:page]).per(AGENT_RESULTS_PER_PAGE)
-    account_users.each_with_object([]) do |account_user, arr|
-      @user = account_user.user
-      arr << {
-        id: @user.id,
-        name: @user.name,
-        email: @user.email,
-        thumbnail: @user.avatar_url,
+    account_users = @account.account_users
+                            .includes(user: { avatar_attachment: :blob })
+                            .page(params[:page]).per(AGENT_RESULTS_PER_PAGE)
+    metrics = agent_conversation_metrics(account_users.map(&:user_id))
+
+    account_users.map do |account_user|
+      user = account_user.user
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        thumbnail: user.avatar_url,
         availability: account_user.availability_status,
-        metric: live_conversations
+        metric: metrics.fetch(user.id)
       }
+    end
+  end
+
+  # Two grouped queries for the whole page instead of two counts per agent.
+  def agent_conversation_metrics(user_ids)
+    open_conversations = visible_conversation_scope(@account.conversations.where(assignee_id: user_ids)).open
+    open_counts = open_conversations.group(:assignee_id).count
+    unattended_counts = open_conversations.unattended.group(:assignee_id).count
+
+    user_ids.index_with do |user_id|
+      { open: open_counts.fetch(user_id, 0), unattended: unattended_counts.fetch(user_id, 0) }
     end
   end
 
