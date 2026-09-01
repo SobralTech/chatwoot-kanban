@@ -1,4 +1,5 @@
 json.array! @agent_capacity_policies do |policy|
   json.partial! 'api/v1/models/agent_capacity_policy', formats: [:json],
-                                                       agent_capacity_policy: policy
+                                                       agent_capacity_policy: policy,
+                                                       assigned_agent_count: @assigned_agent_counts.fetch(policy.id, 0)
 end

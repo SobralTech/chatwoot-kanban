@@ -29,12 +29,26 @@ RSpec.describe 'Agent Capacity Policies API', type: :request do
       let(:administrator) { create(:user, account: account, role: :administrator) }
 
       it 'returns all agent capacity policies' do
-        get "/api/v1/accounts/#{account.id}/agent_capacity_policies",
-            headers: administrator.create_new_auth_token,
-            as: :json
+        second_policy = create(:agent_capacity_policy, account: account)
+        create(:account_user, account: account, user: create(:user), agent_capacity_policy: agent_capacity_policy)
+        create(:account_user, account: account, user: create(:user), agent_capacity_policy: second_policy)
+        sql_queries = []
+        callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+
+        ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+          get "/api/v1/accounts/#{account.id}/agent_capacity_policies",
+              headers: administrator.create_new_auth_token,
+              as: :json
+        end
 
         expect(response).to have_http_status(:success)
         expect(response.parsed_body.first['id']).to eq(agent_capacity_policy.id)
+        expect(response.parsed_body.pluck('assigned_agent_count')).to eq([1, 1])
+        assigned_agent_count_queries = sql_queries.count do |sql|
+          sql.include?('FROM "account_users"') && sql.include?('GROUP BY "account_users"."agent_capacity_policy_id"')
+        end
+        expect(assigned_agent_count_queries).to eq(1)
+        expect(sql_queries.count { |sql| sql.include?('FROM "inbox_capacity_limits"') }).to be <= 1
       end
     end
   end

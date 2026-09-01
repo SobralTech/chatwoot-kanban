@@ -3,7 +3,11 @@ class Api::V1::Accounts::AgentCapacityPoliciesController < Api::V1::Accounts::En
   before_action :fetch_policy, only: [:show, :update, :destroy]
 
   def index
-    @agent_capacity_policies = Current.account.agent_capacity_policies
+    @agent_capacity_policies = Current.account.agent_capacity_policies.includes(:inbox_capacity_limits).to_a
+    @assigned_agent_counts = AccountUser
+                             .where(account_id: Current.account.id, agent_capacity_policy_id: @agent_capacity_policies.map(&:id))
+                             .group(:agent_capacity_policy_id)
+                             .count
   end
 
   def show; end

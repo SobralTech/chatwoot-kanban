@@ -3,7 +3,11 @@ class Api::V1::Accounts::AssignmentPoliciesController < Api::V1::Accounts::BaseC
   before_action :check_authorization
 
   def index
-    @assignment_policies = Current.account.assignment_policies
+    @assignment_policies = Current.account.assignment_policies.to_a
+    @assigned_inbox_counts = InboxAssignmentPolicy
+                             .where(assignment_policy_id: @assignment_policies.map(&:id))
+                             .group(:assignment_policy_id)
+                             .count
   end
 
   def show; end

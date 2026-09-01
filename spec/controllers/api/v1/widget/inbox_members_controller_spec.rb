@@ -16,11 +16,18 @@ RSpec.describe '/api/v1/widget/inbox_members', type: :request do
 
     context 'with correct website token' do
       it 'returns the list of agents' do
-        get '/api/v1/widget/inbox_members', params: params
+        sql_queries = []
+        callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+
+        ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+          get '/api/v1/widget/inbox_members', params: params
+        end
 
         expect(response).to have_http_status(:success)
         json_response = response.parsed_body
         expect(json_response['payload'].length).to eq 2
+        account_user_queries = sql_queries.count { |sql| sql.include?('FROM "account_users"') }
+        expect(account_user_queries).to eq(1)
       end
     end
 

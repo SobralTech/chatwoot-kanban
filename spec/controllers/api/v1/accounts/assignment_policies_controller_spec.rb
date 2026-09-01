@@ -15,18 +15,28 @@ RSpec.describe 'Assignment Policies API', type: :request do
       let(:admin) { create(:user, account: account, role: :administrator) }
 
       before do
-        create_list(:assignment_policy, 3, account: account)
+        policies = create_list(:assignment_policy, 3, account: account)
+        policies.each do |policy|
+          create(:inbox_assignment_policy, assignment_policy: policy, inbox: create(:inbox, account: account))
+        end
       end
 
       it 'returns all assignment policies for the account' do
-        get "/api/v1/accounts/#{account.id}/assignment_policies",
-            headers: admin.create_new_auth_token,
-            as: :json
+        sql_queries = []
+        callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+
+        ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+          get "/api/v1/accounts/#{account.id}/assignment_policies",
+              headers: admin.create_new_auth_token,
+              as: :json
+        end
 
         expect(response).to have_http_status(:success)
         json_response = response.parsed_body
         expect(json_response.length).to eq(3)
         expect(json_response.first.keys).to include('id', 'name', 'description')
+        expect(json_response.pluck('assigned_inbox_count')).to eq([1, 1, 1])
+        expect(sql_queries.count { |sql| sql.include?('FROM "inbox_assignment_policies"') }).to eq(1)
       end
     end
 

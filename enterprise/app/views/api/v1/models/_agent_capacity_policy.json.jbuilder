@@ -5,7 +5,8 @@ json.exclusion_rules agent_capacity_policy.exclusion_rules
 json.created_at agent_capacity_policy.created_at.to_i
 json.updated_at agent_capacity_policy.updated_at.to_i
 json.account_id agent_capacity_policy.account_id
-json.assigned_agent_count agent_capacity_policy.account_users.count
+assigned_agent_count = local_assigns.fetch(:assigned_agent_count) { agent_capacity_policy.account_users.count }
+json.assigned_agent_count assigned_agent_count
 
 json.inbox_capacity_limits agent_capacity_policy.inbox_capacity_limits do |limit|
   json.id limit.id
