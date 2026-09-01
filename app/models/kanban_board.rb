@@ -48,6 +48,8 @@ class KanbanBoard < ApplicationRecord
   has_many :kanban_board_entry_rule_inboxes, dependent: :delete_all
   has_many :kanban_custom_fields, dependent: :destroy_async
   has_many :kanban_reasons, dependent: :destroy_async
+  has_many :active_kanban_custom_fields, -> { active.ordered }, class_name: 'KanbanCustomField', inverse_of: :kanban_board, dependent: nil
+  has_many :active_kanban_reasons, -> { active.ordered }, class_name: 'KanbanReason', inverse_of: :kanban_board, dependent: nil
   has_many :kanban_automation_rules, dependent: :destroy_async
   has_many :kanban_automation_logs, through: :kanban_automation_rules
 
@@ -103,11 +105,18 @@ class KanbanBoard < ApplicationRecord
     inbox_id = inbox_or_id.is_a?(Inbox) ? inbox_or_id.id : inbox_or_id.to_i
 
     return false if inbox_id.blank?
-    return false unless Inbox.exists?(account_id: account_id, id: inbox_id)
 
-    return true if derived_all_inboxes?
+    allowed_inbox_ids([inbox_id]).include?(inbox_id)
+  end
 
-    kanban_board_entry_rule_inboxes.where(kanban_board_entry_rule_id: active_entry_rule_ids).exists?(inbox_id: inbox_id)
+  def allowed_inbox_ids(candidate_ids)
+    existing_ids = Inbox.where(account_id: account_id, id: Array(candidate_ids).map(&:to_i).uniq).pluck(:id)
+    return existing_ids if derived_all_inboxes?
+
+    kanban_board_entry_rule_inboxes
+      .where(kanban_board_entry_rule_id: active_entry_rule_ids, inbox_id: existing_ids)
+      .distinct
+      .pluck(:inbox_id)
   end
 
   # The payload keeps the `inbox_scope_mode` / `allowed_inboxes` shape the dashboard has
@@ -122,9 +131,19 @@ class KanbanBoard < ApplicationRecord
     kanban_board_entry_rule_inboxes.where(kanban_board_entry_rule_id: active_entry_rule_ids).distinct.pluck(:inbox_id).sort
   end
 
+  def derived_inbox_scope
+    all_inboxes = derived_all_inboxes?
+    inbox_ids = if all_inboxes
+                  []
+                else
+                  kanban_board_entry_rule_inboxes.where(kanban_board_entry_rule_id: active_entry_rule_ids).distinct.pluck(:inbox_id).sort
+                end
+
+    { mode: all_inboxes ? 'all_inboxes' : 'selected_inboxes', inbox_ids: inbox_ids }
+  end
+
   def derived_all_inboxes?
-    active_rules = kanban_board_entry_rules.active
-    !active_rules.exists? || active_rules.exists?(all_inboxes: true)
+    kanban_board_entry_rules.active.pick(Arel.sql('COALESCE(BOOL_OR(all_inboxes), TRUE)'))
   end
 
   def recurrence_window_minutes_for(stage_id)

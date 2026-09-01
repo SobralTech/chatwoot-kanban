@@ -11,14 +11,14 @@ json.lost_stage_id kanban_board.lost_stage_id
 json.lost_reason_required kanban_board.lost_reason_required
 json.automation_settings kanban_board.automation_settings
 json.bulk_action_limit KanbanCards::BulkActionRequest::MAX_CARDS
-json.custom_fields kanban_board.kanban_custom_fields.active.ordered do |field|
+json.custom_fields kanban_board.active_kanban_custom_fields do |field|
   json.id field.id
   json.key field.key
   json.field_type field.field_type
   json.multiple field.multiple
   json.position field.position
 end
-json.reasons kanban_board.kanban_reasons.active.ordered do |reason|
+json.reasons kanban_board.active_kanban_reasons do |reason|
   json.id reason.id
   json.title reason.title
   json.description reason.description

@@ -4,7 +4,9 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
   before_action :fetch_kanban_board, only: [:show, :update, :destroy]
 
   def index
-    @kanban_boards = policy_scope(KanbanBoard).ordered.to_a
+    @kanban_boards = policy_scope(KanbanBoard)
+                     .includes(:active_kanban_custom_fields, :active_kanban_reasons)
+                     .ordered.to_a
     fetch_overview_data
   end
 
@@ -150,7 +152,18 @@ class Api::V1::Accounts::KanbanBoardsController < Api::V1::Accounts::BaseControl
         terminal_period: sanitized_terminal_period,
         filtered_stage_sla: sanitized_filter_values(:stage_sla, KanbanCards::VisibleStageCardsQuery::STAGE_SLA_VALUES)
       )
-      query.call(load_cards: sanitized_collapsed_stage_ids.exclude?(kanban_stage.id))
+      query.call(load_cards: sanitized_collapsed_stage_ids.exclude?(kanban_stage.id), hydrate_cards: false)
+    end
+
+    hydrate_stage_cards
+  end
+
+  def hydrate_stage_cards
+    card_ids = @stage_card_results.values.flat_map(&:card_ids)
+    cards_by_id = KanbanCards::VisibleStageCardsQuery.load_payload_cards(card_ids).index_by(&:id)
+
+    @stage_card_results.each_value do |result|
+      result.cards = result.card_ids.filter_map { |card_id| cards_by_id[card_id] }
     end
   end
 

@@ -263,6 +263,40 @@ RSpec.describe 'Kanban Cards API', type: :request do
     end
   end
 
+  describe 'GET /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards' do
+    it 'returns compact cards without querying conversation messages per card' do
+      cards = Array.new(3) do |index|
+        create(:message, account: account, inbox: conversation.inbox, conversation: conversation) if index.zero?
+        create(
+          :kanban_card,
+          :conversation_origin,
+          account: account,
+          kanban_board: kanban_board,
+          kanban_stage: stage,
+          conversation: conversation,
+          subject: "Opportunity #{index}",
+          priority: :high,
+          position: index + 1
+        )
+      end
+
+      sql_queries = []
+      callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+      ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+        get "/api/v1/accounts/#{account.id}/kanban_boards/#{kanban_board.id}/cards",
+            headers: agent.create_new_auth_token,
+            as: :json
+      end
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body['cards'].pluck('id')).to eq(cards.pluck(:id))
+      expect(response.parsed_body['cards']).to all(include('kanban_board_id' => kanban_board.id, 'priority' => 'high'))
+      expect(sql_queries.none? { |sql| sql.match?(/FROM "messages"|JOIN "messages"/) }).to be(true)
+      payload_query = sql_queries.find { |sql| sql.include?('FROM "kanban_cards" WHERE "kanban_cards"."id" IN') }
+      expect(payload_query).not_to include('"kanban_cards"."description"')
+    end
+  end
+
   describe 'PATCH /api/v1/accounts/{account.id}/kanban_boards/{kanban_board.id}/cards/by_id/{id}/move' do
     it 'moves a card across boards and emits delete and create events' do
       target_board = create(:kanban_board, account: account, name: 'Support')

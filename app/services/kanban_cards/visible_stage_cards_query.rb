@@ -1,5 +1,5 @@
 class KanbanCards::VisibleStageCardsQuery
-  Result = Struct.new(:cards, :has_more, :next_cursor, :total_count, :total_value, :stale_count, keyword_init: true)
+  Result = Struct.new(:cards, :card_ids, :has_more, :next_cursor, :total_count, :total_value, :stale_count, keyword_init: true)
   RefreshRequiredError = Class.new(StandardError)
 
   DEFAULT_LIMIT = 20
@@ -24,7 +24,7 @@ class KanbanCards::VisibleStageCardsQuery
   end
   # rubocop:enable Metrics/ParameterLists
 
-  def call(load_cards: true)
+  def call(load_cards: true, hydrate_cards: true)
     return empty_result unless valid_board_and_stage?
 
     return metadata_result unless load_cards
@@ -32,10 +32,11 @@ class KanbanCards::VisibleStageCardsQuery
     anchor = cursor_after_id.present? ? cursor_anchor! : nil
     ids = paginated_card_ids(anchor)
     page_ids = ids.first(effective_limit)
-    cards = payload_cards(page_ids)
+    cards = hydrate_cards ? self.class.load_payload_cards(page_ids) : []
 
     Result.new(
       cards: cards,
+      card_ids: page_ids,
       has_more: ids.length > effective_limit,
       next_cursor: next_cursor_for(page_ids, ids),
       # Counting on every cursor-paginated page would re-scan the whole
@@ -44,12 +45,16 @@ class KanbanCards::VisibleStageCardsQuery
     )
   end
 
+  def self.load_payload_cards(ids)
+    KanbanCards::CompactCardsQuery.call(ids)
+  end
+
   private
 
   attr_reader :account, :kanban_board, :kanban_stage, :limit, :cursor, :terminal_period, :filtered_stage_sla
 
   def empty_result
-    Result.new(cards: [], has_more: false, next_cursor: nil, total_count: 0, total_value: '0.0', stale_count: 0)
+    Result.new(cards: [], card_ids: [], has_more: false, next_cursor: nil, total_count: 0, total_value: '0.0', stale_count: 0)
   end
 
   def valid_board_and_stage?
@@ -113,7 +118,7 @@ class KanbanCards::VisibleStageCardsQuery
   end
 
   def metadata_result
-    Result.new(cards: [], has_more: false, next_cursor: nil, **totals_fields)
+    Result.new(cards: [], card_ids: [], has_more: false, next_cursor: nil, **totals_fields)
   end
 
   def paginated_card_ids(anchor)
@@ -121,24 +126,6 @@ class KanbanCards::VisibleStageCardsQuery
     scope = scope.where(after_anchor_condition(anchor)) if anchor.present?
 
     scope.limit(effective_limit + 1).ids
-  end
-
-  def payload_cards(ids)
-    return [] if ids.blank?
-
-    cards_by_id = KanbanCard
-                  .where(id: ids)
-                  .includes(
-                    conversation: { assignee: { avatar_attachment: :blob } },
-                    contact: { avatar_attachment: :blob },
-                    inbox: [:channel, { avatar_attachment: :blob }],
-                    labels: [],
-                    kanban_card_products: [],
-                    assignees: { avatar_attachment: :blob },
-                    kanban_card_field_values: :kanban_custom_field
-                  ).index_by(&:id)
-
-    ids.filter_map { |id| cards_by_id[id] }
   end
 
   def cursor_anchor!

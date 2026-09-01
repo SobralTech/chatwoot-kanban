@@ -117,12 +117,25 @@ class Api::V1::Accounts::KanbanBoards::EntryRulesController < Api::V1::Accounts:
     @entry_rule.kanban_board_entry_rule_inboxes.delete_all
     return if @entry_rule.all_inboxes?
 
-    validated_inbox_ids.each do |inbox_id|
-      KanbanBoardEntryRuleInbox.create!(
-        account: Current.account, kanban_board: @kanban_board,
-        kanban_board_entry_rule: @entry_rule, inbox_id: inbox_id
-      )
-    end
+    inbox_ids = validated_inbox_ids
+    return if inbox_ids.blank?
+
+    timestamp = Time.current
+    # The inbox ids were account-validated above and the remaining foreign keys come from the loaded rule.
+    # rubocop:disable Rails/SkipsModelValidations
+    KanbanBoardEntryRuleInbox.insert_all!(
+      inbox_ids.map do |inbox_id|
+        {
+          account_id: Current.account.id,
+          kanban_board_id: @kanban_board.id,
+          kanban_board_entry_rule_id: @entry_rule.id,
+          inbox_id: inbox_id,
+          created_at: timestamp,
+          updated_at: timestamp
+        }
+      end
+    )
+    # rubocop:enable Rails/SkipsModelValidations
   end
 
   def validated_inbox_ids

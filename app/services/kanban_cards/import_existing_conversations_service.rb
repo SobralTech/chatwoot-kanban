@@ -201,7 +201,7 @@ class KanbanCards::ImportExistingConversationsService
       if entry_rule.present?
         entry_rule.all_inboxes? ? nil : entry_rule.inbox_ids
       else
-        kanban_board.derived_all_inboxes? ? nil : kanban_board.derived_allowed_inbox_ids
+        kanban_board.derived_inbox_scope.then { |scope| scope.fetch(:mode) == 'all_inboxes' ? nil : scope.fetch(:inbox_ids) }
       end
   end
 

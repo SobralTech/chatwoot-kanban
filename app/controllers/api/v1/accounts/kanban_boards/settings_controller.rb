@@ -85,9 +85,21 @@ class Api::V1::Accounts::KanbanBoards::SettingsController < Api::V1::Accounts::B
     KanbanBoardMember.where(kanban_board_id: @kanban_board.id).delete_all
     return if @kanban_board.all_agents? || user_ids.blank?
 
-    user_ids.each do |user_id|
-      KanbanBoardMember.create!(account: Current.account, kanban_board: @kanban_board, user_id: user_id)
-    end
+    timestamp = Time.current
+    # AccountUser membership was validated above, so a bulk insert preserves the model invariants.
+    # rubocop:disable Rails/SkipsModelValidations
+    KanbanBoardMember.insert_all!(
+      user_ids.map do |user_id|
+        {
+          account_id: Current.account.id,
+          kanban_board_id: @kanban_board.id,
+          user_id: user_id,
+          created_at: timestamp,
+          updated_at: timestamp
+        }
+      end
+    )
+    # rubocop:enable Rails/SkipsModelValidations
   end
 
   def normalized_ids(ids)

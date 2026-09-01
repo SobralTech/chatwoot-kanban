@@ -20,6 +20,7 @@ class KanbanCards::Totals
     # one.
     def metrics(scope, conditions)
       row = totals_scope(scope).pick(*conditions.values.flat_map { |condition| expressions(condition) })
+      return conditions.keys.index_with { Metric.new(0, BigDecimal(0)) } if row.nil?
 
       conditions.keys.each_with_index.to_h do |key, index|
         [key, Metric.new(row[index * 2].to_i, BigDecimal(row[(index * 2) + 1].to_s))]
@@ -50,15 +51,12 @@ class KanbanCards::Totals
 
     def totals_scope(scope)
       scope.joins(<<~SQL.squish)
-        LEFT OUTER JOIN (#{product_totals.to_sql}) AS #{PRODUCT_TOTALS_ALIAS}
-          ON #{PRODUCT_TOTALS_ALIAS}.kanban_card_id = kanban_cards.id
+        LEFT OUTER JOIN LATERAL (
+          SELECT SUM(unit_price * quantity) AS items_total
+          FROM #{KanbanCardProduct.quoted_table_name}
+          WHERE kanban_card_id = kanban_cards.id
+        ) AS #{PRODUCT_TOTALS_ALIAS} ON TRUE
       SQL
-    end
-
-    def product_totals
-      KanbanCardProduct
-        .select(:kanban_card_id, Arel.sql('SUM(unit_price * quantity) AS items_total'))
-        .group(:kanban_card_id)
     end
 
     def expressions(condition)

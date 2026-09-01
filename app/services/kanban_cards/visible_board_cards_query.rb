@@ -180,23 +180,7 @@ class KanbanCards::VisibleBoardCardsQuery
   end
 
   def payload_cards(ids)
-    return [] if ids.blank?
-
-    cards_by_id = KanbanCard
-                  .where(id: ids)
-                  .includes(
-                    :kanban_board,
-                    :kanban_stage,
-                    conversation: { assignee: { avatar_attachment: :blob } },
-                    contact: { avatar_attachment: :blob },
-                    inbox: [:channel, { avatar_attachment: :blob }],
-                    labels: [],
-                    kanban_card_products: [],
-                    assignees: { avatar_attachment: :blob },
-                    kanban_card_field_values: :kanban_custom_field
-                  ).index_by(&:id)
-
-    ids.filter_map { |id| cards_by_id[id] }
+    KanbanCards::CompactCardsQuery.call(ids)
   end
 
   def cursor_anchor!

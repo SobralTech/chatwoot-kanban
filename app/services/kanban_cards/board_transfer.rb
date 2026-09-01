@@ -27,11 +27,12 @@ class KanbanCards::BoardTransfer
     source = cards.select(*SIGNATURE_COLUMNS).to_a
     return {} if source.empty?
 
-    inbox_allowed = source.map(&:inbox_id).uniq.index_with { |inbox_id| @target_board.inbox_allowed?(inbox_id) }
+    inbox_ids = source.map(&:inbox_id).uniq
+    allowed_inbox_ids = @target_board.allowed_inbox_ids(inbox_ids).to_set
     duplicates = duplicate_card_ids(source)
 
     source.each_with_object({}) do |card, reasons|
-      if !inbox_allowed[card.inbox_id]
+      if allowed_inbox_ids.exclude?(card.inbox_id)
         reasons[card.id] = INBOX_NOT_ALLOWED
       elsif duplicates.include?(card.id)
         reasons[card.id] = DUPLICATE

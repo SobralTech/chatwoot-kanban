@@ -73,7 +73,7 @@ class KanbanCards::VisibleCardsScope
   end
 
   def inbox_condition
-    card_table[:inbox_id].in(filtered_inbox_ids) if filtered_inbox_ids.present?
+    card_table[:inbox_id].in(filtered_inbox_ids) unless filtered_inbox_ids.nil?
   end
 
   # Cards carry their own assignees (and render them); the conversation assignee is a

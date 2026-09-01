@@ -1,10 +1,10 @@
 json.cards do
   json.array! @result.cards do |card|
     json.partial!(
-      'api/v1/accounts/kanban_boards/card',
+      'api/v1/accounts/kanban_boards/compact_card',
       formats: [:json],
       card: card,
-      stable_card: true
+      board_card: true
     )
   end
 end

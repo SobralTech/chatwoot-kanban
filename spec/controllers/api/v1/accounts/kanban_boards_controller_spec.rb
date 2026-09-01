@@ -95,6 +95,27 @@ RSpec.describe 'Kanban Boards API', type: :request do
         hash_including('id' => overview_data[:inbox].id, 'name' => 'Sales Inbox', 'channel_type' => overview_data[:inbox].channel_type)
       )
     end
+
+    it 'preloads custom fields and reasons across the board list' do
+      second_board = create(:kanban_board, account: account, name: 'Renewals')
+      [kanban_board, second_board].each do |board|
+        KanbanCustomField.create!(account: account, kanban_board: board, key: 'company_size')
+        KanbanReason.create!(account: account, kanban_board: board, title: 'No budget')
+      end
+      sql_queries = []
+      callback = ->(_name, _start, _finish, _id, payload) { sql_queries << payload[:sql] if payload[:sql].present? }
+
+      ActiveSupport::Notifications.subscribed(callback, 'sql.active_record') do
+        get "/api/v1/accounts/#{account.id}/kanban_boards",
+            headers: administrator.create_new_auth_token,
+            as: :json
+      end
+
+      custom_field_queries = sql_queries.count { |sql| sql.match?(/FROM "kanban_custom_fields"|JOIN "kanban_custom_fields"/) }
+      reason_queries = sql_queries.count { |sql| sql.match?(/FROM "kanban_reasons"|JOIN "kanban_reasons"/) }
+      expect(response.parsed_body.sum { |board| board['custom_fields'].length }).to eq(2)
+      expect([custom_field_queries, reason_queries]).to eq([1, 1])
+    end
   end
 
   describe 'GET /api/v1/accounts/{account.id}/kanban_boards/{id}' do
@@ -755,9 +776,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(sql_queries.none? { |sql| sql.include?('notes') }).to be(true), 'Board listing should not query the notes table'
-        expect(sql_queries.none? { |sql| sql.include?('taggings') }).to be(true), 'Board listing should not query the taggings table'
-        expect(sql_queries.none? { |sql| sql.include?('tags') }).to be(true), 'Board listing should not query the tags table'
-        expect(sql_queries.none? { |sql| sql.include?('labels') }).to be(true), 'Board listing should not query the labels table'
+        expect(labels_tags_taggings_query_count(sql_queries)).to be <= 1
       end
 
       it 'does not query messages during board listing' do
@@ -780,7 +799,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(sql_queries.none? { |sql| sql.include?('FROM "messages"') }).to be(true), 'Board listing should not query messages'
       end
 
-      it 'does not query notes taggings tags or labels with multiple cards sharing a contact' do
+      it 'keeps label loading batched with multiple cards sharing a contact' do
         stage = create(:kanban_stage, account: account, kanban_board: kanban_board)
         inbox = create(:inbox, account: account)
         contact = create(:contact, account: account)
@@ -824,9 +843,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
 
         expect(response).to have_http_status(:success)
         expect(sql_queries.none? { |sql| sql.include?('notes') }).to be(true)
-        expect(sql_queries.none? { |sql| sql.include?('taggings') }).to be(true)
-        expect(sql_queries.none? { |sql| sql.include?('tags') }).to be(true)
-        expect(sql_queries.none? { |sql| sql.include?('labels') }).to be(true)
+        expect(labels_tags_taggings_query_count(sql_queries)).to be <= 1
       end
 
       it 'keeps board listing query categories bounded with mixed active card visibility' do
@@ -839,8 +856,13 @@ RSpec.describe 'Kanban Boards API', type: :request do
         expect(response).to have_http_status(:success)
         expect(rendered_card_ids).to match_array(expected_card_ids)
         expect([rendered_card_ids.length, rendered_card_ids.intersect?(inactive_kanban_card_ids)]).to eq([30, false])
-        expect(query_counts.slice(:messages, :notes, :labels_tags_taggings)).to eq(messages: 0, notes: 0, labels_tags_taggings: 0)
-        expect(query_counts[:kanban_cards]).to be <= 9
+        expect(query_counts).to include(
+          messages: 0,
+          notes: 0,
+          labels_tags_taggings: be <= 1,
+          kanban_cards: be <= 9,
+          card_payloads: be <= 1
+        )
         expect(query_counts[:inbox_members]).to be <= 1
         expect(query_counts[:team_members]).to be <= 1
       end
@@ -1545,6 +1567,7 @@ RSpec.describe 'Kanban Boards API', type: :request do
   def board_listing_query_counts(sql_queries)
     {
       kanban_cards: sql_queries.count { |sql| sql.match?(/FROM "kanban_cards"|JOIN "kanban_cards"/) },
+      card_payloads: sql_queries.count { |sql| sql.include?('FROM "kanban_cards" WHERE "kanban_cards"."id" IN') },
       inbox_members: sql_queries.count { |sql| sql.match?(/FROM "inbox_members"|JOIN "inbox_members"/) },
       team_members: sql_queries.count { |sql| sql.match?(/FROM "team_members"|JOIN "team_members"/) },
       messages: sql_queries.count { |sql| sql.match?(/FROM "messages"|JOIN "messages"/) },

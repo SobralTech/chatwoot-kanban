@@ -1,7 +1,9 @@
 conversation = card.conversation
 assignee = conversation&.assignee
+board_card = local_assigns[:board_card]
 
 json.id card.id
+json.kanban_board_id card.kanban_board_id if board_card
 json.kanban_stage_id card.kanban_stage_id
 json.previous_stage_id card.previous_stage_id
 json.position card.position
@@ -21,7 +23,7 @@ json.inbox do
   json.partial! 'api/v1/models/inbox_slim', formats: [:json], resource: card.inbox
 end
 json.conversation_id conversation&.display_id
-json.priority conversation&.priority
+json.priority board_card ? card.priority : conversation&.priority
 json.card_priority card.priority
 json.assignees card.assignees do |assignee_user|
   json.id assignee_user.id
