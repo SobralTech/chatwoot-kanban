@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_01_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_01_192000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -24,7 +24,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_170000) do
      RETURNS text
      LANGUAGE sql
      IMMUTABLE PARALLEL SAFE STRICT
-    AS $function$ SELECT unaccent('unaccent', $1) $function$
+    AS $function$ SELECT public.unaccent('public.unaccent'::regdictionary, $1) $function$
   SQL
 
   create_table "access_tokens", force: :cascade do |t|
@@ -1062,6 +1062,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_170000) do
     t.jsonb "details", default: {}, null: false
     t.datetime "created_at", null: false
     t.index ["account_id"], name: "index_kanban_automation_logs_on_account_id"
+    t.index ["created_at"], name: "index_kanban_automation_logs_on_created_at"
     t.index ["kanban_automation_rule_id", "created_at"], name: "index_kanban_automation_logs_on_rule_and_created_at"
     t.index ["kanban_automation_rule_id"], name: "index_kanban_automation_logs_on_kanban_automation_rule_id"
     t.index ["kanban_card_id", "created_at"], name: "index_kanban_automation_logs_on_card_and_created_at"
@@ -1271,8 +1272,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_170000) do
     t.index ["kanban_board_id", "active"], name: "index_kanban_cards_on_kanban_board_id_and_active"
     t.index ["kanban_board_id", "contact_id", "inbox_id", "normalized_subject"], name: "index_active_manual_kanban_cards_unique_subject", unique: true, where: "((active = true) AND ((origin)::text = 'manual'::text) AND (normalized_subject IS NOT NULL))"
     t.index ["kanban_board_id", "conversation_id", "inbox_id", "normalized_subject"], name: "index_kanban_cards_on_conversation_subject_unique", unique: true, where: "(((origin)::text = 'conversation'::text) AND (conversation_id IS NOT NULL) AND (normalized_subject IS NOT NULL))"
+    t.index ["kanban_board_id", "due_at"], name: "idx_active_kanban_cards_board_due_at", where: "(active = true)"
     t.index ["kanban_board_id", "kanban_stage_id", "position", "created_at", "id"], name: "index_active_kanban_cards_on_board_stage_order", where: "(active = true)"
     t.index ["kanban_board_id", "kanban_stage_id", "position"], name: "index_kanban_cards_on_board_stage_position"
+    t.index ["kanban_board_id", "stage_entered_at"], name: "idx_active_kanban_cards_board_stage_entered_at", where: "(active = true)"
     t.index ["kanban_reason_id"], name: "index_kanban_cards_on_kanban_reason_id"
     t.index ["previous_stage_id"], name: "index_kanban_cards_on_previous_stage_id"
     t.index ["recreated_from_card_id"], name: "index_kanban_cards_on_recreated_from_card_id"

@@ -31,6 +31,8 @@
 #
 # Indexes
 #
+#  idx_active_kanban_cards_board_due_at               (kanban_board_id,due_at) WHERE (active = true)
+#  idx_active_kanban_cards_board_stage_entered_at     (kanban_board_id,stage_entered_at) WHERE (active = true)
 #  index_active_kanban_cards_on_board_stage_order     (kanban_board_id,kanban_stage_id,position,created_at,id) WHERE (active = true)
 #  index_active_manual_kanban_cards_unique_subject    (kanban_board_id,contact_id,inbox_id,normalized_subject) UNIQUE WHERE ((active = true) AND ((origin)::text = 'manual'::text) AND (normalized_subject IS NOT NULL))
 #  index_kanban_cards_on_account_id_and_active        (account_id,active)

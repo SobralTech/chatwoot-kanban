@@ -15,6 +15,7 @@
 #
 #  index_kanban_automation_logs_on_account_id                 (account_id)
 #  index_kanban_automation_logs_on_card_and_created_at        (kanban_card_id,created_at)
+#  index_kanban_automation_logs_on_created_at                 (created_at)
 #  index_kanban_automation_logs_on_kanban_automation_rule_id  (kanban_automation_rule_id)
 #  index_kanban_automation_logs_on_rule_and_created_at        (kanban_automation_rule_id,created_at)
 #
