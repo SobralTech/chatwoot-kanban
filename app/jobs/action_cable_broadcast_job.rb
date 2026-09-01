@@ -62,13 +62,18 @@ class ActionCableBroadcastJob < ApplicationJob
     return [] if conversation.blank?
 
     account = conversation.account
+    batch_context = ConversationPolicy::BatchContext.new(account, conversation)
+    users_by_token = User.where(pubsub_token: members).index_by(&:pubsub_token)
 
     members.select do |member|
-      user = User.find_by(pubsub_token: member)
+      user = users_by_token[member]
+      # contact tokens have no matching user and are always allowed through
       next true if user.blank?
 
-      account_user = user.account_users.find_by(account: account)
-      ConversationPolicy.new({ user: user, account: account, account_user: account_user }, conversation).show?
+      user_context = {
+        user: user, account: account, account_user: batch_context.account_user_for(user.id), batch_context: batch_context
+      }
+      ConversationPolicy.new(user_context, conversation).show?
     end
   end
 end

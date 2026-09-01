@@ -259,13 +259,14 @@ class ActionCableListener < BaseListener
   end
 
   def authorized_user_tokens(account, conversation)
-    users = account.users.to_a
-    users.select do |user|
-      ConversationPolicy.new(
-        { user: user, account: account, account_user: user.account_users.find_by(account: account) }, conversation
-      ).show?
+    batch_context = ConversationPolicy::BatchContext.new(account, conversation)
+
+    account.users.filter_map do |user|
+      user_context = {
+        user: user, account: account, account_user: batch_context.account_user_for(user.id), batch_context: batch_context
+      }
+      user.pubsub_token if ConversationPolicy.new(user_context, conversation).show?
     end
-         .map(&:pubsub_token)
   end
 
   def contact_tokens(contact_inbox, message)
