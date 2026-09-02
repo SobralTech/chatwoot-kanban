@@ -1,4 +1,4 @@
-import { computed } from 'vue';
+import { computed, toValue } from 'vue';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useCamelCase } from 'dashboard/composables/useTransformKeys';
 import {
@@ -38,7 +38,7 @@ export const INBOX_FEATURE_MAP = {
 
 /**
  * Composable for handling inbox-related functionality
- * @param {string|null} inboxId - Optional inbox ID. If not provided, uses current chat's inbox
+ * @param {import('vue').MaybeRefOrGetter<string|number|null>} inboxId - Optional inbox ID. If not provided, uses current chat's inbox
  * @returns {Object} An object containing inbox type checking functions
  */
 export const useInbox = (inboxId = null) => {
@@ -46,7 +46,7 @@ export const useInbox = (inboxId = null) => {
   const inboxGetter = useMapGetter('inboxes/getInboxById');
 
   const inbox = computed(() => {
-    const targetInboxId = inboxId || currentChat.value?.inbox_id;
+    const targetInboxId = toValue(inboxId) || currentChat.value?.inbox_id;
 
     if (!targetInboxId) return null;
 

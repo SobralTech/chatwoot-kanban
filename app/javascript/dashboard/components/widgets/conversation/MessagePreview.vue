@@ -2,11 +2,13 @@
 import { MESSAGE_TYPE } from 'widget/helpers/constants';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { ATTACHMENT_ICONS } from 'shared/constants/messages';
+import { useMessageStatus } from 'dashboard/composables/useMessageStatus';
 import CardMutedIcon from 'dashboard/components-next/Conversation/ConversationCard/CardMutedIcon.vue';
+import MessageStatus from 'dashboard/components-next/message/MessageStatus.vue';
 
 export default {
   name: 'MessagePreview',
-  components: { CardMutedIcon },
+  components: { CardMutedIcon, MessageStatus },
   props: {
     message: {
       type: Object,
@@ -29,17 +31,26 @@ export default {
       default: false,
     },
   },
-  setup() {
+  setup(props) {
     const { getPlainText } = useMessageFormatter();
+    const { showStatusIndicator, statusToShow } = useMessageStatus(
+      {
+        status: () => props.message.status,
+        isPrivate: () => props.message.private,
+        messageType: () => props.message.message_type,
+        sourceId: () => props.message.source_id,
+        contentAttributes: () => props.message.content_attributes,
+      },
+      () => props.message.inbox_id
+    );
+
     return {
       getPlainText,
+      showStatusIndicator,
+      statusToShow,
     };
   },
   computed: {
-    messageByAgent() {
-      const { message_type: messageType } = this.message;
-      return messageType === MESSAGE_TYPE.OUTGOING;
-    },
     isMessageAnActivity() {
       const { message_type: messageType } = this.message;
       return messageType === MESSAGE_TYPE.ACTIVITY;
@@ -79,11 +90,10 @@ export default {
         class="-mt-0.5 text-n-slate-11 flex-shrink-0"
         icon="lock-closed"
       />
-      <fluent-icon
-        v-else-if="messageByAgent"
-        size="14"
-        class="-mt-0.5 text-n-slate-11 flex-shrink-0"
-        icon="checkmark-double"
+      <MessageStatus
+        v-else-if="showStatusIndicator"
+        :status="statusToShow"
+        class="flex-shrink-0"
       />
       <fluent-icon
         v-else-if="isMessageAnActivity"
