@@ -330,10 +330,14 @@ export default {
           return;
         }
         const { messageId } = this.$route.query;
-        // Conversation is already active: just scroll to the requested
-        // message instead of skipping navigation entirely.
+        // Conversation is already active: only honour an explicit message
+        // target. This runs again on every chat list change, so scrolling
+        // without one would yank an agent reading older messages back to the
+        // bottom whenever another conversation enters or leaves the list.
         if (selectedConversation.id === this.currentChat.id) {
-          this.scrollToSearchedMessage(messageId, selectedConversation.id);
+          if (messageId) {
+            this.scrollToSearchedMessage(messageId, selectedConversation.id);
+          }
           return;
         }
         this.$store
