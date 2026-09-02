@@ -16,6 +16,7 @@ const props = defineProps({
 const emit = defineEmits([
   'recorderProgressChanged',
   'finishRecord',
+  'recordingError',
   'pause',
   'play',
 ]);
@@ -103,9 +104,26 @@ const stopRecording = () => {
   }
 };
 
-const startRecording = () => {
-  record.value.startRecording();
-  isRecording.value = true;
+// The record plugin rethrows a plain Error, so the DOMException name from
+// getUserMedia is gone; only its message still carries the reason.
+const recordingErrorReason = message => {
+  if (/permission|not allowed/i.test(message)) return 'permission';
+  if (/not found|no device/i.test(message)) return 'noDevice';
+  return 'error';
+};
+
+const startRecording = async () => {
+  // startRecording resolves only once getUserMedia hands over the stream, so a
+  // blocked/missing microphone rejects here. Without this the recorder stays
+  // open with a dead timer and the failure never reaches the agent.
+  try {
+    await record.value.startRecording();
+    isRecording.value = true;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[AudioRecorder] could not start recording', error);
+    emit('recordingError', recordingErrorReason(error.message));
+  }
 };
 
 const playPause = () => {

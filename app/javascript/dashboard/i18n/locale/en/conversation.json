@@ -260,6 +260,7 @@
       "TIP_AUDIORECORDER_ICON": "Record audio",
       "TIP_AUDIORECORDER_PERMISSION": "Allow access to audio",
       "TIP_AUDIORECORDER_ERROR": "Could not open the audio",
+      "TIP_AUDIORECORDER_NO_DEVICE": "No microphone found. Connect one and check your system's sound settings.",
       "DRAG_DROP": "Drag and drop here to attach",
       "START_AUDIO_RECORDING": "Start audio recording",
       "STOP_AUDIO_RECORDING": "Stop audio recording",

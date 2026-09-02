@@ -1202,6 +1202,16 @@ export default {
     onRecordProgressChanged(duration) {
       this.recordingAudioDurationText = duration;
     },
+    onRecordingError(reason) {
+      if (reason === 'permission') {
+        useAlert(this.$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_PERMISSION'));
+      } else if (reason === 'noDevice') {
+        useAlert(this.$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_NO_DEVICE'));
+      } else {
+        useAlert(this.$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ERROR'));
+      }
+      this.resetAudioRecorderInput();
+    },
     onFinishRecorder(file) {
       this.recordingAudioState = 'stopped';
       this.hasRecordedAudio = true;
@@ -1503,6 +1513,7 @@ export default {
           :audio-record-format="audioRecordFormat"
           @recorder-progress-changed="onRecordProgressChanged"
           @finish-record="onFinishRecorder"
+          @recording-error="onRecordingError"
           @play="recordingAudioState = 'playing'"
           @pause="recordingAudioState = 'paused'"
         />
