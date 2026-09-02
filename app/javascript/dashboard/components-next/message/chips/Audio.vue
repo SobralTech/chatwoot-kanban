@@ -156,8 +156,13 @@ const onAudioError = createRetryHandler(audioPlayer);
 </script>
 
 <template>
+  <!-- src lives on the element, not on a <source> child: a child only runs the
+  resource selection once, so an element mounted with a realtime message can
+  settle on NETWORK_NO_SOURCE and never recover, and its failure never reaches
+  @error since source errors do not bubble. -->
   <audio
     ref="audioPlayer"
+    :src="timeStampURL"
     controls
     class="hidden"
     playsinline
@@ -165,9 +170,7 @@ const onAudioError = createRetryHandler(audioPlayer);
     @timeupdate="onTimeUpdate"
     @ended="onEnd"
     @error="onAudioError"
-  >
-    <source :src="timeStampURL" />
-  </audio>
+  />
   <div
     v-if="hasError"
     v-bind="$attrs"
