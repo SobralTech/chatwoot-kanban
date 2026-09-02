@@ -318,16 +318,18 @@ onMounted(() => {
               @click.stop
             />
 
+            <!-- src lives on the element, not on a <source> child: a child only
+            runs the resource selection once, so the player can settle on
+            NETWORK_NO_SOURCE and never recover. -->
             <audio
               v-if="isAudio"
               :key="activeAttachment.message_id"
+              :src="activeAttachment.data_url"
               controls
               :autoplay="autoPlay"
               class="w-full max-w-md"
               @click.stop
-            >
-              <source :src="`${activeAttachment.data_url}?t=${Date.now()}`" />
-            </audio>
+            />
           </div>
 
           <div class="flex items-center justify-center w-16 shrink-0">

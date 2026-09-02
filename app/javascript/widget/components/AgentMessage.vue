@@ -5,6 +5,7 @@ import MessageReplyButton from 'widget/components/MessageReplyButton.vue';
 import { messageStamp } from 'shared/helpers/timeHelper';
 import ImageBubble from 'widget/components/ImageBubble.vue';
 import VideoBubble from 'widget/components/VideoBubble.vue';
+import AudioBubble from 'widget/components/AudioBubble.vue';
 import FileBubble from 'widget/components/FileBubble.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { MESSAGE_TYPE } from 'widget/helpers/constants';
@@ -21,6 +22,7 @@ export default {
     AgentMessageBubble,
     ImageBubble,
     VideoBubble,
+    AudioBubble,
     Avatar,
     UserMessage,
     FileBubble,
@@ -42,6 +44,7 @@ export default {
     return {
       hasImageError: false,
       hasVideoError: false,
+      hasAudioError: false,
     };
   },
   computed: {
@@ -144,11 +147,13 @@ export default {
     message() {
       this.hasImageError = false;
       this.hasVideoError = false;
+      this.hasAudioError = false;
     },
   },
   mounted() {
     this.hasImageError = false;
     this.hasVideoError = false;
+    this.hasAudioError = false;
   },
   methods: {
     onImageLoadError() {
@@ -156,6 +161,9 @@ export default {
     },
     onVideoLoadError() {
       this.hasVideoError = true;
+    },
+    onAudioLoadError() {
+      this.hasAudioError = true;
     },
     toggleReply() {
       emitter.emit(BUS_EVENTS.TOGGLE_REPLY_TO_MESSAGE, this.message);
@@ -228,13 +236,11 @@ export default {
                   @error="onVideoLoadError"
                 />
 
-                <audio
-                  v-else-if="attachment.file_type === 'audio'"
-                  controls
-                  class="h-10 dark:invert"
-                >
-                  <source :src="attachment.data_url" />
-                </audio>
+                <AudioBubble
+                  v-else-if="attachment.file_type === 'audio' && !hasAudioError"
+                  :url="attachment.data_url"
+                  @error="onAudioLoadError"
+                />
                 <FileBubble v-else :url="attachment.data_url" />
               </div>
             </div>
