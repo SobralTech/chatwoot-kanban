@@ -6,6 +6,7 @@ import camelcaseKeys from 'camelcase-keys';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import ProductsAPI from 'dashboard/api/products';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import Select from 'dashboard/components-next/select/Select.vue';
 import { useAlert } from 'dashboard/composables';
@@ -40,9 +41,9 @@ const emit = defineEmits(['totalChanged', 'cardChanged']);
 const CATALOG_ITEM_TYPE = 'catalog';
 import { debounce } from '@chatwoot/utils';
 
-import KanbanAmountInput from '../items/KanbanAmountInput.vue';
 import KanbanCardDiscountFooter from '../items/KanbanCardDiscountFooter.vue';
 import KanbanCustomItemForm from '../items/KanbanCustomItemForm.vue';
+import KanbanInlineNumberCell from '../items/KanbanInlineNumberCell.vue';
 
 const { t } = useI18n();
 const { isAdmin } = useAdmin();
@@ -86,13 +87,11 @@ const addDrafts = ref({});
 const cardProducts = ref([]);
 const isLoadingProducts = ref(false);
 const productsLoadError = ref('');
-const editingUnitPriceId = ref(null);
-const editingUnitPriceValue = ref('');
-const editingQuantityId = ref(null);
-const editingQuantityValue = ref('');
 const isUpdatingProductId = ref(null);
 const isRemovingProductId = ref(null);
 const isCustomItemFormOpen = ref(false);
+const removeDialogRef = ref(null);
+const productPendingRemoval = ref(null);
 
 const itemsTotal = computed(() => itemsTotalOf(cardProducts.value));
 
@@ -240,29 +239,45 @@ const confirmAddProduct = async product => {
 const canEditUnitPrice = product =>
   product.itemType !== CATALOG_ITEM_TYPE || isAdmin.value;
 
-const startEditUnitPrice = product => {
-  if (!canEditUnitPrice(product)) return;
-
-  editingUnitPriceId.value = product.id;
-  editingUnitPriceValue.value = product.unitPrice;
+const PRICE_TYPE_KEYS = {
+  pix: 'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.PRICE_TAG_PIX',
+  base: 'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.PRICE_TAG_BASE',
 };
 
-const cancelEditUnitPrice = () => {
-  editingUnitPriceId.value = null;
-  editingUnitPriceValue.value = '';
+// The SKU, the item type and the price the line was quoted at are metadata, not
+// columns to scan, so they ride under the name and give the money columns room.
+const itemMeta = product => {
+  const parts = [
+    product.sku
+      ? t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SKU_VALUE', {
+          sku: product.sku,
+        })
+      : t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.NO_SKU'),
+  ];
+
+  if (product.itemType !== CATALOG_ITEM_TYPE) {
+    parts.push(
+      t(
+        product.itemType === 'service'
+          ? 'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_SERVICE'
+          : 'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_CUSTOM'
+      )
+    );
+  } else if (PRICE_TYPE_KEYS[product.priceType]) {
+    parts.push(t(PRICE_TYPE_KEYS[product.priceType]));
+  }
+
+  const priceListOption = PRICE_LIST_OPTIONS.find(
+    option => option.value === product.priceList
+  );
+  if (priceListOption && priceListOption.value !== 'default') {
+    parts.push(priceListOption.label);
+  }
+
+  return parts.join(' · ');
 };
 
-const startEditQuantity = product => {
-  editingQuantityId.value = product.id;
-  editingQuantityValue.value = product.quantity;
-};
-
-const cancelEditQuantity = () => {
-  editingQuantityId.value = null;
-  editingQuantityValue.value = '';
-};
-
-const saveUnitPrice = async product => {
+const updateCardProduct = async (product, payload, errorKey) => {
   if (isUpdatingProductId.value) return;
 
   isUpdatingProductId.value = product.id;
@@ -272,55 +287,39 @@ const saveUnitPrice = async product => {
       props.boardId,
       props.cardId,
       product.id,
-      {
-        unit_price: Number(editingUnitPriceValue.value),
-        quantity: product.quantity,
-      }
+      payload
     );
-    cancelEditUnitPrice();
     await loadCardProducts();
     emitCardChange();
   } catch (error) {
-    useAlert(
-      apiErrorMessage(
-        error,
-        t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.UPDATE_ERROR')
-      )
-    );
+    useAlert(apiErrorMessage(error, t(errorKey)));
   } finally {
     isUpdatingProductId.value = null;
   }
 };
 
-const saveQuantity = async product => {
-  if (isUpdatingProductId.value) return;
+const saveUnitPrice = (product, unitPrice) =>
+  updateCardProduct(
+    product,
+    { unit_price: unitPrice },
+    'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.UPDATE_ERROR'
+  );
 
-  isUpdatingProductId.value = product.id;
+const saveQuantity = (product, quantity) =>
+  updateCardProduct(
+    product,
+    { quantity },
+    'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.UPDATE_QUANTITY_ERROR'
+  );
 
-  try {
-    await KanbanBoardsAPI.updateCardProduct(
-      props.boardId,
-      props.cardId,
-      product.id,
-      { quantity: Number(editingQuantityValue.value) }
-    );
-    cancelEditQuantity();
-    await loadCardProducts();
-    emitCardChange();
-  } catch (error) {
-    useAlert(
-      apiErrorMessage(
-        error,
-        t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.UPDATE_ERROR')
-      )
-    );
-  } finally {
-    isUpdatingProductId.value = null;
-  }
+const requestRemoveCardProduct = product => {
+  productPendingRemoval.value = product;
+  removeDialogRef.value?.open();
 };
 
-const removeCardProduct = async product => {
-  if (isRemovingProductId.value) return;
+const confirmRemoveCardProduct = async () => {
+  const product = productPendingRemoval.value;
+  if (!product || isRemovingProductId.value) return;
 
   isRemovingProductId.value = product.id;
 
@@ -330,6 +329,8 @@ const removeCardProduct = async product => {
       props.cardId,
       product.id
     );
+    removeDialogRef.value?.close();
+    productPendingRemoval.value = null;
     await loadCardProducts();
     emitCardChange();
     useAlert(t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.REMOVE_SUCCESS'));
@@ -428,7 +429,8 @@ defineExpose({ reload: loadCardProducts });
             />
             <div class="grid min-w-0 flex-1 gap-0.5">
               <span
-                class="min-w-0 truncate text-sm font-medium text-n-slate-12"
+                :title="product.name"
+                class="min-w-0 line-clamp-2 text-sm font-medium text-n-slate-12"
               >
                 {{ product.name }}
               </span>
@@ -604,35 +606,45 @@ defineExpose({ reload: loadCardProducts });
       <div
         v-else
         data-testid="kanban-opportunity-linked-products"
-        class="grid gap-2 overflow-x-auto"
+        class="min-w-0"
       >
-        <table class="w-full min-w-[30rem] text-left text-sm">
+        <table class="w-full table-fixed text-left text-sm">
+          <colgroup>
+            <col />
+            <col class="w-14" />
+            <col class="w-28" />
+            <col class="w-28" />
+            <col class="w-8" />
+          </colgroup>
           <thead>
             <tr class="text-xs text-n-slate-10">
-              <th class="pb-2 font-medium">
+              <th scope="col" class="pb-2 font-medium">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_PRODUCT')
                 }}
               </th>
-              <th class="pb-2 font-medium">
-                {{ t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_SKU') }}
-              </th>
-              <th class="pb-2 pr-2 text-right font-medium">
+              <th scope="col" class="pb-2 pe-2 text-right font-medium">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_QUANTITY')
                 }}
               </th>
-              <th class="pb-2 pr-2 text-right font-medium">
+              <th scope="col" class="pb-2 pe-2 text-right font-medium">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_UNIT_PRICE')
                 }}
               </th>
-              <th class="pb-2 pr-2 text-right font-medium">
+              <th scope="col" class="pb-2 pe-2 text-right font-medium">
                 {{
                   t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_SUBTOTAL')
                 }}
               </th>
-              <th class="pb-2" />
+              <th scope="col" class="pb-2">
+                <span class="sr-only">
+                  {{
+                    t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.COLUMN_ACTIONS')
+                  }}
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -640,157 +652,68 @@ defineExpose({ reload: loadCardProducts });
               v-for="product in cardProducts"
               :key="product.id"
               data-testid="kanban-opportunity-linked-product"
-              class="border-t border-n-weak"
+              class="border-t border-n-weak align-top transition-opacity"
+              :class="{
+                'opacity-50':
+                  isUpdatingProductId === product.id ||
+                  isRemovingProductId === product.id,
+              }"
             >
-              <td class="py-2 pr-2 text-n-slate-12">
-                <div class="grid gap-0.5">
-                  <span>{{ product.name }}</span>
-                  <span
-                    v-if="product.itemType !== CATALOG_ITEM_TYPE"
-                    class="text-xs text-n-slate-10"
-                  >
-                    {{
-                      product.itemType === 'service'
-                        ? t(
-                            'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_SERVICE'
-                          )
-                        : t(
-                            'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ITEM_TYPE_CUSTOM'
-                          )
-                    }}
-                  </span>
-                </div>
-              </td>
-              <td class="py-2 pr-2 text-n-slate-11">
-                {{
-                  product.sku ||
-                  t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.NO_SKU')
-                }}
-              </td>
-              <td class="py-2 pr-2 text-right tabular-nums text-n-slate-11">
-                <span
-                  v-if="editingQuantityId === product.id"
-                  class="flex items-center justify-end gap-1"
+              <td class="py-3 pe-3">
+                <p
+                  :title="product.name"
+                  class="mb-0 line-clamp-2 text-sm text-n-slate-12"
                 >
-                  <input
-                    v-model.number="editingQuantityValue"
-                    type="number"
-                    min="1"
-                    data-testid="kanban-opportunity-product-quantity-input"
-                    class="reset-base !mb-0 block h-10 w-full rounded-lg border-none bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak transition-colors hover:outline-n-slate-6 focus:outline-n-brand w-20 text-right tabular-nums"
-                  />
-                  <button
-                    type="button"
-                    data-testid="kanban-opportunity-product-quantity-save"
-                    class="text-n-teal-11"
-                    :aria-label="
-                      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SAVE_QUANTITY')
-                    "
-                    @click="saveQuantity(product)"
-                  >
-                    <i class="i-lucide-check size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="kanban-opportunity-product-quantity-cancel"
-                    class="text-n-slate-11"
-                    :aria-label="
-                      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.CANCEL_EDIT')
-                    "
-                    @click="cancelEditQuantity"
-                  >
-                    <i class="i-lucide-x size-4" />
-                  </button>
-                </span>
-                <span v-else class="flex items-center justify-end gap-1">
-                  {{ product.quantity }}
-                  <button
-                    type="button"
-                    data-testid="kanban-opportunity-product-quantity-edit"
-                    class="text-n-slate-10 hover:text-n-slate-12"
-                    :aria-label="
-                      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.EDIT_QUANTITY')
-                    "
-                    @click="startEditQuantity(product)"
-                  >
-                    <i class="i-lucide-pencil size-3.5" />
-                  </button>
-                </span>
+                  {{ product.name }}
+                </p>
+                <p class="mb-0 truncate text-xs text-n-slate-10">
+                  {{ itemMeta(product) }}
+                </p>
               </td>
-              <td class="py-2 pr-2 text-right tabular-nums text-n-slate-11">
-                <span
-                  v-if="
-                    canEditUnitPrice(product) &&
-                    editingUnitPriceId === product.id
+              <td class="py-1.5">
+                <KanbanInlineNumberCell
+                  :model-value="product.quantity"
+                  unit="integer"
+                  :label="
+                    t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.EDIT_QUANTITY')
                   "
-                  class="flex items-center justify-end gap-1"
-                >
-                  <KanbanAmountInput
-                    v-model="editingUnitPriceValue"
-                    class="w-28"
-                    data-testid="kanban-opportunity-product-unit-price-input"
-                    unit="currency"
-                    @enter="saveUnitPrice(product)"
-                  />
-                  <button
-                    type="button"
-                    data-testid="kanban-opportunity-product-unit-price-save"
-                    class="text-n-teal-11"
-                    :aria-label="
-                      t(
-                        'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.SAVE_UNIT_PRICE'
-                      )
-                    "
-                    @click="saveUnitPrice(product)"
-                  >
-                    <i class="i-lucide-check size-4" />
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="kanban-opportunity-product-unit-price-cancel"
-                    class="text-n-slate-11"
-                    :aria-label="
-                      t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.CANCEL_EDIT')
-                    "
-                    @click="cancelEditUnitPrice"
-                  >
-                    <i class="i-lucide-x size-4" />
-                  </button>
-                </span>
-                <span v-else class="flex items-center justify-end gap-1">
-                  {{ formatCurrency(product.unitPrice) }}
-                  <button
-                    v-if="canEditUnitPrice(product)"
-                    type="button"
-                    data-testid="kanban-opportunity-product-unit-price-edit"
-                    class="text-n-slate-10 hover:text-n-slate-12"
-                    :aria-label="
-                      t(
-                        'KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.EDIT_UNIT_PRICE'
-                      )
-                    "
-                    @click="startEditUnitPrice(product)"
-                  >
-                    <i class="i-lucide-pencil size-3.5" />
-                  </button>
-                </span>
+                  :is-saving="isUpdatingProductId === product.id"
+                  data-testid="kanban-opportunity-product-quantity-input"
+                  @save="saveQuantity(product, $event)"
+                />
+              </td>
+              <td class="py-1.5">
+                <KanbanInlineNumberCell
+                  :model-value="product.unitPrice"
+                  unit="currency"
+                  :label="
+                    t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.EDIT_UNIT_PRICE')
+                  "
+                  :readonly="!canEditUnitPrice(product)"
+                  :readonly-hint="
+                    t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.PRICE_LOCKED')
+                  "
+                  :is-saving="isUpdatingProductId === product.id"
+                  data-testid="kanban-opportunity-product-unit-price-input"
+                  @save="saveUnitPrice(product, $event)"
+                />
               </td>
               <td
-                class="py-2 pr-2 text-right font-medium tabular-nums text-n-slate-12"
+                class="py-3 pe-2 text-right font-medium tabular-nums text-n-slate-12"
               >
                 {{ formatCurrency(product.subtotal) }}
               </td>
-              <td class="py-2 text-right">
+              <td class="py-2.5 text-right">
                 <button
                   type="button"
                   data-testid="kanban-opportunity-product-remove"
-                  class="text-n-ruby-11 hover:text-n-ruby-10"
+                  class="rounded-md p-1 text-n-slate-10 transition-colors hover:bg-n-alpha-1 hover:text-n-ruby-11 focus-visible:text-n-ruby-11"
                   :aria-label="
                     t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.REMOVE')
                   "
-                  @click="removeCardProduct(product)"
+                  @click="requestRemoveCardProduct(product)"
                 >
-                  <i class="i-lucide-trash size-4" />
+                  <i class="i-lucide-trash-2 size-4" />
                 </button>
               </td>
             </tr>
@@ -807,5 +730,25 @@ defineExpose({ reload: loadCardProducts });
         @card-changed="emit('cardChanged', $event)"
       />
     </section>
+
+    <Dialog
+      ref="removeDialogRef"
+      type="alert"
+      data-testid="kanban-opportunity-product-remove-dialog"
+      :title="t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.REMOVE_CONFIRM_TITLE')"
+      :description="
+        t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.REMOVE_CONFIRM_BODY', {
+          name: productPendingRemoval?.name,
+        })
+      "
+      :cancel-button-label="
+        t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.ADD_CANCEL')
+      "
+      :confirm-button-label="
+        t('KANBAN.OPPORTUNITY_DETAILS.PRODUCTS_TAB.REMOVE')
+      "
+      :is-loading="Boolean(isRemovingProductId)"
+      @confirm="confirmRemoveCardProduct"
+    />
   </section>
 </template>
