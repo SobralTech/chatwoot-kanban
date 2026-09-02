@@ -1,5 +1,5 @@
 <script setup>
-import KanbanCardLabelsRow from './header/KanbanCardLabelsRow.vue';
+import KanbanCardAttributesRow from './header/KanbanCardAttributesRow.vue';
 import KanbanCardQuickControls from './header/KanbanCardQuickControls.vue';
 import KanbanCardTitleRow from './header/KanbanCardTitleRow.vue';
 
@@ -101,17 +101,17 @@ const dueAt = defineModel('dueAt', {
 </script>
 
 <template>
+  <!-- Three regions, not four equal rows: identity, then the controls block
+  whose two tiers sit closer to each other than to the title above them. -->
   <header
     data-testid="kanban-opportunity-header"
-    class="flex flex-none flex-col gap-3 border-b border-n-weak px-4 py-4"
+    class="flex flex-none flex-col border-b border-n-weak px-4 py-4"
   >
     <KanbanCardTitleRow
       v-if="card"
       v-model:subject="subject"
       :card="card"
       :card-display-id="cardDisplayId"
-      :board-name="boardName"
-      :stages="stages"
       :opened-from-conversation="openedFromConversation"
       :is-saving="isSaving"
       :is-pending="isPending('subject')"
@@ -123,32 +123,33 @@ const dueAt = defineModel('dueAt', {
       @remove-card="emit('removeCard', $event)"
       @close="emit('close')"
     />
-    <KanbanCardQuickControls
-      v-if="card"
-      v-model:priority="priority"
-      v-model:due-at="dueAt"
-      :card="card"
-      :stages="stages"
-      :won-stage-id="wonStageId"
-      :lost-stage-id="lostStageId"
-      :lost-reason-required="lostReasonRequired"
-      :reasons="reasons"
-      :total-value="totalValue"
-      :assigned-users="assignedUsers"
-      :assignable-users="assignableUsers"
-      :is-pending="isPending"
-      @change-status="emit('changeStatus', $event)"
-      @open-move="emit('openMove')"
-      @toggle-assignee="emit('toggleAssignee', $event)"
-      @open-products="emit('openProducts')"
-    />
-    <KanbanCardLabelsRow
-      v-if="card"
-      :account-labels="accountLabels"
-      :selected-label-titles="selectedLabelTitles"
-      :disabled="isPending('labels')"
-      @add-label="emit('addLabel', $event)"
-      @remove-label="emit('removeLabel', $event)"
-    />
+    <div v-if="card" class="mt-4 flex flex-col gap-2">
+      <KanbanCardQuickControls
+        :card="card"
+        :board-name="boardName"
+        :stages="stages"
+        :won-stage-id="wonStageId"
+        :lost-stage-id="lostStageId"
+        :lost-reason-required="lostReasonRequired"
+        :reasons="reasons"
+        :total-value="totalValue"
+        :assigned-users="assignedUsers"
+        :assignable-users="assignableUsers"
+        :is-pending="isPending"
+        @change-status="emit('changeStatus', $event)"
+        @open-move="emit('openMove')"
+        @toggle-assignee="emit('toggleAssignee', $event)"
+        @open-products="emit('openProducts')"
+      />
+      <KanbanCardAttributesRow
+        v-model:priority="priority"
+        v-model:due-at="dueAt"
+        :account-labels="accountLabels"
+        :selected-label-titles="selectedLabelTitles"
+        :is-pending="isPending"
+        @add-label="emit('addLabel', $event)"
+        @remove-label="emit('removeLabel', $event)"
+      />
+    </div>
   </header>
 </template>

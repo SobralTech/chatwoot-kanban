@@ -2,8 +2,6 @@
 import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-import { useKanbanCardSla } from 'dashboard/composables/useKanbanCardSla';
-
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import InlineInput from 'dashboard/components-next/inline-input/InlineInput.vue';
@@ -17,14 +15,6 @@ const props = defineProps({
   cardDisplayId: {
     type: [Number, String],
     required: true,
-  },
-  boardName: {
-    type: String,
-    default: '',
-  },
-  stages: {
-    type: Array,
-    default: () => [],
   },
   openedFromConversation: {
     type: Boolean,
@@ -77,25 +67,15 @@ const contactName = computed(
 const inboxName = computed(
   () => inboxObject.value?.name || t('KANBAN.CARD.UNKNOWN_INBOX')
 );
-const currentStage = computed(() =>
-  props.stages.find(
-    stage => Number(stage.id) === Number(props.card.kanbanStageId)
-  )
-);
-const { stageSlaStatusValue, stageSlaClasses, stageTime, stageTimeTitle } =
-  useKanbanCardSla(
-    computed(() => props.card),
-    computed(() => currentStage.value?.slaHours)
-  );
+// Only provenance lives here — who this deal is with and where it came in.
+// Funnel position and stage age belong to the state row, and mixing all four
+// entity types behind the same middot made none of them readable.
 const subtitleItems = computed(() =>
   [
     { key: 'contact', label: contactName.value },
     hasConversation.value && !props.openedFromConversation
       ? { key: 'inbox', label: inboxName.value }
       : null,
-    props.boardName ? { key: 'board', label: props.boardName } : null,
-    // How long the card has sat in its stage belongs next to the funnel name.
-    stageTime.value ? { key: 'stageTime', label: stageTime.value } : null,
   ].filter(Boolean)
 );
 const errorMessage = computed(() => localError.value);
@@ -204,7 +184,7 @@ const onTitleKeydown = event => {
           v-else
           id="kanban-opportunity-title"
           data-testid="kanban-opportunity-title"
-          class="mb-0 min-w-0 flex-1 truncate text-base font-semibold text-n-slate-12"
+          class="-mx-1 mb-0 min-w-0 flex-1 truncate rounded-md px-1 text-lg font-semibold leading-7 text-n-slate-12 hover:bg-n-alpha-1"
           role="button"
           tabindex="0"
           :title="subject || t('KANBAN.OPPORTUNITY_DETAILS.TITLE')"
@@ -230,33 +210,16 @@ const onTitleKeydown = event => {
 
       <div
         data-testid="kanban-opportunity-subtitle"
-        class="mt-2 flex min-w-0 items-center overflow-hidden text-sm leading-5 text-n-slate-11"
+        class="mt-1.5 flex min-w-0 items-center overflow-hidden text-sm leading-5 text-n-slate-11"
       >
         <template v-for="(item, index) in subtitleItems" :key="item.key">
           <span v-if="index" class="mx-1 flex-shrink-0">·</span>
           <span
-            class="flex min-w-0 max-w-[12rem] flex-shrink items-center gap-1.5 truncate"
-            :class="
-              item.key === 'stageTime'
-                ? [stageSlaClasses, 'gap-1 text-xs leading-4']
-                : ''
-            "
-            :title="item.key === 'stageTime' ? stageTimeTitle : item.label"
-            :data-testid="
-              item.key === 'stageTime' ? 'kanban-opportunity-stage-sla' : null
-            "
-            :aria-label="
-              item.key === 'stageTime' && stageSlaStatusValue === 'stale'
-                ? t('KANBAN.CARD.SLA_STALE')
-                : null
-            "
+            class="flex min-w-0 max-w-[14rem] flex-shrink items-center gap-1.5 truncate"
+            :title="item.label"
           >
-            <i
-              v-if="item.key === 'stageTime'"
-              class="i-lucide-clock size-3 flex-shrink-0"
-            />
             <Avatar
-              v-else-if="item.key === 'contact' && hasContact"
+              v-if="item.key === 'contact' && hasContact"
               :name="item.label"
               :src="contact.thumbnail"
               :size="20"

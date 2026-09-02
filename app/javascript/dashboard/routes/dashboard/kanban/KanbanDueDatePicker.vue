@@ -175,14 +175,14 @@ const dayClasses = day => ({
     </span>
 
     <Popover align="start" disable-mobile-view>
-      <div :class="compact ? 'flex min-w-0' : 'flex w-full gap-2'">
+      <div :class="compact ? 'flex min-w-0 gap-0.5' : 'flex w-full gap-2'">
         <button
           type="button"
-          class="inline-flex items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 text-left text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand"
+          class="inline-flex items-center gap-1.5 rounded-md text-left outline-none hover:bg-n-alpha-2"
           :class="[
             compact
-              ? 'h-7 min-w-0 w-auto px-2 py-1 text-xs'
-              : 'min-h-10 flex-1 px-3 py-2 text-sm',
+              ? 'h-7 w-auto min-w-0 px-1.5 py-1 text-xs text-n-slate-11 hover:text-n-slate-12 focus-visible:ring-1 focus-visible:ring-n-brand'
+              : 'min-h-10 flex-1 border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 focus:border-n-brand',
           ]"
           :aria-label="props.label || props.placeholder"
           :disabled="disabled"
@@ -196,8 +196,12 @@ const dayClasses = day => ({
         <button
           v-if="selectedDate"
           type="button"
-          :class="compact ? 'size-7' : 'min-h-10 w-10'"
-          class="flex flex-shrink-0 items-center justify-center rounded-md border border-n-weak bg-n-surface-1 text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
+          :class="
+            compact
+              ? 'size-7'
+              : 'min-h-10 w-10 border border-n-weak bg-n-surface-1'
+          "
+          class="flex flex-shrink-0 items-center justify-center rounded-md text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
           :aria-label="clearLabel"
           :disabled="disabled"
           @click.stop="clearDate"

@@ -73,11 +73,11 @@ const onSelect = option => {
     <button
       type="button"
       :data-testid="testId"
-      class="inline-flex min-w-0 items-center gap-2 rounded-md border border-n-weak bg-n-surface-1 text-left text-n-slate-12 outline-none hover:bg-n-alpha-2 focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-50"
+      class="inline-flex min-w-0 items-center gap-1.5 rounded-md text-left outline-none hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
       :class="[
         compact
-          ? 'h-7 w-auto px-2 py-1 text-xs'
-          : 'min-h-10 w-full px-3 py-2 text-sm',
+          ? 'h-7 w-auto px-1.5 py-1 text-xs text-n-slate-11 hover:text-n-slate-12 focus-visible:ring-1 focus-visible:ring-n-brand'
+          : 'min-h-10 w-full border border-n-weak bg-n-surface-1 px-3 py-2 text-sm text-n-slate-12 focus:border-n-brand',
       ]"
       :disabled="disabled"
       :aria-label="selectedOption.label"
@@ -85,9 +85,12 @@ const onSelect = option => {
       <CardPriorityIcon
         :priority="modelValue"
         show-empty
-        class="size-4 flex-shrink-0"
+        class="flex-shrink-0"
+        :class="compact ? 'size-3.5' : 'size-4'"
       />
-      <span v-if="!compact || modelValue" class="min-w-0 truncate">
+      <!-- The label stays put when empty: an unlabelled glyph is the one
+      control in the header nobody can read without clicking it. -->
+      <span class="min-w-0 truncate">
         {{ selectedOption.label }}
       </span>
       <i class="i-lucide-chevron-down size-3 flex-shrink-0 text-n-slate-11" />

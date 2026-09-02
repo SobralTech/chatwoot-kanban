@@ -5,6 +5,8 @@ import { useI18n } from 'vue-i18n';
 import Popover from 'dashboard/components-next/popover/Popover.vue';
 import WootLabel from 'dashboard/components/ui/Label.vue';
 import LabelDropdown from 'shared/components/ui/label/LabelDropdown.vue';
+import KanbanDueDatePicker from '../../KanbanDueDatePicker.vue';
+import KanbanPriorityDropdown from '../../KanbanPriorityDropdown.vue';
 import { MENU_SURFACE_CLASSES } from '../../menuClasses';
 
 const props = defineProps({
@@ -16,16 +18,26 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
-  disabled: {
-    type: Boolean,
-    default: false,
+  isPending: {
+    type: Function,
+    default: () => false,
   },
 });
 
 const emit = defineEmits(['addLabel', 'removeLabel']);
 
+const priority = defineModel('priority', {
+  type: String,
+  default: '',
+});
+const dueAt = defineModel('dueAt', {
+  type: String,
+  default: '',
+});
+
 const { t } = useI18n();
 
+const labelsPending = computed(() => props.isPending('labels'));
 const selectedLabels = computed(() =>
   props.selectedLabelTitles.map(title => {
     const accountLabel = props.accountLabels.find(
@@ -46,18 +58,37 @@ const labelDropdownProps = computed(() => ({
 </script>
 
 <template>
+  <!-- Secondary attributes share one borderless tier, so they stay available
+  without competing with the deal state above them. -->
   <div
-    data-testid="kanban-opportunity-labels-row"
-    class="flex min-w-0 flex-wrap items-center gap-3"
+    data-testid="kanban-opportunity-attributes-row"
+    class="-mx-1.5 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1"
   >
+    <KanbanPriorityDropdown
+      v-model="priority"
+      compact
+      test-id="kanban-opportunity-priority"
+      :none-label="t('KANBAN.OPPORTUNITY_DETAILS.PRIORITY')"
+      :disabled="isPending('priority')"
+    />
+
+    <KanbanDueDatePicker
+      v-model="dueAt"
+      compact
+      data-testid="kanban-opportunity-due-at"
+      :placeholder="t('KANBAN.OPPORTUNITY_DETAILS.CHOOSE_DATE')"
+      :clear-label="t('KANBAN.OPPORTUNITY_DETAILS.CLEAR_DATE')"
+      :disabled="isPending('dueAt')"
+    />
+
     <Popover align="start" disable-mobile-view>
       <button
         type="button"
         data-testid="kanban-opportunity-labels-menu"
-        class="inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border border-n-weak px-2 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+        class="inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
         :aria-label="t('KANBAN.OPPORTUNITY_DETAILS.LABELS')"
         :title="t('KANBAN.OPPORTUNITY_DETAILS.LABELS')"
-        :disabled="disabled"
+        :disabled="labelsPending"
       >
         <i class="i-lucide-tag size-3 flex-shrink-0" />
         {{ t('KANBAN.OPPORTUNITY_DETAILS.LABELS') }}
@@ -83,7 +114,7 @@ const labelDropdownProps = computed(() => ({
       data-testid="kanban-opportunity-label"
       :title="label.title"
       :color="label.color"
-      :show-close="!disabled"
+      :show-close="!labelsPending"
       variant="smooth"
       class="max-w-[10rem] truncate"
       @remove="emit('removeLabel', $event)"
@@ -93,13 +124,13 @@ const labelDropdownProps = computed(() => ({
       <button
         type="button"
         data-testid="kanban-opportunity-more-labels"
-        class="flex h-7 flex-shrink-0 items-center rounded-full border border-n-weak px-2 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+        class="flex h-7 flex-shrink-0 items-center rounded-md px-1.5 text-xs font-medium text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
         :aria-label="
           t('KANBAN.OPPORTUNITY_DETAILS.MORE_ITEMS', {
             count: remainingLabelCount,
           })
         "
-        :disabled="disabled"
+        :disabled="labelsPending"
       >
         {{
           t('KANBAN.OPPORTUNITY_DETAILS.MORE_ITEMS', {
