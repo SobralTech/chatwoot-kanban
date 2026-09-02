@@ -35,13 +35,19 @@ vi.mock('dashboard/api/kanbanBoards', () => ({
   },
 }));
 
-vi.mock('dashboard/composables/store', () => ({
-  useStore: () => ({
-    getters: {
-      'inboxes/getInboxById': inboxId => storeMock.inboxesById[inboxId] || {},
-    },
-  }),
-}));
+const storeGetters = {
+  'inboxes/getInboxById': inboxId => storeMock.inboxesById[inboxId] || {},
+  getSelectedChat: null,
+};
+
+vi.mock('dashboard/composables/store', async () => {
+  const { computed } = await import('vue');
+
+  return {
+    useStore: () => ({ getters: storeGetters }),
+    useMapGetter: key => computed(() => storeGetters[key]),
+  };
+});
 
 const buildContact = overrides => ({
   id: 1,
@@ -274,6 +280,8 @@ describe('KanbanOpportunityPicker', () => {
               last_non_activity_message: {
                 created_at: 1_700_000_100,
                 message_type: 1,
+                source_id: 'msg-1',
+                status: 'sent',
                 attachments: [{ file_type: fileType, extension }],
               },
             }),
@@ -286,7 +294,7 @@ describe('KanbanOpportunityPicker', () => {
       await selectConversation(wrapper);
 
       expect(wrapper.find(`.${iconClass}`).exists()).toBe(true);
-      expect(wrapper.find('.i-lucide-check-check').exists()).toBe(true);
+      expect(wrapper.find('.i-lucide-check').exists()).toBe(true);
       expect(
         wrapper
           .find('[data-testid="kanban-card-selection-last-message"]')

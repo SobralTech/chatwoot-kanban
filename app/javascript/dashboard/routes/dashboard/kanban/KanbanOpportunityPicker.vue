@@ -11,6 +11,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import MessageStatusIndicator from 'dashboard/components-next/message/MessageStatusIndicator.vue';
 import {
   dateFormat,
   dynamicTime,
@@ -221,8 +222,22 @@ const conversationStatuses = computed(() => ({
 const conversationStatus = status =>
   conversationStatuses.value[status] || conversationStatuses.value.resolved;
 
-const lastConversationMessage = conversation =>
-  conversation?.messages?.[0] || conversation?.lastNonActivityMessage;
+// The conversation payload puts the very last message under `messages`,
+// activities included, so an assignment or a label change would otherwise win
+// the preview. Only incoming and outgoing count here, private notes among them.
+const isNonActivityMessage = message =>
+  Boolean(message) && message.messageType !== MESSAGE_TYPE.ACTIVITY;
+
+const lastConversationMessage = conversation => {
+  const { lastNonActivityMessage, messages = [] } = conversation || {};
+  if (isNonActivityMessage(lastNonActivityMessage))
+    return lastNonActivityMessage;
+
+  return messages.find(isNonActivityMessage) || null;
+};
+
+const lastMessageIsPrivate = conversation =>
+  Boolean(lastConversationMessage(conversation)?.private);
 
 const lastMessageAttachment = conversation =>
   lastConversationMessage(conversation)?.attachments?.[0];
@@ -247,12 +262,6 @@ const conversationSnippet = conversation => {
     attachmentPreview(lastMessageAttachment(conversation)) ||
     t('KANBAN.CARD.NO_MESSAGES')
   );
-};
-
-const lastMessageIsOutgoing = conversation => {
-  const messageType = lastConversationMessage(conversation)?.messageType;
-
-  return messageType !== undefined && messageType !== MESSAGE_TYPE.INCOMING;
 };
 
 const lastMessageAttachmentIcon = conversation =>
@@ -849,8 +858,21 @@ defineExpose({ hasUnsavedChanges });
                   </span>
                 </span>
               </span>
-              <span class="mt-1.5 block truncate text-sm text-n-slate-12">
-                {{ conversationSnippet(conversation) }}
+              <span class="mt-1.5 flex min-w-0 items-center gap-1.5">
+                <Icon
+                  v-if="lastMessageIsPrivate(conversation)"
+                  icon="i-lucide-lock-keyhole"
+                  class="size-3.5 flex-shrink-0 text-n-slate-11"
+                />
+                <MessageStatusIndicator
+                  v-else
+                  :message="lastConversationMessage(conversation)"
+                  :inbox-id="conversation.inboxId"
+                  class="flex-shrink-0"
+                />
+                <span class="min-w-0 truncate text-sm text-n-slate-12">
+                  {{ conversationSnippet(conversation) }}
+                </span>
               </span>
             </button>
           </div>
@@ -950,9 +972,15 @@ defineExpose({ hasUnsavedChanges });
               class="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-n-slate-11"
             >
               <Icon
-                v-if="lastMessageIsOutgoing(selectedConversation)"
-                icon="i-lucide-check-check"
+                v-if="lastMessageIsPrivate(selectedConversation)"
+                icon="i-lucide-lock-keyhole"
                 class="size-3.5 flex-shrink-0"
+              />
+              <MessageStatusIndicator
+                v-else
+                :message="lastConversationMessage(selectedConversation)"
+                :inbox-id="selectedConversation.inboxId"
+                class="flex-shrink-0"
               />
               <Icon
                 v-if="lastMessageAttachmentIcon(selectedConversation)"

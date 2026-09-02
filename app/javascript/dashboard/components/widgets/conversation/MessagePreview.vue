@@ -2,13 +2,12 @@
 import { MESSAGE_TYPE } from 'widget/helpers/constants';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { ATTACHMENT_ICONS } from 'shared/constants/messages';
-import { useMessageStatus } from 'dashboard/composables/useMessageStatus';
 import CardMutedIcon from 'dashboard/components-next/Conversation/ConversationCard/CardMutedIcon.vue';
-import MessageStatus from 'dashboard/components-next/message/MessageStatus.vue';
+import MessageStatusIndicator from 'dashboard/components-next/message/MessageStatusIndicator.vue';
 
 export default {
   name: 'MessagePreview',
-  components: { CardMutedIcon, MessageStatus },
+  components: { CardMutedIcon, MessageStatusIndicator },
   props: {
     message: {
       type: Object,
@@ -31,23 +30,10 @@ export default {
       default: false,
     },
   },
-  setup(props) {
+  setup() {
     const { getPlainText } = useMessageFormatter();
-    const { showStatusIndicator, statusToShow } = useMessageStatus(
-      {
-        status: () => props.message.status,
-        isPrivate: () => props.message.private,
-        messageType: () => props.message.message_type,
-        sourceId: () => props.message.source_id,
-        contentAttributes: () => props.message.content_attributes,
-      },
-      () => props.message.inbox_id
-    );
-
     return {
       getPlainText,
-      showStatusIndicator,
-      statusToShow,
     };
   },
   computed: {
@@ -90,17 +76,13 @@ export default {
         class="-mt-0.5 text-n-slate-11 flex-shrink-0"
         icon="lock-closed"
       />
-      <MessageStatus
-        v-else-if="showStatusIndicator"
-        :status="statusToShow"
-        class="flex-shrink-0"
-      />
       <fluent-icon
         v-else-if="isMessageAnActivity"
         size="16"
         class="-mt-0.5 text-n-slate-11 flex-shrink-0"
         icon="info"
       />
+      <MessageStatusIndicator v-else :message="message" class="flex-shrink-0" />
     </template>
     <span
       v-if="message.content && isMessageSticker"
