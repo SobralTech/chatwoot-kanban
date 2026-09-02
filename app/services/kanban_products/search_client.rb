@@ -5,15 +5,18 @@ class KanbanProducts::SearchClient
   class ApiError < StandardError; end
 
   def search(text: nil, sku: nil, price_list: nil, limit: nil)
-    query = { text: text, sku: sku, price_list: price_list, limit: limit }.compact
-    response = self.class.get('/products/search', query: query, headers: request_headers)
+    payload = { query: text, sku: sku, price_list: price_list, limit: limit }.compact
+    response = self.class.post('/products/search', body: payload.to_json, headers: request_headers)
     handle_response(response)
   end
 
   private
 
   def request_headers
-    { 'X-Agent-Token' => GlobalConfigService.load('KANBAN_PRODUCTS_API_TOKEN', '') }
+    {
+      'Content-Type' => 'application/json',
+      'X-Agent-Token' => GlobalConfigService.load('KANBAN_PRODUCTS_API_TOKEN', '')
+    }
   end
 
   def handle_response(response)

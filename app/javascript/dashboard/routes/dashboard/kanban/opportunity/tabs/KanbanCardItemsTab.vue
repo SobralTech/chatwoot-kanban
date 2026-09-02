@@ -51,6 +51,10 @@ const normalizePayload = payload =>
   camelcaseKeys(payload || {}, { deep: true });
 // --- Products tab ---
 
+// The products API rejects any limit above 10.
+const SEARCH_RESULT_LIMIT = 10;
+const SKU_PATTERN = /^\d+$/;
+
 const PRICE_LIST_OPTIONS = [
   {
     value: 'default',
@@ -164,8 +168,11 @@ const performSearch = async () => {
   try {
     const response = await ProductsAPI.search({
       text,
+      // The API matches SKUs only through its own `sku` field, never through
+      // the free-text one, so an all-digits term is sent as both.
+      ...(SKU_PATTERN.test(text) ? { sku: text } : {}),
       price_list: priceList.value,
-      limit: 20,
+      limit: SEARCH_RESULT_LIMIT,
     });
     searchResults.value = normalizePayload(response?.data).products || [];
   } catch (error) {
