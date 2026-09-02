@@ -42,7 +42,7 @@ body {
   // so keep them scoped here and let Chrome/Safari use the webkit rules below.
   @supports (-moz-appearance: none) {
     * {
-      scrollbar-color: transparent transparent;
+      scrollbar-color: rgb(var(--blue-8)) transparent;
       scrollbar-width: thin;
     }
 
@@ -61,12 +61,19 @@ body {
     background-color: transparent;
   }
 
+  // The thumb is painted inside a transparent border so the visible rail reads
+  // as 4px while the pointer target keeps the full 8px width. Chromium repaints
+  // scrollbars only when the pointer enters the scrollbar itself, so the resting
+  // state stays visible instead of relying on `:hover` of the scrolling element.
   *::-webkit-scrollbar-thumb {
-    background-color: transparent;
+    background-clip: padding-box;
+    background-color: rgb(var(--blue-8));
+    border: 2px solid transparent;
     border-radius: 9999px;
+    min-height: 2.5rem;
   }
 
-  *:hover::-webkit-scrollbar-thumb {
+  *::-webkit-scrollbar-thumb:hover {
     background-color: rgb(var(--blue-9));
   }
 
