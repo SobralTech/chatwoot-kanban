@@ -20,7 +20,7 @@ class Waha::HistoryMessageWriter
 
   def build_message
     @message = conversation.messages.build(
-      content: payload['body'].presence,
+      content: text_content,
       account_id: inbox.account_id,
       inbox_id: inbox.id,
       message_type: incoming? ? :incoming : :outgoing,
@@ -31,6 +31,10 @@ class Waha::HistoryMessageWriter
       content_attributes: build_content_attributes,
       additional_attributes: build_additional_attributes
     )
+  end
+
+  def text_content
+    Waha::MentionResolver.new(channel: channel, payload: payload).resolve(payload['body'].presence)
   end
 
   def incoming?
@@ -60,9 +64,9 @@ class Waha::HistoryMessageWriter
   def build_content_attributes
     attrs = Waha::ReplyContextResolver.new(channel: channel, payload: payload, conversation: conversation).perform
     if chat_id.to_s.end_with?('@g.us')
-      attrs[:sender_name] = push_name
+      attrs[:sender_name] = participant_display_name
       attrs[:participant_jid] = sender_jid
-      attrs[:participant_phone] = sender_phone
+      attrs[:participant_phone] = resolve_participant&.phone_number
     end
     attrs
   end
@@ -82,12 +86,26 @@ class Waha::HistoryMessageWriter
     payload.dig('_data', 'Info', 'PushName').presence || payload.dig('_data', 'pushName')
   end
 
-  # No extra WAHA call here (bulk import): resolve only what the event already
-  # carries, otherwise fall back to the @lid's own digits.
-  def sender_phone
-    sender_alt = payload.dig('_data', 'Info', 'SenderAlt')
-    digits = Waha::Jid.digits(sender_alt) if Waha::Jid.lid?(sender_jid) && sender_alt.to_s.end_with?('@s.whatsapp.net')
-    "+#{digits || Waha::Jid.digits(sender_jid)}"
+  # Resolves the group participant to a real Chatwoot contact — deduped per
+  # unique participant (ContactResolver short-circuits once their contact
+  # exists), so this costs WAHA calls only once per new person, not per message.
+  def resolve_participant
+    return @resolve_participant if defined?(@resolve_participant)
+
+    @resolve_participant = Waha::ContactResolver.new(
+      channel: channel,
+      jid: sender_jid,
+      push_name: push_name,
+      sender_alt: payload.dig('_data', 'Info', 'SenderAlt')
+    ).perform&.contact
+  end
+
+  # A resolved contact always has *some* name (ContactResolver falls back to
+  # "+phone"), but the header should stay blank rather than show that phone
+  # number twice — Base.vue already falls back to participant_phone alone.
+  def participant_display_name
+    name = resolve_participant&.name
+    name unless name.to_s.start_with?('+')
   end
 
   def inbox

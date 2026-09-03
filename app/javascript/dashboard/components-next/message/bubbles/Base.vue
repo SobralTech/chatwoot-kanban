@@ -32,13 +32,13 @@ const { t } = useI18n();
 // (contentAttributes.sender_name/participant_phone) — the "sender" on the
 // message itself is the group contact, not the individual member.
 const groupSenderLabel = computed(() => {
-  const name = contentAttributes.value?.sender_name;
-  if (!name) return '';
+  const { sender_name: name, participant_phone: phone } =
+    contentAttributes.value || {};
+  if (!phone) return '';
 
-  return t('CONVERSATION.WAHA_GROUP_SENDER', {
-    name,
-    phone: contentAttributes.value.participant_phone,
-  });
+  return name
+    ? t('CONVERSATION.WAHA_GROUP_SENDER', { name, phone })
+    : t('CONVERSATION.WAHA_GROUP_SENDER_NO_NAME', { phone });
 });
 
 // Other agents' bubbles use a deeper step on the same blue scale so they

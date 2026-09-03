@@ -74,13 +74,27 @@ class Waha::IncomingMessageService
     payload.dig('_data', 'Info', 'PushName').presence || payload.dig('_data', 'pushName')
   end
 
-  # The contact's real number behind a group sender's @lid, when WhatsApp hands
-  # it to us directly on the same event (no extra WAHA call). Falls back to the
-  # @lid's own digits — not a phone number, but still a stable, displayable id.
-  def sender_phone
-    sender_alt = payload.dig('_data', 'Info', 'SenderAlt')
-    digits = Waha::Jid.digits(sender_alt) if Waha::Jid.lid?(sender_jid) && sender_alt.to_s.end_with?('@s.whatsapp.net')
-    "+#{digits || Waha::Jid.digits(sender_jid)}"
+  # Resolves the group participant who actually sent this message to a real
+  # Chatwoot contact — same resolver (and @lid -> phone / contacts-cache name
+  # lookups) used for any other WAHA contact, seeded with what this event
+  # already carries about them.
+  def resolve_participant
+    return @resolve_participant if defined?(@resolve_participant)
+
+    @resolve_participant = Waha::ContactResolver.new(
+      channel: channel,
+      jid: sender_jid,
+      push_name: push_name,
+      sender_alt: payload.dig('_data', 'Info', 'SenderAlt')
+    ).perform&.contact
+  end
+
+  # A resolved contact always has *some* name (ContactResolver falls back to
+  # "+phone"), but the header should stay blank rather than show that phone
+  # number twice — Base.vue already falls back to participant_phone alone.
+  def participant_display_name
+    name = resolve_participant&.name
+    name unless name.to_s.start_with?('+')
   end
 
   def source_id
@@ -208,31 +222,10 @@ class Waha::IncomingMessageService
   end
 
   def build_text_content
-    body = payload['body'].presence
-    body = resolve_mentions(body) if body
+    body = Waha::MentionResolver.new(channel: channel, payload: payload).resolve(payload['body'].presence)
     return body unless edited_original && body
 
     "#{body} [#{EDITED_LABEL}]"
-  end
-
-  # WhatsApp mentions arrive as a raw "@<lid or phone digits>" token in the body
-  # text, resolvable via the message's own mentionedJID list. We resolve each to
-  # a Chatwoot contact (creating it if new, same as any other WAHA contact) and
-  # swap in its name.
-  def resolve_mentions(body)
-    mentioned_jids.reduce(body) do |text, jid|
-      contact = Waha::ContactResolver.new(channel: channel, jid: jid).perform&.contact
-      next text unless contact
-
-      text.gsub("@#{Waha::Jid.digits(jid)}", "@#{contact.name}")
-    end
-  end
-
-  def mentioned_jids
-    message_node = payload.dig('_data', 'Message')
-    return [] unless message_node.is_a?(Hash)
-
-    message_node.values.filter_map { |value| value.is_a?(Hash) ? value.dig('contextInfo', 'mentionedJID') : nil }.flatten.compact
   end
 
   def build_content_attributes
@@ -240,9 +233,9 @@ class Waha::IncomingMessageService
 
     # Store participant name for group messages
     if chat_id.to_s.end_with?('@g.us')
-      attrs[:sender_name] = push_name
+      attrs[:sender_name] = participant_display_name
       attrs[:participant_jid] = sender_jid
-      attrs[:participant_phone] = sender_phone
+      attrs[:participant_phone] = resolve_participant&.phone_number
     end
 
     merge_edit_context(attrs)
