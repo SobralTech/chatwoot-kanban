@@ -29,10 +29,11 @@ const {
 const { t } = useI18n();
 
 // WAHA tags every group message with the participant who actually sent it
-// (contentAttributes.sender_name/participant_phone) — the "sender" on the
-// message itself is the group contact, not the individual member.
+// (contentAttributes.senderName/participantPhone, camelized by MessageList's
+// useCamelCase before this ever reaches props) — the "sender" on the message
+// itself is the group contact, not the individual member.
 const groupSenderLabel = computed(() => {
-  const { sender_name: name, participant_phone: phone } =
+  const { senderName: name, participantPhone: phone } =
     contentAttributes.value || {};
   if (!phone) return '';
 
