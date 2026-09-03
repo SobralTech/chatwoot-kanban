@@ -171,10 +171,7 @@ const replyToPreview = computed(() => {
         class="prose prose-bubble line-clamp-2"
       />
     </div>
-    <div
-      v-if="groupSenderLabel"
-      class="text-xs font-medium text-n-slate-11 mb-1"
-    >
+    <div v-if="groupSenderLabel" class="text-xs font-medium mb-1">
       {{ groupSenderLabel }}
     </div>
     <slot />
