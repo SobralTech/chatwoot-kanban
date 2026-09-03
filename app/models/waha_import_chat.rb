@@ -9,6 +9,7 @@
 #  cursor          :bigint
 #  error           :string
 #  imported_count  :integer          default(0), not null
+#  media_message_ids :bigint           default([]), not null, is an Array
 #  status          :integer          default("pending"), not null
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null

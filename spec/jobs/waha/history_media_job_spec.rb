@@ -36,11 +36,13 @@ describe Waha::HistoryMediaJob do
   end
 
   describe 'circuit breaker' do
-    it 'carries the consecutive failure count across executions and stops at the limit' do
+    it 'pauses and resumes the remaining media after reaching the failure limit' do
       ids = [build_message('AAA').id, build_message('BBB').id]
 
       expect { described_class.perform_now(channel.id, 'chat@c.us', ids, described_class::MAX_CONSECUTIVE_FAILURES - 1) }
-        .not_to have_enqueued_job(described_class)
+        .to have_enqueued_job(described_class)
+        .with(channel.id, 'chat@c.us', [ids[1]], 0)
+        .at(a_value_within(1.second).of(described_class::FAILURE_COOLDOWN.from_now))
     end
   end
 

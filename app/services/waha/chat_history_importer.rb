@@ -4,10 +4,11 @@ class Waha::ChatHistoryImporter
   # media download each page is light, so we can pull a large batch per request.
   PAGE_SIZE = 200
 
-  # Only media newer than this is worth fetching: older WhatsApp media (especially
-  # in groups) is usually expired on the servers, so attempting it just burns a
-  # 30s timeout per message and pounds the WAHA session for nothing.
-  MEDIA_MAX_AGE = ENV.fetch('WAHA_IMPORT_MEDIA_MAX_AGE_DAYS', 30).to_i.days
+  FULL_WINDOW_MEDIA_KINDS = %w[image audio ptt sticker].freeze
+  # Videos, documents and unknown media remain bounded because older WhatsApp
+  # files are commonly expired and expensive to probe. Keep the existing env key
+  # backwards compatible for installations that already tune the 30-day window.
+  RECENT_MEDIA_MAX_AGE = ENV.fetch('WAHA_IMPORT_MEDIA_MAX_AGE_DAYS', 30).to_i.days
 
   pattr_initialize [:channel!, :chat_id!, :window!, :import_chat!]
 
@@ -31,7 +32,7 @@ class Waha::ChatHistoryImporter
   # inside a large chat and a restart resumes mid-chat.
   def import_messages
     imported = 0
-    @media_message_ids = []
+    @media_message_ids = Set.new(import_chat.media_message_ids)
     cursor = resume_cursor
     loop do
       page = fetch_page(cursor)
@@ -40,7 +41,7 @@ class Waha::ChatHistoryImporter
       @conversation ||= resolve_conversation(page)
       return imported unless @conversation
 
-      @existing_stanzas ||= load_existing_stanzas
+      @existing_messages ||= load_existing_messages
       imported += write_page(page)
       break if page.size < PAGE_SIZE
 
@@ -62,29 +63,46 @@ class Waha::ChatHistoryImporter
   # bumps its imported count and persists the timestamp cursor for mid-chat resume.
   def write_page(page)
     imported = page.count { |payload| write_message(payload) }
-    import_chat.update!(cursor: page.last['timestamp'].to_i, imported_count: import_chat.imported_count + imported)
+    import_chat.update!(
+      cursor: page.last['timestamp'].to_i,
+      imported_count: import_chat.imported_count + imported,
+      media_message_ids: @media_message_ids.to_a
+    )
     imported
   end
 
   def write_message(payload)
     stanza = Waha::Anchoring.stanza_of(payload['id'])
-    return false if stanza.blank? || @existing_stanzas.include?(stanza)
+    return false if stanza.blank?
+
+    existing_message_id = @existing_messages[stanza]
+    if existing_message_id
+      track_media(existing_message_id, payload)
+      return false
+    end
 
     message = Waha::HistoryMessageWriter.new(channel: channel, payload: payload, conversation: @conversation).perform
-    @existing_stanzas << stanza
+    @existing_messages[stanza] = message.id
     track_timestamp(payload['timestamp'].to_i)
-    @media_message_ids << message.id if downloadable_media?(payload)
+    track_media(message.id, payload)
     true
   end
 
-  # Skip media that is almost certainly expired on WhatsApp's servers, so the
-  # media job doesn't waste a 30s fetch (and WAHA load) on it.
+  def track_media(message_id, payload)
+    @media_message_ids << message_id if downloadable_media?(payload)
+  end
+
+  # Images, audio and stickers follow the full import window. Videos, documents
+  # and unknown media keep the bounded recent-media window.
   def downloadable_media?(payload)
-    payload['hasMedia'].present? && payload['timestamp'].to_i >= media_cutoff
+    return false if payload['hasMedia'].blank?
+
+    kind = Waha::MediaAttacher.new(channel: channel, payload: payload).media_kind
+    FULL_WINDOW_MEDIA_KINDS.include?(kind) || payload['timestamp'].to_i >= media_cutoff
   end
 
   def media_cutoff
-    @media_cutoff ||= MEDIA_MAX_AGE.ago.to_i
+    @media_cutoff ||= RECENT_MEDIA_MAX_AGE.ago.to_i
   end
 
   # One serial media job per chat (not per page): it fetches this chat's media
@@ -93,7 +111,7 @@ class Waha::ChatHistoryImporter
   def enqueue_media
     return if @media_message_ids.blank?
 
-    Waha::HistoryMediaJob.perform_later(channel.id, chat_id, @media_message_ids)
+    Waha::HistoryMediaJob.perform_later(channel.id, chat_id, @media_message_ids.to_a)
   end
 
   def resolve_conversation(page)
@@ -124,10 +142,10 @@ class Waha::ChatHistoryImporter
     conversation
   end
 
-  def load_existing_stanzas
+  def load_existing_messages
     @conversation.messages.where.not(source_id: nil)
-                 .pluck(:source_id)
-                 .to_set { |source_id| Waha::Anchoring.stanza_of(source_id) }
+                 .pluck(:id, :source_id)
+                 .to_h { |id, source_id| [Waha::Anchoring.stanza_of(source_id), id] }
   end
 
   def track_timestamp(unix)

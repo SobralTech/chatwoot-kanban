@@ -1,4 +1,6 @@
 class Waha::MediaAttacher
+  MEDIA_KINDS = %w[image audio ptt video document sticker].freeze
+
   # GOWS engine encodes media as raw `_data.Message.<kind>Message` keys; use this
   # mapping when neither `payload.type` nor `_data.Info.MediaType` is set.
   DATA_MESSAGE_KINDS = {
@@ -47,6 +49,19 @@ class Waha::MediaAttacher
     message.content_type = :sticker if media_kind == 'sticker'
   end
 
+  # Kept public so history import eligibility and attachment persistence use the
+  # same engine-aware classification. With downloadMedia=false WAHA still sends
+  # the mimetype, which is the final fallback when raw engine fields are absent.
+  def media_kind
+    return @media_kind if defined?(@media_kind)
+
+    raw = payload['type'].presence ||
+          payload.dig('_data', 'Info', 'MediaType').presence ||
+          infer_media_kind_from_data
+    normalized = raw&.to_s&.downcase
+    @media_kind = MEDIA_KINDS.include?(normalized) ? normalized : media_kind_from_mimetype
+  end
+
   private
 
   def media?
@@ -75,16 +90,13 @@ class Waha::MediaAttacher
     url
   end
 
-  # WAHA WEBJS/WPP set `payload.type` ("image", "audio", ...); GOWS omits it and
-  # exposes the kind via `_data.Info.MediaType`, or lets us infer from the raw
-  # `_data.Message` keys (imageMessage/audioMessage/...).
-  def media_kind
-    return @media_kind if defined?(@media_kind)
-
-    raw = payload['type'].presence ||
-          payload.dig('_data', 'Info', 'MediaType').presence ||
-          infer_media_kind_from_data
-    @media_kind = raw&.to_s&.downcase
+  def media_kind_from_mimetype
+    case payload.dig('media', 'mimetype').to_s.downcase.split('/').first
+    when 'image' then 'image'
+    when 'audio' then 'audio'
+    when 'video' then 'video'
+    when 'application', 'text' then 'document'
+    end
   end
 
   def infer_media_kind_from_data

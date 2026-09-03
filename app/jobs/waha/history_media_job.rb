@@ -8,10 +8,10 @@ class Waha::HistoryMediaJob < ApplicationJob
   # the (shared) WAHA session back to back. Applied as an enqueue delay rather than
   # a sleep so the worker thread is not pinned while it waits.
   THROTTLE = 0.5.seconds
-  # Stop the batch after this many consecutive failures: a struggling WAHA session
-  # shouldn't keep getting hammered — it protects the shared host and avoids
-  # WhatsApp throttling the number. Remaining media stays best-effort (unattached).
+  # Five consecutive misses trigger a longer pause to protect a struggling WAHA
+  # session. The remaining media is resumed afterwards instead of being dropped.
   MAX_CONSECUTIVE_FAILURES = 5
+  FAILURE_COOLDOWN = 1.minute
 
   # Downloads media for one chat's already-written history messages and attaches
   # it, best-effort. Runs off the import's critical path (text lands fast) and
@@ -32,9 +32,10 @@ class Waha::HistoryMediaJob < ApplicationJob
     return if message_id.nil?
 
     failures = process(channel, chat_id, message_id, consecutive_failures)
-    return if failures >= MAX_CONSECUTIVE_FAILURES || remaining.empty?
+    return if remaining.empty?
 
-    self.class.set(wait: THROTTLE).perform_later(channel_id, chat_id, remaining, failures)
+    wait, next_failures = failures >= MAX_CONSECUTIVE_FAILURES ? [FAILURE_COOLDOWN, 0] : [THROTTLE, failures]
+    self.class.set(wait: wait).perform_later(channel_id, chat_id, remaining, next_failures)
   end
 
   private
