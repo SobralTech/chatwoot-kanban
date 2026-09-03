@@ -79,7 +79,7 @@ class Waha::ContactResolver
     # PushName is our own profile name, so we skip straight to the contacts
     # lookup. History-synced messages carry no PushName at all (GOWS doesn't
     # persist it per message), so that lookup is the common path there too.
-    name = (incoming? && push_name.presence) || fetch_contact_name(jid) || (phone ? "+#{phone}" : resolved_jid)
+    name = (incoming? && push_name.presence) || fetch_contact_name(resolved_jid) || (phone ? "+#{phone}" : resolved_jid)
     attrs = { name: name, additional_attributes: {} }
     attrs[:phone_number] = "+#{phone}" if phone
     attrs[:avatar_url] = fetch_chat_picture(jid)
