@@ -2,6 +2,8 @@ class Waha::HistoryImportJob < ApplicationJob
   queue_as :low
 
   MAX_RETRIES = 5
+  # GOWS reports WORKING before its initial history sync has populated the chat store.
+  INITIAL_DELAY = ENV.fetch('WAHA_INITIAL_IMPORT_DELAY_SECONDS', 120).to_i.seconds
   # Bounded per-channel parallelism: how many chats import at once. Tunable in
   # production without a deploy; kept well under Sidekiq concurrency so one
   # channel's import doesn't starve other work (or hammer the WAHA session).
@@ -35,6 +37,8 @@ class Waha::HistoryImportJob < ApplicationJob
 
   def dispatch_chats
     chat_ids = Waha::ChatOverviewFetcher.new(channel: @channel).all
+    raise CustomExceptions::Waha::HistoryNotReady, 'WAHA chat history is not ready yet' if @kind == 'initial' && chat_ids.empty?
+
     seed_chat_rows(chat_ids)
     reclaim_stale_rows
     return @channel.finalize_import! unless @channel.import_chats.exists?
@@ -72,8 +76,10 @@ class Waha::HistoryImportJob < ApplicationJob
 
     @channel.record_import_retry!
     if @channel.import_retries <= MAX_RETRIES
+      Rails.logger.warn "[WAHA] History import: channel #{@channel.id} retry #{@channel.import_retries}/#{MAX_RETRIES}: #{error.message}"
       self.class.set(wait: backoff).perform_later(@channel.id, @window, @kind)
     else
+      Rails.logger.error "[WAHA] History import: channel #{@channel.id} failed after #{MAX_RETRIES} retries: #{error.message}"
       @channel.fail_import!(error.message)
     end
   end

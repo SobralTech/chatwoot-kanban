@@ -122,6 +122,11 @@ class Channel::Waha < ApplicationRecord
   # Called by the last worker to drain the queue: a gap-fill window that arrived
   # mid-import is picked up as a follow-up run, otherwise the import is done.
   def finalize_import!
+    if import_chats.failed.exists?
+      fail_import!(import_chats.failed.where.not(error: nil).pick(:error) || 'One or more chats failed to import')
+      return
+    end
+
     queued = import_state['queued_window']
     if queued
       update_import_state!('queued_window' => nil, 'status' => 'pending')

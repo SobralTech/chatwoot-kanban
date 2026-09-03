@@ -215,7 +215,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
     if channel.import_running?
       channel.queue_import_window(window)
     else
-      Waha::HistoryImportJob.perform_later(channel.id, window, kind)
+      job = kind == 'initial' ? Waha::HistoryImportJob.set(wait: Waha::HistoryImportJob::INITIAL_DELAY) : Waha::HistoryImportJob
+      job.perform_later(channel.id, window, kind)
     end
   end
 

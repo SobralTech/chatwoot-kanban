@@ -179,8 +179,7 @@ class Waha::ChatHistoryImporter
       'filter.timestamp.lte' => window_unix('window_end')
     }.to_query
 
-    response = http_client.get("#{channel.session_name}/chats/#{chat_id}/messages?#{query}")
-    response.is_a?(Array) ? response : []
+    http_client.get_array("#{channel.session_name}/chats/#{chat_id}/messages?#{query}")
   end
 
   def window_unix(key)

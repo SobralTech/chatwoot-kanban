@@ -47,6 +47,15 @@ describe Waha::ImportChatWorkerJob do
 
       expect(channel.reload.import_state['status']).to eq('running')
     end
+
+    it 'marks the import as failed when a chat failed' do
+      queue_chats('a@c.us')
+      channel.import_chats.first.update!(status: :failed, error: 'WAHA request failed')
+
+      described_class.perform_now(channel.id, window)
+
+      expect(channel.reload.import_state).to include('status' => 'failed', 'error' => 'WAHA request failed')
+    end
   end
 
   describe 'a chat that fails' do

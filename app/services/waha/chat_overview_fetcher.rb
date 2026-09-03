@@ -23,8 +23,7 @@ class Waha::ChatOverviewFetcher
   private
 
   def fetch_page(offset)
-    response = http_client.get("#{channel.session_name}/chats/overview?limit=#{PAGE_SIZE}&offset=#{offset}")
-    response.is_a?(Array) ? response : []
+    http_client.get_array("#{channel.session_name}/chats/overview?limit=#{PAGE_SIZE}&offset=#{offset}")
   end
 
   def in_scope?(id)

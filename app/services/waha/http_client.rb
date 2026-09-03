@@ -9,6 +9,20 @@ class Waha::HttpClient
     request(:get, path, timeout: timeout).parsed_response
   end
 
+  def get_array(path, timeout: nil)
+    response = request(:get, path, timeout: timeout)
+    parsed_response = response.parsed_response
+
+    unless response.success?
+      message = parsed_response.is_a?(Hash) ? parsed_response['message'] || parsed_response['error'] : nil
+      raise CustomExceptions::Waha::ApiError, ["WAHA request failed (HTTP #{response.code})", message].compact.join(': ')
+    end
+
+    return parsed_response if parsed_response.is_a?(Array)
+
+    raise CustomExceptions::Waha::ApiError, "WAHA returned #{parsed_response.class.name} instead of an array"
+  end
+
   def post(path, body)
     request(:post, path, body).parsed_response
   end
