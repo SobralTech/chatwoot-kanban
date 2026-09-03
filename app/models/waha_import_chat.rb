@@ -5,16 +5,16 @@
 #
 # Table name: waha_import_chats
 #
-#  id              :bigint           not null, primary key
-#  cursor          :bigint
-#  error           :string
-#  imported_count  :integer          default(0), not null
+#  id                :bigint           not null, primary key
+#  cursor            :bigint
+#  error             :string
+#  imported_count    :integer          default(0), not null
 #  media_message_ids :bigint           default([]), not null, is an Array
-#  status          :integer          default("pending"), not null
-#  created_at      :datetime         not null
-#  updated_at      :datetime         not null
-#  channel_waha_id :bigint           not null
-#  chat_id         :string           not null
+#  status            :integer          default("pending"), not null
+#  created_at        :datetime         not null
+#  updated_at        :datetime         not null
+#  channel_waha_id   :bigint           not null
+#  chat_id           :string           not null
 #
 # Indexes
 #

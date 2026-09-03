@@ -8,7 +8,15 @@ module Waha::Anchoring
   # The same trailing-stanza extraction as `stanza_of`, expressed in SQL. Kept
   # byte-identical to the expression behind index_messages_on_inbox_and_source_stanza
   # so the planner can use it.
-  STANZA_SQL = "regexp_replace(source_id, '^.*_', '')".freeze
+  #
+  # A group message id carries a trailing `_<participantJid>` segment
+  # (`direction_chat_stanza_participant`) that a plain "after the last
+  # underscore" split would return instead of the real stanza — and since a
+  # participant sends many messages, that collided every one of their
+  # messages after the first onto a single false "duplicate". Strip that
+  # trailing `_...@...` segment (chat/participant JIDs are the only parts
+  # containing "@") before taking what's after the last remaining underscore.
+  STANZA_SQL = "regexp_replace(regexp_replace(source_id, '_[^_]*@[^_]*$', ''), '^.*_', '')".freeze
 
   module_function
 
@@ -26,10 +34,12 @@ module Waha::Anchoring
             .or(messages.where("additional_attributes->>'edit_of' = ?", anchor_source_id))
   end
 
-  # WAHA source_ids are `direction_chat_stanza`; the trailing stanza is the
-  # message identity and the only part stable across engines and directions.
+  # WAHA source_ids are `direction_chat_stanza`, or `direction_chat_stanza_participant`
+  # for a group message; the stanza is the message identity and the only part
+  # stable across engines and directions. Drop the JID-shaped segments (they're
+  # the only ones containing "@") and take what's left — see STANZA_SQL.
   def stanza_of(source_id)
-    source_id.to_s.split('_').last
+    source_id.to_s.split('_').reject { |part| part.include?('@') }.last
   end
 
   # Every message matching a source_id's stanza, as a relation so callers can

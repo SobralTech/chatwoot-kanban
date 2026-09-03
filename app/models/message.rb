@@ -33,6 +33,8 @@
 #  index_messages_on_conversation_account_type_created  (conversation_id,account_id,message_type,created_at)
 #  index_messages_on_conversation_id                    (conversation_id)
 #  index_messages_on_created_at                         (created_at)
+#  index_messages_on_inbox_and_edit_of                  (inbox_id, ((additional_attributes ->> 'edit_of'::text))) WHERE ((additional_attributes ->> 'edit_of'::text) IS NOT NULL)
+#  index_messages_on_inbox_and_source_stanza            (inbox_id, regexp_replace(regexp_replace(source_id, '_[^_]*@[^_]*$'::text, ''::text), '^.*_'::text, ''::text)) WHERE (source_id IS NOT NULL)
 #  index_messages_on_inbox_id                           (inbox_id)
 #  index_messages_on_sender_type_and_sender_id          (sender_type,sender_id)
 #  index_messages_on_source_id                          (source_id)
