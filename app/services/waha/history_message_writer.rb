@@ -62,6 +62,7 @@ class Waha::HistoryMessageWriter
     if chat_id.to_s.end_with?('@g.us')
       attrs[:sender_name] = push_name
       attrs[:participant_jid] = sender_jid
+      attrs[:participant_phone] = sender_phone
     end
     attrs
   end
@@ -72,11 +73,21 @@ class Waha::HistoryMessageWriter
   end
 
   def sender_jid
-    @sender_jid ||= payload.dig('_data', 'author').presence || payload['from']
+    # `participant` is WAHA's normalized group-sender field; _data.author covers
+    # engines that don't set it. Outside a group both are absent and `from` applies.
+    @sender_jid ||= payload['participant'].presence || payload.dig('_data', 'author').presence || payload['from']
   end
 
   def push_name
     payload.dig('_data', 'Info', 'PushName').presence || payload.dig('_data', 'pushName')
+  end
+
+  # No extra WAHA call here (bulk import): resolve only what the event already
+  # carries, otherwise fall back to the @lid's own digits.
+  def sender_phone
+    sender_alt = payload.dig('_data', 'Info', 'SenderAlt')
+    digits = Waha::Jid.digits(sender_alt) if Waha::Jid.lid?(sender_jid) && sender_alt.to_s.end_with?('@s.whatsapp.net')
+    "+#{digits || Waha::Jid.digits(sender_jid)}"
   end
 
   def inbox

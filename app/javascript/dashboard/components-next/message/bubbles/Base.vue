@@ -18,9 +18,28 @@ const props = defineProps({
   bare: { type: Boolean, default: false },
 });
 
-const { variant, orientation, inReplyTo, shouldGroupWithNext, isOwnMessage } =
-  useMessageContext();
+const {
+  variant,
+  orientation,
+  inReplyTo,
+  shouldGroupWithNext,
+  isOwnMessage,
+  contentAttributes,
+} = useMessageContext();
 const { t } = useI18n();
+
+// WAHA tags every group message with the participant who actually sent it
+// (contentAttributes.sender_name/participant_phone) — the "sender" on the
+// message itself is the group contact, not the individual member.
+const groupSenderLabel = computed(() => {
+  const name = contentAttributes.value?.sender_name;
+  if (!name) return '';
+
+  return t('CONVERSATION.WAHA_GROUP_SENDER', {
+    name,
+    phone: contentAttributes.value.participant_phone,
+  });
+});
 
 // Other agents' bubbles use a deeper step on the same blue scale so they
 // read darker in light mode and lighter in dark mode than the current
@@ -150,6 +169,12 @@ const replyToPreview = computed(() => {
         v-dompurify-html="replyToPreview"
         class="prose prose-bubble line-clamp-2"
       />
+    </div>
+    <div
+      v-if="groupSenderLabel"
+      class="text-xs font-medium text-n-slate-11 mb-1"
+    >
+      {{ groupSenderLabel }}
     </div>
     <slot />
     <MessageMeta

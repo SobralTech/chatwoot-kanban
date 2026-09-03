@@ -26,9 +26,11 @@ class Waha::IncomingMessageService
       @contact = @contact_inbox.contact
     end
 
-    # Downloading media can block for up to a minute, so it happens before the
-    # transaction opens rather than pinning a connection for the whole fetch.
+    # Downloading media and resolving @mentions can each block on a WAHA call, so
+    # both happen before the transaction opens rather than pinning a connection
+    # for the whole fetch.
     media_attacher.download
+    @text_content = build_text_content
     persist
   end
 
@@ -63,12 +65,22 @@ class Waha::IncomingMessageService
   end
 
   def sender_jid
-    # In groups, _data.author is the participant who sent; otherwise it's from.
-    @sender_jid ||= payload.dig('_data', 'author').presence || payload['from']
+    # `participant` is WAHA's normalized group-sender field; _data.author covers
+    # engines that don't set it. Outside a group both are absent and `from` applies.
+    @sender_jid ||= payload['participant'].presence || payload.dig('_data', 'author').presence || payload['from']
   end
 
   def push_name
     payload.dig('_data', 'Info', 'PushName').presence || payload.dig('_data', 'pushName')
+  end
+
+  # The contact's real number behind a group sender's @lid, when WhatsApp hands
+  # it to us directly on the same event (no extra WAHA call). Falls back to the
+  # @lid's own digits — not a phone number, but still a stable, displayable id.
+  def sender_phone
+    sender_alt = payload.dig('_data', 'Info', 'SenderAlt')
+    digits = Waha::Jid.digits(sender_alt) if Waha::Jid.lid?(sender_jid) && sender_alt.to_s.end_with?('@s.whatsapp.net')
+    "+#{digits || Waha::Jid.digits(sender_jid)}"
   end
 
   def source_id
@@ -116,7 +128,7 @@ class Waha::IncomingMessageService
 
   def create_message
     @message = @conversation.messages.build(
-      content: text_content,
+      content: @text_content,
       account_id: inbox.account_id,
       inbox_id: inbox.id,
       message_type: incoming? ? :incoming : :outgoing,
@@ -195,11 +207,32 @@ class Waha::IncomingMessageService
     attrs
   end
 
-  def text_content
+  def build_text_content
     body = payload['body'].presence
+    body = resolve_mentions(body) if body
     return body unless edited_original && body
 
     "#{body} [#{EDITED_LABEL}]"
+  end
+
+  # WhatsApp mentions arrive as a raw "@<lid or phone digits>" token in the body
+  # text, resolvable via the message's own mentionedJID list. We resolve each to
+  # a Chatwoot contact (creating it if new, same as any other WAHA contact) and
+  # swap in its name.
+  def resolve_mentions(body)
+    mentioned_jids.reduce(body) do |text, jid|
+      contact = Waha::ContactResolver.new(channel: channel, jid: jid).perform&.contact
+      next text unless contact
+
+      text.gsub("@#{Waha::Jid.digits(jid)}", "@#{contact.name}")
+    end
+  end
+
+  def mentioned_jids
+    message_node = payload.dig('_data', 'Message')
+    return [] unless message_node.is_a?(Hash)
+
+    message_node.values.filter_map { |value| value.is_a?(Hash) ? value.dig('contextInfo', 'mentionedJID') : nil }.flatten.compact
   end
 
   def build_content_attributes
@@ -209,6 +242,7 @@ class Waha::IncomingMessageService
     if chat_id.to_s.end_with?('@g.us')
       attrs[:sender_name] = push_name
       attrs[:participant_jid] = sender_jid
+      attrs[:participant_phone] = sender_phone
     end
 
     merge_edit_context(attrs)
