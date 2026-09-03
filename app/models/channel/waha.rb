@@ -127,6 +127,8 @@ class Channel::Waha < ApplicationRecord
       return
     end
 
+    return retry_empty_initial_import! if retry_empty_initial_import?
+
     queued = import_state['queued_window']
     if queued
       update_import_state!('queued_window' => nil, 'status' => 'pending')
@@ -134,6 +136,24 @@ class Channel::Waha < ApplicationRecord
     else
       finish_import!
     end
+  end
+
+  # GOWS can report a chat in the overview before that chat's own message
+  # history has synced, so a first pass can legitimately find chats but zero
+  # messages in every one of them. Retry the whole discovery+fetch cycle (same
+  # budget as the empty-overview retry in Waha::HistoryImportJob) before
+  # accepting "0 messages" as the real answer. A truly empty overview (no chats
+  # at all) is already handled upstream by that same retry, so this only fires
+  # once chats were actually found.
+  def retry_empty_initial_import?
+    import_state['kind'] == 'initial' && import_chats.exists? && import_progress['imported_messages'].to_i.zero? &&
+      import_retries < Waha::HistoryImportJob::MAX_RETRIES
+  end
+
+  def retry_empty_initial_import!
+    record_import_retry!
+    import_chats.delete_all
+    Waha::HistoryImportJob.set(wait: ((import_retries**2) * 30).seconds).perform_later(id, import_window, 'initial')
   end
 
   def finish_import!
@@ -172,6 +192,19 @@ class Channel::Waha < ApplicationRecord
 
   def update_import_state!(attrs)
     update_column(:import_state, import_state.merge(attrs.stringify_keys))
+  end
+
+  # Starts a history import for this channel, or — respecting the
+  # single-import-per-channel lock — merges the window into the one already
+  # running. Shared by the webhook-triggered opt-in import/reconnect gap-fill
+  # and the periodic safety-net sweep (Waha::PeriodicGapFillJob).
+  def enqueue_history_import!(window, kind:)
+    if import_running?
+      queue_import_window(window)
+    else
+      job = kind == 'initial' ? Waha::HistoryImportJob.set(wait: Waha::HistoryImportJob::INITIAL_DELAY) : Waha::HistoryImportJob
+      job.perform_later(id, window, kind)
+    end
   end
 
   # --- Import windows ---

@@ -87,3 +87,12 @@ remove_orphan_conversations_job:
   cron: '0 */12 * * *'
   class: 'Internal::RemoveOrphanConversationsJob'
   queue: housekeeping
+
+# executed every 30 minutes
+# safety net for WAHA silently dropping live events under internal load (no
+# disconnect to trigger the existing reconnect gap-fill): re-syncs each
+# connected channel's recent history so nothing gets permanently lost
+waha_periodic_gap_fill_job:
+  cron: '*/30 * * * *'
+  class: 'Waha::PeriodicGapFillJob'
+  queue: scheduled_jobs

@@ -209,15 +209,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
     start_history_import(channel, window, 'gap_fill') if window
   end
 
-  # Respects the single-import-per-inbox lock: a window arriving while an import
-  # runs is merged into the queued one instead of starting a parallel job.
   def start_history_import(channel, window, kind)
-    if channel.import_running?
-      channel.queue_import_window(window)
-    else
-      job = kind == 'initial' ? Waha::HistoryImportJob.set(wait: Waha::HistoryImportJob::INITIAL_DELAY) : Waha::HistoryImportJob
-      job.perform_later(channel.id, window, kind)
-    end
+    channel.enqueue_history_import!(window, kind: kind)
   end
 
   # On the first successful connection we adopt the real number reported by WAHA
