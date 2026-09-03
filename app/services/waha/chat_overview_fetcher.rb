@@ -5,6 +5,8 @@ class Waha::ChatOverviewFetcher
 
   # Returns the in-scope chat JIDs across every overview page: DMs (@c.us/@lid)
   # always, groups (@g.us) only when enabled; newsletters/status are skipped.
+  # Groups come first — with a bounded worker pool claiming chats in this same
+  # order, that's what gets imported first too.
   def all
     chat_ids = []
     offset = 0
@@ -17,7 +19,8 @@ class Waha::ChatOverviewFetcher
 
       offset += PAGE_SIZE
     end
-    chat_ids
+    groups, others = chat_ids.partition { |id| Waha::Jid.group?(id) }
+    groups + others
   end
 
   private
