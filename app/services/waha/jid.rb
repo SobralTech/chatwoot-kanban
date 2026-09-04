@@ -16,4 +16,14 @@ module Waha::Jid
   def lid?(jid)
     jid.to_s.end_with?('@lid')
   end
+
+  def phone?(jid)
+    jid.to_s.end_with?('@c.us', '@s.whatsapp.net')
+  end
+
+  def phone_jid(jid)
+    return unless phone?(jid)
+
+    "#{digits(jid)}@c.us"
+  end
 end
