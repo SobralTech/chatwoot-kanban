@@ -148,7 +148,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def send_text
-    http_client.post('sendText', base_payload.merge(text: signer.sign(message.content.to_s)))
+    http_client.post('sendText', base_payload.merge(outgoing_mentions.payload, text: signer.sign(outgoing_mentions.text)))
   end
 
   def send_attachment
@@ -167,14 +167,15 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   # the document name on WhatsApp. Passing them explicitly avoids the "422 file
   # invalid" the server returns for a bare `{ url: ... }`.
   def attachment_endpoint_and_body(file_type, attachment, file_url)
-    caption = signer.sign(message.content.to_s.presence)
+    caption = signer.sign(outgoing_mentions.text.presence)
     remote_file = { url: file_url, mimetype: blob(attachment)&.content_type.presence,
                     filename: blob(attachment)&.filename&.to_s.presence }.compact
+    caption_payload = outgoing_mentions.payload.merge(file: remote_file, caption: caption)
     case file_type
-    when :image  then ['sendImage', { file: remote_file, caption: caption }]
+    when :image  then ['sendImage', caption_payload]
     when :audio  then ['sendVoice', { file: remote_file }]
-    when :video  then ['sendVideo', { file: remote_file, caption: caption }]
-    else              ['sendFile',  { file: remote_file, caption: caption }]
+    when :video  then ['sendVideo', caption_payload]
+    else              ['sendFile', caption_payload]
     end
   end
 
@@ -190,6 +191,10 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     payload[:reply_to] = reply_to_id if reply_to_id.present?
 
     payload
+  end
+
+  def outgoing_mentions
+    @outgoing_mentions ||= Waha::OutgoingMentionParser.new(text: message.content, chat_id: chat_id)
   end
 
   def chat_id
