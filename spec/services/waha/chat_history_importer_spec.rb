@@ -126,4 +126,32 @@ describe Waha::ChatHistoryImporter do
       expect(Message.find_by(source_id: payload['id'])).to be_nil
     end
   end
+
+  context 'with an unsupported GOWS message type' do
+    it 'writes a visible fallback instead of a blank historical message' do
+      # A real GOWS poll payload: no body, no media — see the equivalent live-path
+      # test in incoming_message_service_spec.rb for the same contract.
+      unsupported_payload = {
+        'id' => 'false_5511888888888@c.us_POLL001',
+        'from' => chat_id,
+        'to' => '5511999999999@c.us',
+        'fromMe' => false,
+        'timestamp' => message_time.to_i,
+        'hasMedia' => false,
+        '_data' => {
+          'Info' => { 'Chat' => chat_id, 'PushName' => 'Jane Doe' },
+          'Message' => { 'pollCreationMessage' => { 'name' => 'Qual dia é melhor?' } }
+        }
+      }
+      stub_request(:get, %r{https://waha\.test/api/#{channel.session_name}/chats/5511888888888@c\.us/messages\?})
+        .to_return(status: 200, body: [unsupported_payload].to_json, headers: { 'Content-Type' => 'application/json' })
+
+      conversation = create(:conversation, account: channel.account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
+      import_history(kind: 'initial', conversation: conversation)
+
+      message = conversation.messages.find_by!(source_id: unsupported_payload['id'])
+      expect(message.content_attributes['is_unsupported']).to be(true)
+      expect(message.attachments).to be_empty
+    end
+  end
 end

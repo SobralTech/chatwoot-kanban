@@ -52,7 +52,15 @@ class Waha::HistoryMessageWriter
   end
 
   def text_content
-    Waha::MentionResolver.new(channel: channel, payload: payload).resolve(payload['body'].presence)
+    converter.content
+  end
+
+  # Selection only — download/attach are the live path's concern
+  # (Waha::HistoryMediaJob attaches history media later, off the import's
+  # critical path), but the same registry still marks an unsupported or
+  # otherwise-empty payload instead of writing a blank row.
+  def converter
+    @converter ||= Waha::MessageConverters::Registry.for(channel: channel, payload: payload)
   end
 
   def incoming?
@@ -84,6 +92,7 @@ class Waha::HistoryMessageWriter
 
   def build_content_attributes
     attrs = Waha::ReplyContextResolver.new(channel: channel, payload: payload, conversation: conversation).perform
+    attrs.merge!(converter.metadata)
     if chat_id.to_s.end_with?('@g.us')
       attrs[:sender_name] = participant_display_name
       attrs[:participant_jid] = sender_jid
