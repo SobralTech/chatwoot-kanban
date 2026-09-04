@@ -127,6 +127,131 @@ describe Waha::ChatHistoryImporter do
     end
   end
 
+  context 'with composite cursor pagination' do
+    # Simulates the GOWS contract the importer actually relies on: sortBy
+    # timestamp, an inclusive filter.timestamp.gte/lte window and a hard
+    # `limit` — but NOT any particular order among same-second messages
+    # (see SPEC.md). The response for a given call is sliced from `messages`
+    # in whatever order the test built that array, independent of any
+    # "chronological" or id-sorted order, so a pass here can't be an
+    # accident of the array already being pre-sorted the way the importer
+    # wants it.
+    def stub_history_messages(messages)
+      stub_request(:get, %r{https://waha\.test/api/#{channel.session_name}/chats/#{Regexp.escape(chat_id)}/messages\?})
+        .to_return do |request|
+          params = Rack::Utils.parse_query(URI(request.uri).query)
+          gte = params['filter.timestamp.gte'].to_i
+          lte = params['filter.timestamp.lte'].to_i
+          page = messages.select { |m| m['timestamp'].to_i.between?(gte, lte) }.first(params['limit'].to_i)
+          { status: 200, body: page.to_json, headers: { 'Content-Type' => 'application/json' } }
+        end
+    end
+
+    def build_payloads(count:, base_ts:, prefix:, ts_step: 0)
+      Array.new(count) do |i|
+        {
+          'id' => "false_#{chat_id}_#{prefix}#{i.to_s.rjust(4, '0')}",
+          'body' => "msg #{i}",
+          'from' => chat_id,
+          'to' => '5511999999999@c.us',
+          'fromMe' => false,
+          'timestamp' => base_ts + (i * ts_step),
+          'type' => 'chat',
+          'hasMedia' => false,
+          '_data' => { 'Info' => { 'Chat' => chat_id, 'PushName' => 'Jane Doe' } }
+        }
+      end
+    end
+
+    it 'fully imports a same-second cluster larger than the page size, without loss, duplication or a fabricated order' do
+      tied_ts = message_time.to_i
+      messages = build_payloads(count: described_class::PAGE_SIZE + 50, base_ts: tied_ts, prefix: 'TIE').shuffle
+      stub_history_messages(messages)
+
+      conversation = create(:conversation, account: channel.account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
+      import_chat = WahaImportChat.create!(channel: channel, chat_id: chat_id)
+
+      imported = described_class.new(
+        channel: channel, chat_id: chat_id, window: window, import_chat: import_chat, kind: 'initial'
+      ).run
+
+      expect(imported).to eq(messages.size)
+      expect(conversation.messages.where.not(source_id: nil).pluck(:source_id)).to match_array(messages.pluck('id'))
+      import_chat.reload
+      expect(import_chat.imported_count).to eq(messages.size)
+      # Every message in the cluster is confirmed, so the checkpoint has
+      # stepped one second past it with no id yet confirmed there.
+      expect(import_chat.cursor).to eq(tied_ts + 1)
+      expect(import_chat.cursor_message_id).to be_nil
+    end
+
+    it 'resumes from a persisted composite checkpoint without losing or duplicating messages' do
+      base_ts = message_time.to_i
+      payloads = build_payloads(count: 300, base_ts: base_ts, prefix: 'RES', ts_step: 1)
+      stub_history_messages(payloads)
+
+      conversation = create(:conversation, account: channel.account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
+      already_confirmed = payloads.first(220)
+      already_confirmed.each do |p|
+        create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                         message_type: :incoming, source_id: p['id'], created_at: Time.zone.at(p['timestamp']))
+      end
+      checkpoint = already_confirmed.last
+      import_chat = WahaImportChat.create!(
+        channel: channel, chat_id: chat_id, cursor: checkpoint['timestamp'],
+        cursor_message_id: 'RES0219', imported_count: already_confirmed.size
+      )
+
+      imported = described_class.new(
+        channel: channel, chat_id: chat_id, window: window, import_chat: import_chat, kind: 'gap_fill'
+      ).run
+
+      expect(imported).to eq(80)
+      expect(conversation.messages.where.not(source_id: nil).count).to eq(300)
+      expect(conversation.messages.pluck(:source_id).uniq.size).to eq(300)
+      import_chat.reload
+      expect(import_chat.imported_count).to eq(300)
+      expect(import_chat.cursor).to eq(payloads.last['timestamp'])
+      expect(import_chat.cursor_message_id).to eq('RES0299')
+
+      # A superfluous re-run (e.g. a periodic sweep after the chat already
+      # fully caught up) must terminate cleanly, not mistake "nothing left"
+      # for a stall.
+      again = described_class.new(
+        channel: channel, chat_id: chat_id, window: window, import_chat: import_chat, kind: 'gap_fill'
+      ).run
+      expect(again).to eq(0)
+    end
+
+    it 'raises an observable error instead of looping or falsely completing when a full page makes no progress' do
+      stale_ts = message_time.to_i
+      # Distinct timestamps (not a tied second) so this exercises the plain
+      # stall path, not same-second cluster resolution.
+      stale_messages = build_payloads(count: described_class::PAGE_SIZE, base_ts: stale_ts, prefix: 'STALL', ts_step: 1)
+      # An engine that ignores the gte/lte filters entirely and always
+      # returns the same full page — every one of these was already
+      # confirmed by the persisted checkpoint below, so no page can ever
+      # make progress.
+      stub_request(:get, %r{https://waha\.test/api/#{channel.session_name}/chats/#{Regexp.escape(chat_id)}/messages\?})
+        .to_return(status: 200, body: stale_messages.to_json, headers: { 'Content-Type' => 'application/json' })
+
+      last = stale_messages.last
+      import_chat = WahaImportChat.create!(
+        channel: channel, chat_id: chat_id, cursor: last['timestamp'], cursor_message_id: 'STALL0199', imported_count: 200
+      )
+      importer = described_class.new(
+        channel: channel, chat_id: chat_id, window: window, import_chat: import_chat, kind: 'gap_fill'
+      )
+
+      expect { importer.run }.to raise_error(CustomExceptions::Waha::ApiError, /stalled/)
+
+      import_chat.reload
+      expect(import_chat.cursor).to eq(last['timestamp'])
+      expect(import_chat.cursor_message_id).to eq('STALL0199')
+      expect(import_chat.imported_count).to eq(200)
+    end
+  end
+
   context 'with an unsupported GOWS message type' do
     it 'writes a visible fallback instead of a blank historical message' do
       # A real GOWS poll payload: no body, no media — see the equivalent live-path
