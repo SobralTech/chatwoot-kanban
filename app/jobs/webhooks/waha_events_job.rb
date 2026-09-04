@@ -12,25 +12,32 @@ class Webhooks::WahaEventsJob < ApplicationJob
   ACK_MAX_RETRIES = 3
   ACK_RETRY_DELAY = 3.seconds
 
-  def perform(channel_id, params = {}, ack_retries = 0)
+  # A live media download can hit a transient WAHA/network blip. MAX_ATTEMPTS
+  # counts the original try (2 retries) before the event gives up retrying and
+  # persists the message with a visible fallback instead — mirrors
+  # Waha::SendOnWahaService's send-side retry budget/backoff.
+  MEDIA_MAX_ATTEMPTS = 3
+  MEDIA_RETRY_DELAYS = [10.seconds, 60.seconds].freeze
+
+  def perform(channel_id, params = {}, ack_retries = 0, media_attempt = 1)
     channel = Channel::Waha.find_by(id: channel_id)
     return unless channel&.account&.active?
 
-    route_event(channel, params, ack_retries)
+    route_event(channel, params, ack_retries, media_attempt)
   end
 
   private
 
   # We subscribe to message.any only (the superset of every message event) so
   # each message is processed exactly once, regardless of direction.
-  def route_event(channel, params, ack_retries)
+  def route_event(channel, params, ack_retries, media_attempt)
     case params['event'].to_s
     when 'message.any'
-      handle_message(channel, params['payload'])
+      handle_message(channel, params, media_attempt)
     when 'message.ack'
       handle_message_ack(channel, params, ack_retries)
     when 'message.edited'
-      handle_message_edited(channel, params['payload'])
+      handle_message_edited(channel, params, media_attempt)
     when 'message.revoked'
       handle_message_revoked(channel, params['payload'])
     when 'message.reaction'
@@ -40,7 +47,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
     end
   end
 
-  def handle_message(channel, payload)
+  def handle_message(channel, params, media_attempt)
+    payload = params['payload']
     return if payload.blank?
     # Sent from Chatwoot via the WAHA API — the local message already exists (with
     # its source_id). Mirroring would duplicate it; acks drive its status.
@@ -50,6 +58,10 @@ class Webhooks::WahaEventsJob < ApplicationJob
     # directly (fromMe: true, source: app/web). Mirror both into Chatwoot; the
     # service's own dedup check is the single gate against double-mirroring.
     Waha::IncomingMessageService.new(channel: channel, payload: payload).perform
+  rescue CustomExceptions::Waha::MediaDownloadError => e
+    retry_media_or_finalize(channel, params, media_attempt, e) do
+      Waha::IncomingMessageService.new(channel: channel, payload: payload, media_terminal: true).perform
+    end
   end
 
   def chatwoot_originated?(payload)
@@ -106,12 +118,33 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # through (superseded flag, rendered as line-through) and post the new content
   # as a fresh message quoting the original — the "[✏️ Editada]" marker. Agent
   # edits made from Chatwoot round-trip through this same event (fromMe: true).
-  def handle_message_edited(channel, payload)
+  def handle_message_edited(channel, params, media_attempt)
+    payload = params['payload']
     return if payload.blank?
 
     original = find_message_by_source_id(channel, payload['editedMessageId'])
     supersede_edit_family(channel, original) if original
     Waha::IncomingMessageService.new(channel: channel, payload: payload, edited_original: original).perform
+  rescue CustomExceptions::Waha::MediaDownloadError => e
+    retry_media_or_finalize(channel, params, media_attempt, e) do
+      original = find_message_by_source_id(channel, payload['editedMessageId'])
+      Waha::IncomingMessageService.new(channel: channel, payload: payload, edited_original: original, media_terminal: true).perform
+    end
+  end
+
+  # A transient media-download failure keeps the whole event retryable instead
+  # of persisting an incomplete message that would block recovery via dedup
+  # (the message is never created until the download either succeeds or is
+  # explicitly given up on). Once MEDIA_MAX_ATTEMPTS is reached, the block
+  # persists the message anyway with Waha::MediaAttacher's visible fallback.
+  def retry_media_or_finalize(channel, params, media_attempt, error)
+    if media_attempt < MEDIA_MAX_ATTEMPTS
+      Rails.logger.warn "[WAHA] Transient media download failure (attempt #{media_attempt}): #{error.message}"
+      self.class.set(wait: MEDIA_RETRY_DELAYS[media_attempt - 1]).perform_later(channel.id, params, 0, media_attempt + 1)
+    else
+      Rails.logger.error "[WAHA] Media download exhausted retries, using visible fallback: #{error.message}"
+      yield
+    end
   end
 
   # WhatsApp keeps a single message across N edits (all pointing at the original

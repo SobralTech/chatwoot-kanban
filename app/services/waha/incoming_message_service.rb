@@ -5,7 +5,10 @@ class Waha::IncomingMessageService
 
   # `edited_original`, when present, means this message is the edited version of
   # an existing one: we tag its content and quote the original message.
-  pattr_initialize [:channel!, :payload!, :edited_original]
+  # `media_terminal`, when true, means the caller already exhausted the media
+  # download retries for this event: skip the network attempt and persist with
+  # a visible fallback instead of failing (and retrying) again.
+  pattr_initialize [:channel!, :payload!, :edited_original, :media_terminal]
 
   def perform
     return if ignored_chat?
@@ -162,7 +165,7 @@ class Waha::IncomingMessageService
   end
 
   def media_attacher
-    @media_attacher ||= Waha::MediaAttacher.new(channel: channel, payload: payload)
+    @media_attacher ||= Waha::MediaAttacher.new(channel: channel, payload: payload, terminal: media_terminal)
   end
 
   # For a mirrored outgoing message the payload already carries the WhatsApp ack,

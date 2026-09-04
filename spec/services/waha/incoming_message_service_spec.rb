@@ -206,4 +206,59 @@ describe Waha::IncomingMessageService do
       end
     end
   end
+
+  describe 'media download recovery' do
+    let(:media_url) { 'https://waha.test/api/files/abc.jpeg' }
+
+    def media_payload(stanza: 'MEDIA01')
+      build_payload(stanza: stanza, body: nil).merge(
+        'type' => 'image',
+        'hasMedia' => true,
+        'media' => { 'url' => 'http://localhost:3000/api/files/abc.jpeg', 'mimetype' => 'image/jpeg' }
+      )
+    end
+
+    context 'when the media download fails transiently' do
+      it 'propagates the error and does not persist an incomplete message' do
+        conversation
+        stub_request(:get, media_url).to_return(status: 503)
+        payload = media_payload
+
+        expect { perform(payload) }.to raise_error(CustomExceptions::Waha::MediaDownloadError)
+        expect(Message.find_by(source_id: payload['id'])).to be_nil
+      end
+    end
+
+    context 'when the transient failure clears before a later attempt' do
+      it 'persists exactly one message with its attachment, not a duplicate' do
+        conversation
+        payload = media_payload
+        stub_request(:get, media_url).to_return(status: 503)
+        expect { perform(payload) }.to raise_error(CustomExceptions::Waha::MediaDownloadError)
+        expect(Message.where(source_id: payload['id']).count).to eq(0)
+
+        stub_request(:get, media_url).to_return(status: 200, body: 'bytes', headers: { 'Content-Type' => 'image/jpeg' })
+        expect { perform(payload) }.not_to raise_error
+
+        message = Message.find_by!(source_id: payload['id'])
+        expect(message.attachments.size).to eq(1)
+        expect(Message.where(source_id: payload['id']).count).to eq(1)
+      end
+    end
+
+    context 'when the caller already exhausted retries (media_terminal: true)' do
+      it 'persists the message with a visible fallback instead of trying the network again' do
+        conversation
+        payload = media_payload
+
+        described_class.new(channel: channel, payload: payload, media_terminal: true).perform
+
+        expect(a_request(:get, media_url)).not_to have_been_made
+        message = Message.find_by!(source_id: payload['id'])
+        expect(message.attachments).to be_empty
+        expect(message.content_attributes['media_download_failed']).to be(true)
+        expect(message.content).to eq(I18n.t('conversations.messages.waha_media_unavailable'))
+      end
+    end
+  end
 end
