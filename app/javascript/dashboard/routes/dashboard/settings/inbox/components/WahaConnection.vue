@@ -74,7 +74,9 @@ const importProcessed = computed(() => importState.value.processed_chats || 0);
 const importMessages = computed(() => importState.value.imported_messages || 0);
 // While no chats are counted yet the bar is indeterminate ("discovering…").
 const isImportIndeterminate = computed(
-  () => importStatus.value === 'pending' || importTotal.value === 0
+  () =>
+    ['scheduled', 'pending'].includes(importStatus.value) ||
+    importTotal.value === 0
 );
 const importPercent = computed(() =>
   isImportIndeterminate.value
@@ -236,7 +238,9 @@ onUnmounted(() => {
       v-if="showImportProgress"
       class="flex flex-col gap-2 p-4 rounded-xl outline outline-1 -outline-offset-1 outline-n-weak"
     >
-      <template v-if="importStatus === 'running' || importStatus === 'pending'">
+      <template
+        v-if="['scheduled', 'running', 'pending'].includes(importStatus)"
+      >
         <div class="flex items-center justify-between gap-3">
           <span class="text-body-main text-n-slate-12">
             {{
@@ -279,7 +283,7 @@ onUnmounted(() => {
       </template>
 
       <span
-        v-else-if="importStatus === 'done'"
+        v-else-if="['completed', 'done'].includes(importStatus)"
         class="text-body-small text-n-slate-11"
       >
         {{

@@ -30,7 +30,7 @@
 # Import/session bookkeeping is written with update_column(s) by design: these
 # are high-frequency progress writes that must not fire validations, callbacks
 # or broadcasts on the message hot path.
-# rubocop:disable Rails/SkipsModelValidations
+# rubocop:disable Rails/SkipsModelValidations, Metrics/ClassLength
 class Channel::Waha < ApplicationRecord
   include Channelable
 
@@ -74,11 +74,18 @@ class Channel::Waha < ApplicationRecord
     update_columns(status_history: appended_history(status))
   end
 
-  # --- Import state (single source of truth for progress + lock) ---
+  # --- Import state (single source of truth for progress + single-flight lock) ---
 
-  # `status == "running"` is the logical lock: no new import starts while one runs.
+  # `pending` is retained only so a job queued before this state machine was
+  # deployed can finish. New imports use the four explicit states below.
+  IMPORT_ACTIVE_STATES = %w[scheduled running pending].freeze
+
   def import_running?
     import_state['status'] == 'running'
+  end
+
+  def import_active?
+    IMPORT_ACTIVE_STATES.include?(import_state['status'])
   end
 
   def import_retries
@@ -102,40 +109,39 @@ class Channel::Waha < ApplicationRecord
     { 'window_start' => import_state['window_start'], 'window_end' => import_state['window_end'] }
   end
 
-  # Begins a fresh import: clears any prior per-chat rows and resets the jsonb
-  # header (the per-item progress now lives in import_chats). Only called when not
-  # resuming, so wiping the rows is safe.
-  def start_import!(kind:, window:)
-    import_chats.delete_all
-    update_import_state!(
-      'status' => 'running', 'kind' => kind,
-      'window_start' => window['window_start'], 'window_end' => window['window_end'],
-      'started_at' => Time.current.utc.iso8601,
-      'finished_at' => nil, 'error' => nil, 'retries' => 0, 'queued_window' => nil
-    )
+  # The only transition into running. The scheduled claim and its execution token
+  # are persisted before the job is put on the queue, so duplicate jobs can never
+  # both seed or reclaim the same chat rows.
+  def start_scheduled_import!(execution_id)
+    with_lock do
+      state = import_state
+      if state['status'] == 'scheduled' && state['execution_id'] == execution_id
+        update_import_state!('status' => 'running', 'started_at' => Time.current.utc.iso8601)
+        execution_id
+      elsif execution_id.blank? && state['status'] == 'pending'
+        # Compatibility for a follow-up job enqueued by the pre-single-flight
+        # implementation. All newly scheduled jobs always have a token.
+        legacy_execution_id = SecureRandom.uuid
+        update_import_state!('status' => 'running', 'execution_id' => legacy_execution_id, 'started_at' => Time.current.utc.iso8601)
+        legacy_execution_id
+      end
+    end
   end
 
-  def record_import_retry!
-    update_import_state!('retries' => import_retries + 1)
+  def import_running_for?(execution_id)
+    import_running? && import_execution_matches?(execution_id)
   end
 
-  # Called by the last worker to drain the queue: a gap-fill window that arrived
-  # mid-import is picked up as a follow-up run, otherwise the import is done.
-  def finalize_import!
-    if import_chats.failed.exists?
-      fail_import!(import_chats.failed.where.not(error: nil).pick(:error) || 'One or more chats failed to import')
-      return
-    end
+  # Called by a dispatcher or worker after it finds no remaining work. The row
+  # lock makes the drained check and terminal/follow-up transition one operation.
+  def finalize_import_if_drained!(execution_id)
+    request = with_lock do
+      next unless import_running_for?(execution_id)
+      next if import_chats.exists?(status: %i[pending importing])
 
-    return retry_empty_initial_import! if retry_empty_initial_import?
-
-    queued = import_state['queued_window']
-    if queued
-      update_import_state!('queued_window' => nil, 'status' => 'pending')
-      Waha::HistoryImportJob.perform_later(id, queued, 'gap_fill')
-    else
-      finish_import!
+      finalize_import!
     end
+    enqueue_import_job!(request)
   end
 
   # GOWS can report a chat in the overview before that chat's own message
@@ -151,44 +157,73 @@ class Channel::Waha < ApplicationRecord
   end
 
   def retry_empty_initial_import!
-    record_import_retry!
-    import_chats.delete_all
-    Waha::HistoryImportJob.set(wait: ((import_retries**2) * 30).seconds).perform_later(id, import_window, 'initial')
+    retries = import_retries + 1
+    schedule_import!(
+      kind: 'initial', window: import_window, clear_rows: true, retries: retries,
+      queued_window: import_state['queued_window'], queued_kind: import_state['queued_kind'],
+      wait: ((retries**2) * 30).seconds
+    )
   end
 
   def finish_import!
-    update_import_state!('status' => 'done', 'finished_at' => Time.current.utc.iso8601, 'queued_window' => nil)
+    update_import_state!(
+      'status' => 'completed', 'finished_at' => Time.current.utc.iso8601,
+      'queued_window' => nil, 'queued_kind' => nil
+    )
   end
 
   def fail_import!(message)
-    update_import_state!('status' => 'failed', 'error' => message.to_s.truncate(500))
+    update_import_state!(
+      'status' => 'failed', 'error' => message.to_s.truncate(500), 'finished_at' => Time.current.utc.iso8601
+    )
   end
 
   # Resumes a failed import from where it stopped, replaying the same window.
-  # Restores the running lock (not pending) with a fresh retry budget so the
-  # re-enqueued job resumes over the already-processed chats instead of
-  # restarting. Returns false (no-op) unless the import is currently failed.
+  # It receives a new scheduled execution token but preserves completed chat rows
+  # and their cursors. Returns false (no-op) unless the import is currently failed.
   def retry_failed_import!
-    return false unless import_state['status'] == 'failed'
+    request = with_lock do
+      next unless import_state['status'] == 'failed'
 
-    import_chats.where(status: %i[importing failed]).update_all(status: WahaImportChat.statuses[:pending])
-    update_import_state!('status' => 'running', 'error' => nil, 'retries' => 0)
-    Waha::HistoryImportJob.perform_later(id, import_window, import_state['kind'])
-    true
+      import_chats.where(status: %i[importing failed]).update_all(status: WahaImportChat.statuses[:pending])
+      schedule_import!(
+        kind: import_state['kind'], window: import_window, clear_rows: false,
+        queued_window: import_state['queued_window'], queued_kind: import_state['queued_kind']
+      )
+    end
+    enqueue_import_job!(request)
+    request.present?
   end
 
-  # A gap-fill window that arrives while an import is running is stashed as a
-  # single pending window; subsequent windows merge by taking the widest span.
-  def queue_import_window(window)
-    existing = import_state['queued_window']
-    merged = if existing
-               { 'window_start' => [existing['window_start'], window['window_start']].min,
-                 'window_end' => [existing['window_end'], window['window_end']].max }
-             else
-               window
-             end
-    update_import_state!('queued_window' => merged)
+  # A systemic dispatcher failure happens before any chat worker has claimed a
+  # row. It gets a fresh scheduled token and preserves any seeded rows. If workers
+  # are already active, they own the current state and are left alone to drain it.
+  # rubocop:disable Metrics/MethodLength
+  def retry_import_after_failure!(execution_id, message)
+    request = nil
+    outcome = with_lock do
+      next unless import_running_for?(execution_id)
+
+      retries = import_retries + 1
+      if import_chats.importing.exists?
+        update_import_state!('retries' => retries)
+        { status: :running, retries: retries }
+      elsif retries <= Waha::HistoryImportJob::MAX_RETRIES
+        request = schedule_import!(
+          kind: import_state['kind'], window: import_window, clear_rows: false, retries: retries,
+          queued_window: import_state['queued_window'], queued_kind: import_state['queued_kind'],
+          wait: ((retries**2) * 10).seconds
+        )
+        { status: :scheduled, retries: retries }
+      else
+        fail_import!(message)
+        { status: :failed, retries: retries }
+      end
+    end
+    enqueue_import_job!(request)
+    outcome
   end
+  # rubocop:enable Metrics/MethodLength
 
   def update_import_state!(attrs)
     update_column(:import_state, import_state.merge(attrs.stringify_keys))
@@ -199,12 +234,19 @@ class Channel::Waha < ApplicationRecord
   # running. Shared by the webhook-triggered opt-in import/reconnect gap-fill
   # and the periodic safety-net sweep (Waha::PeriodicGapFillJob).
   def enqueue_history_import!(window, kind:)
-    if import_running?
-      queue_import_window(window)
-    else
-      job = kind == 'initial' ? Waha::HistoryImportJob.set(wait: Waha::HistoryImportJob::INITIAL_DELAY) : Waha::HistoryImportJob
-      job.perform_later(id, window, kind)
+    request = with_lock do
+      if import_active?
+        queue_import_window!(window, kind) unless current_import_covers?(window, kind)
+        nil
+      else
+        schedule_import!(
+          kind: kind, window: window, clear_rows: true,
+          wait: kind == 'initial' ? Waha::HistoryImportJob::INITIAL_DELAY : nil
+        )
+      end
     end
+    enqueue_import_job!(request)
+    request.present?
   end
 
   # --- Import windows ---
@@ -234,6 +276,101 @@ class Channel::Waha < ApplicationRecord
   end
 
   private
+
+  # All callers hold the channel row lock. A fresh execution may remove old chat
+  # rows only after the previous execution reached a terminal state; resumptions
+  # keep their checkpoints intact.
+  def schedule_import!(kind:, window:, clear_rows:, **options)
+    retries = options.fetch(:retries, 0)
+    queued_window, queued_kind, wait = options.values_at(:queued_window, :queued_kind, :wait)
+    import_chats.delete_all if clear_rows
+
+    execution_id = SecureRandom.uuid
+    update_import_state!(
+      'status' => 'scheduled', 'execution_id' => execution_id, 'kind' => kind,
+      'window_start' => window['window_start'], 'window_end' => window['window_end'],
+      'scheduled_at' => Time.current.utc.iso8601, 'started_at' => nil, 'finished_at' => nil,
+      'error' => nil, 'retries' => retries, 'queued_window' => queued_window, 'queued_kind' => queued_kind
+    )
+    { execution_id: execution_id, kind: kind, wait: wait, window: window }
+  end
+
+  # Called while holding the channel row lock. A single coalesced follow-up keeps
+  # the channel single-flight; initial imports take precedence so the opt-in
+  # backfill is not lost if it races a gap-fill trigger.
+  def queue_import_window!(window, kind)
+    existing = import_state['queued_window']
+    merged = if existing
+               { 'window_start' => [existing['window_start'], window['window_start']].min,
+                 'window_end' => [existing['window_end'], window['window_end']].max }
+             else
+               window
+             end
+    queued_kind = import_state['queued_kind'] || 'gap_fill'
+    queued_kind = 'initial' if queued_kind == 'initial' || kind == 'initial'
+    update_import_state!('queued_window' => merged, 'queued_kind' => queued_kind)
+  end
+
+  # Repeated delivery of the same trigger is not follow-up work. Initial imports
+  # are one-time by definition; a gap-fill only needs another execution when its
+  # window extends beyond the current gap-fill's confirmed range.
+  def current_import_covers?(window, kind)
+    current_kind = import_state['kind']
+    return true if kind == 'initial' && current_kind == 'initial'
+    return false unless current_kind == kind
+
+    current_window = import_window
+    current_window['window_start'] <= window['window_start'] && current_window['window_end'] >= window['window_end']
+  end
+
+  # Called while holding the channel row lock after all pending/importing rows
+  # have drained. It either creates the one permitted follow-up execution or
+  # records the terminal state of the current one.
+  def finalize_import!
+    if import_chats.failed.exists?
+      fail_import!(import_chats.failed.where.not(error: nil).pick(:error) || 'One or more chats failed to import')
+      return
+    end
+
+    return retry_empty_initial_import! if retry_empty_initial_import?
+
+    queued = import_state['queued_window']
+    if queued
+      schedule_import!(
+        kind: import_state['queued_kind'] || 'gap_fill', window: queued, clear_rows: true
+      )
+    else
+      finish_import!
+      nil
+    end
+  end
+
+  def import_execution_matches?(execution_id)
+    return import_state['execution_id'].blank? if execution_id.blank?
+
+    import_state['execution_id'] == execution_id
+  end
+
+  # Enqueue after the row-lock transaction commits so the job can always observe
+  # the scheduled claim. If the adapter rejects it, turn that exact claim into a
+  # terminal failure so a later trigger or the retry endpoint can recover.
+  def enqueue_import_job!(request)
+    return unless request
+
+    job = request[:wait].nil? ? Waha::HistoryImportJob : Waha::HistoryImportJob.set(wait: request[:wait])
+    job.perform_later(id, request[:window], request[:kind], request[:execution_id])
+  rescue StandardError => e
+    fail_scheduled_import!(request[:execution_id], e.message)
+    raise
+  end
+
+  def fail_scheduled_import!(execution_id, message)
+    with_lock do
+      next unless import_state['status'] == 'scheduled' && import_execution_matches?(execution_id)
+
+      fail_import!(message)
+    end
+  end
 
   def import_timezone
     ActiveSupport::TimeZone[account.reporting_timezone.presence || 'UTC'] || ActiveSupport::TimeZone['UTC']
@@ -276,4 +413,4 @@ class Channel::Waha < ApplicationRecord
     Waha::SessionService.new(channel: self).delete_session
   end
 end
-# rubocop:enable Rails/SkipsModelValidations
+# rubocop:enable Rails/SkipsModelValidations, Metrics/ClassLength

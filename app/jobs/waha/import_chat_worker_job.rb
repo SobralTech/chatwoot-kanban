@@ -13,7 +13,7 @@ class Waha::ImportChatWorkerJob < ApplicationJob
   #
   # The pool size is preserved exactly: each execution enqueues at most one
   # successor, and the worker that finds the queue drained finalizes the import.
-  def perform(channel_id, window, kind = nil)
+  def perform(channel_id, window, kind = nil, execution_id = nil)
     @channel = Channel::Waha.find_by(id: channel_id)
     return unless @channel
 
@@ -21,14 +21,27 @@ class Waha::ImportChatWorkerJob < ApplicationJob
     # Jobs enqueued before the import kind became an explicit argument still
     # inherit the running import's semantics when they are eventually consumed.
     @kind = kind || @channel.import_state['kind'] || 'initial'
-    row = WahaImportChat.claim_next(@channel.id)
+    @execution_id = execution_id
+    row = claim_next_chat
     return finalize_if_last if row.nil?
 
     import_chat(row)
-    self.class.set(wait: THROTTLE).perform_later(@channel.id, @window, @kind)
+    self.class.set(wait: THROTTLE).perform_later(@channel.id, @window, @kind, @execution_id)
   end
 
   private
+
+  # Claim under the channel lock as well as the chat-row lock. A new execution
+  # can therefore never transition to scheduled between this worker validating
+  # its token and marking a row importing; the long-running fetch stays outside
+  # the lock and the worker pool remains parallel.
+  def claim_next_chat
+    @channel.with_lock do
+      next unless @channel.import_running_for?(@execution_id)
+
+      WahaImportChat.claim_next(@channel.id)
+    end
+  end
 
   # Per-chat isolation: one bad/slow chat is logged and marked failed instead of
   # stalling the pool. The chat's own row tracks its imported count + cursor.
@@ -40,15 +53,9 @@ class Waha::ImportChatWorkerJob < ApplicationJob
     row.update!(status: :failed, error: e.message.to_s.truncate(500))
   end
 
-  # The worker that drains the queue finalizes the import. A row lock serializes
-  # the check so concurrent workers can't double-finalize, and a chat still
-  # importing in another worker defers finalization to that worker.
+  # The worker that drains the queue asks the channel state machine to finalize.
+  # Its execution token prevents an old delayed worker from finishing a newer run.
   def finalize_if_last
-    @channel.with_lock do
-      next unless @channel.import_state['status'] == 'running'
-      next if @channel.import_chats.exists?(status: %i[pending importing])
-
-      @channel.finalize_import!
-    end
+    @channel.finalize_import_if_drained!(@execution_id)
   end
 end

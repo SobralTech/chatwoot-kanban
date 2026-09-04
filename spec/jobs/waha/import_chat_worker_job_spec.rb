@@ -4,9 +4,10 @@ describe Waha::ImportChatWorkerJob do
   let(:channel) { create(:channel_waha) }
   let(:window) { { 'window_start' => 1.month.ago.utc.iso8601, 'window_end' => Time.current.utc.iso8601 } }
   let(:importer) { instance_double(Waha::ChatHistoryImporter, run: 1) }
+  let(:execution_id) { SecureRandom.uuid }
 
   before do
-    channel.update_import_state!('status' => 'running', 'kind' => 'initial')
+    channel.update_import_state!('status' => 'running', 'kind' => 'initial', 'execution_id' => execution_id)
     allow(Waha::ChatHistoryImporter).to receive(:new).and_return(importer)
   end
 
@@ -23,8 +24,8 @@ describe Waha::ImportChatWorkerJob do
     it 'imports one chat per execution and hands the rest to a successor job' do
       queue_chats('a@c.us', 'b@c.us', 'c@c.us')
 
-      expect { described_class.perform_now(channel.id, window, 'initial') }
-        .to have_enqueued_job(described_class).with(channel.id, window, 'initial').exactly(:once)
+      expect { described_class.perform_now(channel.id, window, 'initial', execution_id) }
+        .to have_enqueued_job(described_class).with(channel.id, window, 'initial', execution_id).exactly(:once)
 
       expect(channel.import_chats.done.count).to eq(1)
       expect(channel.import_chats.pending.count).to eq(2)
@@ -33,17 +34,17 @@ describe Waha::ImportChatWorkerJob do
 
   describe 'draining the queue' do
     it 'finalizes the import and enqueues no successor once no chat is left to claim' do
-      expect { described_class.perform_now(channel.id, window, 'initial') }
+      expect { described_class.perform_now(channel.id, window, 'initial', execution_id) }
         .not_to have_enqueued_job(described_class)
 
-      expect(channel.reload.import_state['status']).to eq('done')
+      expect(channel.reload.import_state['status']).to eq('completed')
     end
 
     it 'leaves finalization to the worker still importing a chat' do
       queue_chats('a@c.us')
       channel.import_chats.first.update!(status: :importing)
 
-      described_class.perform_now(channel.id, window, 'initial')
+      described_class.perform_now(channel.id, window, 'initial', execution_id)
 
       expect(channel.reload.import_state['status']).to eq('running')
     end
@@ -52,9 +53,21 @@ describe Waha::ImportChatWorkerJob do
       queue_chats('a@c.us')
       channel.import_chats.first.update!(status: :failed, error: 'WAHA request failed')
 
-      described_class.perform_now(channel.id, window, 'initial')
+      described_class.perform_now(channel.id, window, 'initial', execution_id)
 
       expect(channel.reload.import_state).to include('status' => 'failed', 'error' => 'WAHA request failed')
+    end
+  end
+
+  describe 'a delayed worker from an earlier execution' do
+    it 'does not claim or finalize rows from the current execution' do
+      queue_chats('a@c.us')
+
+      described_class.perform_now(channel.id, window, 'initial', SecureRandom.uuid)
+
+      expect(importer).not_to have_received(:run)
+      expect(channel.import_chats.pending.count).to eq(1)
+      expect(channel.reload.import_state).to include('status' => 'running', 'execution_id' => execution_id)
     end
   end
 
@@ -63,7 +76,7 @@ describe Waha::ImportChatWorkerJob do
       queue_chats('a@c.us', 'b@c.us')
       allow(importer).to receive(:run).and_raise(StandardError, 'boom')
 
-      expect { described_class.perform_now(channel.id, window, 'initial') }
+      expect { described_class.perform_now(channel.id, window, 'initial', execution_id) }
         .to have_enqueued_job(described_class).exactly(:once)
 
       expect(channel.import_chats.failed.count).to eq(1)
@@ -88,7 +101,7 @@ describe Waha::ImportChatWorkerJob do
         }].to_json, headers: { 'Content-Type' => 'application/json' })
       allow(Waha::ContactResolver).to receive(:from_payload).and_raise(CustomExceptions::Waha::TransientError, 'boom')
 
-      described_class.perform_now(channel.id, window, 'initial')
+      described_class.perform_now(channel.id, window, 'initial', execution_id)
 
       row = channel.import_chats.find_by!(chat_id: chat_id)
       expect(row.status).to eq('failed')

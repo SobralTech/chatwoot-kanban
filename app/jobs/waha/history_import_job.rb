@@ -9,19 +9,20 @@ class Waha::HistoryImportJob < ApplicationJob
   # channel's import doesn't starve other work (or hammer the WAHA session).
   WORKER_POOL = ENV.fetch('WAHA_IMPORT_CONCURRENCY', 4).to_i
 
-  # Dispatches a history import for one WAHA channel: it acquires the lock
-  # (import_state.status == running), seeds the per-chat work queue, and spins up
-  # a bounded worker pool that imports chats concurrently. The import kind travels
-  # with each worker so initial backfill and recent gap recovery keep distinct
-  # message and conversation semantics. Progress lives on the per-chat rows, so a
-  # restart or retry just re-runs this and the pool resumes.
-  def perform(channel_id, window, kind)
+  # Dispatches a history import for one WAHA channel. Only the job carrying the
+  # persisted scheduled execution token can transition it to running; duplicate
+  # or stale jobs return before they can seed, reclaim, or dispatch chat workers.
+  # The import kind travels with each worker so initial backfill and recent gap
+  # recovery keep distinct message and conversation semantics.
+  def perform(channel_id, window, kind, execution_id = nil)
     @channel = Channel::Waha.find_by(id: channel_id)
     return unless @channel
 
     @window = window
     @kind = kind
-    @channel.start_import!(kind: kind, window: window) unless resuming?
+    @execution_id = @channel.start_scheduled_import!(execution_id)
+    return unless @execution_id
+
     dispatch_chats
   rescue StandardError => e
     handle_failure(e)
@@ -29,25 +30,20 @@ class Waha::HistoryImportJob < ApplicationJob
 
   private
 
-  # A retry/restart re-enqueues this job while status is still running; that run
-  # resumes (keeps the existing chat rows) instead of wiping and restarting.
-  def resuming?
-    state = @channel.import_state
-    state['status'] == 'running' && state['kind'] == @kind &&
-      state['window_start'] == @window['window_start'] && state['window_end'] == @window['window_end']
-  end
-
   def dispatch_chats
     chat_ids = Waha::ChatOverviewFetcher.new(channel: @channel).all
     raise CustomExceptions::Waha::HistoryNotReady, 'WAHA chat history is not ready yet' if @kind == 'initial' && chat_ids.empty?
 
     seed_chat_rows(chat_ids)
     reclaim_stale_rows
-    return @channel.finalize_import! unless @channel.import_chats.exists?
+    return @channel.finalize_import_if_drained!(@execution_id) unless @channel.import_chats.exists?
 
     # Never spin up more workers than there are chats for them to claim.
-    @channel.import_chats.pending.count.clamp(1, WORKER_POOL).times do
-      Waha::ImportChatWorkerJob.perform_later(@channel.id, @window, @kind)
+    pending_count = @channel.import_chats.pending.count
+    return @channel.finalize_import_if_drained!(@execution_id) if pending_count.zero?
+
+    pending_count.clamp(1, WORKER_POOL).times do
+      Waha::ImportChatWorkerJob.perform_later(@channel.id, @window, @kind, @execution_id)
     end
   end
 
@@ -63,8 +59,9 @@ class Waha::HistoryImportJob < ApplicationJob
     # rubocop:enable Rails/SkipsModelValidations
   end
 
-  # A worker that died leaves its chat stuck in `importing`; requeue those so the
-  # fresh pool re-claims them (the row's cursor resumes mid-chat).
+  # A new dispatcher is only scheduled after no worker owns a row, so any
+  # `importing` row here is from a previously interrupted dispatcher. The row's
+  # cursor remains intact when it is re-claimed.
   def reclaim_stale_rows
     # rubocop:disable Rails/SkipsModelValidations
     @channel.import_chats.importing.update_all(status: WahaImportChat.statuses[:pending])
@@ -76,18 +73,16 @@ class Waha::HistoryImportJob < ApplicationJob
   def handle_failure(error)
     return if @channel.nil?
 
-    @channel.record_import_retry!
-    if @channel.import_retries <= MAX_RETRIES
-      Rails.logger.warn "[WAHA] History import: channel #{@channel.id} retry #{@channel.import_retries}/#{MAX_RETRIES}: #{error.message}"
-      self.class.set(wait: backoff).perform_later(@channel.id, @window, @kind)
-    else
-      Rails.logger.error "[WAHA] History import: channel #{@channel.id} failed after #{MAX_RETRIES} retries: #{error.message}"
-      @channel.fail_import!(error.message)
-    end
-  end
+    outcome = @channel.retry_import_after_failure!(@execution_id, error.message)
+    return unless outcome
 
-  # Quadratic backoff: 10s, 40s, 90s, 160s, 250s.
-  def backoff
-    ((@channel.import_retries**2) * 10).seconds
+    case outcome[:status]
+    when :scheduled
+      Rails.logger.warn "[WAHA] History import: channel #{@channel.id} retry #{outcome[:retries]}/#{MAX_RETRIES}: #{error.message}"
+    when :failed
+      Rails.logger.error "[WAHA] History import: channel #{@channel.id} failed after #{MAX_RETRIES} retries: #{error.message}"
+    when :running
+      Rails.logger.warn "[WAHA] History import: channel #{@channel.id} dispatcher failed while workers remain active: #{error.message}"
+    end
   end
 end
