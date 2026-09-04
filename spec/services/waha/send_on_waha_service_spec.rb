@@ -55,4 +55,74 @@ describe Waha::SendOnWahaService do
         .with { |request| !JSON.parse(request.body).key?('reply_to') })
     end
   end
+
+  describe '#perform delivery outcomes' do
+    # Isolates these examples from typing-simulation/read-receipt presence calls
+    # (Redis-backed, exercised separately) so only the send/HTTP seam is under test.
+    let(:channel) { create(:channel_waha, typing_simulation_enabled: false, auto_read_receipts: false) }
+
+    let(:message) do
+      create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                       message_type: :outgoing, content: 'hello')
+    end
+
+    it 'persists the WAHA id on a successful send' do
+      described_class.new(message: message).perform
+
+      expect(message.reload).to have_attributes(status: 'sent', source_id: 'true_5511888888888@c.us_NEW001')
+    end
+
+    it 'marks the message failed without a source_id on a definitive (4xx) error' do
+      stub_request(:post, 'https://waha.test/api/sendText')
+        .to_return(status: 422, body: { message: 'invalid chatId' }.to_json, headers: { 'Content-Type' => 'application/json' })
+
+      described_class.new(message: message).perform
+
+      expect(message.reload).to have_attributes(status: 'failed', source_id: nil)
+      expect(message.external_error).to include('422')
+    end
+
+    it 'schedules a limited retry through Waha::DeliverJob on a transient (5xx) error' do
+      stub_request(:post, 'https://waha.test/api/sendText')
+        .to_return(status: 503, body: { message: 'session not ready' }.to_json, headers: { 'Content-Type' => 'application/json' })
+
+      expect { described_class.new(message: message).perform }
+        .to have_enqueued_job(Waha::DeliverJob).with(message.id, 2)
+
+      expect(message.reload).to have_attributes(status: 'sent', source_id: nil)
+    end
+
+    it 'recovers on a retry without creating a second message' do
+      message # force creation before measuring Message.count
+      stub_request(:post, 'https://waha.test/api/sendText').to_return(
+        { status: 503, body: { message: 'down' }.to_json, headers: { 'Content-Type' => 'application/json' } },
+        { status: 201, body: { id: 'true_5511888888888@c.us_RETRY1' }.to_json, headers: { 'Content-Type' => 'application/json' } }
+      )
+
+      expect do
+        described_class.new(message: message).perform
+        described_class.new(message: message, skip_presence: true, attempt: 2).perform
+      end.not_to change(Message, :count)
+
+      expect(message.reload).to have_attributes(status: 'sent', source_id: 'true_5511888888888@c.us_RETRY1')
+    end
+
+    it 'marks the message failed with no fake source_id after exhausting retries' do
+      stub_request(:post, 'https://waha.test/api/sendText')
+        .to_return(status: 503, body: { message: 'down' }.to_json, headers: { 'Content-Type' => 'application/json' })
+
+      described_class.new(message: message, skip_presence: true, attempt: Waha::SendOnWahaService::MAX_SEND_ATTEMPTS).perform
+
+      expect(message.reload).to have_attributes(status: 'failed', source_id: nil)
+    end
+
+    it 'marks the message failed when WAHA responds success with no message id' do
+      stub_request(:post, 'https://waha.test/api/sendText')
+        .to_return(status: 200, body: {}.to_json, headers: { 'Content-Type' => 'application/json' })
+
+      described_class.new(message: message).perform
+
+      expect(message.reload).to have_attributes(status: 'failed', source_id: nil)
+    end
+  end
 end
