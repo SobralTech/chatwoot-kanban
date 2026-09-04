@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_04_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_04_150001) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1709,6 +1709,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_120000) do
     t.index ["channel_waha_id"], name: "index_waha_import_chats_on_channel_waha_id"
   end
 
+  create_table "waha_message_mappings", force: :cascade do |t|
+    t.bigint "channel_waha_id", null: false
+    t.bigint "message_id", null: false
+    t.string "chat_jid", null: false
+    t.string "external_id", null: false
+    t.string "participant_jid"
+    t.integer "direction", null: false
+    t.integer "event_type", default: 0, null: false
+    t.integer "part", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["channel_waha_id", "chat_jid", "external_id", "event_type"], name: "index_waha_message_mappings_on_identity", unique: true
+    t.index ["channel_waha_id"], name: "index_waha_message_mappings_on_channel_waha_id"
+    t.index ["message_id"], name: "index_waha_message_mappings_on_message_id"
+  end
+
   create_table "webhooks", force: :cascade do |t|
     t.integer "account_id"
     t.integer "inbox_id"
@@ -1792,6 +1808,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_120000) do
   add_foreign_key "kanban_reasons", "accounts"
   add_foreign_key "kanban_reasons", "kanban_boards"
   add_foreign_key "waha_import_chats", "channel_waha"
+  add_foreign_key "waha_message_mappings", "channel_waha"
+  add_foreign_key "waha_message_mappings", "messages"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").
       after(:insert).

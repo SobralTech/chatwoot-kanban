@@ -79,6 +79,9 @@ describe Waha::ChatHistoryImporter do
       expect(recovered_message.created_at).to eq(message_time)
       expect(recovered_message.additional_attributes).to include('waha_import_kind' => 'gap_fill')
       expect(recovered_message.additional_attributes).not_to have_key('imported')
+
+      mapping = WahaMessageMapping.find_by!(message: recovered_message)
+      expect(mapping).to have_attributes(chat_jid: chat_id, external_id: 'GAPFILL001', direction: 'incoming', event_type: 'message')
     end
   end
 

@@ -15,10 +15,26 @@ class Waha::HistoryMessageWriter
     @message.imported = initial_import?
     @message.preserve_conversation_status = gap_fill?
     @message.save!
+    record_message_mapping
     @message
   end
 
   private
+
+  # Historical import doesn't reconstruct edits (see the class comment), so
+  # every row it dual-writes is a plain `message` event. chat_jid comes from
+  # the conversation's contact_inbox, not this payload's own chat_id — see the
+  # same note on Waha::IncomingMessageService#record_message_mapping.
+  def record_message_mapping
+    WahaMessageMapping.record!(
+      channel: channel,
+      message: @message,
+      chat_jid: conversation.contact_inbox&.source_id,
+      external_id: Waha::Anchoring.stanza_of(payload['id']),
+      direction: incoming? ? :incoming : :outgoing,
+      participant_jid: chat_id.to_s.end_with?('@g.us') ? sender_jid : nil
+    )
+  end
 
   def build_message
     @message = conversation.messages.build(
