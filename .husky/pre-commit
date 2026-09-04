@@ -1,6 +1,31 @@
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
 
+# Git hooks do not load the user's shell startup files.
+if ! command -v rbenv >/dev/null 2>&1 && [ -x "$HOME/.rbenv/bin/rbenv" ]; then
+  PATH="$HOME/.rbenv/bin:$PATH"
+  export PATH
+fi
+
+if command -v rbenv >/dev/null 2>&1; then
+  eval "$(rbenv init - sh)"
+fi
+
+if ! command -v npx >/dev/null 2>&1; then
+  nvm_dir="${NVM_DIR:-$HOME/.nvm}"
+
+  if [ ! -s "$nvm_dir/nvm.sh" ] && [ -s "$HOME/.config/nvm/nvm.sh" ]; then
+    nvm_dir="$HOME/.config/nvm"
+  fi
+
+  if [ -s "$nvm_dir/nvm.sh" ]; then
+    NVM_DIR="$nvm_dir"
+    export NVM_DIR
+    . "$NVM_DIR/nvm.sh"
+    nvm use --silent >/dev/null 2>&1 || true
+  fi
+fi
+
 # lint js and vue files
 npx --no-install lint-staged || true
 

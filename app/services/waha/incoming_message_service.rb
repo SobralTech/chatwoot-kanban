@@ -14,7 +14,9 @@ class Waha::IncomingMessageService
   def perform
     return if ignored_chat?
     return if group_message_disabled?
-    return if message_already_exists?
+
+    existing = find_canonical_message
+    return existing if existing
 
     if edited_original
       # An edit reuses the original message's conversation and contact. The edit
@@ -30,6 +32,9 @@ class Waha::IncomingMessageService
       @contact = @contact_inbox.contact
     end
 
+    existing = find_canonical_message
+    return existing if existing
+
     # Downloading media and resolving @mentions can each block on a WAHA call, so
     # both happen before the transaction opens rather than pinning a connection
     # for the whole fetch.
@@ -41,19 +46,28 @@ class Waha::IncomingMessageService
   private
 
   def persist
-    ActiveRecord::Base.transaction do
-      # Re-check under the transaction: the download above can take up to a minute,
-      # and the same event can be in flight twice (Sidekiq delivers at least once,
-      # and WAHA retries webhooks it considers failed). Checking again here narrows
-      # the window between the dedupe check and the insert to the transaction itself.
-      next if message_already_exists?
+    Waha::Locking.with_chat_lock(channel, lock_chat_jids) do
+      # Re-check under lock: the download above can take up to a minute, and the
+      # same event can be in flight twice (Sidekiq delivers at least once, and WAHA
+      # retries webhooks it considers failed) or race with history import.
+      existing = find_canonical_message
+      return existing if existing
 
-      set_conversation unless @conversation
-      create_message
-      record_message_mapping
-      clear_pending_editor
-      clear_migrated_reactions
+      ActiveRecord::Base.transaction do
+        set_conversation unless @conversation
+        create_message
+        record_canonical_mapping!
+        clear_pending_editor
+        clear_migrated_reactions
+        @message
+      end
     end
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+    # The database unique index on waha_message_mappings is the final guarantee:
+    # if concurrent execution bypassed the lock or raced within it, the loser
+    # transaction was rolled back, leaving zero duplicate messages in the DB.
+    # Return the winning persisted message idempotently.
+    find_canonical_message
   end
 
   def chat_id
@@ -118,8 +132,43 @@ class Waha::IncomingMessageService
     chat_id.to_s.end_with?('@g.us') && !channel.groups_enabled
   end
 
-  def message_already_exists?
-    Waha::Anchoring.by_stanza(inbox, source_id).exists?
+  def stanza
+    @stanza ||= Waha::Anchoring.stanza_of(source_id)
+  end
+
+  def canonical_chat_jid
+    @conversation&.contact_inbox&.source_id || @contact_inbox&.source_id || chat_id
+  end
+
+  def candidate_chat_jids
+    [@conversation&.contact_inbox&.source_id, @contact_inbox&.source_id, chat_id].compact.uniq
+  end
+
+  def lock_chat_jids
+    candidate_chat_jids
+  end
+
+  def event_type
+    edited_original ? :edit : :message
+  end
+
+  def find_canonical_message
+    return nil if stanza.blank?
+
+    mapping = WahaMessageMapping.find_mapping(
+      channel: channel,
+      chat_jid: candidate_chat_jids,
+      external_id: stanza,
+      event_type: event_type
+    )
+    mapping&.message || legacy_conversation_message
+  end
+
+  def legacy_conversation_message
+    scoped_conversation = @conversation || @contact_inbox&.conversations&.last
+    return unless scoped_conversation
+
+    scoped_conversation.messages.where("#{Waha::Anchoring::STANZA_SQL} = ?", stanza).first
   end
 
   def resolve_contact
@@ -176,14 +225,14 @@ class Waha::IncomingMessageService
   # either way), and the canonical mapping must not fragment one real chat
   # across two chat_jid values depending on which shape a given event happened
   # to carry.
-  def record_message_mapping
-    WahaMessageMapping.record!(
+  def record_canonical_mapping!
+    WahaMessageMapping.create_canonical!(
       channel: channel,
       message: @message,
-      chat_jid: @conversation.contact_inbox&.source_id,
-      external_id: Waha::Anchoring.stanza_of(source_id),
+      chat_jid: canonical_chat_jid,
+      external_id: stanza,
       direction: incoming? ? :incoming : :outgoing,
-      event_type: edited_original ? :edit : :message,
+      event_type: event_type,
       participant_jid: chat_id.to_s.end_with?('@g.us') ? sender_jid : nil
     )
   end

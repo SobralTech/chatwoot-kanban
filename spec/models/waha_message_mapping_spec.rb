@@ -112,4 +112,52 @@ RSpec.describe WahaMessageMapping do
       end.not_to raise_error
     end
   end
+
+  describe '.find_mapping' do
+    it 'finds an existing mapping by channel, chat_jid, external_id and event_type' do
+      mapping = build_mapping.tap(&:save!)
+
+      found = described_class.find_mapping(
+        channel: channel, chat_jid: '5511888888888@c.us', external_id: 'AAA111', event_type: :message
+      )
+      expect(found).to eq(mapping)
+    end
+
+    it 'finds mapping when chat_jid is an array of candidates' do
+      mapping = build_mapping.tap(&:save!)
+
+      found = described_class.find_mapping(
+        channel: channel, chat_jid: ['other@c.us', '5511888888888@c.us'], external_id: 'AAA111'
+      )
+      expect(found).to eq(mapping)
+    end
+
+    it 'returns nil when chat_jid or external_id is blank' do
+      expect(described_class.find_mapping(channel: channel, chat_jid: nil, external_id: 'AAA111')).to be_nil
+      expect(described_class.find_mapping(channel: channel, chat_jid: '5511888888888@c.us', external_id: nil)).to be_nil
+    end
+  end
+
+  describe '.create_canonical!' do
+    it 'creates a persisted mapping' do
+      message = build_message(source_id: 'false_5511888888888@c.us_AAA111')
+
+      mapping = described_class.create_canonical!(
+        channel: channel, message: message, chat_jid: '5511888888888@c.us', external_id: 'AAA111', direction: :incoming
+      )
+      expect(mapping).to be_persisted
+      expect(mapping.external_id).to eq('AAA111')
+    end
+
+    it 'raises ActiveRecord::RecordInvalid on duplicate identity without swallowing' do
+      build_mapping.save!
+      other_message = build_message(source_id: 'false_5511888888888@c.us_AAA222')
+
+      expect do
+        described_class.create_canonical!(
+          channel: channel, message: other_message, chat_jid: '5511888888888@c.us', external_id: 'AAA111', direction: :incoming
+        )
+      end.to raise_error(ActiveRecord::RecordInvalid)
+    end
+  end
 end

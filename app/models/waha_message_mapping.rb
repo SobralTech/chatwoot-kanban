@@ -41,11 +41,27 @@ class WahaMessageMapping < ApplicationRecord
   # event_type are part of the scope.
   validates :external_id, uniqueness: { scope: %i[channel_waha_id chat_jid event_type] }
 
-  # Dual-write into the canonical mapping alongside the legacy source_id
-  # correlation (Waha::Anchoring). Nothing reads this table yet — it's the
-  # expand half of an expand-contract migration (see ticket 07) — so a failure
-  # here must never take down message persistence itself.
+  def self.find_mapping(channel:, chat_jid:, external_id:, event_type: :message)
+    return nil if chat_jid.blank? || external_id.blank?
+
+    where(channel: channel, chat_jid: chat_jid, external_id: external_id, event_type: event_type).first
+  end
+
+  # Creates canonical mapping within the caller's transaction, enforcing uniqueness.
+  # Unlike `record!`, this raises on conflict so the enclosing message creation
+  # transaction rolls back, guaranteeing zero duplicate messages in the DB.
   # rubocop:disable Metrics/ParameterLists
+  def self.create_canonical!(channel:, message:, chat_jid:, external_id:, direction:, event_type: :message, participant_jid: nil, part: 0)
+    return if chat_jid.blank? || external_id.blank?
+
+    create!(
+      channel: channel, message: message, chat_jid: chat_jid, external_id: external_id,
+      direction: direction, event_type: event_type, participant_jid: participant_jid, part: part
+    )
+  end
+
+  # Dual-write into the canonical mapping alongside the legacy source_id
+  # correlation (Waha::Anchoring). Used by unmigrated flows like outgoing sends.
   def self.record!(channel:, message:, chat_jid:, external_id:, direction:, event_type: :message, participant_jid: nil, part: 0)
     return if chat_jid.blank? || external_id.blank?
 

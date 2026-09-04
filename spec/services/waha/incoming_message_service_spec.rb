@@ -262,20 +262,17 @@ describe Waha::IncomingMessageService do
       expect(WahaMessageMapping.where(message: message).count).to eq(1)
     end
 
-    it 'still persists the message when the mapping write collides with an existing identity' do
-      # A real unique-constraint violation, not a stub: it happens on the same
-      # DB connection/transaction as create_message, which is exactly the case
-      # a bare rescue can't protect against without a savepoint (see
-      # WahaMessageMapping.record!).
+    it 'returns the already persisted message without creating a duplicate when identity collides' do
       other_message = create(:message, conversation: conversation, inbox: inbox, account: channel.account, source_id: 'unrelated')
       WahaMessageMapping.create!(channel: channel, message: other_message, chat_jid: '5511888888888@c.us',
                                  external_id: 'COLLIDE1', direction: :incoming)
 
       payload = build_payload(stanza: 'COLLIDE1')
-      expect { perform(payload) }.not_to raise_error
+      result = nil
+      expect { result = perform(payload) }.not_to raise_error
 
-      message = Message.find_by!(source_id: payload['id'])
-      expect(message).to be_persisted
+      expect(result).to eq(other_message)
+      expect(Message.where(source_id: payload['id'])).to be_empty
       expect(WahaMessageMapping.where(chat_jid: '5511888888888@c.us', external_id: 'COLLIDE1').count).to eq(1)
     end
   end
