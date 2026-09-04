@@ -33,7 +33,7 @@ class Waha::IncomingMessageService
     # Downloading media and resolving @mentions can each block on a WAHA call, so
     # both happen before the transaction opens rather than pinning a connection
     # for the whole fetch.
-    media_attacher.download
+    converter.download
     @text_content = build_text_content
     persist
   end
@@ -162,12 +162,12 @@ class Waha::IncomingMessageService
       additional_attributes: build_additional_attributes
     )
 
-    media_attacher.attach_to(@message)
+    converter.attach(@message)
     @message.save!
   end
 
-  def media_attacher
-    @media_attacher ||= Waha::MediaAttacher.new(channel: channel, payload: payload, terminal: media_terminal)
+  def converter
+    @converter ||= Waha::MessageConverters::Registry.for(channel: channel, payload: payload, terminal: media_terminal)
   end
 
   # chat_jid comes from the conversation's contact_inbox rather than this
@@ -249,7 +249,7 @@ class Waha::IncomingMessageService
   end
 
   def build_text_content
-    body = Waha::MentionResolver.new(channel: channel, payload: payload).resolve(payload['body'].presence)
+    body = converter.content
     return body unless edited_original && body
 
     "#{body} [#{EDITED_LABEL}]"
@@ -257,6 +257,7 @@ class Waha::IncomingMessageService
 
   def build_content_attributes
     attrs = Waha::ReplyContextResolver.new(channel: channel, payload: payload, conversation: @conversation).perform
+    attrs.merge!(converter.metadata)
 
     # Store participant name for group messages
     if chat_id.to_s.end_with?('@g.us')

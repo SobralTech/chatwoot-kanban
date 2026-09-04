@@ -334,4 +334,64 @@ describe Waha::IncomingMessageService do
       end
     end
   end
+
+  describe 'unsupported and invalid payloads' do
+    it 'marks an unrecognized GOWS message type as a visible fallback instead of a blank message' do
+      conversation
+
+      # A real GOWS poll payload: no body, no media — the content lives entirely
+      # under _data.Message.pollCreationMessage, which no converter reads yet
+      # (see ticket 20). It must not silently disappear as an empty bubble.
+      payload = build_payload(stanza: 'POLL01', body: nil).merge(
+        'hasMedia' => false,
+        '_data' => {
+          'Info' => { 'Chat' => '5511888888888@c.us', 'PushName' => 'John Doe' },
+          'Message' => { 'pollCreationMessage' => { 'name' => 'Qual dia é melhor?' } }
+        }
+      )
+
+      perform(payload)
+
+      message = Message.find_by!(source_id: payload['id'])
+      expect(message.content_attributes['is_unsupported']).to be(true)
+      expect(message.content).to be_blank
+      expect(message.attachments).to be_empty
+    end
+
+    it 'marks a declared media type with no media info and no caption as a visible fallback' do
+      conversation
+      payload = build_payload(stanza: 'BADMEDIA01', body: nil).merge('type' => 'image', 'hasMedia' => false)
+
+      perform(payload)
+
+      message = Message.find_by!(source_id: payload['id'])
+      expect(message.content_attributes['is_unsupported']).to be(true)
+      expect(message.attachments).to be_empty
+    end
+
+    it 'still preserves group participant metadata around an unsupported type' do
+      channel.update!(groups_enabled: true)
+      group_jid = '120363000000000000@g.us'
+      group_contact = create(:contact, account: channel.account, name: 'Family Group')
+      group_contact_inbox = create(:contact_inbox, contact: group_contact, inbox: inbox, source_id: group_jid)
+      create(:conversation, account: channel.account, inbox: inbox, contact: group_contact, contact_inbox: group_contact_inbox)
+      participant = '5511777777777@c.us'
+
+      payload = build_payload(stanza: 'GROUPPOLL01', body: nil).merge(
+        'hasMedia' => false,
+        'from' => group_jid,
+        'participant' => participant,
+        '_data' => {
+          'Info' => { 'Chat' => group_jid, 'PushName' => 'Someone' },
+          'Message' => { 'pollCreationMessage' => { 'name' => 'Qual dia é melhor?' } }
+        }
+      )
+
+      perform(payload)
+
+      message = Message.find_by!(source_id: payload['id'])
+      expect(message.content_attributes['is_unsupported']).to be(true)
+      expect(message.content_attributes['participant_jid']).to eq(participant)
+    end
+  end
 end

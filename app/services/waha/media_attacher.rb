@@ -85,11 +85,14 @@ class Waha::MediaAttacher
     @media_kind = MEDIA_KINDS.include?(normalized) ? normalized : media_kind_from_mimetype
   end
 
-  private
-
+  # Whether this payload actually carries downloadable media — the same gate
+  # `download`/`attach_to` use internally. Public so the converter registry can
+  # classify a payload as media without duplicating this check.
   def media?
     payload['hasMedia'].present? && media_url.present?
   end
+
+  private
 
   # WAHA WEBJS/WPP send `payload.mediaUrl` (deprecated) and `payload.media.url`;
   # GOWS sends only `payload.media.url`. Prefer the current field and fall back.

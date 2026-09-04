@@ -35,7 +35,7 @@ describe Waha::IncomingMessageService do
       payload = build_payload(stanza: 'AAA111')
       twin_landed = false
 
-      allow_any_instance_of(Waha::MediaAttacher).to receive(:download) do # rubocop:disable RSpec/AnyInstance
+      allow_any_instance_of(Waha::MessageConverters::Text).to receive(:download) do # rubocop:disable RSpec/AnyInstance
         unless twin_landed
           twin_landed = true
           perform(build_payload(stanza: 'AAA111'))
