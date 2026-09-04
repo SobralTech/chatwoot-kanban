@@ -1,7 +1,13 @@
 class Waha::SendOnWahaService < Base::SendOnChannelService
   TYPING_PRESENCE_QUEUE_WAIT_LIMIT = 20_000
 
-  pattr_initialize [:message!, :skip_presence]
+  # Retries apply only to CustomExceptions::Waha::TransientError (5xx, timeout,
+  # connection failure). MAX_SEND_ATTEMPTS counts the original try, so this
+  # allows 2 retries before the message is marked failed for good.
+  MAX_SEND_ATTEMPTS = 3
+  RETRY_DELAYS = [10.seconds, 60.seconds].freeze
+
+  pattr_initialize [:message!, :skip_presence, :attempt]
 
   private
 
@@ -23,14 +29,38 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     else
       deliver_message
     end
+  rescue CustomExceptions::Waha::TransientError => e
+    handle_transient_failure(e)
   rescue StandardError => e
-    Rails.logger.error "[WAHA] Send failed for message #{message.id}: #{e.message}"
-    message.update!(status: :failed, external_error: e.message)
+    fail_message!(e)
   end
 
   def deliver_message
     result = attachment ? send_attachment : send_text
-    message.update!(source_id: result['id']) if result&.dig('id').present?
+    return if result.nil?
+
+    source_id = result.is_a?(Hash) ? result['id'] : nil
+    raise CustomExceptions::Waha::ApiError, 'WAHA accepted the request but returned no message id' if source_id.blank?
+
+    message.update!(source_id: source_id)
+  end
+
+  def handle_transient_failure(error)
+    if current_attempt < MAX_SEND_ATTEMPTS
+      Rails.logger.warn "[WAHA] Transient send failure for message #{message.id} (attempt #{current_attempt}): #{error.message}"
+      Waha::DeliverJob.set(wait: RETRY_DELAYS[current_attempt - 1]).perform_later(message.id, current_attempt + 1)
+    else
+      fail_message!(error)
+    end
+  end
+
+  def fail_message!(error)
+    Rails.logger.error "[WAHA] Send failed for message #{message.id}: #{error.message}"
+    message.update!(status: :failed, external_error: error.message)
+  end
+
+  def current_attempt
+    attempt || 1
   end
 
   def reserve_and_queue_delivery
