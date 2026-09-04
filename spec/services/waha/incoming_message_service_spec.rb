@@ -139,4 +139,71 @@ describe Waha::IncomingMessageService do
       end
     end
   end
+
+  describe 'core vs optional failures' do
+    context 'when canonical identity resolution fails (core)' do
+      it 'propagates the error and does not create the message' do
+        new_lid = '999888777@lid'
+        stub_request(:get, "https://waha.test/api/#{channel.session_name}/lids/#{new_lid}")
+          .to_return(status: 503, body: '{}', headers: { 'Content-Type' => 'application/json' })
+
+        payload = build_payload(stanza: 'CORE001').merge(
+          'from' => new_lid,
+          '_data' => { 'Info' => { 'Chat' => new_lid, 'PushName' => 'New Contact' } }
+        )
+
+        expect { perform(payload) }.to raise_error(CustomExceptions::Waha::TransientError)
+        expect(Message.find_by(source_id: payload['id'])).to be_nil
+      end
+    end
+
+    context 'when a transient identity-resolution failure clears before the retry' do
+      it 'resumes processing and persists exactly one message, not a duplicate' do
+        retry_lid = '777666555@lid'
+        lookup_url = "https://waha.test/api/#{channel.session_name}/lids/#{retry_lid}"
+        payload = build_payload(stanza: 'RETRY001').merge(
+          'from' => retry_lid,
+          '_data' => { 'Info' => { 'Chat' => retry_lid, 'PushName' => 'Retry Contact' } }
+        )
+
+        stub_request(:get, lookup_url)
+          .to_return(status: 503, body: '{}', headers: { 'Content-Type' => 'application/json' })
+        expect { perform(payload) }.to raise_error(CustomExceptions::Waha::TransientError)
+        expect(Message.where(source_id: payload['id']).count).to eq(0)
+
+        stub_request(:get, lookup_url)
+          .to_return(status: 200, body: { 'pn' => '5511777666555' }.to_json,
+                     headers: { 'Content-Type' => 'application/json' })
+        expect { perform(payload) }.not_to raise_error
+        expect(Message.where(source_id: payload['id']).count).to eq(1)
+      end
+    end
+
+    context 'when only the group participant enrichment fails (optional)' do
+      it 'still persists the message without the participant enrichment' do
+        channel.update!(groups_enabled: true)
+        group_jid = '120363000000000000@g.us'
+        group_contact = create(:contact, account: channel.account, name: 'Family Group')
+        group_contact_inbox = create(:contact_inbox, contact: group_contact, inbox: inbox, source_id: group_jid)
+        create(:conversation, account: channel.account, inbox: inbox, contact: group_contact,
+                              contact_inbox: group_contact_inbox)
+
+        participant_lid = '444555666@lid'
+        stub_request(:get, "https://waha.test/api/#{channel.session_name}/lids/#{participant_lid}")
+          .to_return(status: 503, body: '{}', headers: { 'Content-Type' => 'application/json' })
+
+        payload = build_payload(stanza: 'OPT001').merge(
+          'from' => group_jid,
+          'participant' => participant_lid,
+          '_data' => { 'Info' => { 'Chat' => group_jid, 'PushName' => 'Someone' } }
+        )
+
+        expect { perform(payload) }.not_to raise_error
+
+        message = Message.find_by!(source_id: payload['id'])
+        expect(message.content_attributes['participant_jid']).to eq(participant_lid)
+        expect(message.content_attributes['participant_phone']).to be_nil
+      end
+    end
+  end
 end

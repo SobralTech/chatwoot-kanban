@@ -9,7 +9,7 @@ class Waha::MentionResolver
     return body if body.blank?
 
     mentioned_jids.reduce(body) do |text, jid|
-      contact = Waha::ContactResolver.new(channel: channel, jid: jid).perform&.contact
+      contact = resolve_mentioned_contact(jid)
       next text unless contact
 
       text.gsub("@#{Waha::Jid.digits(jid)}", "@#{contact.name}")
@@ -17,6 +17,15 @@ class Waha::MentionResolver
   end
 
   private
+
+  # Swapping in the mentioned contact's name is a display enrichment; a failure
+  # to resolve one mention must not block the rest of the message.
+  def resolve_mentioned_contact(jid)
+    Waha::ContactResolver.new(channel: channel, jid: jid).perform&.contact
+  rescue StandardError => e
+    Rails.logger.error "[WAHA] mention resolution failed for #{jid}: #{e.message}"
+    nil
+  end
 
   def mentioned_jids
     message_node = payload.dig('_data', 'Message')

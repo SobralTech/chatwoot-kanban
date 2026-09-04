@@ -77,7 +77,8 @@ class Waha::IncomingMessageService
   # Resolves the group participant who actually sent this message to a real
   # Chatwoot contact — same resolver (and @lid -> phone / contacts-cache name
   # lookups) used for any other WAHA contact, seeded with what this event
-  # already carries about them.
+  # already carries about them. Purely a display enrichment (structured sender
+  # metadata), so a failure here must not block the message itself.
   def resolve_participant
     return @resolve_participant if defined?(@resolve_participant)
 
@@ -87,6 +88,9 @@ class Waha::IncomingMessageService
       push_name: push_name,
       sender_alt: payload.dig('_data', 'Info', 'SenderAlt')
     ).perform&.contact
+  rescue StandardError => e
+    Rails.logger.error "[WAHA] group participant resolution failed for #{sender_jid}: #{e.message}"
+    @resolve_participant = nil
   end
 
   # A resolved contact always has *some* name (ContactResolver falls back to

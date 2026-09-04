@@ -109,4 +109,18 @@ describe Waha::ChatHistoryImporter do
     expect(conversation.agent_last_seen_at).to be >= imported_message.created_at
     expect(conversation.unread_incoming_messages_count).to eq(0)
   end
+
+  context 'when resolving the chat fails (core failure)' do
+    it 'propagates the error and leaves the checkpoint untouched' do
+      allow(Waha::ContactResolver).to receive(:from_payload).and_raise(CustomExceptions::Waha::TransientError, 'WAHA unreachable')
+      import_chat = WahaImportChat.create!(channel: channel, chat_id: chat_id)
+      importer = described_class.new(channel: channel, chat_id: chat_id, window: window, import_chat: import_chat, kind: 'gap_fill')
+
+      expect { importer.run }.to raise_error(CustomExceptions::Waha::TransientError)
+
+      expect(import_chat.reload.cursor).to be_nil
+      expect(import_chat.imported_count).to eq(0)
+      expect(Message.find_by(source_id: payload['id'])).to be_nil
+    end
+  end
 end

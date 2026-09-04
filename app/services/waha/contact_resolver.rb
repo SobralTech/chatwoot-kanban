@@ -18,6 +18,9 @@ class Waha::ContactResolver
   end
 
   # Returns a ContactInbox for the given JID, creating contact if needed.
+  # Identity resolution and Contact/ContactInbox creation are core: a failure
+  # here (e.g. the WAHA session being unreachable) must reach the caller so the
+  # job retries, instead of being absorbed into a silently dropped message.
   def perform
     resolved_jid = resolve_jid
     # The builder discards contact_attributes when the contact_inbox already
@@ -32,14 +35,13 @@ class Waha::ContactResolver
       inbox: channel.inbox,
       contact_attributes: build_contact_attributes(resolved_jid)
     ).perform
-  rescue StandardError => e
-    Rails.logger.error "[WAHA] ContactResolver error for #{jid}: #{e.message}"
-    nil
   end
 
   private
 
-  # Resolve @lid JIDs to their real @c.us equivalent.
+  # Resolve @lid JIDs to their real @c.us equivalent. This is canonical identity
+  # determination, so a failure here (e.g. the WAHA lookup call erroring) must
+  # propagate rather than silently falling back to the unresolved LID.
   def resolve_jid
     return jid unless Waha::Jid.lid?(jid)
 
@@ -48,8 +50,6 @@ class Waha::ContactResolver
     return jid if resolved.blank? || session_number?(resolved)
 
     resolved
-  rescue StandardError
-    jid
   end
 
   def resolve_lid_to_cus

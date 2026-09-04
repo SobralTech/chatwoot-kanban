@@ -94,6 +94,8 @@ class Waha::HistoryMessageWriter
   # Resolves the group participant to a real Chatwoot contact — deduped per
   # unique participant (ContactResolver short-circuits once their contact
   # exists), so this costs WAHA calls only once per new person, not per message.
+  # Purely a display enrichment (structured sender metadata), so a failure here
+  # must not block the historical message itself.
   def resolve_participant
     return @resolve_participant if defined?(@resolve_participant)
 
@@ -103,6 +105,9 @@ class Waha::HistoryMessageWriter
       push_name: push_name,
       sender_alt: payload.dig('_data', 'Info', 'SenderAlt')
     ).perform&.contact
+  rescue StandardError => e
+    Rails.logger.error "[WAHA] group participant resolution failed for #{sender_jid}: #{e.message}"
+    @resolve_participant = nil
   end
 
   # A resolved contact always has *some* name (ContactResolver falls back to

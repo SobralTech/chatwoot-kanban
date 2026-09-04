@@ -69,4 +69,32 @@ describe Waha::ImportChatWorkerJob do
       expect(channel.import_chats.failed.count).to eq(1)
     end
   end
+
+  # Reproduces the historical-flow half of ticket 03: a core contact-resolution
+  # failure used to be absorbed inside Waha::ContactResolver, so ChatHistoryImporter
+  # returned normally with 0 imported and this job called row.done! on a chat it
+  # never actually processed. It must now surface as `failed`, never `done`.
+  describe 'a chat whose contact resolution fails with a core error' do
+    it 'marks the row failed, not done, and leaves the checkpoint unset' do
+      allow(Waha::ChatHistoryImporter).to receive(:new).and_call_original
+      chat_id = 'unresolvable@c.us'
+      queue_chats(chat_id)
+
+      stub_request(:get, %r{https://waha\.test/api/#{channel.session_name}/chats/#{chat_id}/messages\?})
+        .to_return(status: 200, body: [{
+          'id' => 'false_unresolvable@c.us_1', 'body' => 'hi', 'from' => chat_id, 'to' => '5511999999999@c.us',
+          'fromMe' => false, 'timestamp' => 10.minutes.ago.to_i, 'type' => 'chat', 'hasMedia' => false,
+          '_data' => { 'Info' => { 'Chat' => chat_id } }
+        }].to_json, headers: { 'Content-Type' => 'application/json' })
+      allow(Waha::ContactResolver).to receive(:from_payload).and_raise(CustomExceptions::Waha::TransientError, 'boom')
+
+      described_class.perform_now(channel.id, window, 'initial')
+
+      row = channel.import_chats.find_by!(chat_id: chat_id)
+      expect(row.status).to eq('failed')
+      expect(row.cursor).to be_nil
+      expect(row.imported_count).to eq(0)
+      expect(Message.find_by(source_id: 'false_unresolvable@c.us_1')).to be_nil
+    end
+  end
 end
