@@ -11,27 +11,63 @@ class Waha::HistoryMessageWriter
   pattr_initialize [:channel!, :payload!, :conversation!, { kind: 'initial' }]
 
   def perform
-    build_message
-    @message.imported = initial_import?
-    @message.preserve_conversation_status = gap_fill?
-    @message.save!
-    record_message_mapping
-    @message
+    Waha::Locking.with_chat_lock(channel, lock_chat_jids) do
+      existing = find_canonical_message
+      return existing if existing
+
+      ActiveRecord::Base.transaction do
+        build_message
+        @message.imported = initial_import?
+        @message.preserve_conversation_status = gap_fill?
+        @message.save!
+        record_canonical_mapping!
+        @message
+      end
+    end
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+    find_canonical_message
   end
 
   private
 
-  # Historical import doesn't reconstruct edits (see the class comment), so
-  # every row it dual-writes is a plain `message` event. chat_jid comes from
-  # the conversation's contact_inbox, not this payload's own chat_id — see the
-  # same note on Waha::IncomingMessageService#record_message_mapping.
-  def record_message_mapping
-    WahaMessageMapping.record!(
+  def stanza
+    @stanza ||= Waha::Anchoring.stanza_of(payload['id'])
+  end
+
+  def canonical_chat_jid
+    conversation.contact_inbox&.source_id || chat_id
+  end
+
+  def lock_chat_jids
+    candidate_chat_jids
+  end
+
+  def candidate_chat_jids
+    [conversation.contact_inbox&.source_id, chat_id].compact.uniq
+  end
+
+  def find_canonical_message
+    return nil if stanza.blank?
+
+    mapping = WahaMessageMapping.find_mapping(
+      channel: channel,
+      chat_jid: candidate_chat_jids,
+      external_id: stanza,
+      event_type: :message
+    )
+    return mapping.message if mapping&.message
+
+    conversation.messages.where("#{Waha::Anchoring::STANZA_SQL} = ?", stanza).first
+  end
+
+  def record_canonical_mapping!
+    WahaMessageMapping.create_canonical!(
       channel: channel,
       message: @message,
-      chat_jid: conversation.contact_inbox&.source_id,
-      external_id: Waha::Anchoring.stanza_of(payload['id']),
+      chat_jid: canonical_chat_jid,
+      external_id: stanza,
       direction: incoming? ? :incoming : :outgoing,
+      event_type: :message,
       participant_jid: chat_id.to_s.end_with?('@g.us') ? sender_jid : nil
     )
   end

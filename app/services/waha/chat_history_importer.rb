@@ -1,3 +1,4 @@
+# rubocop:disable Metrics/ClassLength
 class Waha::ChatHistoryImporter
   # Pagination fetches text only (downloadMedia=false) — media is downloaded
   # later, off the critical path, via Waha::HistoryMediaJob. Without the inline
@@ -184,10 +185,18 @@ class Waha::ChatHistoryImporter
     message = Waha::HistoryMessageWriter.new(
       channel: channel, payload: payload, conversation: @conversation, kind: kind
     ).perform
+
+    return false unless message
+
     @existing_messages[stanza] = message.id
-    track_timestamp(payload['timestamp'].to_i)
     track_media(message.id, payload)
-    true
+
+    if message.previously_new_record?
+      track_timestamp(payload['timestamp'].to_i)
+      true
+    else
+      false
+    end
   end
 
   def track_media(message_id, payload)
@@ -243,9 +252,18 @@ class Waha::ChatHistoryImporter
   end
 
   def load_existing_messages
-    @conversation.messages.where.not(source_id: nil)
-                 .pluck(:id, :source_id)
-                 .to_h { |id, source_id| [Waha::Anchoring.stanza_of(source_id), id] }
+    candidate_chat_jids = [@conversation.contact_inbox&.source_id, chat_id].compact.uniq
+
+    mappings = channel.message_mappings
+                      .where(chat_jid: candidate_chat_jids, event_type: :message)
+                      .pluck(:external_id, :message_id)
+                      .to_h
+
+    legacy = @conversation.messages.where.not(source_id: nil)
+                          .pluck(:id, :source_id)
+                          .to_h { |id, source_id| [Waha::Anchoring.stanza_of(source_id), id] }
+
+    legacy.merge(mappings)
   end
 
   def track_timestamp(unix)
@@ -301,3 +319,4 @@ class Waha::ChatHistoryImporter
     @http_client ||= Waha::HttpClient.new(channel: channel)
   end
 end
+# rubocop:enable Metrics/ClassLength
