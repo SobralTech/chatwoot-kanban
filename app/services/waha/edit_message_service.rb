@@ -10,5 +10,8 @@ class Waha::EditMessageService < Waha::BaseMessageActionService
     # "sent from WhatsApp" label.
     stash_current_user('pending_edited_by_id')
     dispatch!(:put, message_path, { text: Waha::MessageSigner.new(message: message).sign(content) })
+  rescue StandardError
+    clear_marker('pending_edited_by_id')
+    raise
   end
 end

@@ -10,6 +10,10 @@ describe Waha::SendOnWahaService do
   end
 
   before do
+    stub_request(:get, %r{https://waha\.test/api/.+/new-message-id})
+      .to_return(status: 200, body: { id: 'GENID001' }.to_json, headers: { 'Content-Type' => 'application/json' })
+    stub_request(:get, %r{https://waha\.test/api/.+/chats/.+/messages\?.*})
+      .to_return(status: 200, body: [].to_json, headers: { 'Content-Type' => 'application/json' })
     stub_request(:post, 'https://waha.test/api/sendText')
       .to_return(status: 201, body: { id: 'true_5511888888888@c.us_NEW001' }.to_json,
                  headers: { 'Content-Type' => 'application/json' })
@@ -191,6 +195,7 @@ describe Waha::SendOnWahaService do
 
       expect(message.reload).to have_attributes(status: 'failed', source_id: nil)
       expect(message.external_error).to include('422')
+      expect(WahaDeliveryAttempt.find_by(message: message).status).to eq('failed')
     end
 
     it 'schedules a limited retry through Waha::DeliverJob on a transient (5xx) error' do
@@ -198,9 +203,10 @@ describe Waha::SendOnWahaService do
         .to_return(status: 503, body: { message: 'session not ready' }.to_json, headers: { 'Content-Type' => 'application/json' })
 
       expect { described_class.new(message: message).perform }
-        .to have_enqueued_job(Waha::DeliverJob).with(message.id, 2)
+        .to have_enqueued_job(Waha::DeliverJob).with(message.id)
 
       expect(message.reload).to have_attributes(status: 'sent', source_id: nil)
+      expect(WahaDeliveryAttempt.find_by(message: message)).to have_attributes(status: 'pending', attempt_count: 1)
     end
 
     it 'recovers on a retry without creating a second message' do
@@ -212,20 +218,26 @@ describe Waha::SendOnWahaService do
 
       expect do
         described_class.new(message: message).perform
-        described_class.new(message: message, skip_presence: true, attempt: 2).perform
+        # Simulates Waha::DeliverJob firing the scheduled retry: it re-reads the
+        # persisted attempt from the DB rather than being told which try this is.
+        described_class.new(message: message, skip_presence: true).perform
       end.not_to change(Message, :count)
 
       expect(message.reload).to have_attributes(status: 'sent', source_id: 'true_5511888888888@c.us_RETRY1')
       expect(WahaMessageMapping.where(message: message).count).to eq(1)
+      expect(WahaDeliveryAttempt.find_by(message: message)).to have_attributes(status: 'sent', attempt_count: 2)
     end
 
     it 'marks the message failed with no fake source_id after exhausting retries' do
       stub_request(:post, 'https://waha.test/api/sendText')
         .to_return(status: 503, body: { message: 'down' }.to_json, headers: { 'Content-Type' => 'application/json' })
+      WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
+                                  status: :pending, attempt_count: Waha::SendOnWahaService::MAX_SEND_ATTEMPTS - 1)
 
-      described_class.new(message: message, skip_presence: true, attempt: Waha::SendOnWahaService::MAX_SEND_ATTEMPTS).perform
+      described_class.new(message: message, skip_presence: true).perform
 
       expect(message.reload).to have_attributes(status: 'failed', source_id: nil)
+      expect(WahaDeliveryAttempt.find_by(message: message).status).to eq('failed')
     end
 
     it 'marks the message failed when WAHA responds success with no message id' do
@@ -235,6 +247,76 @@ describe Waha::SendOnWahaService do
       described_class.new(message: message).perform
 
       expect(message.reload).to have_attributes(status: 'failed', source_id: nil)
+    end
+
+    it 'does not call WAHA a second time when another execution already claimed the attempt' do
+      WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us', status: :sending)
+
+      described_class.new(message: message, skip_presence: true).perform
+
+      expect(a_request(:post, 'https://waha.test/api/sendText')).not_to have_been_made
+      expect(message.reload).to have_attributes(source_id: nil)
+    end
+
+    it 'sends input_csat text (with the survey link) through the same text contract instead of dropping it' do
+      csat_message = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                      message_type: :template, content_type: :input_csat, content: 'Rate us')
+
+      described_class.new(message: csat_message).perform
+
+      # outgoing_content (MessageContentPresenter) is what makes this a survey
+      # link rather than the raw stored content — the same mechanism every other
+      # non-web-widget channel already uses for input_csat.
+      expect(WebMock).to(have_requested(:post, 'https://waha.test/api/sendText')
+        .with { |request| JSON.parse(request.body)['text'].include?("/survey/responses/#{conversation.uuid}") })
+      expect(csat_message.reload.source_id).to eq('true_5511888888888@c.us_NEW001')
+    end
+
+    describe 'the pre-generated id' do
+      it "sends WAHA's pre-generated id as the request's id" do
+        described_class.new(message: message).perform
+
+        expect(WebMock).to have_requested(:post, 'https://waha.test/api/sendText')
+          .with(body: hash_including('id' => 'GENID001'))
+        expect(WahaDeliveryAttempt.find_by(message: message).client_message_id).to eq('GENID001')
+      end
+
+      it 'sends without an id, and keeps working, when the engine does not support pre-generated ids' do
+        stub_request(:get, %r{https://waha\.test/api/.+/new-message-id})
+          .to_return(status: 404, body: { message: 'not implemented' }.to_json, headers: { 'Content-Type' => 'application/json' })
+
+        described_class.new(message: message).perform
+
+        expect(WebMock).to(have_requested(:post, 'https://waha.test/api/sendText')
+          .with { |request| !JSON.parse(request.body).key?('id') })
+        expect(message.reload).to have_attributes(status: 'sent', source_id: 'true_5511888888888@c.us_NEW001')
+      end
+    end
+
+    describe 'reconciliation after a lost response' do
+      it 'adopts the message WAHA already sent instead of resending when the HTTP response never arrives' do
+        stub_request(:post, 'https://waha.test/api/sendText').to_timeout
+        stub_request(:get, %r{https://waha\.test/api/.+/chats/.+/messages\?.*})
+          .to_return(status: 200, body: [{ id: 'true_5511888888888@c.us_GENID001' }].to_json,
+                     headers: { 'Content-Type' => 'application/json' })
+
+        expect { described_class.new(message: message).perform }
+          .not_to have_enqueued_job(Waha::DeliverJob)
+
+        expect(a_request(:post, 'https://waha.test/api/sendText')).to have_been_made.once
+        expect(message.reload).to have_attributes(status: 'sent', source_id: 'true_5511888888888@c.us_GENID001')
+        expect(WahaMessageMapping.where(message: message).count).to eq(1)
+        expect(WahaDeliveryAttempt.find_by(message: message).status).to eq('sent')
+      end
+
+      it 'retries normally when reconciliation finds no matching message' do
+        stub_request(:post, 'https://waha.test/api/sendText').to_timeout
+
+        expect { described_class.new(message: message).perform }
+          .to have_enqueued_job(Waha::DeliverJob).with(message.id)
+
+        expect(message.reload.source_id).to be_nil
+      end
     end
   end
 end

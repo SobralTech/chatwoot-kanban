@@ -1,3 +1,4 @@
+# rubocop:disable Metrics/ClassLength
 class Webhooks::WahaEventsJob < ApplicationJob
   # Live inbound WhatsApp traffic, on the same queue as the other realtime channel
   # webhooks. It must not sit on :low, which is the lowest-priority queue and also
@@ -61,13 +62,16 @@ class Webhooks::WahaEventsJob < ApplicationJob
   def handle_message(channel, params, media_attempt)
     payload = params['payload']
     return if payload.blank?
-    # Sent from Chatwoot via the WAHA API — the local message already exists (with
-    # its source_id). Mirroring would duplicate it; acks drive its status.
-    return if chatwoot_originated?(payload)
+    # A fromMe event WAHA can trace back to a specific Chatwoot send (its id
+    # matches that attempt's pre-generated or confirmed id) is the echo of our
+    # own request; absorb it here and settle the attempt if it hasn't been yet
+    # (the echo can race ahead of our HTTP response).
+    return if suppress_chatwoot_echo?(channel, payload)
 
-    # Incoming from a contact (fromMe: false) or sent from the phone/WhatsApp app
-    # directly (fromMe: true, source: app/web). Mirror both into Chatwoot; the
-    # service's own dedup check is the single gate against double-mirroring.
+    # Incoming from a contact (fromMe: false), sent from the phone/WhatsApp app
+    # directly, or sent by another system sharing this WAHA session (fromMe:
+    # true, uncorrelated) — mirror all of these into Chatwoot; the service's own
+    # dedup check is the single gate against double-mirroring.
     Waha::IncomingMessageService.new(channel: channel, payload: payload).perform
   rescue CustomExceptions::Waha::MediaDownloadError => e
     retry_media_or_finalize(channel, params, media_attempt, e) do
@@ -75,8 +79,14 @@ class Webhooks::WahaEventsJob < ApplicationJob
     end
   end
 
-  def chatwoot_originated?(payload)
-    payload['fromMe'] && payload['source'] == 'api'
+  def suppress_chatwoot_echo?(channel, payload)
+    return false unless payload['fromMe']
+
+    attempt = WahaDeliveryAttempt.find_by_correlated_id(channel: channel, wa_message_id: payload['id'])
+    return false unless attempt
+
+    attempt.confirm_sent!(payload['id'])
+    true
   end
 
   # Maps WhatsApp delivery acks to Chatwoot statuses so outgoing bubbles show the
@@ -289,3 +299,4 @@ class Webhooks::WahaEventsJob < ApplicationJob
     Waha::Anchoring.by_stanza(channel.inbox, source_id).first
   end
 end
+# rubocop:enable Metrics/ClassLength
