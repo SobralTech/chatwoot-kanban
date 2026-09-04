@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_04_160000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_04_170000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1716,6 +1716,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_160000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "media_message_ids", default: [], null: false, array: true
+    t.string "cursor_message_id"
     t.index ["channel_waha_id", "chat_id"], name: "index_waha_import_chats_on_channel_waha_id_and_chat_id", unique: true
     t.index ["channel_waha_id", "status"], name: "index_waha_import_chats_on_channel_waha_id_and_status"
     t.index ["channel_waha_id"], name: "index_waha_import_chats_on_channel_waha_id"

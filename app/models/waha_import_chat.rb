@@ -15,6 +15,7 @@
 #  updated_at        :datetime         not null
 #  channel_waha_id   :bigint           not null
 #  chat_id           :string           not null
+#  cursor_message_id :string
 #
 # Indexes
 #
