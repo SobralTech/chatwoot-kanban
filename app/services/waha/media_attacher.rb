@@ -12,26 +12,49 @@ class Waha::MediaAttacher
     'stickerMessage' => 'sticker'
   }.freeze
 
-  pattr_initialize [:channel!, :payload!]
+  # A 5xx, timeout or connection failure is worth retrying — the file is still
+  # there, WAHA/the network just hiccuped. Anything else (404/expired media,
+  # a malformed URL, too many redirects) will fail the same way again, so it
+  # is treated as terminal instead of retried.
+  TRANSIENT_DOWNLOAD_ERRORS = [Down::ServerError, Down::ConnectionError, Down::SSLError].freeze
+
+  pattr_initialize [:channel!, :payload!, :terminal]
+
+  # Records a visible, permanent marker on a message whose media could not be
+  # recovered (download exhausted its retries, or failed for a non-transient
+  # reason) so the content never just silently disappears.
+  def self.mark_download_failed(message)
+    message.content_attributes = message.content_attributes.merge('media_download_failed' => true)
+    message.content = I18n.t('conversations.messages.waha_media_unavailable') if message.content.blank?
+  end
 
   # Fetches the media ahead of time so callers can keep the (potentially slow)
   # network round-trip outside their database transaction. Idempotent.
+  #
+  # `terminal` short-circuits straight to a miss without hitting the network —
+  # set by a caller that already knows (from a prior raised MediaDownloadError)
+  # that retries are exhausted, so it can persist the message with a fallback
+  # instead of trying the same doomed request again.
   def download
     return @file if defined?(@file)
     return @file = nil unless media?
+    return @file = nil if terminal
 
     @file = Down.download(
       media_url,
       headers: { 'X-Api-Key' => channel.api_key },
       open_timeout: 10, read_timeout: 60
     )
+  rescue *TRANSIENT_DOWNLOAD_ERRORS => e
+    raise CustomExceptions::Waha::MediaDownloadError, "WAHA media download failed for #{payload['id']}: #{e.message}"
   rescue StandardError => e
-    Rails.logger.error "[WAHA] Media download failed for #{payload['id']}: #{e.message}"
+    Rails.logger.error "[WAHA] Media download failed permanently for #{payload['id']}: #{e.message}"
     @file = nil
   end
 
   def attach_to(message)
     file = download
+    return self.class.mark_download_failed(message) if file.blank? && media?
     return if file.blank?
 
     message.attachments.build(
