@@ -23,8 +23,8 @@ describe Waha::ImportChatWorkerJob do
     it 'imports one chat per execution and hands the rest to a successor job' do
       queue_chats('a@c.us', 'b@c.us', 'c@c.us')
 
-      expect { described_class.perform_now(channel.id, window) }
-        .to have_enqueued_job(described_class).with(channel.id, window).exactly(:once)
+      expect { described_class.perform_now(channel.id, window, 'initial') }
+        .to have_enqueued_job(described_class).with(channel.id, window, 'initial').exactly(:once)
 
       expect(channel.import_chats.done.count).to eq(1)
       expect(channel.import_chats.pending.count).to eq(2)
@@ -33,7 +33,7 @@ describe Waha::ImportChatWorkerJob do
 
   describe 'draining the queue' do
     it 'finalizes the import and enqueues no successor once no chat is left to claim' do
-      expect { described_class.perform_now(channel.id, window) }
+      expect { described_class.perform_now(channel.id, window, 'initial') }
         .not_to have_enqueued_job(described_class)
 
       expect(channel.reload.import_state['status']).to eq('done')
@@ -43,7 +43,7 @@ describe Waha::ImportChatWorkerJob do
       queue_chats('a@c.us')
       channel.import_chats.first.update!(status: :importing)
 
-      described_class.perform_now(channel.id, window)
+      described_class.perform_now(channel.id, window, 'initial')
 
       expect(channel.reload.import_state['status']).to eq('running')
     end
@@ -52,7 +52,7 @@ describe Waha::ImportChatWorkerJob do
       queue_chats('a@c.us')
       channel.import_chats.first.update!(status: :failed, error: 'WAHA request failed')
 
-      described_class.perform_now(channel.id, window)
+      described_class.perform_now(channel.id, window, 'initial')
 
       expect(channel.reload.import_state).to include('status' => 'failed', 'error' => 'WAHA request failed')
     end
@@ -63,7 +63,7 @@ describe Waha::ImportChatWorkerJob do
       queue_chats('a@c.us', 'b@c.us')
       allow(importer).to receive(:run).and_raise(StandardError, 'boom')
 
-      expect { described_class.perform_now(channel.id, window) }
+      expect { described_class.perform_now(channel.id, window, 'initial') }
         .to have_enqueued_job(described_class).exactly(:once)
 
       expect(channel.import_chats.failed.count).to eq(1)

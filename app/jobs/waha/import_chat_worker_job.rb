@@ -13,16 +13,19 @@ class Waha::ImportChatWorkerJob < ApplicationJob
   #
   # The pool size is preserved exactly: each execution enqueues at most one
   # successor, and the worker that finds the queue drained finalizes the import.
-  def perform(channel_id, window)
+  def perform(channel_id, window, kind = nil)
     @channel = Channel::Waha.find_by(id: channel_id)
     return unless @channel
 
     @window = window
+    # Jobs enqueued before the import kind became an explicit argument still
+    # inherit the running import's semantics when they are eventually consumed.
+    @kind = kind || @channel.import_state['kind'] || 'initial'
     row = WahaImportChat.claim_next(@channel.id)
     return finalize_if_last if row.nil?
 
     import_chat(row)
-    self.class.set(wait: THROTTLE).perform_later(@channel.id, @window)
+    self.class.set(wait: THROTTLE).perform_later(@channel.id, @window, @kind)
   end
 
   private
@@ -30,7 +33,7 @@ class Waha::ImportChatWorkerJob < ApplicationJob
   # Per-chat isolation: one bad/slow chat is logged and marked failed instead of
   # stalling the pool. The chat's own row tracks its imported count + cursor.
   def import_chat(row)
-    Waha::ChatHistoryImporter.new(channel: @channel, chat_id: row.chat_id, window: @window, import_chat: row).run
+    Waha::ChatHistoryImporter.new(channel: @channel, chat_id: row.chat_id, window: @window, import_chat: row, kind: @kind).run
     row.done!
   rescue StandardError => e
     Rails.logger.error "[WAHA] History import: chat #{row.chat_id} failed: #{e.message}"

@@ -16,4 +16,11 @@ describe Waha::HistoryImportJob do
     expect(channel.reload.import_state).to include('status' => 'running', 'retries' => 1)
     expect(channel.import_chats).to be_empty
   end
+
+  it 'passes the gap-fill kind to each chat worker' do
+    allow(fetcher).to receive(:all).and_return(['5511888888888@c.us'])
+
+    expect { described_class.perform_now(channel.id, window, 'gap_fill') }
+      .to have_enqueued_job(Waha::ImportChatWorkerJob).with(channel.id, window, 'gap_fill').exactly(:once)
+  end
 end

@@ -10,11 +10,12 @@ class Waha::ChatHistoryImporter
   # backwards compatible for installations that already tune the 30-day window.
   RECENT_MEDIA_MAX_AGE = ENV.fetch('WAHA_IMPORT_MEDIA_MAX_AGE_DAYS', 30).to_i.days
 
-  pattr_initialize [:channel!, :chat_id!, :window!, :import_chat!]
+  pattr_initialize [:channel!, :chat_id!, :window!, :import_chat!, { kind: 'initial' }]
 
   # Imports one chat's messages within the window. Resolves the conversation once,
-  # batch-dedups against existing stanza ids, then writes each new message
-  # silently (backdated + read). Returns the number of messages written.
+  # batch-dedups against existing stanza ids, then writes each new message using
+  # the semantics of its import kind. Initial history stays silent and pre-read;
+  # recent gap recovery remains actionable. Returns the number of messages written.
   # Best-effort: only what WhatsApp synced to the device is available.
   def run
     imported = import_messages
@@ -81,7 +82,9 @@ class Waha::ChatHistoryImporter
       return false
     end
 
-    message = Waha::HistoryMessageWriter.new(channel: channel, payload: payload, conversation: @conversation).perform
+    message = Waha::HistoryMessageWriter.new(
+      channel: channel, payload: payload, conversation: @conversation, kind: kind
+    ).perform
     @existing_messages[stanza] = message.id
     track_timestamp(payload['timestamp'].to_i)
     track_media(message.id, payload)
@@ -137,7 +140,7 @@ class Waha::ChatHistoryImporter
       contact_id: contact_inbox.contact_id,
       contact_inbox_id: contact_inbox.id
     )
-    conversation.imported = true
+    conversation.imported = initial_import?
     conversation.save!
     conversation
   end
@@ -155,10 +158,13 @@ class Waha::ChatHistoryImporter
     @max_ts = unix if @max_ts.nil? || unix > @max_ts
   end
 
-  # Imported conversations land resolved and read (no unread badges), with their
-  # activity/creation timestamps extended to span the imported history. Written
-  # via update_columns to stay silent (no status-change events/automation).
+  # Initial imports land resolved and read (no unread badges), with their
+  # activity/creation timestamps extended to span the imported history. A recent
+  # gap-fill has already run the normal message path, so it deliberately leaves
+  # the conversation status and seen timestamps alone.
   def finalize_conversation
+    return unless initial_import?
+
     now = Time.current
     # rubocop:disable Rails/SkipsModelValidations
     @conversation.update_columns(
@@ -184,6 +190,10 @@ class Waha::ChatHistoryImporter
 
   def window_unix(key)
     Time.zone.parse(window[key]).to_i
+  end
+
+  def initial_import?
+    kind == 'initial'
   end
 
   def inbox

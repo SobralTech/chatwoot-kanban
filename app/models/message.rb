@@ -87,6 +87,9 @@ class Message < ApplicationRecord
   attr_accessor :preserve_waiting_since
   # Transient delay (in seconds) before SendReplyJob runs, used to stagger delivery order
   attr_accessor :send_reply_delay
+  # Recent WAHA gap recovery should retain the normal incoming-message path while
+  # leaving an actively handled or snoozed conversation in its current state.
+  attr_accessor :preserve_conversation_status
   # Set by the WAHA history importer: marks a backdated message so its create
   # commit skips every live side effect (send_reply, automation, webhooks,
   # notifications, broadcast) — the import is fully silent.
@@ -419,6 +422,7 @@ class Message < ApplicationRecord
   def reopen_conversation
     return if conversation.muted?
     return unless incoming?
+    return if preserve_conversation_status && !conversation.resolved?
 
     conversation.open! if conversation.snoozed?
 

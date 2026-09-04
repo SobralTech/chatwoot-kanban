@@ -9,10 +9,12 @@ class Waha::HistoryImportJob < ApplicationJob
   # channel's import doesn't starve other work (or hammer the WAHA session).
   WORKER_POOL = ENV.fetch('WAHA_IMPORT_CONCURRENCY', 4).to_i
 
-  # Dispatches a silent history import for one WAHA channel: it acquires the lock
+  # Dispatches a history import for one WAHA channel: it acquires the lock
   # (import_state.status == running), seeds the per-chat work queue, and spins up
-  # a bounded worker pool that imports chats concurrently. Progress lives on the
-  # per-chat rows, so a restart or retry just re-runs this and the pool resumes.
+  # a bounded worker pool that imports chats concurrently. The import kind travels
+  # with each worker so initial backfill and recent gap recovery keep distinct
+  # message and conversation semantics. Progress lives on the per-chat rows, so a
+  # restart or retry just re-runs this and the pool resumes.
   def perform(channel_id, window, kind)
     @channel = Channel::Waha.find_by(id: channel_id)
     return unless @channel
@@ -45,7 +47,7 @@ class Waha::HistoryImportJob < ApplicationJob
 
     # Never spin up more workers than there are chats for them to claim.
     @channel.import_chats.pending.count.clamp(1, WORKER_POOL).times do
-      Waha::ImportChatWorkerJob.perform_later(@channel.id, @window)
+      Waha::ImportChatWorkerJob.perform_later(@channel.id, @window, @kind)
     end
   end
 

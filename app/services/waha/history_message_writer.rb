@@ -1,17 +1,19 @@
 class Waha::HistoryMessageWriter
   SENT_FROM_WHATSAPP_LABEL = Waha::IncomingMessageService::SENT_FROM_WHATSAPP_LABEL
 
-  # Writes one historical WAHA message into an already-resolved conversation:
-  # silent (the `imported` flag skips every live side effect), backdated to the
-  # real WhatsApp timestamp, and pre-read. Reply-context reuses the same resolver
-  # as the live path. Media is attached later by Waha::HistoryMediaJob (off the
-  # import's critical path). Edits/reactions are not reconstructed (MVP).
+  # Writes one WAHA history message into an already-resolved conversation. Initial
+  # history is silent, backdated and pre-read; recent gap recovery is backdated
+  # but follows the normal message path so it remains actionable. Reply-context
+  # reuses the same resolver as the live path. Media is attached later by
+  # Waha::HistoryMediaJob (off the import's critical path). Edits/reactions are
+  # not reconstructed (MVP).
   # Returns the persisted message.
-  pattr_initialize [:channel!, :payload!, :conversation!]
+  pattr_initialize [:channel!, :payload!, :conversation!, { kind: 'initial' }]
 
   def perform
     build_message
-    @message.imported = true
+    @message.imported = initial_import?
+    @message.preserve_conversation_status = gap_fill?
     @message.save!
     @message
   end
@@ -54,7 +56,10 @@ class Waha::HistoryMessageWriter
   end
 
   def build_additional_attributes
-    attrs = { 'imported' => true }
+    # This durable provenance gives listeners and automation policies a way to
+    # distinguish a silent initial backfill from an actionable recent recovery.
+    attrs = { 'waha_import_kind' => kind }
+    attrs['imported'] = true if initial_import?
     # Phone/WhatsApp-sent outgoing messages have no Chatwoot agent; label them
     # instead of falling back to the generic "Bot" sender.
     attrs['sender_name'] = SENT_FROM_WHATSAPP_LABEL unless incoming?
@@ -110,5 +115,13 @@ class Waha::HistoryMessageWriter
 
   def inbox
     @inbox ||= channel.inbox
+  end
+
+  def initial_import?
+    kind == 'initial'
+  end
+
+  def gap_fill?
+    kind == 'gap_fill'
   end
 end
