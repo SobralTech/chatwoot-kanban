@@ -145,6 +145,12 @@ class Message < ApplicationRecord
   has_one :csat_survey_response, dependent: :destroy_async
   has_many :notifications, as: :primary_actor, dependent: :destroy_async
   has_many :waha_message_mappings, dependent: :destroy_async
+  # autosave: false — WahaDeliveryAttempt's lifecycle is managed entirely through
+  # its own explicit writes (WahaDeliveryAttempt#claim!/#confirm_sent!, or
+  # create_or_find_by! in Waha::SendOnWahaService). Without this, saving the
+  # message after a create_or_find_by! rescue-and-retry can autosave a stale,
+  # never-persisted association target left over from the failed create.
+  has_one :waha_delivery_attempt, dependent: :destroy_async, autosave: false
 
   after_create_commit :execute_after_create_commit_callbacks
 

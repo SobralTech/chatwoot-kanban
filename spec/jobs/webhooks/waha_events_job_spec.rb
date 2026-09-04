@@ -82,6 +82,65 @@ describe Webhooks::WahaEventsJob do
     end
   end
 
+  def own_message_params(stanza:, source: 'api')
+    {
+      'session' => channel.session_name,
+      'event' => 'message.any',
+      'payload' => {
+        'id' => "true_5511888888888@c.us_#{stanza}",
+        'body' => 'hello from elsewhere',
+        'from' => '5511999999999@c.us',
+        'to' => '5511888888888@c.us',
+        'fromMe' => true,
+        'source' => source,
+        'type' => 'chat',
+        'hasMedia' => false,
+        '_data' => { 'Info' => { 'Chat' => '5511888888888@c.us' } }
+      }
+    }
+  end
+
+  describe 'fromMe echo correlation' do
+    it 'absorbs a fromMe event correlated to a pending Chatwoot delivery attempt, without mirroring it' do
+      conversation
+      outgoing = create(:message, conversation: conversation, inbox: inbox, account: channel.account, message_type: :outgoing)
+      attempt = WahaDeliveryAttempt.create!(channel: channel, message: outgoing, chat_jid: '5511888888888@c.us',
+                                            status: :sending, client_message_id: 'ECHOID1', dispatched_at: Time.current)
+      params = own_message_params(stanza: 'ECHOID1')
+
+      expect(Waha::IncomingMessageService).not_to receive(:new)
+
+      described_class.perform_now(channel.id, params)
+
+      expect(attempt.reload).to have_attributes(status: 'sent', external_id: 'ECHOID1')
+      expect(outgoing.reload.source_id).to eq('true_5511888888888@c.us_ECHOID1')
+    end
+
+    it 'is idempotent when WAHA redelivers the same correlated echo' do
+      conversation
+      outgoing = create(:message, conversation: conversation, inbox: inbox, account: channel.account, message_type: :outgoing)
+      WahaDeliveryAttempt.create!(channel: channel, message: outgoing, chat_jid: '5511888888888@c.us',
+                                  status: :sending, client_message_id: 'ECHOID2', dispatched_at: Time.current)
+      params = own_message_params(stanza: 'ECHOID2')
+
+      described_class.perform_now(channel.id, params)
+      described_class.perform_now(channel.id, params)
+
+      expect(WahaMessageMapping.where(channel: channel, external_id: 'ECHOID2').count).to eq(1)
+    end
+
+    it 'mirrors an uncorrelated fromMe event (e.g. sent by another API on the same session) instead of dropping it' do
+      conversation
+      params = own_message_params(stanza: 'OTHERAPI1')
+
+      described_class.perform_now(channel.id, params)
+
+      message = Message.find_by(source_id: params['payload']['id'])
+      expect(message).to be_present
+      expect(message).to have_attributes(message_type: 'outgoing')
+    end
+  end
+
   describe 'session isolation' do
     it 'does not route an event without a session' do
       params = media_message_params.except('session')

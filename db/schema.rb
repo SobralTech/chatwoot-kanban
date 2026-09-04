@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_04_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_04_180000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1706,6 +1706,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_170000) do
     t.index ["contact_inbox_id"], name: "index_waha_contact_aliases_on_contact_inbox_id"
   end
 
+  create_table "waha_delivery_attempts", force: :cascade do |t|
+    t.bigint "channel_waha_id", null: false
+    t.bigint "message_id", null: false
+    t.string "chat_jid", null: false
+    t.integer "status", default: 0, null: false
+    t.string "client_message_id"
+    t.string "external_id"
+    t.integer "attempt_count", default: 0, null: false
+    t.datetime "dispatched_at"
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["channel_waha_id", "client_message_id"], name: "index_waha_delivery_attempts_on_client_message_id", unique: true, where: "(client_message_id IS NOT NULL)"
+    t.index ["channel_waha_id", "external_id"], name: "index_waha_delivery_attempts_on_external_id", unique: true, where: "(external_id IS NOT NULL)"
+    t.index ["channel_waha_id"], name: "index_waha_delivery_attempts_on_channel_waha_id"
+    t.index ["message_id"], name: "index_waha_delivery_attempts_on_message_id", unique: true
+  end
+
   create_table "waha_import_chats", force: :cascade do |t|
     t.bigint "channel_waha_id", null: false
     t.string "chat_id", null: false
@@ -1822,6 +1840,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_170000) do
   add_foreign_key "kanban_reasons", "kanban_boards"
   add_foreign_key "waha_contact_aliases", "channel_waha", on_delete: :cascade
   add_foreign_key "waha_contact_aliases", "contact_inboxes", on_delete: :cascade
+  add_foreign_key "waha_delivery_attempts", "channel_waha"
+  add_foreign_key "waha_delivery_attempts", "messages"
   add_foreign_key "waha_import_chats", "channel_waha"
   add_foreign_key "waha_message_mappings", "channel_waha"
   add_foreign_key "waha_message_mappings", "messages"

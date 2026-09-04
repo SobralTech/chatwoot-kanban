@@ -1,13 +1,21 @@
+# rubocop:disable Metrics/ClassLength
 class Waha::SendOnWahaService < Base::SendOnChannelService
   TYPING_PRESENCE_QUEUE_WAIT_LIMIT = 20_000
 
   # Retries apply only to CustomExceptions::Waha::TransientError (5xx, timeout,
   # connection failure). MAX_SEND_ATTEMPTS counts the original try, so this
-  # allows 2 retries before the message is marked failed for good.
+  # allows 2 retries before the message is marked failed for good. Counted off
+  # WahaDeliveryAttempt#attempt_count (persisted), not a job argument, so it
+  # survives a crash between send and confirmation.
   MAX_SEND_ATTEMPTS = 3
   RETRY_DELAYS = [10.seconds, 60.seconds].freeze
 
-  pattr_initialize [:message!, :skip_presence, :attempt]
+  # How far back to look, in a chat's own message list, for a message carrying
+  # our pre-generated id when a send's outcome is unknown (see
+  # #reconcile_ambiguous_dispatch!).
+  RECONCILIATION_LOOKBACK = 20
+
+  pattr_initialize [:message!, :skip_presence]
 
   private
 
@@ -16,9 +24,6 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def perform_reply
-    # CSAT surveys have no WhatsApp representation.
-    return if message.content_type.to_s == 'input_csat'
-
     send_seen
 
     if skip_presence
@@ -35,43 +40,102 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     fail_message!(e)
   end
 
+  # Claims the persisted attempt (a no-op if another execution is already
+  # sending), assigns a WAHA-generated id up front when the engine supports it,
+  # and confirms the send atomically once WAHA responds with a message id.
   def deliver_message
+    return unless delivery_attempt.claim!
+
+    ensure_client_message_id!
+    delivery_attempt.update!(dispatched_at: Time.current)
+
     result = attachment ? send_attachment : send_text
-    return if result.nil?
+    return release_attempt! if result.nil?
 
-    source_id = result.is_a?(Hash) ? result['id'] : nil
-    raise CustomExceptions::Waha::ApiError, 'WAHA accepted the request but returned no message id' if source_id.blank?
+    wa_message_id = result.is_a?(Hash) ? result['id'] : nil
+    raise CustomExceptions::Waha::ApiError, 'WAHA accepted the request but returned no message id' if wa_message_id.blank?
 
-    message.update!(source_id: source_id)
-    record_message_mapping(source_id)
+    delivery_attempt.confirm_sent!(wa_message_id)
   end
 
-  def record_message_mapping(source_id)
-    WahaMessageMapping.record!(
-      channel: channel,
-      message: message,
-      chat_jid: chat_id,
-      external_id: Waha::Anchoring.stanza_of(source_id),
-      direction: :outgoing
-    )
+  # WAHA's pre-generated id is the closest thing GOWS offers to a client-defined
+  # idempotency key (see MessageTextRequest#id upstream): reused across retries
+  # of the same message, it lets a correlated fromMe echo or a reconciliation
+  # scan confirm a send whose HTTP response never came back. Some engines don't
+  # support the endpoint; that's a documented, observable limitation, not a
+  # reason to fail the send.
+  def ensure_client_message_id!
+    return if delivery_attempt.client_message_id.present?
+
+    id = fetch_client_message_id
+    delivery_attempt.update!(client_message_id: id) if id.present?
+  end
+
+  def fetch_client_message_id
+    http_client.get("#{channel.session_name}/new-message-id")['id']
+  rescue CustomExceptions::Waha::TransientError
+    raise
+  rescue CustomExceptions::Waha::ApiError => e
+    Rails.logger.warn "[WAHA] engine does not support pre-generated message ids for message #{message.id}: #{e.message}"
+    nil
+  end
+
+  # An attachment we can't resolve a URL for leaves nothing to retry towards, so
+  # release the claim instead of leaving the attempt stuck in `sending` forever.
+  def release_attempt!
+    delivery_attempt.update!(status: :pending)
+    nil
   end
 
   def handle_transient_failure(error)
-    if current_attempt < MAX_SEND_ATTEMPTS
-      Rails.logger.warn "[WAHA] Transient send failure for message #{message.id} (attempt #{current_attempt}): #{error.message}"
-      Waha::DeliverJob.set(wait: RETRY_DELAYS[current_attempt - 1]).perform_later(message.id, current_attempt + 1)
+    return if reconcile_ambiguous_dispatch!
+
+    if delivery_attempt.attempt_count < MAX_SEND_ATTEMPTS
+      return unless delivery_attempt.release_to_pending!
+
+      Rails.logger.warn "[WAHA] Transient send failure for message #{message.id} (attempt #{delivery_attempt.attempt_count}): #{error.message}"
+      Waha::DeliverJob.set(wait: RETRY_DELAYS[delivery_attempt.attempt_count - 1]).perform_later(message.id)
     else
       fail_message!(error)
     end
   end
 
+  # The request that carried our pre-generated id may have reached WAHA despite
+  # the local error (timeout, reset, 5xx). Before assuming nothing happened and
+  # resending, check whether that id already shows up as a message WAHA sent.
+  # Only meaningful once a request was actually dispatched with a known id; a
+  # failure before that point (e.g. fetching the id itself) has nothing to
+  # reconcile against.
+  def reconcile_ambiguous_dispatch!
+    return false unless delivery_attempt.dispatched_at? && delivery_attempt.client_message_id.present?
+
+    match = recent_own_messages.find { |msg| Waha::Anchoring.stanza_of(msg['id']) == delivery_attempt.client_message_id }
+    return false unless match
+
+    delivery_attempt.confirm_sent!(match['id'])
+    true
+  rescue StandardError => e
+    Rails.logger.warn "[WAHA] Reconciliation check failed for message #{message.id}: #{e.message}"
+    false
+  end
+
+  def recent_own_messages
+    query = "limit=#{RECONCILIATION_LOOKBACK}&filter.fromMe=true&sortOrder=desc&downloadMedia=false"
+    http_client.get_array("#{channel.session_name}/chats/#{chat_id}/messages?#{query}")
+  end
+
   def fail_message!(error)
+    return unless delivery_attempt.mark_failed!(error.message)
+
     Rails.logger.error "[WAHA] Send failed for message #{message.id}: #{error.message}"
     message.update!(status: :failed, external_error: error.message)
   end
 
-  def current_attempt
-    attempt || 1
+  def delivery_attempt
+    @delivery_attempt ||= WahaDeliveryAttempt.create_or_find_by!(message: message) do |a|
+      a.channel = channel
+      a.chat_jid = chat_id
+    end
   end
 
   def reserve_and_queue_delivery
@@ -189,12 +253,16 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     # incoming webhook payloads.
     reply_to_id = quoted_source_id
     payload[:reply_to] = reply_to_id if reply_to_id.present?
+    payload[:id] = delivery_attempt.client_message_id if delivery_attempt.client_message_id.present?
 
     payload
   end
 
+  # `outgoing_content` (not the raw `content`) so an input_csat message picks up
+  # the survey link the same way every other non-web-widget channel's send
+  # service already does — see MessageContentPresenter#outgoing_content.
   def outgoing_mentions
-    @outgoing_mentions ||= Waha::OutgoingMentionParser.new(text: message.content, chat_id: chat_id)
+    @outgoing_mentions ||= Waha::OutgoingMentionParser.new(text: message.outgoing_content, chat_id: chat_id)
   end
 
   def chat_id
@@ -237,3 +305,4 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     @signer ||= Waha::MessageSigner.new(message: message)
   end
 end
+# rubocop:enable Metrics/ClassLength

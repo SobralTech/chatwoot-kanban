@@ -11,5 +11,8 @@ class Waha::ReactionService < Waha::BaseMessageActionService
     # ReactionApplier consumes the marker to attribute the chip to this agent.
     stash_current_user('pending_reaction_agent_id')
     dispatch!(:put, 'reaction', { messageId: anchor_source_id, reaction: emoji, session: channel.session_name })
+  rescue StandardError
+    clear_marker('pending_reaction_agent_id')
+    raise
   end
 end
