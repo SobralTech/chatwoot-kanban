@@ -1,3 +1,4 @@
+# rubocop:disable Metrics/ClassLength
 class Waha::IncomingMessageService
   IGNORED_CHAT_SUFFIXES = %w[@newsletter status@broadcast].freeze
   SENT_FROM_WHATSAPP_LABEL = 'Enviado pelo WhatsApp'.freeze
@@ -49,6 +50,7 @@ class Waha::IncomingMessageService
 
       set_conversation unless @conversation
       create_message
+      record_message_mapping
       clear_pending_editor
       clear_migrated_reactions
     end
@@ -166,6 +168,24 @@ class Waha::IncomingMessageService
 
   def media_attacher
     @media_attacher ||= Waha::MediaAttacher.new(channel: channel, payload: payload, terminal: media_terminal)
+  end
+
+  # chat_jid comes from the conversation's contact_inbox rather than this
+  # payload's own chat_id: a DM can carry an @lid one message and its resolved
+  # @c.us the next (ContactResolver#resolve_jid finds the same contact_inbox
+  # either way), and the canonical mapping must not fragment one real chat
+  # across two chat_jid values depending on which shape a given event happened
+  # to carry.
+  def record_message_mapping
+    WahaMessageMapping.record!(
+      channel: channel,
+      message: @message,
+      chat_jid: @conversation.contact_inbox&.source_id,
+      external_id: Waha::Anchoring.stanza_of(source_id),
+      direction: incoming? ? :incoming : :outgoing,
+      event_type: edited_original ? :edit : :message,
+      participant_jid: chat_id.to_s.end_with?('@g.us') ? sender_jid : nil
+    )
   end
 
   # For a mirrored outgoing message the payload already carries the WhatsApp ack,
@@ -286,3 +306,4 @@ class Waha::IncomingMessageService
     @inbox ||= channel.inbox
   end
 end
+# rubocop:enable Metrics/ClassLength

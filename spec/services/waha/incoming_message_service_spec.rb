@@ -207,6 +207,79 @@ describe Waha::IncomingMessageService do
     end
   end
 
+  describe 'canonical mapping (dual-write)' do
+    it 'writes a mapping row alongside the message, scoped to the chat and keyed by the stanza' do
+      conversation
+
+      perform(build_payload(stanza: 'BBB222'))
+
+      message = conversation.reload.messages.last
+      mapping = WahaMessageMapping.find_by!(message: message)
+      expect(mapping).to have_attributes(
+        channel_waha_id: channel.id, chat_jid: '5511888888888@c.us', external_id: 'BBB222',
+        direction: 'incoming', event_type: 'message', participant_jid: nil
+      )
+    end
+
+    it 'records the group participant as participant_jid for a group message' do
+      channel.update!(groups_enabled: true)
+      group_jid = '120363000000000000@g.us'
+      group_contact = create(:contact, account: channel.account, name: 'Family Group')
+      group_contact_inbox = create(:contact_inbox, contact: group_contact, inbox: inbox, source_id: group_jid)
+      create(:conversation, account: channel.account, inbox: inbox, contact: group_contact, contact_inbox: group_contact_inbox)
+      participant = '5511777777777@c.us'
+
+      payload = build_payload(stanza: 'GRP001').merge(
+        'from' => group_jid, 'participant' => participant,
+        '_data' => { 'Info' => { 'Chat' => group_jid, 'PushName' => 'Someone' } }
+      )
+      perform(payload)
+
+      message = Message.find_by!(source_id: payload['id'])
+      mapping = WahaMessageMapping.find_by!(message: message)
+      expect(mapping).to have_attributes(chat_jid: group_jid, participant_jid: participant)
+    end
+
+    it 'marks an edit mirror with event_type edit' do
+      original = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                  source_id: 'false_5511888888888@c.us_AAA111')
+
+      perform(build_payload(stanza: 'EDIT01'), edited_original: original)
+
+      mirror = conversation.reload.messages.last
+      mapping = WahaMessageMapping.find_by!(message: mirror)
+      expect(mapping.event_type).to eq('edit')
+    end
+
+    it 'does not persist a second mapping row when the same event is redelivered' do
+      conversation
+      payload = build_payload(stanza: 'DUP001')
+
+      perform(payload)
+      perform(payload)
+
+      message = Message.find_by!(source_id: payload['id'])
+      expect(WahaMessageMapping.where(message: message).count).to eq(1)
+    end
+
+    it 'still persists the message when the mapping write collides with an existing identity' do
+      # A real unique-constraint violation, not a stub: it happens on the same
+      # DB connection/transaction as create_message, which is exactly the case
+      # a bare rescue can't protect against without a savepoint (see
+      # WahaMessageMapping.record!).
+      other_message = create(:message, conversation: conversation, inbox: inbox, account: channel.account, source_id: 'unrelated')
+      WahaMessageMapping.create!(channel: channel, message: other_message, chat_jid: '5511888888888@c.us',
+                                 external_id: 'COLLIDE1', direction: :incoming)
+
+      payload = build_payload(stanza: 'COLLIDE1')
+      expect { perform(payload) }.not_to raise_error
+
+      message = Message.find_by!(source_id: payload['id'])
+      expect(message).to be_persisted
+      expect(WahaMessageMapping.where(chat_jid: '5511888888888@c.us', external_id: 'COLLIDE1').count).to eq(1)
+    end
+  end
+
   describe 'media download recovery' do
     let(:media_url) { 'https://waha.test/api/files/abc.jpeg' }
 

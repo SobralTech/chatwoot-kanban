@@ -43,6 +43,17 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     raise CustomExceptions::Waha::ApiError, 'WAHA accepted the request but returned no message id' if source_id.blank?
 
     message.update!(source_id: source_id)
+    record_message_mapping(source_id)
+  end
+
+  def record_message_mapping(source_id)
+    WahaMessageMapping.record!(
+      channel: channel,
+      message: message,
+      chat_jid: chat_id,
+      external_id: Waha::Anchoring.stanza_of(source_id),
+      direction: :outgoing
+    )
   end
 
   def handle_transient_failure(error)

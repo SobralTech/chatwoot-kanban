@@ -72,6 +72,16 @@ describe Waha::SendOnWahaService do
       expect(message.reload).to have_attributes(status: 'sent', source_id: 'true_5511888888888@c.us_NEW001')
     end
 
+    it 'dual-writes a canonical mapping row keyed by the chat and the stanza' do
+      described_class.new(message: message).perform
+
+      mapping = WahaMessageMapping.find_by!(message: message)
+      expect(mapping).to have_attributes(
+        channel_waha_id: channel.id, chat_jid: '5511888888888@c.us', external_id: 'NEW001',
+        direction: 'outgoing', event_type: 'message', participant_jid: nil
+      )
+    end
+
     it 'marks the message failed without a source_id on a definitive (4xx) error' do
       stub_request(:post, 'https://waha.test/api/sendText')
         .to_return(status: 422, body: { message: 'invalid chatId' }.to_json, headers: { 'Content-Type' => 'application/json' })
@@ -105,6 +115,7 @@ describe Waha::SendOnWahaService do
       end.not_to change(Message, :count)
 
       expect(message.reload).to have_attributes(status: 'sent', source_id: 'true_5511888888888@c.us_RETRY1')
+      expect(WahaMessageMapping.where(message: message).count).to eq(1)
     end
 
     it 'marks the message failed with no fake source_id after exhausting retries' do
