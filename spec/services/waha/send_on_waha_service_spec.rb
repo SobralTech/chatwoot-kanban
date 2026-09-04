@@ -1,7 +1,7 @@
 require 'rails_helper'
 
 describe Waha::SendOnWahaService do
-  let(:channel) { create(:channel_waha) }
+  let(:channel) { create(:channel_waha, typing_simulation_enabled: false, auto_read_receipts: false) }
   let(:inbox) { channel.inbox }
   let(:contact) { create(:contact, account: channel.account, phone_number: '+5511888888888') }
   let(:contact_inbox) { create(:contact_inbox, contact: contact, inbox: inbox, source_id: '5511888888888@c.us') }
@@ -53,6 +53,107 @@ describe Waha::SendOnWahaService do
 
       expect(WebMock).to(have_requested(:post, 'https://waha.test/api/sendText')
         .with { |request| !JSON.parse(request.body).key?('reply_to') })
+    end
+  end
+
+  describe '#perform with mentions' do
+    let(:channel) do
+      create(:channel_waha, groups_enabled: true, typing_simulation_enabled: false, auto_read_receipts: false)
+    end
+    let(:contact_inbox) { create(:contact_inbox, contact: contact, inbox: inbox, source_id: '120363012345678901@g.us') }
+
+    it 'sends phone, LID, and collective mentions in the GOWS payload without changing the stored body' do
+      content = '@all Ping @5511999999999 and @1144444444444444@lid'
+      message = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                 message_type: :outgoing, content: content)
+
+      described_class.new(message: message).perform
+
+      request_matcher = have_requested(:post, 'https://waha.test/api/sendText').with do |request|
+        payload = JSON.parse(request.body)
+        payload['text'] == 'Ping @5511999999999 and @1144444444444444' &&
+          payload['mentions'] == ['all', '1144444444444444@lid', '5511999999999@c.us']
+      end
+      expect(WebMock).to request_matcher
+      expect(message.reload.content).to eq(content)
+    end
+
+    it 'deduplicates structured recipients and leaves unknown references readable' do
+      message = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                 message_type: :outgoing,
+                                 content: 'Ping @5511999999999, @5511999999999, @someone, @12345 and @1234567@unknown')
+
+      described_class.new(message: message).perform
+
+      request_matcher = have_requested(:post, 'https://waha.test/api/sendText').with do |request|
+        payload = JSON.parse(request.body)
+        payload['text'] == message.content && payload['mentions'] == ['5511999999999@c.us']
+      end
+      expect(WebMock).to request_matcher
+    end
+
+    it 'adds mentions to supported media captions' do
+      message = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                 message_type: :outgoing, content: 'Ping @5511999999999')
+      attachment = message.attachments.create!(account: channel.account, file_type: :image,
+                                               file: fixture_file_upload(Rails.root.join('spec/assets/sample.png'), 'image/png'))
+      allow(attachment).to receive(:download_url).and_return('https://chatwoot.test/image.png')
+      stub_request(:post, 'https://waha.test/api/sendImage')
+        .to_return(status: 201, body: { id: 'true_120363012345678901@g.us_NEW002' }.to_json,
+                   headers: { 'Content-Type' => 'application/json' })
+
+      described_class.new(message: message).perform
+
+      expect(WebMock).to have_requested(:post, 'https://waha.test/api/sendImage')
+        .with(body: hash_including('caption' => message.content, 'mentions' => ['5511999999999@c.us']))
+    end
+
+    it 'keeps voice payloads unchanged because GOWS does not accept mentions on sendVoice' do
+      message = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                 message_type: :outgoing, content: 'Ping @5511999999999')
+      attachment = message.attachments.create!(account: channel.account, file_type: :audio,
+                                               file: fixture_file_upload(Rails.root.join('spec/assets/sample.ogg'), 'audio/ogg'))
+      allow(attachment).to receive(:download_url).and_return('https://chatwoot.test/audio.ogg')
+      stub_request(:post, 'https://waha.test/api/sendVoice')
+        .to_return(status: 201, body: { id: 'true_120363012345678901@g.us_NEW003' }.to_json,
+                   headers: { 'Content-Type' => 'application/json' })
+
+      described_class.new(message: message).perform
+
+      request_matcher = have_requested(:post, 'https://waha.test/api/sendVoice').with do |request|
+        !JSON.parse(request.body).key?('mentions')
+      end
+      expect(WebMock).to request_matcher
+    end
+
+    it 'does not send collective or participant mentions in a direct chat' do
+      direct_contact_inbox = create(:contact_inbox, contact: contact, inbox: inbox, source_id: '5511888888888@c.us')
+      direct_conversation = create(:conversation, account: channel.account, inbox: inbox, contact: contact,
+                                                  contact_inbox: direct_contact_inbox)
+      message = create(:message, conversation: direct_conversation, inbox: inbox, account: channel.account,
+                                 message_type: :outgoing, content: '@all Ping @5511999999999')
+
+      described_class.new(message: message).perform
+
+      request_matcher = have_requested(:post, 'https://waha.test/api/sendText').with do |request|
+        payload = JSON.parse(request.body)
+        payload['text'] == message.content && !payload.key?('mentions')
+      end
+      expect(WebMock).to request_matcher
+    end
+
+    it 'keeps a group reply without mentions unchanged' do
+      quoted = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                source_id: 'false_120363012345678901@g.us_AAA111')
+      message = create_reply(quoted)
+
+      described_class.new(message: message).perform
+
+      request_matcher = have_requested(:post, 'https://waha.test/api/sendText').with do |request|
+        payload = JSON.parse(request.body)
+        payload['text'] == 'a reply' && payload['reply_to'] == quoted.source_id && !payload.key?('mentions')
+      end
+      expect(WebMock).to request_matcher
     end
   end
 
