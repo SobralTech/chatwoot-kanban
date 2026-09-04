@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_04_150001) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_04_160000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1694,6 +1694,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_150001) do
     t.index ["uid", "provider"], name: "index_users_on_uid_and_provider", unique: true
   end
 
+  create_table "waha_contact_aliases", force: :cascade do |t|
+    t.bigint "channel_waha_id", null: false
+    t.bigint "contact_inbox_id", null: false
+    t.string "alias_type", null: false
+    t.string "value", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["channel_waha_id", "alias_type", "value"], name: "index_waha_contact_aliases_on_identity", unique: true
+    t.index ["channel_waha_id"], name: "index_waha_contact_aliases_on_channel_waha_id"
+    t.index ["contact_inbox_id"], name: "index_waha_contact_aliases_on_contact_inbox_id"
+  end
+
   create_table "waha_import_chats", force: :cascade do |t|
     t.bigint "channel_waha_id", null: false
     t.string "chat_id", null: false
@@ -1807,6 +1819,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_04_150001) do
   add_foreign_key "kanban_custom_fields", "kanban_boards"
   add_foreign_key "kanban_reasons", "accounts"
   add_foreign_key "kanban_reasons", "kanban_boards"
+  add_foreign_key "waha_contact_aliases", "channel_waha", on_delete: :cascade
+  add_foreign_key "waha_contact_aliases", "contact_inboxes", on_delete: :cascade
   add_foreign_key "waha_import_chats", "channel_waha"
   add_foreign_key "waha_message_mappings", "channel_waha"
   add_foreign_key "waha_message_mappings", "messages"

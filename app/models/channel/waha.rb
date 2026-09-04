@@ -44,6 +44,8 @@ class Channel::Waha < ApplicationRecord
                           dependent: :delete_all, inverse_of: :channel
   has_many :message_mappings, class_name: 'WahaMessageMapping', foreign_key: :channel_waha_id,
                               dependent: :delete_all, inverse_of: :channel
+  has_many :contact_aliases, class_name: 'WahaContactAlias', foreign_key: :channel_waha_id,
+                             dependent: :delete_all, inverse_of: :channel
   EDITABLE_ATTRS = [:phone_number, :waha_url, :api_key, :session_name,
                     :groups_enabled, :auto_reconnect, :auto_read_receipts, :typing_simulation_enabled,
                     :signing_enabled,

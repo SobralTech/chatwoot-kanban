@@ -1,3 +1,4 @@
+# rubocop:disable Metrics/ClassLength
 class Waha::ContactResolver
   LID_ATTRIBUTE_KEY = 'whatsapp_lid'.freeze
 
@@ -22,34 +23,46 @@ class Waha::ContactResolver
   # here (e.g. the WAHA session being unreachable) must reach the caller so the
   # job retries, instead of being absorbed into a silently dropped message.
   def perform
-    resolved_jid = resolve_jid
-    # The builder discards contact_attributes when the contact_inbox already
-    # exists, so short-circuit before building them — otherwise every message
-    # from a known contact pays for an avatar (and group name) fetch against the
-    # shared WAHA session for nothing.
-    existing = channel.inbox.contact_inboxes.find_by(source_id: resolved_jid)
-    return existing if existing
+    return resolve_group if Waha::Jid.group?(jid)
 
-    ::ContactInboxWithContactBuilder.new(
-      source_id: resolved_jid,
-      inbox: channel.inbox,
-      contact_attributes: build_contact_attributes(resolved_jid)
-    ).perform
+    identity = resolve_identity
+    contact_attributes = build_contact_attributes(identity[:jid], identity[:lid]) unless identity_candidates(identity).any?
+
+    ActiveRecord::Base.transaction do
+      lock_aliases!(identity[:aliases])
+      contact_inbox = find_or_create_contact_inbox(identity, contact_attributes)
+      unless @alias_conflict
+        attach_aliases!(contact_inbox, identity[:aliases])
+        promote_phone_identity!(contact_inbox, identity)
+        enrich_alias_metadata!(contact_inbox.contact, identity)
+      end
+      contact_inbox
+    end
   end
 
   private
 
-  # Resolve @lid JIDs to their real @c.us equivalent. This is canonical identity
-  # determination, so a failure here (e.g. the WAHA lookup call erroring) must
-  # propagate rather than silently falling back to the unresolved LID.
-  def resolve_jid
-    return jid unless Waha::Jid.lid?(jid)
+  def resolve_group
+    existing = channel.inbox.contact_inboxes.find_by(source_id: jid)
+    return existing if existing
 
-    resolved = resolve_lid_to_cus
-    # Guard: never map a contact onto our own session number.
-    return jid if resolved.blank? || session_number?(resolved)
+    ::ContactInboxWithContactBuilder.new(
+      source_id: jid,
+      inbox: channel.inbox,
+      contact_attributes: build_contact_attributes(jid)
+    ).perform
+  end
 
-    resolved
+  def resolve_identity
+    phone_jid, lid = if Waha::Jid.lid?(jid)
+                       [Waha::Jid.phone_jid(resolve_lid_to_cus), jid]
+                     else
+                       [Waha::Jid.phone_jid(jid), resolve_phone_to_lid(jid)]
+                     end
+    phone_jid = nil if session_number?(phone_jid)
+    resolved_jid = phone_jid.presence || jid
+
+    { jid: resolved_jid, lid: lid.presence, aliases: aliases_for(phone_jid, lid) }
   end
 
   def resolve_lid_to_cus
@@ -65,15 +78,121 @@ class Waha::ContactResolver
     response&.dig('pn')
   end
 
-  def build_contact_attributes(resolved_jid)
-    if Waha::Jid.group?(resolved_jid)
-      group_contact_attributes(resolved_jid)
-    else
-      dm_contact_attributes(resolved_jid)
+  def resolve_phone_to_lid(phone_jid)
+    return unless Waha::Jid.phone?(phone_jid)
+
+    http_client.get("#{channel.session_name}/lids/pn/#{phone_jid}")&.dig('lid')
+  rescue CustomExceptions::Waha::ApiError => e
+    raise unless e.message.include?('(HTTP 404)')
+
+    nil
+  end
+
+  def aliases_for(phone_jid, lid)
+    aliases = []
+    aliases << ['jid', phone_jid] if phone_jid.present?
+    aliases << ['lid', lid] if lid.present?
+    phone = phone_from_jid(phone_jid)
+    aliases << ['phone', "+#{phone}"] if phone.present?
+    aliases.uniq
+  end
+
+  def lock_aliases!(aliases)
+    aliases.sort.each do |type, value|
+      key = "waha-contact-alias:#{channel.id}:#{type}:#{value}"
+      quoted_key = ActiveRecord::Base.connection.quote(key)
+      ActiveRecord::Base.connection.execute("SELECT pg_advisory_xact_lock(hashtextextended(#{quoted_key}, 0))")
     end
   end
 
-  def dm_contact_attributes(resolved_jid)
+  def find_or_create_contact_inbox(identity, contact_attributes)
+    candidates = identity_candidates(identity)
+    return candidates.first if candidates.one?
+
+    if candidates.many?
+      @alias_conflict = true
+      log_alias_conflict(candidates)
+      return candidates.find { |candidate| candidate.source_id == jid } || candidates.first
+    end
+
+    ::ContactInboxWithContactBuilder.new(
+      source_id: identity[:jid],
+      inbox: channel.inbox,
+      contact_attributes: contact_attributes
+    ).perform
+  end
+
+  def identity_candidates(identity)
+    alias_candidates(identity[:aliases]) | legacy_candidates(identity)
+  end
+
+  def alias_candidates(aliases)
+    table = WahaContactAlias.arel_table
+    predicate = aliases.map { |type, value| table[:alias_type].eq(type).and(table[:value].eq(value)) }.reduce(&:or)
+    return [] unless predicate
+
+    channel.contact_aliases.where(predicate).includes(:contact_inbox).map(&:contact_inbox)
+  end
+
+  def legacy_candidates(identity)
+    source_ids = [jid, identity[:jid], identity[:lid]].compact.uniq
+    phone = phone_from_jid(identity[:jid])
+    scope = channel.inbox.contact_inboxes.left_joins(:contact)
+    candidates = scope.where(source_id: source_ids)
+    candidates = candidates.or(scope.where(contacts: { phone_number: "+#{phone}" })) if phone.present?
+    candidates.to_a
+  end
+
+  def attach_aliases!(contact_inbox, aliases)
+    aliases.each do |type, value|
+      channel.contact_aliases.find_or_create_by!(alias_type: type, value: value) do |contact_alias|
+        contact_alias.contact_inbox = contact_inbox
+      end
+    end
+  end
+
+  def promote_phone_identity!(contact_inbox, identity)
+    return unless Waha::Jid.lid?(contact_inbox.source_id) && Waha::Jid.phone?(identity[:jid])
+
+    contact_inbox.update!(source_id: identity[:jid])
+  rescue ActiveRecord::RecordInvalid => e
+    log_alias_conflict([contact_inbox], e)
+  end
+
+  # rubocop:disable Metrics/AbcSize
+  def enrich_alias_metadata!(contact, identity)
+    phone = phone_from_jid(identity[:jid])
+    attributes = contact.additional_attributes.merge('jid' => identity[:jid])
+    custom_attributes = contact.custom_attributes
+    if identity[:lid].present?
+      ensure_lid_attribute_definition
+      attributes['lid'] = identity[:lid]
+      custom_attributes = custom_attributes.merge(LID_ATTRIBUTE_KEY => identity[:lid])
+    end
+
+    updates = { additional_attributes: attributes, custom_attributes: custom_attributes }
+    updates[:phone_number] = "+#{phone}" if contact.phone_number.blank? && phone.present?
+    contact.update!(updates) if updates.any? { |key, value| contact.public_send(key) != value }
+  rescue ActiveRecord::RecordInvalid => e
+    log_alias_conflict(contact.contact_inboxes.where(inbox: channel.inbox).to_a, e)
+  end
+  # rubocop:enable Metrics/AbcSize
+
+  def log_alias_conflict(contact_inboxes, error = nil)
+    Rails.logger.error(
+      "[WAHA] contact alias conflict channel=#{channel.id} contact_inbox_ids=#{contact_inboxes.map(&:id).sort.join(',')} error=#{error&.class&.name}"
+    )
+  end
+
+  def build_contact_attributes(resolved_jid, lid = nil)
+    if Waha::Jid.group?(resolved_jid)
+      group_contact_attributes(resolved_jid)
+    else
+      dm_contact_attributes(resolved_jid, lid)
+    end
+  end
+
+  def dm_contact_attributes(resolved_jid, lid = nil)
     phone = phone_from_jid(resolved_jid)
     # push_name only names the contact on incoming messages. On a fromMe message
     # PushName is our own profile name, so we skip straight to the contacts
@@ -84,9 +203,9 @@ class Waha::ContactResolver
     attrs[:phone_number] = "+#{phone}" if phone
     attrs[:avatar_url] = fetch_chat_picture(jid)
     attrs[:additional_attributes][:jid] = resolved_jid
-    if Waha::Jid.lid?(jid)
-      attrs[:additional_attributes][:lid] = jid
-      attrs[:custom_attributes] = { LID_ATTRIBUTE_KEY => jid }
+    if lid.present?
+      attrs[:additional_attributes][:lid] = lid
+      attrs[:custom_attributes] = { LID_ATTRIBUTE_KEY => lid }
       ensure_lid_attribute_definition
     end
     attrs
@@ -161,10 +280,11 @@ class Waha::ContactResolver
   end
 
   def phone_from_jid(resolved_jid)
-    resolved_jid.split('@').first if resolved_jid.include?('@c.us')
+    resolved_jid.to_s.split('@').first if resolved_jid.to_s.include?('@c.us')
   end
 
   def http_client
     @http_client ||= Waha::HttpClient.new(channel: channel)
   end
 end
+# rubocop:enable Metrics/ClassLength
