@@ -2,30 +2,34 @@
 #
 # Table name: channel_waha
 #
-#  id                        :bigint           not null, primary key
-#  api_key                   :string           not null
-#  auto_read_receipts        :boolean          default(TRUE), not null
-#  auto_reconnect            :boolean          default(TRUE), not null
-#  connected_number_locked   :boolean          default(FALSE), not null
-#  groups_enabled            :boolean          default(FALSE), not null
-#  import_on_connect_months  :integer
-#  import_state              :jsonb            not null
-#  phone_number              :string
-#  session_name              :string           not null
-#  session_status            :string
-#  signing_enabled           :boolean          default(FALSE), not null
-#  status_history            :jsonb
-#  typing_simulation_enabled :boolean          default(TRUE), not null
-#  waha_url                  :string           not null
-#  webhook_token             :string           not null
-#  created_at                :datetime         not null
-#  updated_at                :datetime         not null
-#  account_id                :integer          not null
+#  id                           :bigint           not null, primary key
+#  api_key                      :string           not null
+#  auto_read_receipts           :boolean          default(TRUE), not null
+#  auto_reconnect               :boolean          default(TRUE), not null
+#  connected_number_locked      :boolean          default(FALSE), not null
+#  connection_identity_conflict :boolean          default(FALSE), not null
+#  groups_enabled               :boolean          default(FALSE), not null
+#  import_on_connect_months     :integer
+#  import_state                 :jsonb            not null
+#  normalized_session_name      :string
+#  normalized_waha_url          :string
+#  phone_number                 :string
+#  session_name                 :string           not null
+#  session_status               :string
+#  signing_enabled              :boolean          default(FALSE), not null
+#  status_history               :jsonb
+#  typing_simulation_enabled    :boolean          default(TRUE), not null
+#  waha_url                     :string           not null
+#  webhook_token                :string           not null
+#  created_at                   :datetime         not null
+#  updated_at                   :datetime         not null
+#  account_id                   :integer          not null
 #
 # Indexes
 #
-#  index_channel_waha_on_account_id     (account_id)
-#  index_channel_waha_on_webhook_token  (webhook_token) UNIQUE
+#  index_channel_waha_on_account_id           (account_id)
+#  index_channel_waha_on_connection_identity  (normalized_waha_url,normalized_session_name) UNIQUE WHERE (connection_identity_conflict = false)
+#  index_channel_waha_on_webhook_token        (webhook_token) UNIQUE
 #
 # Import/session bookkeeping is written with update_column(s) by design: these
 # are high-frequency progress writes that must not fire validations, callbacks
@@ -49,11 +53,13 @@ class Channel::Waha < ApplicationRecord
   # Chats we never mirror into Chatwoot, in either the live or the import path.
   IGNORED_CHAT_SUFFIXES = %w[@newsletter status@broadcast].freeze
 
-  before_validation :sanitize_session_name
+  before_validation :normalize_connection_identity
   before_create :generate_webhook_token
   after_create :start_waha_session
   before_destroy :cleanup_waha_session
   validates :waha_url, :api_key, :session_name, presence: true
+  validate :waha_url_is_valid
+  validate :connection_identity_is_unique
 
   def name
     'Waha'
@@ -61,6 +67,21 @@ class Channel::Waha < ApplicationRecord
 
   def webhook_url
     "#{ENV.fetch('FRONTEND_URL', nil)}/webhooks/waha/#{webhook_token}"
+  end
+
+  def accepts_webhook_session?(session)
+    normalized_session_name.present? && normalized_session_name == Waha::ConnectionIdentity.normalize_session_name(session)
+  end
+
+  def webhook_error(session)
+    return connection_identity_error if connection_identity_conflict?
+    return if accepts_webhook_session?(session)
+
+    I18n.t('errors.messages.waha_webhook_session_mismatch')
+  end
+
+  def connection_identity_error
+    I18n.t('errors.messages.waha_connection_conflict')
   end
 
   def update_session_status(status)
@@ -395,10 +416,35 @@ class Channel::Waha < ApplicationRecord
     (status_history + [{ status: status, timestamp: Time.current.iso8601 }]).last(100)
   end
 
-  def sanitize_session_name
-    return if session_name.blank?
+  def normalize_connection_identity
+    normalized_url = Waha::ConnectionIdentity.normalize_url(waha_url)
+    normalized_name = Waha::ConnectionIdentity.normalize_session_name(session_name)
 
-    self.session_name = session_name.strip.gsub(/[^a-zA-Z0-9._-]+/, '_')
+    self.waha_url = normalized_url if normalized_url
+    self.session_name = normalized_name if normalized_name
+    self.normalized_waha_url = normalized_url
+    self.normalized_session_name = normalized_name
+    self.connection_identity_conflict = false if persisted? && connection_identity_changed?
+  end
+
+  def waha_url_is_valid
+    return if waha_url.blank? || normalized_waha_url.present?
+
+    errors.add(:waha_url, :waha_url_invalid)
+  end
+
+  def connection_identity_is_unique
+    return if connection_identity_conflict? || normalized_waha_url.blank? || normalized_session_name.blank?
+
+    existing_channel = self.class.where(
+      normalized_waha_url: normalized_waha_url,
+      normalized_session_name: normalized_session_name
+    ).where.not(id: id).exists?
+    errors.add(:base, :waha_connection_in_use) if existing_channel
+  end
+
+  def connection_identity_changed?
+    will_save_change_to_normalized_waha_url? || will_save_change_to_normalized_session_name?
   end
 
   def generate_webhook_token

@@ -3,6 +3,9 @@ class Webhooks::WahaController < ActionController::API
     channel = Channel::Waha.find_by(webhook_token: params[:token])
     return head :not_found unless channel
 
+    error = channel.webhook_error(params[:session])
+    return render json: { error: error }, status: :unprocessable_entity if error
+
     Webhooks::WahaEventsJob.perform_later(channel.id, permitted_params)
     head :ok
   end

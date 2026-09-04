@@ -109,6 +109,82 @@ RSpec.describe Channel::Waha, type: :model do
     end
   end
 
+  describe 'connection identity' do
+    it 'normalizes the WAHA URL and session name before persistence' do
+      configured_channel = build(
+        :channel_waha,
+        account: channel.account,
+        waha_url: ' HTTPS://WAHA.TEST:443/ ',
+        session_name: ' support team '
+      )
+
+      expect(configured_channel).to be_valid
+      expect(configured_channel).to have_attributes(
+        waha_url: 'https://waha.test',
+        session_name: 'support_team',
+        normalized_waha_url: 'https://waha.test',
+        normalized_session_name: 'support_team'
+      )
+    end
+
+    it 'rejects an equivalent connection already used by another inbox' do
+      channel.update!(waha_url: 'https://waha.test', session_name: 'shared_session')
+      duplicate_channel = build(
+        :channel_waha,
+        account: channel.account,
+        waha_url: 'HTTPS://WAHA.TEST:443/',
+        session_name: ' shared session '
+      )
+
+      expect(duplicate_channel).not_to be_valid
+      expect(duplicate_channel.errors[:base]).to include(I18n.t('errors.messages.waha_connection_in_use'))
+    end
+
+    it 'does not allow a new connection to reuse an identity reported as a legacy conflict' do
+      channel.update!(waha_url: 'https://waha.test', session_name: 'legacy_session')
+      # Simulates the non-destructive flag written by the migration for legacy duplicates.
+      # rubocop:disable Rails/SkipsModelValidations
+      channel.update_column(:connection_identity_conflict, true)
+      # rubocop:enable Rails/SkipsModelValidations
+      duplicate_channel = build(
+        :channel_waha,
+        account: channel.account,
+        waha_url: 'https://waha.test/',
+        session_name: 'legacy_session'
+      )
+
+      expect(duplicate_channel).not_to be_valid
+      expect(duplicate_channel.errors[:base]).to include(I18n.t('errors.messages.waha_connection_in_use'))
+    end
+
+    it 'enforces the normalized connection identity in the database under concurrent inserts' do
+      attributes = {
+        account_id: channel.account_id,
+        waha_url: 'https://waha.test',
+        normalized_waha_url: 'https://waha.test',
+        api_key: 'test-api-key',
+        session_name: 'concurrent_session',
+        normalized_session_name: 'concurrent_session',
+        connection_identity_conflict: false,
+        created_at: Time.current,
+        updated_at: Time.current
+      }
+
+      results, errors = run_concurrently(2) do
+        # This deliberately bypasses validations to prove the database constraint, not the model validation.
+        # rubocop:disable Rails/SkipsModelValidations
+        described_class.transaction do
+          described_class.insert_all!([attributes.merge(webhook_token: SecureRandom.uuid)])
+        end
+        # rubocop:enable Rails/SkipsModelValidations
+      end
+
+      expect(results.size).to eq(1)
+      expect(errors.map(&:class).map(&:name)).to include('ActiveRecord::RecordNotUnique')
+      expect(described_class.where(normalized_waha_url: 'https://waha.test', normalized_session_name: 'concurrent_session').count).to eq(1)
+    end
+  end
+
   private
 
   def history_import_jobs
@@ -159,13 +235,13 @@ RSpec.describe Channel::Waha, type: :model do
   end
 
   def clean_channel_data!
-    channel_id = channel.id
+    channel_ids = Channel::Waha.where(account_id: channel.account_id).pluck(:id)
     account_id = channel.account_id
-    inbox_ids = Inbox.where(channel_type: described_class.name, channel_id: channel_id).pluck(:id)
+    inbox_ids = Inbox.where(channel_type: described_class.name, channel_id: channel_ids).pluck(:id)
 
-    WahaImportChat.where(channel_waha_id: channel_id).delete_all
+    WahaImportChat.where(channel_waha_id: channel_ids).delete_all
     Inbox.where(id: inbox_ids).delete_all
-    described_class.where(id: channel_id).delete_all
+    described_class.where(id: channel_ids).delete_all
     Account.where(id: account_id).delete_all
   end
 end

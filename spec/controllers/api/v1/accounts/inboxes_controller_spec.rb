@@ -409,6 +409,26 @@ RSpec.describe 'Inboxes API', type: :request do
         expect(response.body).to include('API Inbox')
       end
 
+      it 'returns a clear error when a WAHA session is already connected to another inbox' do
+        create(:channel_waha, account: account, waha_url: 'https://waha.test', session_name: 'shared_session')
+
+        post "/api/v1/accounts/#{account.id}/inboxes",
+             headers: admin.create_new_auth_token,
+             params: {
+               name: 'Duplicate WAHA inbox',
+               channel: {
+                 type: 'waha',
+                 waha_url: 'HTTPS://WAHA.TEST:443/',
+                 api_key: 'test-api-key',
+                 session_name: ' shared session '
+               }
+             },
+             as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body['message']).to include(I18n.t('errors.messages.waha_connection_in_use'))
+      end
+
       it 'creates a line inbox when administrator' do
         post "/api/v1/accounts/#{account.id}/inboxes",
              headers: admin.create_new_auth_token,

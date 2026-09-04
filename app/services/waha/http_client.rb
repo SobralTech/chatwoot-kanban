@@ -28,6 +28,8 @@ class Waha::HttpClient
   end
 
   def request(method, path, body = nil, timeout: nil)
+    raise CustomExceptions::Waha::ApiError, channel.connection_identity_error if channel.connection_identity_conflict?
+
     options = { headers: headers, timeout: timeout || DEFAULT_TIMEOUT }
     options[:body] = body.to_json if body
     response = HTTParty.send(method, url(path), options)

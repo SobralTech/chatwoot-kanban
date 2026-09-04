@@ -113,7 +113,10 @@ async function createChannel(months) {
     pollInterval = setInterval(pollSessionStatus, 3000);
   } catch (error) {
     useAlert(
-      error.message || t('INBOX_MGMT.ADD.WAHA_CHANNEL.API.ERROR_MESSAGE')
+      error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        t('INBOX_MGMT.ADD.WAHA_CHANNEL.API.ERROR_MESSAGE')
     );
   }
 }

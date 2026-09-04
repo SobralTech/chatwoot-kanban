@@ -22,11 +22,22 @@ class Webhooks::WahaEventsJob < ApplicationJob
   def perform(channel_id, params = {}, ack_retries = 0, media_attempt = 1)
     channel = Channel::Waha.find_by(id: channel_id)
     return unless channel&.account&.active?
+    return if invalid_webhook_session?(channel, params)
 
     route_event(channel, params, ack_retries, media_attempt)
   end
 
   private
+
+  # The controller rejects missing or mismatched sessions before enqueueing. The
+  # repeat check protects retries and jobs enqueued before a channel was edited.
+  def invalid_webhook_session?(channel, params)
+    error = channel.webhook_error(params['session'])
+    return false unless error
+
+    Rails.logger.warn "[WAHA] Ignored webhook for channel #{channel.id}: #{error}"
+    true
+  end
 
   # We subscribe to message.any only (the superset of every message event) so
   # each message is processed exactly once, regardless of direction.

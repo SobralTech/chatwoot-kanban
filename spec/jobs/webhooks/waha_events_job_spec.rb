@@ -16,6 +16,7 @@ describe Webhooks::WahaEventsJob do
 
   def media_message_params(stanza: 'MEDIA01')
     {
+      'session' => channel.session_name,
       'event' => 'message.any',
       'payload' => {
         'id' => "false_5511888888888@c.us_#{stanza}",
@@ -78,6 +79,34 @@ describe Webhooks::WahaEventsJob do
       expect(message.attachments).to be_empty
       expect(message.content_attributes['media_download_failed']).to be(true)
       expect(message.content).to eq(I18n.t('conversations.messages.waha_media_unavailable'))
+    end
+  end
+
+  describe 'session isolation' do
+    it 'does not route an event without a session' do
+      params = media_message_params.except('session')
+
+      expect(Waha::IncomingMessageService).not_to receive(:new)
+
+      described_class.perform_now(channel.id, params)
+    end
+
+    it 'does not route an event whose session does not belong to the channel' do
+      params = media_message_params.merge('session' => 'another_session')
+
+      expect(Waha::IncomingMessageService).not_to receive(:new)
+
+      described_class.perform_now(channel.id, params)
+    end
+
+    it 'routes an event whose session matches the channel' do
+      conversation
+      params = media_message_params.merge('session' => channel.session_name)
+      stub_request(:get, media_url).to_return(status: 200, body: 'bytes', headers: { 'Content-Type' => 'image/jpeg' })
+
+      described_class.perform_now(channel.id, params)
+
+      expect(Message.where(source_id: params['payload']['id']).count).to eq(1)
     end
   end
 end

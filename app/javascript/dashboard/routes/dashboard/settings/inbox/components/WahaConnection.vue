@@ -22,6 +22,7 @@ const phoneNumber = ref('');
 const statusHistory = ref([]);
 const qrCode = ref('');
 const importState = ref({});
+const connectionError = ref('');
 
 const showModal = ref(false);
 const modalOpenedAt = ref(0);
@@ -115,6 +116,7 @@ async function fetchStatus() {
     statusHistory.value = data.status_history || [];
     qrCode.value = data.qr_code || '';
     importState.value = data.import_state || {};
+    connectionError.value = data.connection_error || '';
   } catch {
     // silently ignore poll errors
   }
@@ -231,6 +233,9 @@ onUnmounted(() => {
           @click="openReconnectModal"
         />
       </div>
+      <p v-if="connectionError" class="text-body-small text-n-ruby-11">
+        {{ connectionError }}
+      </p>
     </div>
 
     <!-- History import progress (below the connection status, per spec) -->

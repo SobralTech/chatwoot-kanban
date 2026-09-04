@@ -179,6 +179,10 @@ en:
       search:
         query_missing: Specify search string with parameter q
     messages:
+      waha_connection_conflict: 'This WAHA server and session are used by multiple existing inboxes. Update one inbox before using this connection.'
+      waha_connection_in_use: 'This WAHA server and session are already connected to another inbox.'
+      waha_url_invalid: 'must be a valid HTTP(S) WAHA server URL without credentials or query parameters'
+      waha_webhook_session_mismatch: 'The webhook session does not match this WAHA inbox.'
       search:
         time_range_limit_exceeded: 'Search is limited to the last %{days} days'
     categories:
