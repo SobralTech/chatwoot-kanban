@@ -93,31 +93,23 @@ class Waha::IncomingMessageService
     payload.dig('_data', 'Info', 'PushName').presence || payload.dig('_data', 'pushName')
   end
 
-  # Resolves the group participant who actually sent this message to a real
-  # Chatwoot contact — same resolver (and @lid -> phone / contacts-cache name
-  # lookups) used for any other WAHA contact, seeded with what this event
-  # already carries about them. Purely a display enrichment (structured sender
-  # metadata), so a failure here must not block the message itself.
+  # Resolves the group participant who actually sent this message. The group
+  # itself is the conversation's contact, so this only produces the structured
+  # sender metadata stored on the message — no ContactInbox is created for
+  # someone who has no direct conversation. Purely a display enrichment, so a
+  # failure here must not block the message itself.
   def resolve_participant
     return @resolve_participant if defined?(@resolve_participant)
 
-    @resolve_participant = Waha::ContactResolver.new(
+    @resolve_participant = Waha::ParticipantResolver.new(
       channel: channel,
       jid: sender_jid,
-      push_name: push_name,
+      push_name: (push_name if incoming?),
       sender_alt: payload.dig('_data', 'Info', 'SenderAlt')
-    ).perform&.contact
+    ).perform
   rescue StandardError => e
     Rails.logger.error "[WAHA] group participant resolution failed for #{sender_jid}: #{e.message}"
     @resolve_participant = nil
-  end
-
-  # A resolved contact always has *some* name (ContactResolver falls back to
-  # "+phone"), but the header should stay blank rather than show that phone
-  # number twice — Base.vue already falls back to participant_phone alone.
-  def participant_display_name
-    name = resolve_participant&.name
-    name unless name.to_s.start_with?('+')
   end
 
   def source_id
@@ -308,9 +300,9 @@ class Waha::IncomingMessageService
     attrs = Waha::ReplyContextResolver.new(channel: channel, payload: payload, conversation: @conversation).perform
     attrs.merge!(converter.metadata)
 
-    # Store participant name for group messages
+    # Store the structured group sender — never a prefix on the message body.
     if chat_id.to_s.end_with?('@g.us')
-      attrs[:sender_name] = participant_display_name
+      attrs[:sender_name] = resolve_participant&.name
       attrs[:participant_jid] = sender_jid
       attrs[:participant_phone] = resolve_participant&.phone_number
     end

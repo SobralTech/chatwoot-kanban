@@ -391,4 +391,64 @@ describe Waha::IncomingMessageService do
       expect(message.content_attributes['participant_jid']).to eq(participant)
     end
   end
+
+  describe 'group participants as structured senders' do
+    let(:group_jid) { '120363000000000000@g.us' }
+    let(:participant) { '5511777777777@c.us' }
+
+    before do
+      channel.update!(groups_enabled: true)
+      group_contact = create(:contact, account: channel.account, name: 'Family Group')
+      group_contact_inbox = create(:contact_inbox, contact: group_contact, inbox: inbox, source_id: group_jid)
+      create(:conversation, account: channel.account, inbox: inbox, contact: group_contact, contact_inbox: group_contact_inbox)
+    end
+
+    def group_payload(stanza:, from_me: false, push_name: 'Zé do Grupo')
+      build_payload(stanza: stanza, body: 'bom dia a todos').merge(
+        'from' => group_jid, 'participant' => participant, 'fromMe' => from_me,
+        '_data' => { 'Info' => { 'Chat' => group_jid, 'PushName' => push_name } }
+      )
+    end
+
+    it 'names a known participant from the contact this account already has, without giving them an inbox identity' do
+      create(:contact, account: channel.account, name: 'Ana Souza', phone_number: '+5511777777777')
+
+      expect { perform(group_payload(stanza: 'GRPK01')) }.not_to change(ContactInbox, :count)
+
+      message = Message.find_by!(source_id: 'false_5511888888888@c.us_GRPK01')
+      expect(message.content_attributes).to include(
+        'sender_name' => 'Ana Souza', 'participant_jid' => participant, 'participant_phone' => '+5511777777777'
+      )
+      # The group stays the conversation's contact and the body carries no prefix.
+      expect(message.conversation.contact.name).to eq('Family Group')
+      expect(message.content).to eq('bom dia a todos')
+    end
+
+    it 'names an unknown participant from the GOWS contacts registry without creating a contact for them' do
+      stub_request(:get, "https://waha.test/api/#{channel.session_name}/contacts/#{participant}")
+        .to_return(status: 200, body: { id: participant, name: 'Ana Souza', pushname: 'ana' }.to_json,
+                   headers: { 'Content-Type' => 'application/json' })
+
+      expect { perform(group_payload(stanza: 'GRPU01')) }.not_to change(Contact, :count)
+
+      message = Message.find_by!(source_id: 'false_5511888888888@c.us_GRPU01')
+      expect(message.content_attributes['sender_name']).to eq('Ana Souza')
+      expect(inbox.contact_inboxes.pluck(:source_id)).to eq([group_jid])
+    end
+
+    it 'keeps the participant JID and phone when nobody can name them' do
+      perform(group_payload(stanza: 'GRPU02', push_name: nil))
+
+      message = Message.find_by!(source_id: 'false_5511888888888@c.us_GRPU02')
+      expect(message.content_attributes['sender_name']).to be_nil
+      expect(message.content_attributes['participant_phone']).to eq('+5511777777777')
+    end
+
+    it 'does not label a group message we sent with the session business profile name' do
+      perform(group_payload(stanza: 'GRPM01', from_me: true, push_name: 'Loja do Zé'))
+
+      message = Message.find_by!(source_id: 'false_5511888888888@c.us_GRPM01')
+      expect(message.content_attributes['sender_name']).to be_nil
+    end
+  end
 end
