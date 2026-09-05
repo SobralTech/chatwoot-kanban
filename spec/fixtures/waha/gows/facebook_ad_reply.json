@@ -1,0 +1,51 @@
+{
+  "id": "false_5511888888888@c.us_3EB0AAAD00112233",
+  "timestamp": 1757100500,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": "Olá! Vi o anúncio e queria saber mais.",
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": null,
+  "vCards": null,
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0AAAD00112233",
+      "PushName": "Carlos Lima",
+      "Timestamp": "2026-09-05T12:05:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "extendedTextMessage": {
+        "text": "Olá! Vi o anúncio e queria saber mais.",
+        "contextInfo": {
+          "externalAdReply": {
+            "title": "Promoção de inverno",
+            "body": "Peças selecionadas com até 40% de desconto",
+            "mediaType": "IMAGE",
+            "thumbnailURL": "https://cdn.example.com/ads/thumb-inverno.jpg",
+            "mediaURL": "https://cdn.example.com/ads/inverno.jpg",
+            "sourceType": "ad",
+            "sourceID": "120211112223334",
+            "sourceURL": "https://www.facebook.com/ads/inverno",
+            "containsAutoReply": true,
+            "ctwaClid": "AbCdEfGhIjKlMnOp"
+          }
+        }
+      }
+    }
+  }
+}
