@@ -210,4 +210,17 @@ describe Waha::IncomingMessageService do
       )
     end
   end
+
+  describe 'a reply associated with a broadcast' do
+    it 'keeps a reply in its direct chat instead of filtering it by broadcast metadata' do
+      payload = gows_payload('status_reply_text')
+      payload['id'] = 'false_5511888888888@c.us_BROADCASTREPLY01'
+      payload.dig('_data', 'Message', 'extendedTextMessage', 'contextInfo')['remoteJID'] = '120363000000000000@broadcast'
+
+      message = perform(payload)
+
+      expect(message).to have_attributes(conversation: conversation, content: 'que promoção boa!')
+      expect(message.content_attributes['is_status_reply']).to be_nil
+    end
+  end
 end

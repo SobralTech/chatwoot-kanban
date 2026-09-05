@@ -1,9 +1,9 @@
 # Detects a reply to a WhatsApp status (story). The reply itself is an ordinary
 # message in the direct chat — only the quoted message belongs to the status
 # broadcast chat, which GOWS reports as `contextInfo.remoteJID` on the raw proto
-# node under `_data.Message`. Status chats themselves are never imported
-# (Channel::Waha::IGNORED_CHAT_SUFFIXES), so the quoted story never exists
-# locally and only the payload's own reply context can describe it.
+# node under `_data.Message`. Status chats themselves are explicitly ignored by
+# Waha::InboundEventPolicy, so the quoted story never exists locally and only
+# the payload's own reply context can describe it.
 module Waha::StatusContext
   STATUS_BROADCAST_JID = 'status@broadcast'.freeze
 

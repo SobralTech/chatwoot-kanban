@@ -342,6 +342,18 @@ en:
       waha_edit_not_allowed: This message can no longer be edited
       waha_react_not_allowed: This message cannot be reacted to
       waha_media_unavailable: 'Media unavailable: the download failed after several attempts'
+      waha_call:
+        event: 'WhatsApp %{direction} %{kind} call %{result}%{duration}'
+        direction:
+          incoming: 'incoming'
+        kind:
+          voice: 'voice'
+          video: 'video'
+        result:
+          received: 'received'
+          accepted: 'accepted'
+          rejected: 'ended'
+        duration: ' (%{duration}s)'
       waha_location:
         live: '📡 Live location'
       waha_contacts:
