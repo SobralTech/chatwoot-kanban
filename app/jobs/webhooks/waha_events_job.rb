@@ -48,15 +48,52 @@ class Webhooks::WahaEventsJob < ApplicationJob
       handle_message(channel, params, media_attempt)
     when 'message.ack'
       handle_message_ack(channel, params, ack_retries)
-    when 'message.edited'
-      handle_message_edited(channel, params, ack_retries, media_attempt)
-    when 'message.revoked'
-      handle_message_revoked(channel, params['payload'])
-    when 'message.reaction'
-      handle_message_reaction(channel, params, ack_retries)
+    when 'message.edited', 'message.revoked', 'message.reaction'
+      handle_message_mutation(channel, params, ack_retries, media_attempt)
     when 'session.status'
       handle_session_status(channel, params['payload'])
     end
+  end
+
+  # Share the persistence lock with incoming/history messages. Resolving the
+  # family head and migrating/removing reactions must be in the same transaction.
+  def handle_message_mutation(channel, params, retries, media_attempt)
+    payload = params['payload']
+    return if payload.blank?
+
+    source_id = mutation_source_id(payload)
+    return if source_id.blank?
+
+    chat_jid = mutation_chat_jid(payload, source_id)
+    target = find_message_by_source_id(channel, source_id, chat_jid)
+    chat_jids = [chat_jid]
+    chat_jids << target.conversation.contact_inbox&.source_id if target
+    Waha::Locking.with_chat_lock(channel, chat_jids) do
+      dispatch_message_mutation(channel, params, retries, media_attempt)
+    end
+  rescue StandardError => e
+    raise unless params['event'] == 'message.revoked'
+
+    retry_event(channel, params, retries, reason: e.class.name)
+  end
+
+  def mutation_source_id(payload)
+    payload['editedMessageId'] || payload['revokedMessageId'] || payload.dig('before', 'id') || payload.dig('reaction', 'messageId')
+  end
+
+  def dispatch_message_mutation(channel, params, retries, media_attempt)
+    case params['event']
+    when 'message.edited' then handle_message_edited(channel, params, retries, media_attempt)
+    when 'message.revoked' then handle_message_revoked(channel, params, retries)
+    when 'message.reaction' then handle_message_reaction(channel, params, retries)
+    end
+  end
+
+  def mutation_chat_jid(payload, source_id)
+    envelope = payload['after'] || payload
+    jid = Waha::Anchoring.chat_jid_of(source_id) || Waha::Anchoring.chat_jid_of(envelope['id']) ||
+          envelope.dig('_data', 'Info', 'Chat') || (envelope['fromMe'] ? envelope['to'] : envelope['from'])
+    Waha::Jid.phone_jid(jid) || jid
   end
 
   def handle_message(channel, params, media_attempt)
@@ -103,9 +140,16 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # The mirror may still be being created (contact/conversation resolution takes
   # ~1s while the event lands in milliseconds), so replay the event a few times
   # before giving up on it.
-  def retry_event(channel, params, retries)
-    return if retries >= ACK_MAX_RETRIES
+  def retry_event(channel, params, retries, reason: 'missing_anchor')
+    context = "channel=#{channel.id} inbox=#{channel.inbox.id} event=#{params['event']} retry=#{retries} reason=#{reason}"
+    payload = params['payload'] || {}
+    context += " source_id=#{mutation_source_id(payload) || payload['id']}"
+    if retries >= ACK_MAX_RETRIES
+      Rails.logger.error "[WAHA] Event retries exhausted #{context}"
+      return
+    end
 
+    Rails.logger.warn "[WAHA] Event retry scheduled #{context} delay=#{ACK_RETRY_DELAY.to_i}s"
     self.class.set(wait: ACK_RETRY_DELAY).perform_later(channel.id, params, retries + 1)
   end
 
@@ -145,11 +189,12 @@ class Webhooks::WahaEventsJob < ApplicationJob
     payload = params['payload']
     return if payload.blank?
 
-    original = find_message_by_source_id(channel, payload['editedMessageId'])
+    original = find_message_by_source_id(channel, payload['editedMessageId'], mutation_chat_jid(payload, payload['editedMessageId']))
     # The base message can still be mid-creation (message.any resolves
     # contact/conversation before this arrives) or simply not delivered yet —
     # replay the event instead of mirroring the edit as an unanchored message.
     return retry_event(channel, params, retries) if original.nil?
+    return if original.content_attributes['deleted']
 
     edited = Waha::IncomingMessageService.new(channel: channel, payload: payload, edited_original: original).perform
     supersede_edit_family(channel, original, except: edited) if edited
@@ -196,11 +241,11 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # since all versions disappear at once there. Deletes made from Chatwoot
   # round-trip through this same event; already-deleted messages are skipped,
   # which makes the round-trip idempotent.
-  def handle_message_revoked(channel, payload)
-    return if payload.blank?
-
-    revoked = find_message_by_source_id(channel, payload['revokedMessageId'] || payload.dig('before', 'id'))
-    return unless revoked
+  def handle_message_revoked(channel, params, retries)
+    payload = params['payload']
+    source_id = payload['revokedMessageId'] || payload.dig('before', 'id')
+    revoked = find_message_by_source_id(channel, source_id, mutation_chat_jid(payload, source_id))
+    return retry_event(channel, params, retries) unless revoked
 
     edit_family(channel, Waha::Anchoring.anchor_source_id(revoked)).find_each { |message| soft_delete_message(message) }
   end
@@ -214,10 +259,10 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # rebuilt from the returning webhook instead of being applied locally.
   def handle_message_reaction(channel, params, retries)
     payload = params['payload']
-    target = find_message_by_source_id(channel, payload&.dig('reaction', 'messageId'))
+    source_id = payload.dig('reaction', 'messageId')
+    target = find_message_by_source_id(channel, source_id, mutation_chat_jid(payload, source_id))
 
-    # A missing target is the same race as acks; after the retries it drops
-    # silently (a reaction to a message older than the inbox).
+    # The base can still be in flight, just like an ack's target.
     return retry_event(channel, params, retries) if target.nil?
 
     Waha::ReactionApplier.new(channel: channel, target_message: current_family_member(channel, target), payload: payload).perform
@@ -237,9 +282,9 @@ class Webhooks::WahaEventsJob < ApplicationJob
       message.update!(
         content: I18n.t('conversations.messages.deleted'),
         content_type: :text,
-        content_attributes: message.content_attributes.merge('deleted' => true)
+        content_attributes: message.content_attributes.except('reactions').merge('deleted' => true)
       )
-      message.attachments.destroy_all
+      message.attachments.each(&:destroy!)
     end
   end
 
@@ -304,12 +349,15 @@ class Webhooks::WahaEventsJob < ApplicationJob
     session_info&.dig('me', 'id').to_s.gsub(/\D/, '').presence
   end
 
-  def find_message_by_source_id(channel, source_id)
+  def find_message_by_source_id(channel, source_id, chat_jid = nil)
     stanza = Waha::Anchoring.stanza_of(source_id)
-    chat_jid = Waha::Anchoring.chat_jid_of(source_id)
+    chat_jid ||= Waha::Anchoring.chat_jid_of(source_id)
     mapping = channel.message_mappings.find_by(chat_jid: chat_jid, external_id: stanza, event_type: :message) if chat_jid
-    mapping&.message ||
-      Waha::Anchoring.by_stanza(channel.inbox, source_id).first
+    return mapping.message if mapping
+
+    messages = Waha::Anchoring.by_stanza(channel.inbox, source_id)
+    messages = messages.where("split_part(source_id, '_', 2) = ?", chat_jid) if chat_jid
+    messages.first
   end
 end
 # rubocop:enable Metrics/ClassLength

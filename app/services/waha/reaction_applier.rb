@@ -9,11 +9,14 @@ class Waha::ReactionApplier
   pattr_initialize [:channel!, :target_message!, :payload!]
 
   def perform
-    # WhatsApp discards reactions along with a revoked message; nothing to show.
-    return if target_message.content_attributes['deleted']
+    target_message.with_lock do
+      # Reload under the row lock before reading the per-participant map.
+      next if target_message.content_attributes['deleted']
 
-    emoji = payload.dig('reaction', 'text').to_s
-    emoji.empty? ? remove_reaction : apply_reaction(emoji)
+      @reactions = nil
+      emoji = payload.dig('reaction', 'text').to_s
+      emoji.empty? ? remove_reaction : apply_reaction(emoji)
+    end
   end
 
   private
