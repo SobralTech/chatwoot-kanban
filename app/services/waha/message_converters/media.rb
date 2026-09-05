@@ -18,4 +18,8 @@ class Waha::MessageConverters::Media < Waha::MessageConverters::Base
   def attach(message)
     media_attacher.attach_to(message)
   end
+
+  def downloads_attachment?
+    true
+  end
 end

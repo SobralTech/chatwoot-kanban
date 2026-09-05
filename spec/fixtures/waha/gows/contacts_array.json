@@ -1,0 +1,54 @@
+{
+  "id": "false_5511888888888@c.us_3EB0F607182930415263",
+  "timestamp": 1757002700,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": null,
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": null,
+  "vCards": [
+    "BEGIN:VCARD\nVERSION:3.0\nN:;Carlos Lima;;;\nFN:Carlos Lima\nTEL;type=CELL;type=VOICE;waid=5511955554444:+55 11 95555-4444\nEND:VCARD",
+    "BEGIN:VCARD\nVERSION:3.0\nN:Ferreira;Marina;;;\nTEL;type=CELL;type=VOICE;waid=5511944443333:+55 11 94444-3333\nEND:VCARD"
+  ],
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0F607182930415263",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:45:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "contactsArrayMessage": {
+        "displayName": "2 contatos",
+        "contacts": [
+          {
+            "displayName": "Carlos Lima",
+            "vcard": "BEGIN:VCARD\nVERSION:3.0\nN:;Carlos Lima;;;\nFN:Carlos Lima\nTEL;type=CELL;type=VOICE;waid=5511955554444:+55 11 95555-4444\nEND:VCARD"
+          },
+          {
+            "displayName": "Marina Ferreira",
+            "vcard": "BEGIN:VCARD\nVERSION:3.0\nN:Ferreira;Marina;;;\nTEL;type=CELL;type=VOICE;waid=5511944443333:+55 11 94444-3333\nEND:VCARD"
+          }
+        ],
+        "contextInfo": {
+          "expiration": 0
+        }
+      }
+    },
+    "Status": 1
+  }
+}

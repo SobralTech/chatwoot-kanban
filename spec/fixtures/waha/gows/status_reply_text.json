@@ -1,0 +1,59 @@
+{
+  "id": "false_5511888888888@c.us_3EB01829304152637485",
+  "timestamp": 1757003200,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": "que promoção boa!",
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": null,
+  "vCards": null,
+  "replyTo": {
+    "id": "3EB0AABBCCDDEEFF0011",
+    "participant": "5511999999999@c.us",
+    "body": "Frete grátis só hoje",
+    "hasMedia": false,
+    "media": null,
+    "_data": {
+      "extendedTextMessage": {
+        "text": "Frete grátis só hoje"
+      }
+    }
+  },
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB01829304152637485",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:53:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "extendedTextMessage": {
+        "text": "que promoção boa!",
+        "contextInfo": {
+          "stanzaID": "3EB0AABBCCDDEEFF0011",
+          "participant": "5511999999999@s.whatsapp.net",
+          "remoteJID": "status@broadcast",
+          "quotedMessage": {
+            "extendedTextMessage": {
+              "text": "Frete grátis só hoje"
+            }
+          }
+        }
+      }
+    },
+    "Status": 1
+  }
+}

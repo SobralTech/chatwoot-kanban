@@ -1,0 +1,65 @@
+{
+  "id": "false_5511888888888@c.us_3EB02930415263748596",
+  "timestamp": 1757003500,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": "quanto custa esse?",
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": null,
+  "vCards": null,
+  "replyTo": {
+    "id": "3EB0BBCCDDEEFF001122",
+    "participant": "5511999999999@c.us",
+    "body": "Novidades da semana",
+    "hasMedia": true,
+    "media": null,
+    "_data": {
+      "imageMessage": {
+        "mimetype": "image/jpeg",
+        "caption": "Novidades da semana",
+        "fileLength": "184320",
+        "height": 1280,
+        "width": 720,
+        "JPEGThumbnail": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA=="
+      }
+    }
+  },
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB02930415263748596",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:58:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "extendedTextMessage": {
+        "text": "quanto custa esse?",
+        "contextInfo": {
+          "stanzaID": "3EB0BBCCDDEEFF001122",
+          "participant": "5511999999999@s.whatsapp.net",
+          "remoteJID": "status@broadcast",
+          "quotedMessage": {
+            "imageMessage": {
+              "mimetype": "image/jpeg",
+              "caption": "Novidades da semana"
+            }
+          }
+        }
+      }
+    },
+    "Status": 1
+  }
+}

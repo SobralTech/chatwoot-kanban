@@ -17,6 +17,7 @@ class Waha::HistoryMessageWriter
 
       ActiveRecord::Base.transaction do
         build_message
+        converter.attach(@message) unless converter.downloads_attachment?
         @message.imported = initial_import?
         @message.preserve_conversation_status = gap_fill?
         @message.save!
@@ -91,10 +92,11 @@ class Waha::HistoryMessageWriter
     converter.content
   end
 
-  # Selection only — download/attach are the live path's concern
-  # (Waha::HistoryMediaJob attaches history media later, off the import's
-  # critical path), but the same registry still marks an unsupported or
-  # otherwise-empty payload instead of writing a blank row.
+  # Media downloads stay the live path's concern (Waha::HistoryMediaJob attaches
+  # history media later, off the import's critical path); everything the payload
+  # already carries — a location, a vCard — is attached inline, and the same
+  # registry still marks an unsupported or otherwise-empty payload instead of
+  # writing a blank row.
   def converter
     @converter ||= Waha::MessageConverters::Registry.for(channel: channel, payload: payload)
   end

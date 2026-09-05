@@ -1,0 +1,39 @@
+{
+  "id": "false_5511888888888@c.us_3EB0D4E5F60718293041",
+  "timestamp": 1757002000,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": null,
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": null,
+  "vCards": null,
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0D4E5F60718293041",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:33:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "locationMessage": {
+        "name": "Padaria Estrela",
+        "JPEGThumbnail": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA=="
+      }
+    },
+    "Status": 1
+  }
+}

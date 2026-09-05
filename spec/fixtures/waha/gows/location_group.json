@@ -1,0 +1,48 @@
+{
+  "id": "false_120363000000000000@g.us_3EB0C3D4E5F607182930",
+  "timestamp": 1757001800,
+  "from": "120363000000000000@g.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": "5511777777777@c.us",
+  "body": null,
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": {
+    "live": false,
+    "latitude": "-23.588100",
+    "longitude": "-46.632500",
+    "name": "Quadra do bairro"
+  },
+  "vCards": null,
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "120363000000000000@g.us",
+      "Sender": "5511777777777@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": true,
+      "ID": "3EB0C3D4E5F607182930",
+      "PushName": "Zé do Grupo",
+      "Timestamp": "2026-09-04T13:30:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "locationMessage": {
+        "degreesLatitude": -23.5881,
+        "degreesLongitude": -46.6325,
+        "name": "Quadra do bairro",
+        "contextInfo": {
+          "expiration": 0
+        }
+      }
+    },
+    "Status": 1
+  }
+}

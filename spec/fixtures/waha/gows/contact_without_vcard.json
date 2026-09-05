@@ -1,0 +1,39 @@
+{
+  "id": "false_5511888888888@c.us_3EB007182930415263740",
+  "timestamp": 1757002900,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": null,
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": null,
+  "vCards": null,
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB007182930415263740",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:48:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "contactMessage": {
+        "displayName": "Carlos Lima",
+        "vcard": ""
+      }
+    },
+    "Status": 1
+  }
+}

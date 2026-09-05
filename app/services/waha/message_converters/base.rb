@@ -18,4 +18,11 @@ class Waha::MessageConverters::Base
   end
 
   def attach(message); end
+
+  # True when building this converter's attachments needs a WAHA download.
+  # History import keeps those off its critical path (Waha::HistoryMediaJob
+  # fetches them later) and attaches everything else inline.
+  def downloads_attachment?
+    false
+  end
 end

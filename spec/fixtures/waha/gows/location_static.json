@@ -1,0 +1,56 @@
+{
+  "id": "false_5511888888888@c.us_3EB0A1B2C3D4E5F60718",
+  "timestamp": 1757001200,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": null,
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": {
+    "live": false,
+    "latitude": "-23.550519",
+    "longitude": "-46.633308",
+    "name": "Padaria Estrela",
+    "address": "Rua das Acácias, 100 - São Paulo",
+    "url": "https://padaria-estrela.example.com",
+    "description": "te espero aqui",
+    "thumbnail": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA=="
+  },
+  "vCards": null,
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0A1B2C3D4E5F60718",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:20:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "locationMessage": {
+        "degreesLatitude": -23.550519,
+        "degreesLongitude": -46.633308,
+        "name": "Padaria Estrela",
+        "address": "Rua das Acácias, 100 - São Paulo",
+        "URL": "https://padaria-estrela.example.com",
+        "comment": "te espero aqui",
+        "JPEGThumbnail": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA==",
+        "contextInfo": {
+          "expiration": 0
+        }
+      }
+    },
+    "Status": 1
+  }
+}
