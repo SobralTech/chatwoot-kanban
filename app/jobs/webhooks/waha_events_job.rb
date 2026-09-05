@@ -52,9 +52,19 @@ class Webhooks::WahaEventsJob < ApplicationJob
       handle_message_mutation(channel, params, ack_retries, media_attempt)
     when 'poll.vote'
       handle_poll_vote(channel, params, ack_retries)
+    when *Waha::CallEventService::EVENT_RESULTS.keys
+      handle_call(channel, params)
     when 'session.status'
       handle_session_status(channel, params['payload'])
+    else
+      Rails.logger.warn "[WAHA] Ignored unsupported webhook event channel=#{channel.id} inbox=#{channel.inbox.id} event=#{params['event']}"
     end
+  end
+
+  def handle_call(channel, params)
+    payload = params['payload'].presence || {}
+
+    Waha::CallEventService.new(channel: channel, event: params['event'], payload: payload).perform
   end
 
   # Share the persistence lock with incoming/history messages. Resolving the

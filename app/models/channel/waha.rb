@@ -56,9 +56,6 @@ class Channel::Waha < ApplicationRecord
   # Cap on how far back any import window can reach, even after a very long outage.
   IMPORT_WINDOW_CAP = 6.months
 
-  # Chats we never mirror into Chatwoot, in either the live or the import path.
-  IGNORED_CHAT_SUFFIXES = %w[@newsletter status@broadcast].freeze
-
   before_validation :normalize_connection_identity
   before_create :generate_webhook_token
   after_create :start_waha_session

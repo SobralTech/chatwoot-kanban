@@ -1,6 +1,5 @@
 # rubocop:disable Metrics/ClassLength
 class Waha::IncomingMessageService
-  IGNORED_CHAT_SUFFIXES = %w[@newsletter status@broadcast].freeze
   SENT_FROM_WHATSAPP_LABEL = 'Enviado pelo WhatsApp'.freeze
   EDITED_LABEL = '✏️ Editada'.freeze
 
@@ -12,8 +11,9 @@ class Waha::IncomingMessageService
   pattr_initialize [:channel!, :payload!, :edited_original, :media_terminal]
 
   def perform
-    return if ignored_chat?
-    return if group_message_disabled?
+    policy = Waha::InboundEventPolicy.message(chat_id, groups_enabled: channel.groups_enabled)
+    Waha::InboundEventPolicy.observe(channel: channel, event: 'message.any', decision: policy)
+    return if policy.action == :ignore
 
     existing = find_canonical_message
     return existing if existing
@@ -114,14 +114,6 @@ class Waha::IncomingMessageService
 
   def source_id
     @source_id ||= payload['id']
-  end
-
-  def ignored_chat?
-    Channel::Waha::IGNORED_CHAT_SUFFIXES.any? { |suffix| chat_id.to_s.end_with?(suffix) }
-  end
-
-  def group_message_disabled?
-    chat_id.to_s.end_with?('@g.us') && !channel.groups_enabled
   end
 
   def stanza

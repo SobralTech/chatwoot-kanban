@@ -243,6 +243,49 @@ describe Webhooks::WahaEventsJob do
     end
   end
 
+  describe 'GOWS calls' do
+    def call_params(event: 'call.received', overrides: {})
+      {
+        'session' => channel.session_name,
+        'event' => event,
+        'payload' => {
+          'id' => 'CALLWEBHOOK01',
+          'from' => '5511888888888@c.us',
+          'timestamp' => 1_762_358_460,
+          'isVideo' => false,
+          'isGroup' => false,
+          '_data' => { 'Data' => { 'Attrs' => {} } }
+        }.merge(overrides)
+      }
+    end
+
+    it 'routes a supported direct call to a conversation activity without initiating voice or video' do
+      conversation
+
+      expect { described_class.perform_now(channel.id, call_params) }.to change { conversation.reload.messages.activity.count }.by(1)
+
+      event = conversation.messages.activity.last
+      expect(event.content_attributes['waha_call']).to include(
+        'direction' => 'incoming', 'participant_jid' => '5511888888888@c.us', 'result' => 'received', 'is_video' => false
+      )
+    end
+
+    it 'leaves unsupported group calls out of the conversation and emits an operational decision' do
+      allow(Rails.logger).to receive(:info)
+
+      expect { described_class.perform_now(channel.id, call_params(overrides: { 'isGroup' => true })) }.not_to change(Message, :count)
+      expect(Rails.logger).to have_received(:info).with(include('event=call.received action=ignore reason=group_call'))
+    end
+
+    it 'records a malformed call decision instead of silently dropping the webhook' do
+      allow(Rails.logger).to receive(:info)
+
+      expect { described_class.perform_now(channel.id, 'session' => channel.session_name, 'event' => 'call.received') }
+        .not_to change(Message, :count)
+      expect(Rails.logger).to have_received(:info).with(include('event=call.received action=ignore reason=missing_call_id'))
+    end
+  end
+
   describe 'multipart event correlation' do
     it 'applies an ack for any mapped part to the aggregate Chatwoot message' do
       outgoing = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
