@@ -1,9 +1,10 @@
 # Selects the converter for a WAHA payload by its normalized type: a shared
-# location, one or more vCards, a real media message (matches
+# location, one or more vCards, a poll, a list, an event, a Pix payment
+# request, an album header, a real media message (matches
 # Waha::MediaAttacher#media?, the same hasMedia+url gate that already governed
-# download/attach before this registry existed), a text body, or — for anything
-# else, including a still-unsupported WhatsApp message type (PIX, Facebook ad,
-# album, ...) and a known type with no usable payload — the visible fallback.
+# download/attach before this registry existed), a text body, or — for
+# anything else, including a still-unsupported WhatsApp message type and a
+# known type with no usable payload — the visible fallback.
 #
 # GOWS rarely sets a top-level `type` string at all, so the structured types
 # are recognized from the raw proto node under `_data.Message` (with WAHA's
@@ -11,11 +12,14 @@
 # Waha::MediaAttacher's own engine-aware classification rather than trusting
 # that field in isolation.
 #
-# A reply to a status can carry any of those contents, so it wraps the
-# converter chosen for the reply's own content instead of replacing it.
+# A Facebook/Instagram ad reply and an album's individual photo/video each
+# wrap whichever converter their own content would otherwise get, instead of
+# replacing it — the same idiom a reply to a status uses below.
 class Waha::MessageConverters::Registry
   def self.for(channel:, payload:, terminal: nil)
     converter = content_converter(channel: channel, payload: payload, terminal: terminal)
+    converter = wrap_facebook_ad(converter, payload)
+    converter = wrap_album_item(converter, payload)
     return Waha::MessageConverters::StatusReply.new(inner: converter) if Waha::StatusContext.reply_to_status?(payload)
 
     converter
@@ -33,7 +37,8 @@ class Waha::MessageConverters::Registry
   end
 
   def self.structured_converter(payload)
-    location_converter(payload) || vcard_converter(payload) || poll_converter(payload) || list_converter(payload) || event_converter(payload)
+    location_converter(payload) || vcard_converter(payload) || poll_converter(payload) || list_converter(payload) ||
+      event_converter(payload) || pix_converter(payload) || album_converter(payload)
   end
 
   def self.location_converter(payload)
@@ -61,6 +66,36 @@ class Waha::MessageConverters::Registry
     Waha::MessageConverters::Event.new(event: event) if event
   end
 
+  def self.pix_converter(payload)
+    pix = Waha::MessageConverters::Pix.extract(payload)
+    Waha::MessageConverters::Pix.new(pix: pix) if pix
+  end
+
+  def self.album_converter(payload)
+    album = Waha::MessageConverters::Album.extract(payload)
+    Waha::MessageConverters::Album.new(album: album) if album
+  end
+
+  # A Facebook/Instagram ad reply wraps whichever converter the payload's own
+  # content would otherwise get (normally Text) instead of replacing it — see
+  # Waha::MessageConverters::FacebookAd.
+  def self.wrap_facebook_ad(converter, payload)
+    ad = Waha::MessageConverters::FacebookAd.extract(payload)
+    return converter unless ad
+
+    Waha::MessageConverters::FacebookAd.new(inner: converter, ad: ad)
+  end
+
+  # One photo/video of an album wraps the ordinary media converter that would
+  # otherwise handle it, tagging it back to its header — see
+  # Waha::MessageConverters::AlbumItem.
+  def self.wrap_album_item(converter, payload)
+    album_id = Waha::MessageConverters::AlbumItem.extract(payload)
+    return converter unless album_id
+
+    Waha::MessageConverters::AlbumItem.new(inner: converter, album_id: album_id)
+  end
+
   private_class_method :content_converter, :structured_converter, :location_converter, :vcard_converter, :poll_converter, :list_converter,
-                       :event_converter
+                       :event_converter, :pix_converter, :album_converter, :wrap_facebook_ad, :wrap_album_item
 end

@@ -1,0 +1,38 @@
+{
+  "id": "false_5511888888888@c.us_3EB0AACC1122334455DD",
+  "timestamp": 1757100600,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": null,
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": null,
+  "vCards": null,
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0AACC1122334455DD",
+      "PushName": "Marina Ferreira",
+      "Timestamp": "2026-09-05T12:10:00Z",
+      "Type": "media",
+      "MediaType": "collection"
+    },
+    "Message": {
+      "albumMessage": {
+        "expectedImageCount": 2,
+        "expectedVideoCount": 1
+      }
+    }
+  }
+}

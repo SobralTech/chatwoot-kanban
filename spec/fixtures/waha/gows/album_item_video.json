@@ -1,0 +1,52 @@
+{
+  "id": "false_5511888888888@c.us_3EB0AACC1122334455D3",
+  "timestamp": 1757100603,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": null,
+  "hasMedia": true,
+  "media": { "url": "http://localhost:3000/api/files/album-video-1.mp4", "mimetype": "video/mp4" },
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": null,
+  "vCards": null,
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0AACC1122334455D3",
+      "PushName": "Marina Ferreira",
+      "Timestamp": "2026-09-05T12:10:03Z",
+      "Type": "video",
+      "MediaType": "video"
+    },
+    "Message": {
+      "videoMessage": {
+        "mimetype": "video/mp4",
+        "caption": "",
+        "fileLength": "1048576",
+        "seconds": 12,
+        "height": 1280,
+        "width": 720
+      },
+      "messageContextInfo": {
+        "messageAssociation": {
+          "associationType": "MEDIA_ALBUM",
+          "parentMessageKey": {
+            "remoteJID": "5511888888888@c.us",
+            "fromMe": false,
+            "ID": "3EB0AACC1122334455DD"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,8 +1,8 @@
 # Selected for any WAHA payload the registry can't classify as text or media —
-# an unsupported message type (poll, location, vCard, list, event, PIX,
-# Facebook ad, album, ...) or a known type whose payload is otherwise empty
-# (declared media with no hasMedia/url and no caption). Renders through the
-# same `is_unsupported` content_attribute other channels (e.g. TikTok) already
+# an unsupported message type (a call, a newsletter, a broadcast, ...) or a
+# known type whose payload is otherwise empty (declared media with no
+# hasMedia/url and no caption, or a Pix/album header stripped of its data).
+# Renders through the same `is_unsupported` content_attribute other channels (e.g. TikTok) already
 # use, so the frontend's existing UnsupportedBubble shows a generic, safe
 # message — no raw payload or sensitive data ever reaches the client.
 class Waha::MessageConverters::Fallback < Waha::MessageConverters::Base

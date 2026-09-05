@@ -77,6 +77,25 @@ describe Waha::MessageConverters::Registry do
       expect(converter_for(gows_payload('event_creation'))).to be_a(Waha::MessageConverters::Event)
     end
 
+    it 'selects the Pix converter for a GOWS Pix payment request' do
+      expect(converter_for(gows_payload('pix_payment'))).to be_a(Waha::MessageConverters::Pix)
+    end
+
+    it 'selects the album converter for a GOWS album header' do
+      expect(converter_for(gows_payload('album_header'))).to be_a(Waha::MessageConverters::Album)
+    end
+
+    it 'wraps the text converter in FacebookAd for a click-to-WhatsApp ad reply' do
+      converter = converter_for(gows_payload('facebook_ad_reply'))
+
+      expect(converter).to be_a(Waha::MessageConverters::FacebookAd)
+      expect(converter.content).to eq('Olá! Vi o anúncio e queria saber mais.')
+    end
+
+    it 'wraps the media converter in AlbumItem for one photo of an album' do
+      expect(converter_for(gows_payload('album_item_image_1'))).to be_a(Waha::MessageConverters::AlbumItem)
+    end
+
     %w[status_reply_text status_reply_image].each do |fixture|
       it "selects the status reply converter for the #{fixture} GOWS payload" do
         expect(converter_for(gows_payload(fixture))).to be_a(Waha::MessageConverters::StatusReply)
@@ -113,6 +132,35 @@ describe Waha::MessageConverters::Registry do
       payload = { 'id' => 'x', '_data' => { 'Message' => { 'eventMessage' => { 'startTime' => 1_762_362_000 } } } }
 
       expect(converter_for(payload)).to be_a(Waha::MessageConverters::Fallback)
+    end
+
+    it 'falls back for an interactive message with no Pix payment button' do
+      inner = { 'nativeFlowMessage' => { 'buttons' => [] } }
+      payload = { 'id' => 'x', '_data' => { 'Message' => { 'interactiveMessage' => { 'interactiveMessage' => inner } } } }
+
+      expect(converter_for(payload)).to be_a(Waha::MessageConverters::Fallback)
+    end
+
+    it 'falls back for a Pix button whose params carry no key' do
+      payload = gows_payload('pix_payment')
+      button = payload.dig('_data', 'Message', 'interactiveMessage', 'interactiveMessage', 'nativeFlowMessage', 'buttons').first
+      button['buttonParamsJSON'] = '{"payment_settings":[{"type":"pix_static_code","pix_static_code":{"merchant_name":"Padaria Estrela"}}]}'
+
+      expect(converter_for(payload)).to be_a(Waha::MessageConverters::Fallback)
+    end
+
+    it 'falls back for an album header declared with no expected media' do
+      payload = { 'id' => 'x', '_data' => { 'Message' => { 'albumMessage' => { 'expectedImageCount' => 0, 'expectedVideoCount' => 0 } } } }
+
+      expect(converter_for(payload)).to be_a(Waha::MessageConverters::Fallback)
+    end
+
+    it 'does not wrap a payload in FacebookAd when the ad reply carries no title or body' do
+      payload = text_payload.merge(
+        '_data' => { 'Message' => { 'extendedTextMessage' => { 'text' => 'Oi, tudo bem?', 'contextInfo' => { 'externalAdReply' => {} } } } }
+      )
+
+      expect(converter_for(payload)).to be_a(Waha::MessageConverters::Text)
     end
 
     it 'does not treat an ordinary reply as a status reply' do

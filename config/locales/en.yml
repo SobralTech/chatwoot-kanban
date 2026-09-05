@@ -373,6 +373,25 @@ en:
         starts_at: 'Starts: %{time}'
         ends_at: 'Ends: %{time}'
         location: 'Location: %{location}'
+      waha_pix:
+        header: '💰 Pix payment'
+        merchant: 'Merchant: %{name}'
+        key: 'Pix key: %{key}'
+        key_with_type: 'Pix key: %{key} (%{key_type})'
+        amount: 'Amount: %{amount}'
+        reference: 'Reference: %{reference}'
+      waha_facebook_ad:
+        header: '📣 Facebook/Instagram ad'
+        media: 'Media: %{url}'
+        source: 'Source: %{url}'
+      waha_album:
+        header: '🖼️ Album'
+        photos:
+          one: '%{count} photo'
+          other: '%{count} photos'
+        videos:
+          one: '%{count} video'
+          other: '%{count} videos'
       waha_status_reply:
         quoted_author: '%{author} · Status'
         quoted_author_unknown: 'Status'
