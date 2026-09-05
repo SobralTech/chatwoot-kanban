@@ -23,6 +23,14 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     Channel::Waha
   end
 
+  # A partially delivered multipart message already has the first part's
+  # source_id as its stable anchor. Unlike a channel-originated mirror, it must
+  # keep passing the base service guard until its aggregate attempt is sent.
+  def outgoing_message_originated_from_channel?
+    attempt = message.waha_delivery_attempt
+    message.source_id.present? && (attempt.nil? || attempt.sent?)
+  end
+
   def perform_reply
     send_seen
 
@@ -46,16 +54,23 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   def deliver_message
     return unless delivery_attempt.claim!
 
-    ensure_client_message_id!
-    delivery_attempt.update!(dispatched_at: Time.current)
+    ensure_delivery_parts!
+    return release_attempt! if delivery_parts.empty?
 
-    result = attachment ? send_attachment : send_text
-    return release_attempt! if result.nil?
+    delivery_parts.pending.in_delivery_order.each do |part|
+      ensure_client_message_id!(part)
+      dispatched_at = Time.current
+      part.update!(dispatched_at: dispatched_at)
+      delivery_attempt.update!(dispatched_at: dispatched_at)
 
-    wa_message_id = result.is_a?(Hash) ? result['id'] : nil
-    raise CustomExceptions::Waha::ApiError, 'WAHA accepted the request but returned no message id' if wa_message_id.blank?
+      result = deliver_part(part)
+      return release_attempt! if result.nil?
 
-    delivery_attempt.confirm_sent!(wa_message_id)
+      wa_message_id = result.is_a?(Hash) ? result['id'] : nil
+      raise CustomExceptions::Waha::ApiError, 'WAHA accepted the request but returned no message id' if wa_message_id.blank?
+
+      delivery_attempt.confirm_part_sent!(part, wa_message_id)
+    end
   end
 
   # WAHA's pre-generated id is the closest thing GOWS offers to a client-defined
@@ -64,11 +79,14 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   # scan confirm a send whose HTTP response never came back. Some engines don't
   # support the endpoint; that's a documented, observable limitation, not a
   # reason to fail the send.
-  def ensure_client_message_id!
-    return if delivery_attempt.client_message_id.present?
+  def ensure_client_message_id!(part)
+    return if part.client_message_id.present?
 
     id = fetch_client_message_id
-    delivery_attempt.update!(client_message_id: id) if id.present?
+    return if id.blank?
+
+    part.update!(client_message_id: id)
+    delivery_attempt.update!(client_message_id: id) if part.position == delivery_parts.minimum(:position)
   end
 
   def fetch_client_message_id
@@ -88,10 +106,14 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def handle_transient_failure(error)
-    return if reconcile_ambiguous_dispatch!
+    if reconcile_ambiguous_dispatch!
+      return if delivery_attempt.sent?
+
+      return resume_delivery!
+    end
 
     if delivery_attempt.attempt_count < MAX_SEND_ATTEMPTS
-      return unless delivery_attempt.release_to_pending!
+      return unless delivery_attempt.release_to_pending!(error.message)
 
       Rails.logger.warn "[WAHA] Transient send failure for message #{message.id} (attempt #{delivery_attempt.attempt_count}): #{error.message}"
       Waha::DeliverJob.set(wait: RETRY_DELAYS[delivery_attempt.attempt_count - 1]).perform_later(message.id)
@@ -107,12 +129,13 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   # failure before that point (e.g. fetching the id itself) has nothing to
   # reconcile against.
   def reconcile_ambiguous_dispatch!
-    return false unless delivery_attempt.dispatched_at? && delivery_attempt.client_message_id.present?
+    part = delivery_parts.pending.where('dispatched_at IS NOT NULL AND client_message_id IS NOT NULL').in_delivery_order.first
+    return false unless part
 
-    match = recent_own_messages.find { |msg| Waha::Anchoring.stanza_of(msg['id']) == delivery_attempt.client_message_id }
+    match = recent_own_messages.find { |msg| Waha::Anchoring.stanza_of(msg['id']) == part.client_message_id }
     return false unless match
 
-    delivery_attempt.confirm_sent!(match['id'])
+    delivery_attempt.confirm_part_sent!(part, match['id'])
     true
   rescue StandardError => e
     Rails.logger.warn "[WAHA] Reconciliation check failed for message #{message.id}: #{e.message}"
@@ -122,6 +145,12 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   def recent_own_messages
     query = "limit=#{RECONCILIATION_LOOKBACK}&filter.fromMe=true&sortOrder=desc&downloadMedia=false"
     http_client.get_array("#{channel.session_name}/chats/#{chat_id}/messages?#{query}")
+  end
+
+  def resume_delivery!
+    return unless delivery_attempt.release_to_pending!
+
+    Waha::DeliverJob.perform_later(message.id)
   end
 
   def fail_message!(error)
@@ -192,15 +221,39 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def text_message?
-    attachment.blank? && message.content.present?
+    eligible_attachments.empty? && outgoing_mentions.text.present?
   end
 
   def audio_message?
-    attachment&.file_type.to_s == 'audio'
+    eligible_attachments.one? && eligible_attachments.first.file_type.to_s == 'audio'
   end
 
-  def attachment
-    @attachment ||= message.attachments.to_a.first
+  def delivery_parts
+    delivery_attempt.delivery_parts
+  end
+
+  def ensure_delivery_parts!
+    delivery_attempt.with_lock do
+      next if delivery_parts.exists?
+
+      position = 0
+      if outgoing_mentions.text.present? && eligible_attachments.size != 1
+        delivery_parts.create!(position: position, part_type: :text)
+        position += 1
+      end
+      eligible_attachments.each do |attachment|
+        delivery_parts.create!(position: position, part_type: :attachment, attachment: attachment)
+        position += 1
+      end
+    end
+  end
+
+  def eligible_attachments
+    @eligible_attachments ||= message.attachments.to_a.select { |item| item.file.attached? }.sort_by(&:id)
+  end
+
+  def deliver_part(part)
+    part.text? ? send_text(part) : send_attachment(part)
   end
 
   def conversation_clock
@@ -211,16 +264,19 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     @presence_client ||= Waha::PresenceClient.new(channel: channel)
   end
 
-  def send_text
-    http_client.post('sendText', base_payload.merge(outgoing_mentions.payload, text: signer.sign(outgoing_mentions.text)))
+  def send_text(part)
+    http_client.post('sendText', base_payload(part).merge(outgoing_mentions.payload, text: signer.sign(outgoing_mentions.text)))
   end
 
-  def send_attachment
+  def send_attachment(part)
+    attachment = eligible_attachments.find { |item| item.id == part.attachment_id }
+    return if attachment.nil?
+
     file_url = attachment_url(attachment)
     return if file_url.blank?
 
-    endpoint, body = attachment_endpoint_and_body(attachment.file_type.to_sym, attachment, file_url)
-    http_client.post(endpoint, base_payload.merge(body))
+    endpoint, body = attachment_endpoint_and_body(attachment.file_type.to_sym, attachment, file_url, attachment_caption)
+    http_client.post(endpoint, base_payload(part).merge(body))
   end
 
   def blob(attachment)
@@ -230,11 +286,10 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   # WAHA's RemoteFile requires mimetype; sendFile also needs filename to preserve
   # the document name on WhatsApp. Passing them explicitly avoids the "422 file
   # invalid" the server returns for a bare `{ url: ... }`.
-  def attachment_endpoint_and_body(file_type, attachment, file_url)
-    caption = signer.sign(outgoing_mentions.text.presence)
-    remote_file = { url: file_url, mimetype: blob(attachment)&.content_type.presence,
-                    filename: blob(attachment)&.filename&.to_s.presence }.compact
-    caption_payload = outgoing_mentions.payload.merge(file: remote_file, caption: caption)
+  def attachment_endpoint_and_body(file_type, attachment, file_url, caption_text)
+    caption = signer.sign(caption_text)
+    remote_file = remote_file_for(attachment, file_url)
+    caption_payload = media_payload(remote_file, caption)
     case file_type
     when :image  then ['sendImage', caption_payload]
     when :audio  then ['sendVoice', { file: remote_file }]
@@ -243,7 +298,21 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     end
   end
 
-  def base_payload
+  def remote_file_for(attachment, file_url)
+    { url: file_url, mimetype: blob(attachment)&.content_type.presence,
+      filename: blob(attachment)&.filename&.to_s.presence }.compact
+  end
+
+  def media_payload(remote_file, caption)
+    payload = { file: remote_file, caption: caption }.compact
+    caption.present? ? payload.merge(outgoing_mentions.payload) : payload
+  end
+
+  def attachment_caption
+    outgoing_mentions.text.presence if eligible_attachments.one?
+  end
+
+  def base_payload(part)
     payload = {
       session: channel.session_name,
       chatId: chat_id
@@ -253,7 +322,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     # incoming webhook payloads.
     reply_to_id = quoted_source_id
     payload[:reply_to] = reply_to_id if reply_to_id.present?
-    payload[:id] = delivery_attempt.client_message_id if delivery_attempt.client_message_id.present?
+    payload[:id] = part.client_message_id if part.client_message_id.present?
 
     payload
   end
@@ -279,7 +348,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     quoted = quoted_message(external_id, in_reply_to_id)
     return external_id if quoted.blank?
 
-    Waha::Anchoring.anchor_source_id(quoted)
+    Waha::Anchoring.external_anchor_source_id(quoted)
   end
 
   def quoted_message(external_id, in_reply_to_id)

@@ -35,6 +35,7 @@
 class WahaDeliveryAttempt < ApplicationRecord
   belongs_to :channel, class_name: 'Channel::Waha', foreign_key: :channel_waha_id, inverse_of: :delivery_attempts
   belongs_to :message
+  has_many :delivery_parts, class_name: 'WahaDeliveryPart', dependent: :delete_all, inverse_of: :delivery_attempt
 
   enum :status, { pending: 0, sending: 1, sent: 2, failed: 3 }
 
@@ -45,7 +46,11 @@ class WahaDeliveryAttempt < ApplicationRecord
     return nil if stanza.blank?
 
     scope = where(channel: channel)
-    scope.find_by(client_message_id: stanza) || scope.find_by(external_id: stanza)
+    chat_jid = Waha::Anchoring.chat_jid_of(wa_message_id)
+    scope = scope.where(chat_jid: chat_jid) if chat_jid.present?
+    scope.joins(:delivery_parts).find_by(waha_delivery_parts: { client_message_id: stanza }) ||
+      scope.joins(:delivery_parts).find_by(waha_delivery_parts: { external_id: stanza }) ||
+      scope.find_by(client_message_id: stanza) || scope.find_by(external_id: stanza)
   end
 
   # Transitions pending/failed -> sending and bumps the persisted attempt count,
@@ -67,6 +72,52 @@ class WahaDeliveryAttempt < ApplicationRecord
   # from reconciliation. Idempotent: a second confirmation (e.g. the echo racing
   # the HTTP response) is a no-op once the attempt is already sent.
   def confirm_sent!(wa_message_id)
+    part = correlated_part(wa_message_id)
+    return confirm_part_sent!(part, wa_message_id) if part
+
+    confirm_legacy_sent!(wa_message_id)
+  end
+
+  def confirm_part_sent!(part, wa_message_id)
+    stanza = Waha::Anchoring.stanza_of(wa_message_id)
+    with_lock do
+      part.reload
+      next if part.sent?
+
+      WahaMessageMapping.create_canonical!(
+        channel: channel, message: message, chat_jid: chat_jid, external_id: stanza, direction: :outgoing, part: part.position
+      )
+      part.update!(status: :sent, source_id: wa_message_id, external_id: stanza, confirmed_at: Time.current)
+      set_anchor!(part, wa_message_id, stanza) if part.position == delivery_parts.minimum(:position)
+      complete_delivery! unless delivery_parts.pending.exists?
+    end
+  end
+
+  def correlated_part(wa_message_id)
+    stanza = Waha::Anchoring.stanza_of(wa_message_id)
+    delivery_parts.find_by(client_message_id: stanza) || delivery_parts.find_by(external_id: stanza)
+  end
+
+  # Puts a claimed attempt back up for grabs after a failed send that still has
+  # retries left. Guarded by the row lock so a fromMe echo that confirms the
+  # send concurrently (the request did reach WAHA despite the local error)
+  # cannot be clobbered back to `pending` by the losing local error handler.
+  # Returns false (a no-op) when that race is what happened.
+  def release_to_pending!(error_message = nil)
+    with_lock { sent? ? false : update!(status: :pending, last_error: error_message) }
+  end
+
+  # Terminal failure after exhausting retries — same clobber guard and return
+  # value as release_to_pending!.
+  def mark_failed!(error_message)
+    with_lock { sent? ? false : update!(status: :failed, last_error: error_message) }
+  end
+
+  private
+
+  # Ticket 23 owns legacy migration. This fallback deliberately keeps an
+  # already-running pre-multipart attempt confirmable without backfilling it.
+  def confirm_legacy_sent!(wa_message_id)
     stanza = Waha::Anchoring.stanza_of(wa_message_id)
     with_lock do
       next if sent?
@@ -81,18 +132,13 @@ class WahaDeliveryAttempt < ApplicationRecord
     update!(status: :sent, external_id: stanza)
   end
 
-  # Puts a claimed attempt back up for grabs after a failed send that still has
-  # retries left. Guarded by the row lock so a fromMe echo that confirms the
-  # send concurrently (the request did reach WAHA despite the local error)
-  # cannot be clobbered back to `pending` by the losing local error handler.
-  # Returns false (a no-op) when that race is what happened.
-  def release_to_pending!
-    with_lock { sent? ? false : update!(status: :pending) }
+  def set_anchor!(part, source_id, stanza)
+    message.update!(source_id: source_id) if message.source_id.blank?
+    update!(client_message_id: part.client_message_id, external_id: stanza)
   end
 
-  # Terminal failure after exhausting retries — same clobber guard and return
-  # value as release_to_pending!.
-  def mark_failed!(error_message)
-    with_lock { sent? ? false : update!(status: :failed, last_error: error_message) }
+  def complete_delivery!
+    message.update!(status: :sent, external_error: nil) if message.failed?
+    update!(status: :sent, last_error: nil)
   end
 end

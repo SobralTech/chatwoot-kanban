@@ -38,8 +38,11 @@ class Waha::ReplyContextResolver
 
     # Prefer a match in the current conversation: stanzas are only guaranteed
     # unique per chat, so this minimizes cross-chat false positives.
+    mapped = channel.message_mappings.find_by(
+      chat_jid: conversation.contact_inbox.source_id, external_id: stanza, event_type: :message
+    )&.message || channel.message_mappings.find_by(external_id: stanza, event_type: :message)&.message
     scope = Waha::Anchoring.by_stanza(inbox, stanza)
-    @original = scope.find_by(conversation_id: conversation.id) || scope.first
+    @original = mapped || scope.find_by(conversation_id: conversation.id) || scope.first
   end
 
   def head
@@ -48,12 +51,12 @@ class Waha::ReplyContextResolver
 
   def resolve_local
     if head.conversation_id == conversation.id
-      { in_reply_to: head.id, in_reply_to_external_id: original.source_id }
+      { in_reply_to: head.id, in_reply_to_external_id: Waha::Anchoring.external_anchor_source_id(original) }
     else
       # Inbox in "create new conversations" mode: the frontend can't render or
       # scroll to a message from another conversation, so feed a ghost quote
       # with the real local content instead.
-      { in_reply_to_external_id: original.source_id, in_reply_to_snapshot: snapshot_of(head) }
+      { in_reply_to_external_id: Waha::Anchoring.external_anchor_source_id(original), in_reply_to_snapshot: snapshot_of(head) }
     end
   end
 
