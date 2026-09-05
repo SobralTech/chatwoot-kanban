@@ -26,6 +26,21 @@ module Waha::Anchoring
     message.additional_attributes['edit_of'].presence || message.source_id
   end
 
+  # Multipart messages use their first part as the stable default target for
+  # replies, edits and reactions. Legacy rows keep using Message#source_id.
+  def external_anchor_source_id(message)
+    anchor = family_anchor_message(message)
+
+    anchor.waha_delivery_attempt&.delivery_parts&.sent&.in_delivery_order&.pick(:source_id).presence || anchor.source_id
+  end
+
+  def family_anchor_message(message)
+    edit_of = message.additional_attributes['edit_of']
+    return message if edit_of.blank?
+
+    message.inbox.messages.find_by(source_id: edit_of) || message
+  end
+
   # The anchor (the single real WhatsApp message) plus every edit mirror
   # pointing at it.
   def family(inbox, anchor_source_id)
@@ -40,6 +55,12 @@ module Waha::Anchoring
   # the only ones containing "@") and take what's left — see STANZA_SQL.
   def stanza_of(source_id)
     source_id.to_s.split('_').reject { |part| part.include?('@') }.last
+  end
+
+  # Full WAHA ids start with direction_chatJid_...; group ids can also end in a
+  # participant JID, so the first JID-shaped segment is always the chat.
+  def chat_jid_of(source_id)
+    source_id.to_s.split('_').find { |part| part.include?('@') }
   end
 
   # Every message matching a source_id's stanza, as a relation so callers can

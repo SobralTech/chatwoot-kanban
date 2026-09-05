@@ -49,6 +49,21 @@ describe Waha::SendOnWahaService do
         .with(body: hash_including('reply_to' => original.source_id))
     end
 
+    it 'quotes the first confirmed part of a multipart message' do
+      quoted = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                source_id: 'true_5511888888888@c.us_FIRST')
+      attempt = WahaDeliveryAttempt.create!(channel: channel, message: quoted, chat_jid: contact_inbox.source_id, status: :sent)
+      attempt.delivery_parts.create!(position: 0, part_type: :text, status: :sent,
+                                     source_id: 'true_5511888888888@c.us_FIRST', external_id: 'FIRST')
+      attempt.delivery_parts.create!(position: 1, part_type: :text, status: :sent,
+                                     source_id: 'true_5511888888888@c.us_SECOND', external_id: 'SECOND')
+
+      described_class.new(message: create_reply(quoted)).perform
+
+      expect(WebMock).to have_requested(:post, 'https://waha.test/api/sendText')
+        .with(body: hash_including('reply_to' => 'true_5511888888888@c.us_FIRST'))
+    end
+
     it 'sends no replyTo when the message is not a reply' do
       message = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
                                  message_type: :outgoing, content: 'plain text')
@@ -234,7 +249,7 @@ describe Waha::SendOnWahaService do
       WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
                                   status: :pending, attempt_count: Waha::SendOnWahaService::MAX_SEND_ATTEMPTS - 1)
 
-      described_class.new(message: message, skip_presence: true).perform
+      Waha::DeliverJob.perform_now(message.id)
 
       expect(message.reload).to have_attributes(status: 'failed', source_id: nil)
       expect(WahaDeliveryAttempt.find_by(message: message).status).to eq('failed')
@@ -252,7 +267,7 @@ describe Waha::SendOnWahaService do
     it 'does not call WAHA a second time when another execution already claimed the attempt' do
       WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us', status: :sending)
 
-      described_class.new(message: message, skip_presence: true).perform
+      Waha::DeliverJob.perform_now(message.id)
 
       expect(a_request(:post, 'https://waha.test/api/sendText')).not_to have_been_made
       expect(message.reload).to have_attributes(source_id: nil)
@@ -317,6 +332,138 @@ describe Waha::SendOnWahaService do
 
         expect(message.reload.source_id).to be_nil
       end
+    end
+  end
+
+  describe '#perform multipart delivery' do
+    let(:message) do
+      create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                       message_type: :outgoing, content: 'hello with files')
+    end
+    let!(:image) do
+      message.attachments.create!(account: channel.account, file_type: :image,
+                                  file: fixture_file_upload(Rails.root.join('spec/assets/sample.png'), 'image/png'))
+    end
+    let!(:document) do
+      message.attachments.create!(account: channel.account, file_type: :file,
+                                  file: fixture_file_upload(Rails.root.join('spec/assets/sample.pdf'), 'application/pdf'))
+    end
+
+    before do
+      allow(image).to receive(:download_url).and_return('https://chatwoot.test/image.png')
+      allow(document).to receive(:download_url).and_return('https://chatwoot.test/sample.pdf')
+      stub_request(:get, %r{https://waha\.test/api/.+/new-message-id}).to_return(
+        { status: 200, body: { id: 'PART-TEXT' }.to_json, headers: { 'Content-Type' => 'application/json' } },
+        { status: 200, body: { id: 'PART-IMAGE' }.to_json, headers: { 'Content-Type' => 'application/json' } },
+        { status: 200, body: { id: 'PART-FILE' }.to_json, headers: { 'Content-Type' => 'application/json' } }
+      )
+    end
+
+    it 'sends text then every eligible attachment and checkpoints each part in that order' do
+      dispatch_order = []
+      stub_request(:post, 'https://waha.test/api/sendText').to_return do
+        dispatch_order << :text
+        { status: 201, body: { id: 'true_5511888888888@c.us_TEXT-1' }.to_json,
+          headers: { 'Content-Type' => 'application/json' } }
+      end
+      stub_request(:post, 'https://waha.test/api/sendImage').to_return do
+        dispatch_order << :image
+        { status: 201, body: { id: 'true_5511888888888@c.us_IMAGE-2' }.to_json,
+          headers: { 'Content-Type' => 'application/json' } }
+      end
+      stub_request(:post, 'https://waha.test/api/sendFile').to_return do
+        dispatch_order << :file
+        { status: 201, body: { id: 'true_5511888888888@c.us_FILE-3' }.to_json,
+          headers: { 'Content-Type' => 'application/json' } }
+      end
+
+      described_class.new(message: message).perform
+
+      attempt = WahaDeliveryAttempt.find_by!(message: message)
+      expect(dispatch_order).to eq(%i[text image file])
+      expect(attempt).to have_attributes(status: 'sent', external_id: 'TEXT-1')
+      expect(attempt.delivery_parts.in_delivery_order.pluck(:position, :part_type, :status, :client_message_id, :external_id)).to eq(
+        [[0, 'text', 'sent', 'PART-TEXT', 'TEXT-1'],
+         [1, 'attachment', 'sent', 'PART-IMAGE', 'IMAGE-2'],
+         [2, 'attachment', 'sent', 'PART-FILE', 'FILE-3']]
+      )
+      expect(WahaMessageMapping.where(message: message).order(:part).pluck(:part, :external_id)).to eq(
+        [[0, 'TEXT-1'], [1, 'IMAGE-2'], [2, 'FILE-3']]
+      )
+      expect(message.reload.source_id).to eq('true_5511888888888@c.us_TEXT-1')
+    end
+
+    it 'resumes at the failed part without resending confirmed text' do
+      stub_request(:post, 'https://waha.test/api/sendText')
+        .to_return(status: 201, body: { id: 'true_5511888888888@c.us_TEXT-1' }.to_json,
+                   headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, 'https://waha.test/api/sendImage').to_return(
+        { status: 503, body: { message: 'temporarily unavailable' }.to_json, headers: { 'Content-Type' => 'application/json' } },
+        { status: 201, body: { id: 'true_5511888888888@c.us_IMAGE-2' }.to_json,
+          headers: { 'Content-Type' => 'application/json' } }
+      )
+      stub_request(:post, 'https://waha.test/api/sendFile')
+        .to_return(status: 201, body: { id: 'true_5511888888888@c.us_FILE-3' }.to_json,
+                   headers: { 'Content-Type' => 'application/json' })
+
+      expect { described_class.new(message: message).perform }.to have_enqueued_job(Waha::DeliverJob).with(message.id)
+
+      attempt = WahaDeliveryAttempt.find_by!(message: message)
+      expect(attempt).to have_attributes(status: 'pending', attempt_count: 1, last_error: include('503'))
+      expect(attempt.delivery_parts.in_delivery_order.pluck(:status)).to eq(%w[sent pending pending])
+
+      Waha::DeliverJob.perform_now(message.id)
+
+      expect(a_request(:post, 'https://waha.test/api/sendText')).to have_been_made.once
+      expect(a_request(:post, 'https://waha.test/api/sendImage')).to have_been_made.twice
+      expect(a_request(:post, 'https://waha.test/api/sendFile')).to have_been_made.once
+      expect(attempt.reload).to have_attributes(status: 'sent', attempt_count: 2, last_error: nil)
+    end
+
+    it 'keeps an exhausted partial failure visible and resumable by a manual retry' do
+      stub_request(:post, 'https://waha.test/api/sendText')
+        .to_return(status: 201, body: { id: 'true_5511888888888@c.us_TEXT-1' }.to_json,
+                   headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, 'https://waha.test/api/sendImage').to_return(
+        { status: 503, body: { message: 'temporarily unavailable' }.to_json, headers: { 'Content-Type' => 'application/json' } },
+        { status: 503, body: { message: 'still unavailable' }.to_json, headers: { 'Content-Type' => 'application/json' } },
+        { status: 201, body: { id: 'true_5511888888888@c.us_IMAGE-2' }.to_json,
+          headers: { 'Content-Type' => 'application/json' } }
+      )
+      stub_request(:post, 'https://waha.test/api/sendFile')
+        .to_return(status: 201, body: { id: 'true_5511888888888@c.us_FILE-3' }.to_json,
+                   headers: { 'Content-Type' => 'application/json' })
+
+      described_class.new(message: message).perform
+      attempt = WahaDeliveryAttempt.find_by!(message: message)
+      attempt.update!(attempt_count: described_class::MAX_SEND_ATTEMPTS - 1)
+      described_class.new(message: message, skip_presence: true).perform
+
+      expect(message.reload).to have_attributes(status: 'failed', source_id: 'true_5511888888888@c.us_TEXT-1')
+      expect(attempt.reload).to have_attributes(status: 'failed', last_error: include('503'))
+      expect(attempt.delivery_parts.in_delivery_order.pluck(:status)).to eq(%w[sent pending pending])
+
+      Waha::DeliverJob.perform_now(message.id)
+
+      expect(a_request(:post, 'https://waha.test/api/sendText')).to have_been_made.once
+      expect(attempt.reload.status).to eq('sent')
+      expect(message.reload).to have_attributes(status: 'sent', external_error: nil)
+    end
+
+    it 'keeps a single attachment with text as one captioned WhatsApp message' do
+      document.destroy!
+      stub_request(:get, %r{https://waha\.test/api/.+/new-message-id})
+        .to_return(status: 200, body: { id: 'ONLY-IMAGE' }.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, 'https://waha.test/api/sendImage')
+        .to_return(status: 201, body: { id: 'true_5511888888888@c.us_ONLY-IMAGE' }.to_json,
+                   headers: { 'Content-Type' => 'application/json' })
+
+      described_class.new(message: message.reload).perform
+
+      expect(a_request(:post, 'https://waha.test/api/sendText')).not_to have_been_made
+      expect(WebMock).to have_requested(:post, 'https://waha.test/api/sendImage')
+        .with(body: hash_including('caption' => 'hello with files', 'id' => 'ONLY-IMAGE'))
+      expect(WahaDeliveryAttempt.find_by!(message: message).delivery_parts.count).to eq(1)
     end
   end
 end

@@ -1,7 +1,7 @@
 # Shared plumbing for the agent-initiated actions we push to WhatsApp (edit,
-# delete, reaction). All three target the family anchor rather than the mirror
-# the agent clicked, and all three apply locally only when the matching webhook
-# round-trips back.
+# delete, reaction). Replies, edits and reactions use the deterministic family
+# anchor; delete can expand a multipart send to every confirmed external part.
+# All three apply locally only when the matching webhook round-trips back.
 class Waha::BaseMessageActionService
   private
 
@@ -43,11 +43,16 @@ class Waha::BaseMessageActionService
   end
 
   def anchor_source_id
-    Waha::Anchoring.anchor_source_id(message)
+    Waha::Anchoring.external_anchor_source_id(message)
   end
 
   def message_path
     "#{channel.session_name}/chats/#{chat_id}/messages/#{anchor_source_id}"
+  end
+
+  def message_paths
+    sources = anchor_message.waha_delivery_attempt&.delivery_parts&.sent&.in_delivery_order&.pluck(:source_id)
+    Array(sources.presence || anchor_source_id).map { |source_id| "#{channel.session_name}/chats/#{chat_id}/messages/#{source_id}" }
   end
 
   def chat_id

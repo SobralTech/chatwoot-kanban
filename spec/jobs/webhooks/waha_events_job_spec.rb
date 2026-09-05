@@ -141,6 +141,24 @@ describe Webhooks::WahaEventsJob do
     end
   end
 
+  describe 'multipart event correlation' do
+    it 'applies an ack for any mapped part to the aggregate Chatwoot message' do
+      outgoing = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                  message_type: :outgoing, source_id: 'true_5511888888888@c.us_FIRST', status: :sent)
+      WahaMessageMapping.create_canonical!(channel: channel, message: outgoing, chat_jid: contact_inbox.source_id,
+                                           external_id: 'SECOND', direction: :outgoing, part: 1)
+      params = {
+        'session' => channel.session_name,
+        'event' => 'message.ack',
+        'payload' => { 'id' => 'true_5511888888888@c.us_SECOND', 'ack' => 2 }
+      }
+
+      described_class.perform_now(channel.id, params)
+
+      expect(outgoing.reload.status).to eq('delivered')
+    end
+  end
+
   describe 'session isolation' do
     it 'does not route an event without a session' do
       params = media_message_params.except('session')

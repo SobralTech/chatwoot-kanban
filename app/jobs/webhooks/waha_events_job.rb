@@ -296,7 +296,11 @@ class Webhooks::WahaEventsJob < ApplicationJob
   end
 
   def find_message_by_source_id(channel, source_id)
-    Waha::Anchoring.by_stanza(channel.inbox, source_id).first
+    stanza = Waha::Anchoring.stanza_of(source_id)
+    chat_jid = Waha::Anchoring.chat_jid_of(source_id)
+    mapping = channel.message_mappings.find_by(chat_jid: chat_jid, external_id: stanza, event_type: :message) if chat_jid
+    mapping&.message ||
+      Waha::Anchoring.by_stanza(channel.inbox, source_id).first
   end
 end
 # rubocop:enable Metrics/ClassLength
