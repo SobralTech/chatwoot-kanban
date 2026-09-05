@@ -92,18 +92,10 @@ class Waha::ReplyContextResolver
   def resolve_participant(jid)
     return if jid.blank?
 
-    contact = find_contact(jid)
-    return contact.name if contact&.name.present?
+    name = Waha::ParticipantResolver.new(channel: channel, jid: jid).perform.name
+    return name if name.present?
 
     Waha::Jid.lid?(jid) ? jid : "+#{Waha::Jid.digits(jid)}"
-  end
-
-  def find_contact(jid)
-    if Waha::Jid.lid?(jid)
-      channel.account.contacts.where("additional_attributes->>'lid' = ?", jid).first
-    else
-      channel.account.contacts.find_by(phone_number: "+#{Waha::Jid.digits(jid)}")
-    end
   end
 
   def inbox

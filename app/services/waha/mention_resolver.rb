@@ -3,25 +3,25 @@ class Waha::MentionResolver
 
   # WhatsApp mentions arrive as a raw "@<lid or phone digits>" token in the body
   # text, resolvable via the message's own mentionedJID list. Resolves each to a
-  # Chatwoot contact (creating it if new, same as any other WAHA contact) and
-  # swaps in its name.
+  # readable name — a mentioned participant needs no Chatwoot identity of their
+  # own — and swaps it in.
   def resolve(body)
     return body if body.blank?
 
     mentioned_jids.reduce(body) do |text, jid|
-      contact = resolve_mentioned_contact(jid)
-      next text unless contact
+      name = resolve_mentioned_name(jid)
+      next text if name.blank?
 
-      text.gsub("@#{Waha::Jid.digits(jid)}", "@#{contact.name}")
+      text.gsub("@#{Waha::Jid.digits(jid)}", "@#{name}")
     end
   end
 
   private
 
-  # Swapping in the mentioned contact's name is a display enrichment; a failure
+  # Swapping in the mentioned person's name is a display enrichment; a failure
   # to resolve one mention must not block the rest of the message.
-  def resolve_mentioned_contact(jid)
-    Waha::ContactResolver.new(channel: channel, jid: jid).perform&.contact
+  def resolve_mentioned_name(jid)
+    Waha::ParticipantResolver.new(channel: channel, jid: jid).perform.name
   rescue StandardError => e
     Rails.logger.error "[WAHA] mention resolution failed for #{jid}: #{e.message}"
     nil

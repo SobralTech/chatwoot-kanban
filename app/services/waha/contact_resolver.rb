@@ -26,31 +26,52 @@ class Waha::ContactResolver
     return resolve_group if Waha::Jid.group?(jid)
 
     identity = resolve_identity
-    contact_attributes = build_contact_attributes(identity[:jid], identity[:lid]) unless identity_candidates(identity).any?
+    existing = identity_candidates(identity)
+    # Both of these read the WAHA session, so they run before the transaction
+    # opens instead of holding the alias locks across an HTTP call.
+    attributes = existing.empty? ? build_contact_attributes(identity[:jid], identity[:lid]) : nil
+    enrichment = existing.one? ? build_enrichment(existing.first.contact, identity) : {}
 
+    contact_inbox = upsert_contact_inbox(identity, attributes, enrichment)
+    attach_avatar!(contact_inbox.contact, enrichment[:avatar_url]) unless @alias_conflict
+    contact_inbox
+  end
+
+  private
+
+  def upsert_contact_inbox(identity, contact_attributes, enrichment)
     ActiveRecord::Base.transaction do
       lock_aliases!(identity[:aliases])
       contact_inbox = find_or_create_contact_inbox(identity, contact_attributes)
       unless @alias_conflict
         attach_aliases!(contact_inbox, identity[:aliases])
         promote_phone_identity!(contact_inbox, identity)
-        enrich_alias_metadata!(contact_inbox.contact, identity)
+        enrich_contact!(contact_inbox.contact, identity, enrichment)
       end
       contact_inbox
     end
   end
 
-  private
-
   def resolve_group
     existing = channel.inbox.contact_inboxes.find_by(source_id: jid)
-    return existing if existing
+    return enrich_group(existing) if existing
 
     ::ContactInboxWithContactBuilder.new(
       source_id: jid,
       inbox: channel.inbox,
       contact_attributes: build_contact_attributes(jid)
     ).perform
+  end
+
+  # Same rule as a person: locating the group's ContactInbox doesn't end the
+  # flow. A group first seen while the session couldn't answer picks up its real
+  # subject and picture on the next message.
+  def enrich_group(contact_inbox)
+    contact = contact_inbox.contact
+    name = fetch_group_name(jid) if Waha::ContactNaming.fallback_name?(contact.name)
+    contact.update!(name: name) if name.present?
+    attach_avatar!(contact, fetch_chat_picture(jid)) unless contact.avatar.attached?
+    contact_inbox
   end
 
   def resolve_identity
@@ -159,24 +180,78 @@ class Waha::ContactResolver
     log_alias_conflict([contact_inbox], e)
   end
 
-  # rubocop:disable Metrics/AbcSize
-  def enrich_alias_metadata!(contact, identity)
-    phone = phone_from_jid(identity[:jid])
-    attributes = contact.additional_attributes.merge('jid' => identity[:jid])
-    custom_attributes = contact.custom_attributes
-    if identity[:lid].present?
-      ensure_lid_attribute_definition
-      attributes['lid'] = identity[:lid]
-      custom_attributes = custom_attributes.merge(LID_ATTRIBUTE_KEY => identity[:lid])
-    end
-
-    updates = { additional_attributes: attributes, custom_attributes: custom_attributes }
-    updates[:phone_number] = "+#{phone}" if contact.phone_number.blank? && phone.present?
+  def enrich_contact!(contact, identity, enrichment)
+    name = upgraded_name(contact, enrichment)
+    updates = {
+      additional_attributes: identity_attributes(contact, identity, (enrichment[:source] if name)),
+      custom_attributes: lid_custom_attributes(contact, identity),
+      name: name,
+      phone_number: missing_phone(contact, identity)
+    }.compact
     contact.update!(updates) if updates.any? { |key, value| contact.public_send(key) != value }
   rescue ActiveRecord::RecordInvalid => e
     log_alias_conflict(contact.contact_inboxes.where(inbox: channel.inbox).to_a, e)
   end
-  # rubocop:enable Metrics/AbcSize
+
+  # The ranking decided before the transaction is re-checked against whichever
+  # contact actually won the alias lock, so a concurrent resolution can never
+  # make us downgrade a name.
+  def upgraded_name(contact, enrichment)
+    return if enrichment[:name].blank?
+    return unless Waha::ContactNaming.better?(enrichment[:source], than: Waha::ContactNaming.source_of(contact))
+
+    enrichment[:name]
+  end
+
+  def identity_attributes(contact, identity, name_source)
+    attributes = contact.additional_attributes.merge('jid' => identity[:jid])
+    attributes['lid'] = identity[:lid] if identity[:lid].present?
+    attributes[Waha::ContactNaming::SOURCE_KEY] = name_source if name_source
+    attributes
+  end
+
+  def missing_phone(contact, identity)
+    return if contact.phone_number.present?
+
+    formatted_phone(identity[:jid])
+  end
+
+  def lid_custom_attributes(contact, identity)
+    return contact.custom_attributes if identity[:lid].blank?
+
+    ensure_lid_attribute_definition
+    contact.custom_attributes.merge(LID_ATTRIBUTE_KEY => identity[:lid])
+  end
+
+  # Finding a ContactInbox must not end the flow: a contact first seen as a bare
+  # phone number, or created while the session couldn't answer, has to pick up a
+  # real name and an avatar as soon as WAHA offers them. Both lookups swallow
+  # their own failures, and neither ever replaces data that is already as good.
+  def build_enrichment(contact, identity)
+    enrichment = name_enrichment(contact, identity)
+    # Missing-only, like the contact's phone number: an avatar already on the
+    # contact (WAHA's or one an agent uploaded) is never overwritten.
+    enrichment[:avatar_url] = fetch_chat_picture(jid) unless contact.avatar.attached?
+    enrichment.compact
+  end
+
+  def name_enrichment(contact, identity)
+    current_source = Waha::ContactNaming.source_of(contact)
+    # Nothing below the push name can improve on what we have, so we don't spend
+    # a WAHA call per message on a contact that is already properly named.
+    return {} unless Waha::ContactNaming.better?('push', than: current_source)
+
+    name, source = dm_name(identity[:jid], formatted_phone(identity[:jid]))
+    return {} unless Waha::ContactNaming.better?(source, than: current_source)
+
+    { name: name, source: source }
+  end
+
+  def attach_avatar!(contact, avatar_url)
+    return if avatar_url.blank?
+
+    ::Avatar::AvatarFromUrlJob.perform_later(contact, avatar_url)
+  end
 
   def log_alias_conflict(contact_inboxes, error = nil)
     Rails.logger.error(
@@ -194,12 +269,8 @@ class Waha::ContactResolver
 
   def dm_contact_attributes(resolved_jid, lid = nil)
     phone = phone_from_jid(resolved_jid)
-    # push_name only names the contact on incoming messages. On a fromMe message
-    # PushName is our own profile name, so we skip straight to the contacts
-    # lookup. History-synced messages carry no PushName at all (GOWS doesn't
-    # persist it per message), so that lookup is the common path there too.
-    name = (incoming? && push_name.presence) || fetch_contact_name(resolved_jid) || (phone ? "+#{phone}" : resolved_jid)
-    attrs = { name: name, additional_attributes: {} }
+    name, source = dm_name(resolved_jid, formatted_phone(resolved_jid))
+    attrs = { name: name, additional_attributes: { Waha::ContactNaming::SOURCE_KEY => source } }
     attrs[:phone_number] = "+#{phone}" if phone
     attrs[:avatar_url] = fetch_chat_picture(jid)
     attrs[:additional_attributes][:jid] = resolved_jid
@@ -238,12 +309,32 @@ class Waha::ContactResolver
     fetch("groups/#{group_jid}", 'subject', 'Name')
   end
 
+  # Direct-conversation naming priority, best evidence first: the name WAHA's
+  # contacts registry holds for this person, the push name this event carried,
+  # the profile name the registry knows, the formatted phone number and, last,
+  # the raw JID.
+  # push_name is read only on an incoming message: on a fromMe message the
+  # PushName field holds our *own* session profile, so trusting it would rename
+  # the contact to the business.
+  def dm_name(resolved_jid, phone)
+    profile = fetch_contact_profile(resolved_jid)
+    return [profile['name'], 'contact'] if profile['name'].present?
+    return [push_name, 'push'] if incoming? && push_name.present?
+    return [profile['pushname'], 'push'] if profile['pushname'].present?
+    return [phone, 'phone'] if phone.present?
+
+    [resolved_jid, 'jid']
+  end
+
   # WAHA's own contact profile cache — populated from the phone's address book
   # and WhatsApp presence data independently of any single message, so it has
   # a name even when the triggering message's own PushName is blank (the norm
-  # for history-synced messages).
-  def fetch_contact_name(contact_jid)
-    fetch("contacts/#{contact_jid}", 'pushname', 'name')
+  # for history-synced messages). GOWS answers {id, name, pushname}.
+  def fetch_contact_profile(contact_jid)
+    response = http_client.get("#{channel.session_name}/contacts/#{contact_jid}")
+    response.is_a?(Hash) ? response : {}
+  rescue StandardError
+    {}
   end
 
   def fetch_chat_picture(chat_jid)
@@ -281,6 +372,11 @@ class Waha::ContactResolver
 
   def phone_from_jid(resolved_jid)
     resolved_jid.to_s.split('@').first if resolved_jid.to_s.include?('@c.us')
+  end
+
+  def formatted_phone(resolved_jid)
+    phone = phone_from_jid(resolved_jid)
+    "+#{phone}" if phone.present?
   end
 
   def http_client

@@ -49,6 +49,104 @@ describe Waha::ContactResolver do
     end
   end
 
+  # GOWS answers GET /api/{session}/contacts/{id} with {id, name, pushname}:
+  # `name` is the address-book/verified name, `pushname` the WhatsApp profile one.
+  describe 'name priority and enrichment' do
+    let(:jid) { '5511888888888@c.us' }
+
+    def stub_contact_registry(body)
+      stub_request(:get, "https://waha.test/api/#{channel.session_name}/contacts/#{jid}")
+        .to_return(status: 200, body: body.to_json, headers: { 'Content-Type' => 'application/json' })
+    end
+
+    before do
+      stub_request(:get, %r{https://waha\.test/api/.*}).to_return(status: 404, body: '{}')
+      stub_request(:get, "https://waha.test/api/#{channel.session_name}/lids/pn/#{jid}")
+        .to_return(status: 200, body: { lid: nil, pn: jid }.to_json, headers: { 'Content-Type' => 'application/json' })
+    end
+
+    context 'when the contact is new' do
+      it 'prefers the contacts registry name over the push name of the event' do
+        stub_contact_registry(id: jid, name: 'Maria Silva', pushname: 'mari')
+
+        contact = resolver(jid: jid).perform.contact
+
+        expect(contact).to have_attributes(name: 'Maria Silva', phone_number: '+5511888888888')
+        expect(contact.additional_attributes).to include('waha_name_source' => 'contact')
+      end
+
+      it 'falls back to the push name of the event when the registry has no address-book name' do
+        stub_contact_registry(id: jid, name: nil, pushname: 'mari')
+
+        contact = resolver(jid: jid, push_name: 'Jane Doe').perform.contact
+
+        expect(contact).to have_attributes(name: 'Jane Doe')
+        expect(contact.additional_attributes).to include('waha_name_source' => 'push')
+      end
+
+      it 'falls back to the formatted phone number when neither the registry nor the event names the contact' do
+        stub_contact_registry(id: jid, name: nil, pushname: nil)
+
+        contact = resolver(jid: jid, push_name: nil).perform.contact
+
+        expect(contact).to have_attributes(name: '+5511888888888')
+        expect(contact.additional_attributes).to include('waha_name_source' => 'phone')
+      end
+
+      it 'never names the contact after the session business profile on a fromMe message' do
+        stub_contact_registry(id: jid, name: nil, pushname: nil)
+
+        contact = resolver(jid: jid, push_name: 'Loja do Zé', from_me: true).perform.contact
+
+        expect(contact.name).to eq('+5511888888888')
+      end
+    end
+
+    context 'when the contact already exists' do
+      it 'upgrades an incomplete contact with the registry name, the phone number and the avatar' do
+        contact = create(:contact, account: channel.account, name: '+5511888888888', phone_number: nil)
+        create(:contact_inbox, inbox: channel.inbox, contact: contact, source_id: jid)
+        stub_contact_registry(id: jid, name: 'Maria Silva', pushname: 'mari')
+        stub_request(:get, "https://waha.test/api/#{channel.session_name}/chats/#{jid}/picture")
+          .to_return(status: 200, body: { url: 'https://waha.test/avatar.jpg' }.to_json, headers: { 'Content-Type' => 'application/json' })
+        allow(Avatar::AvatarFromUrlJob).to receive(:perform_later)
+
+        resolver(jid: jid).perform
+
+        expect(contact.reload).to have_attributes(name: 'Maria Silva', phone_number: '+5511888888888')
+        expect(contact.additional_attributes).to include('jid' => jid, 'waha_name_source' => 'contact')
+        expect(Avatar::AvatarFromUrlJob).to have_received(:perform_later).with(contact, 'https://waha.test/avatar.jpg')
+      end
+
+      it 'keeps a name that is already trusted and does not spend a registry lookup on it' do
+        contact = create(:contact, account: channel.account, name: 'Maria (cliente VIP)', phone_number: '+5511888888888')
+        create(:contact_inbox, inbox: channel.inbox, contact: contact, source_id: jid)
+        stub_contact_registry(id: jid, name: 'Maria Silva', pushname: 'mari')
+
+        resolver(jid: jid).perform
+
+        expect(contact.reload.name).to eq('Maria (cliente VIP)')
+        expect(a_request(:get, "https://waha.test/api/#{channel.session_name}/contacts/#{jid}")).not_to have_been_made
+      end
+    end
+
+    context 'when the chat is a group' do
+      let(:group_jid) { '120363000000000000@g.us' }
+
+      it 'enriches an existing group left with its raw JID as the name' do
+        contact = create(:contact, account: channel.account, name: group_jid)
+        create(:contact_inbox, inbox: channel.inbox, contact: contact, source_id: group_jid)
+        stub_request(:get, "https://waha.test/api/#{channel.session_name}/groups/#{group_jid}")
+          .to_return(status: 200, body: { Name: 'Família' }.to_json, headers: { 'Content-Type' => 'application/json' })
+
+        resolver(jid: group_jid).perform
+
+        expect(contact.reload.name).to eq('Família')
+        expect(channel.contact_aliases).to be_empty
+      end
+    end
+  end
+
   describe 'LID, phone JID and phone aliases' do
     let(:lid) { '111222333@lid' }
     let(:jid) { '5511888888888@c.us' }
@@ -74,6 +172,7 @@ describe Waha::ContactResolver do
       stub_request(:get, "https://waha.test/api/#{channel.session_name}/lids/pn/#{jid}")
         .to_return(status: 200, body: { lid: lid, pn: jid }.to_json, headers: { 'Content-Type' => 'application/json' })
       stub_request(:get, %r{https://waha\.test/api/.*/picture}).to_return(status: 404, body: '{}')
+      stub_request(:get, %r{https://waha\.test/api/.*/contacts/.*}).to_return(status: 404, body: '{}')
 
       Waha::IncomingMessageService.new(channel: channel, payload: payload(id: 'LID01', chat: lid)).perform
       original_contact = channel.account.contacts.sole
