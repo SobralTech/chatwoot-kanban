@@ -1,0 +1,55 @@
+{
+  "id": "false_5511888888888@c.us_3EB0B2C3D4E5F6071829",
+  "timestamp": 1757001500,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": null,
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": {
+    "live": true,
+    "latitude": "-23.561414",
+    "longitude": "-46.655881",
+    "description": "estou a caminho",
+    "thumbnail": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA=="
+  },
+  "vCards": null,
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0B2C3D4E5F6071829",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:25:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "liveLocationMessage": {
+        "degreesLatitude": -23.561414,
+        "degreesLongitude": -46.655881,
+        "accuracyInMeters": 12,
+        "speedInMps": 4.5,
+        "degreesClockwiseFromMagneticNorth": 187,
+        "caption": "estou a caminho",
+        "sequenceNumber": "1757001500000",
+        "timeOffset": 0,
+        "JPEGThumbnail": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA==",
+        "contextInfo": {
+          "expiration": 0
+        }
+      }
+    },
+    "Status": 1
+  }
+}

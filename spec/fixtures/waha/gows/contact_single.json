@@ -1,0 +1,44 @@
+{
+  "id": "false_5511888888888@c.us_3EB0E5F6071829304152",
+  "timestamp": 1757002400,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": null,
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "location": null,
+  "vCards": [
+    "BEGIN:VCARD\nVERSION:3.0\nN:;Carlos Lima;;;\nFN:Carlos Lima\nTEL;type=CELL;type=VOICE;waid=5511955554444:+55 11 95555-4444\nTEL;type=WORK;type=VOICE:+55 11 3333-2222\nEND:VCARD"
+  ],
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0E5F6071829304152",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:40:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "contactMessage": {
+        "displayName": "Carlos Lima",
+        "vcard": "BEGIN:VCARD\nVERSION:3.0\nN:;Carlos Lima;;;\nFN:Carlos Lima\nTEL;type=CELL;type=VOICE;waid=5511955554444:+55 11 95555-4444\nTEL;type=WORK;type=VOICE:+55 11 3333-2222\nEND:VCARD",
+        "contextInfo": {
+          "expiration": 0
+        }
+      }
+    },
+    "Status": 1
+  }
+}

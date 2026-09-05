@@ -1,5 +1,8 @@
 class Waha::ReplyContextResolver
   PREVIEW_LENGTH = 140
+  # Waha::MediaAttacher's engine-aware kinds, mapped onto the attachment file
+  # types the ghost quote labels ("Photo", "Audio", ...).
+  QUOTED_MEDIA_TYPES = { 'image' => 'image', 'sticker' => 'image', 'audio' => 'audio', 'video' => 'video', 'document' => 'file' }.freeze
 
   pattr_initialize [:channel!, :payload!, :conversation!]
 
@@ -69,10 +72,32 @@ class Waha::ReplyContextResolver
       in_reply_to_external_id: stanza,
       in_reply_to_snapshot: {
         body: payload.dig('replyTo', 'body'),
-        author: resolve_participant(payload.dig('replyTo', 'participant')),
-        media_type: ('file' if payload.dig('replyTo', 'hasMedia'))
+        author: snapshot_author,
+        media_type: quoted_media_type
       }.compact
     }
+  end
+
+  # A status reply quotes a story this inbox never imports, so the ghost quote
+  # is the only place the agent sees it: label it so the quote is not mistaken
+  # for an ordinary earlier message from the same person.
+  def snapshot_author
+    author = resolve_participant(payload.dig('replyTo', 'participant'))
+    return author unless Waha::StatusContext.reply_to_status?(payload)
+    return I18n.t('conversations.messages.waha_status_reply.quoted_author_unknown') if author.blank?
+
+    I18n.t('conversations.messages.waha_status_reply.quoted_author', author: author)
+  end
+
+  # GOWS puts the quoted message's own proto under `replyTo._data`, so quoted
+  # media can be labelled precisely instead of as a generic file.
+  def quoted_media_type
+    return nil unless payload.dig('replyTo', 'hasMedia')
+
+    quoted = payload.dig('replyTo', '_data')
+    quoted = {} unless quoted.is_a?(Hash)
+    kind = Waha::MediaAttacher::DATA_MESSAGE_KINDS.find { |key, _| quoted[key].present? }&.last
+    QUOTED_MEDIA_TYPES.fetch(kind, 'file')
   end
 
   def snapshot_of(message)
