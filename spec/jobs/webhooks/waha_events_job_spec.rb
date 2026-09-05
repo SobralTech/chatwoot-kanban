@@ -261,6 +261,51 @@ describe Webhooks::WahaEventsJob do
     end
   end
 
+  describe 'delivery acks' do
+    let(:group_contact_inbox) do
+      create(:contact_inbox, inbox: inbox, source_id: '1203630000@g.us', contact: create(:contact, account: channel.account))
+    end
+    let(:group_conversation) do
+      create(:conversation, account: channel.account, inbox: inbox, contact: group_contact_inbox.contact,
+                            contact_inbox: group_contact_inbox)
+    end
+
+    def ack_params(event:, payload:)
+      { 'session' => channel.session_name, 'event' => event, 'payload' => payload }
+    end
+
+    it 'keeps an ack that arrives before its message pending and reapplies it once the message lands' do
+      params = ack_params(event: 'message.ack', payload: { 'id' => 'true_5511888888888@c.us_LATE01', 'ack' => 3 })
+
+      expect { described_class.perform_now(channel.id, params) }
+        .to have_enqueued_job(described_class)
+        .with(channel.id, params, 1)
+        .at(a_value_within(1.second).of(described_class::ACK_RETRY_DELAY.from_now))
+
+      outgoing = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                  message_type: :outgoing, status: :sent, source_id: 'true_5511888888888@c.us_LATE01')
+      described_class.perform_now(channel.id, params, 1)
+
+      expect(outgoing.reload.status).to eq('read')
+    end
+
+    it 'routes a group ack to the message the participant read' do
+      outgoing = create(:message, conversation: group_conversation, inbox: inbox, account: channel.account,
+                                  message_type: :outgoing, status: :sent,
+                                  source_id: 'true_1203630000@g.us_GRP001_5511999999999@c.us')
+      params = ack_params(
+        event: 'message.ack.group',
+        payload: { 'id' => 'true_1203630000@g.us_GRP001_5511999999999@c.us', 'from' => '1203630000@g.us',
+                   'to' => '5511777777777@c.us', 'participant' => '5511777777777@c.us', 'fromMe' => true, 'ack' => 3 }
+      )
+
+      described_class.perform_now(channel.id, params)
+
+      expect(outgoing.reload.status).to eq('read')
+      expect(outgoing.content_attributes['waha_group_acks']).to eq('5511777777777@c.us' => 'read')
+    end
+  end
+
   describe 'session isolation' do
     it 'does not route an event without a session' do
       params = media_message_params.except('session')

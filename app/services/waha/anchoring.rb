@@ -63,6 +63,21 @@ module Waha::Anchoring
     source_id.to_s.split('_').find { |part| part.include?('@') }
   end
 
+  # The one way to go from a WAHA message id back to the Chatwoot message it
+  # mirrors. The canonical mapping is the primary correlation (it also covers
+  # the non-anchor parts of a multipart send); the stanza scan is the fallback
+  # for rows written before the mapping existed. Both are scoped by chat so a
+  # stanza that repeats across chats can never resolve to the wrong conversation.
+  def find_message(channel, source_id, chat_jid = nil)
+    chat_jid ||= chat_jid_of(source_id)
+    mapping = WahaMessageMapping.find_mapping(channel: channel, chat_jid: chat_jid, external_id: stanza_of(source_id))
+    return mapping.message if mapping
+
+    messages = by_stanza(channel.inbox, source_id)
+    messages = messages.where("split_part(source_id, '_', 2) = ?", chat_jid) if chat_jid
+    messages.first
+  end
+
   # Every message matching a source_id's stanza, as a relation so callers can
   # pick the shape they need (exists?, first, conversation-scoped).
   def by_stanza(inbox, source_id)
