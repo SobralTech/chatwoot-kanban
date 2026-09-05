@@ -7,10 +7,16 @@ casing and nesting — is left exactly as GOWS emits it, because that shape is
 the contract the converters are written against:
 
 - message-type keys under `_data.Message` are lower camel case
-  (`locationMessage`, `contactsArrayMessage`, `extendedTextMessage`);
+  (`locationMessage`, `contactsArrayMessage`, `pollCreationMessage`,
+  `listMessage`, `eventMessage`);
 - fields whose proto name ends in an acronym keep it (`URL`, `JPEGThumbnail`,
   `remoteJID`, `stanzaID`, `mentionedJID`);
 - `_data.Info` uses the Go struct's own PascalCase (`Chat`, `PushName`);
 - WAHA additionally normalizes some of this into engine-agnostic top-level
   fields (`location`, `vCards`, `replyTo`), which the fixtures keep so the
   best-effort path for other engines is exercised too.
+
+`poll_vote.json` is the GOWS `poll.vote` webhook envelope. Its `payload.poll`
+uses the corrected poll-creation key emitted by the GOWS adapter and
+`payload.vote.selectedOptions` is the decrypted selection. Poll updates are
+separate from `message.any`, so both fixtures are part of the contract.

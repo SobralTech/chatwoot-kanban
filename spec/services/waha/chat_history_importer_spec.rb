@@ -252,10 +252,10 @@ describe Waha::ChatHistoryImporter do
     end
   end
 
-  context 'with an unsupported GOWS message type' do
+  context 'with a malformed GOWS structured message' do
     it 'writes a visible fallback instead of a blank historical message' do
-      # A real GOWS poll payload: no body, no media — see the equivalent live-path
-      # test in incoming_message_service_spec.rb for the same contract.
+      # The incomplete poll has no options. A complete pollCreationMessage is
+      # converted by Ticket 20; this keeps the invalid-payload fallback contract.
       unsupported_payload = {
         'id' => 'false_5511888888888@c.us_POLL001',
         'from' => chat_id,

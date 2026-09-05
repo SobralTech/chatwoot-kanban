@@ -6,4 +6,9 @@ module WahaSpecHelpers
     payload = JSON.parse(Rails.root.join("spec/fixtures/waha/gows/#{name}.json").read)
     payload.merge(overrides.deep_stringify_keys)
   end
+
+  def gows_event(name, overrides = {})
+    event = JSON.parse(Rails.root.join("spec/fixtures/waha/gows/#{name}.json").read)
+    event.merge(overrides.deep_stringify_keys)
+  end
 end

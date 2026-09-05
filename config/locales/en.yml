@@ -351,6 +351,28 @@ en:
         name: '🪪 %{name}'
         phone: '📞 %{phone}'
         unnamed: 'Unnamed contact'
+      waha_poll:
+        header: '📊 Poll'
+        selectable_options:
+          one: 'Select one option'
+          other: 'Select up to %{count} options'
+        option: '• %{option}'
+        observed_votes: 'Observed votes'
+        observed_vote:
+          one: '• %{option} — 1 vote'
+          other: '• %{option} — %{count} votes'
+      waha_list:
+        header: '📋 List'
+        response: 'List selection'
+        section: '%{title}'
+        option: '• %{title}%{description}'
+        selected: 'Selected: %{option}'
+      waha_event:
+        header: '📅 Event'
+        canceled: 'Canceled'
+        starts_at: 'Starts: %{time}'
+        ends_at: 'Ends: %{time}'
+        location: 'Location: %{location}'
       waha_status_reply:
         quoted_author: '%{author} · Status'
         quoted_author_unknown: 'Status'

@@ -57,6 +57,14 @@ RSpec.describe WahaMessageMapping do
     expect(edit).to be_valid
   end
 
+  it 'allows a poll vote event to use the poll message as its idempotency anchor' do
+    poll = build_mapping
+    poll.save!
+    vote = build_mapping(event_type: :poll_vote, message: poll.message)
+
+    expect(vote).to be_valid
+  end
+
   describe '.record!' do
     it 'creates a mapping row for the given attributes' do
       message = build_message(source_id: 'false_5511888888888@c.us_AAA111')

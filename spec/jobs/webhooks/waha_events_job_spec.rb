@@ -261,6 +261,40 @@ describe Webhooks::WahaEventsJob do
     end
   end
 
+  describe 'GOWS poll votes' do
+    it 'updates the matching poll in its conversation without creating a second poll and is idempotent on redelivery' do
+      conversation
+      poll = Waha::IncomingMessageService.new(channel: channel, payload: gows_payload('poll_creation')).perform
+      params = gows_event('poll_vote')
+      params['session'] = channel.session_name
+
+      expect { described_class.perform_now(channel.id, params) }.not_to change(Message, :count)
+
+      expect(poll.reload.content).to include("Observed votes\n• Terça-feira — 1 vote")
+      expect(poll.content_attributes['poll_votes']).to eq(
+        '5511888888888@c.us' => { 'selected_options' => ['Terça-feira'], 'timestamp' => 1_762_358_460_000 }
+      )
+      expect(WahaMessageMapping.find_by!(message: poll, event_type: :poll_vote)).to have_attributes(
+        external_id: 'VOTE01', chat_jid: contact_inbox.source_id, direction: 'incoming'
+      )
+
+      described_class.perform_now(channel.id, params)
+
+      expect(Message.where(conversation: conversation).count).to eq(1)
+      expect(WahaMessageMapping.where(message: poll, event_type: :poll_vote).count).to eq(1)
+    end
+
+    it 'keeps a vote pending when its poll has not been persisted yet' do
+      params = gows_event('poll_vote')
+      params['session'] = channel.session_name
+
+      expect { described_class.perform_now(channel.id, params) }
+        .to have_enqueued_job(described_class)
+        .with(channel.id, params, 1)
+        .at(a_value_within(1.second).of(described_class::ACK_RETRY_DELAY.from_now))
+    end
+  end
+
   describe 'delivery acks' do
     let(:group_contact_inbox) do
       create(:contact_inbox, inbox: inbox, source_id: '1203630000@g.us', contact: create(:contact, account: channel.account))

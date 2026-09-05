@@ -1,0 +1,24 @@
+{
+  "id": "false_5511888888888@c.us_LISTREPLY01",
+  "timestamp": 1762358600,
+  "from": "5511888888888@c.us",
+  "to": "5511999999999@c.us",
+  "fromMe": false,
+  "body": null,
+  "hasMedia": false,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "PushName": "Ana Souza"
+    },
+    "Message": {
+      "listResponseMessage": {
+        "title": "Massa",
+        "description": "Molho de tomate",
+        "singleSelectReply": {
+          "selectedRowID": "massa"
+        }
+      }
+    }
+  }
+}

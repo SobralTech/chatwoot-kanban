@@ -111,6 +111,83 @@ describe Waha::IncomingMessageService do
     end
   end
 
+  describe 'a poll' do
+    it 'keeps its question, options and explicit selection limit without inventing any votes' do
+      message = perform(gows_payload('poll_creation'))
+
+      expect(message.content).to eq(
+        "📊 Poll\nQual dia é melhor?\nSelect one option\n• Segunda-feira\n• Terça-feira"
+      )
+      expect(message.content_attributes['poll']).to eq(
+        'question' => 'Qual dia é melhor?',
+        'options' => %w[Segunda-feira Terça-feira],
+        'selectable_options_count' => 1
+      )
+      expect(message.content_attributes['poll_votes']).to be_nil
+    end
+
+    it 'preserves the structured participant around a group poll' do
+      channel.update!(groups_enabled: true)
+      group_contact = create(:contact, account: channel.account, name: 'Family Group')
+      group_contact_inbox = create(:contact_inbox, contact: group_contact, inbox: inbox, source_id: '120363000000000000@g.us')
+      create(:conversation, account: channel.account, inbox: inbox, contact: group_contact, contact_inbox: group_contact_inbox)
+      create(:contact, account: channel.account, name: 'Zé do Grupo', phone_number: '+5511777777777')
+      payload = gows_payload('poll_creation')
+      payload['id'] = 'false_120363000000000000@g.us_POLLGROUP01_5511777777777@c.us'
+      payload['from'] = '120363000000000000@g.us'
+      payload['fromMe'] = false
+      payload['participant'] = '5511777777777@c.us'
+      payload.dig('_data', 'Info')['Chat'] = '120363000000000000@g.us'
+
+      message = perform(payload)
+
+      expect(message.content_attributes).to include(
+        'sender_name' => 'Zé do Grupo', 'participant_jid' => '5511777777777@c.us', 'participant_phone' => '+5511777777777'
+      )
+    end
+  end
+
+  describe 'a list and its selection' do
+    it 'keeps the title, sections, options and all available descriptions' do
+      message = perform(gows_payload('list_creation'))
+
+      expect(message.content).to eq(
+        "📋 List\nCardápio de hoje\nEscolha uma opção para o almoço\nPratos\n• Massa — Molho de tomate\n" \
+        "• Salada — Folhas e legumes\nValores sujeitos a alteração"
+      )
+      expect(message.content_attributes['list']).to include(
+        'title' => 'Cardápio de hoje', 'button' => 'Ver opções',
+        'sections' => [hash_including('title' => 'Pratos')]
+      )
+    end
+
+    it 'renders a list response as a readable selection while retaining reply context' do
+      quoted = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                                source_id: 'true_5511888888888@c.us_PREVIOUS01', content: 'Qual prato você quer?')
+      payload = gows_payload('list_selection')
+      payload['replyTo'] = { 'id' => 'PREVIOUS01', 'body' => 'Qual prato você quer?' }
+
+      message = perform(payload)
+
+      expect(message.content).to eq("📋 List\nList selection\nSelected: Massa")
+      expect(message.content_attributes).to include('in_reply_to' => quoted.id, 'in_reply_to_external_id' => quoted.source_id)
+    end
+  end
+
+  describe 'an event invitation' do
+    it 'keeps the title, period, location and description in readable content' do
+      message = perform(gows_payload('event_creation'))
+
+      expect(message.content).to include(
+        '📅 Event', 'Reunião de planejamento', 'Starts: 2025-11-05T17:00:00Z', 'Ends: 2025-11-05T18:00:00Z',
+        'Location: Sala Aurora · Rua das Flores, 100', 'Leve as prioridades da semana.'
+      )
+      expect(message.content_attributes['event']).to include(
+        'title' => 'Reunião de planejamento', 'start_time' => 1_762_362_000, 'end_time' => 1_762_365_600
+      )
+    end
+  end
+
   describe 'a reply to a status' do
     it 'keeps the reply text and presents the quoted status as a labelled ghost quote' do
       message = perform(gows_payload('status_reply_text'))
