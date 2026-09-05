@@ -49,7 +49,7 @@ class Webhooks::WahaEventsJob < ApplicationJob
     when 'message.ack'
       handle_message_ack(channel, params, ack_retries)
     when 'message.edited'
-      handle_message_edited(channel, params, media_attempt)
+      handle_message_edited(channel, params, ack_retries, media_attempt)
     when 'message.revoked'
       handle_message_revoked(channel, params['payload'])
     when 'message.reaction'
@@ -135,21 +135,28 @@ class Webhooks::WahaEventsJob < ApplicationJob
     rank.fetch(new_status, 0) <= rank.fetch(current, 0)
   end
 
-  # A WhatsApp edit keeps the original in place; instead we strike the original
-  # through (superseded flag, rendered as line-through) and post the new content
-  # as a fresh message quoting the original — the "[✏️ Editada]" marker. Agent
+  # A WhatsApp edit keeps the original in place; instead we post the new content
+  # as a fresh message quoting the original, then strike the original through
+  # (superseded flag, rendered as line-through) — the "[✏️ Editada]" marker.
+  # The new version must exist before anything is struck: if persisting it
+  # raises, the original is never touched and stays intact and visible. Agent
   # edits made from Chatwoot round-trip through this same event (fromMe: true).
-  def handle_message_edited(channel, params, media_attempt)
+  def handle_message_edited(channel, params, retries, media_attempt)
     payload = params['payload']
     return if payload.blank?
 
     original = find_message_by_source_id(channel, payload['editedMessageId'])
-    supersede_edit_family(channel, original) if original
-    Waha::IncomingMessageService.new(channel: channel, payload: payload, edited_original: original).perform
+    # The base message can still be mid-creation (message.any resolves
+    # contact/conversation before this arrives) or simply not delivered yet —
+    # replay the event instead of mirroring the edit as an unanchored message.
+    return retry_event(channel, params, retries) if original.nil?
+
+    edited = Waha::IncomingMessageService.new(channel: channel, payload: payload, edited_original: original).perform
+    supersede_edit_family(channel, original, except: edited) if edited
   rescue CustomExceptions::Waha::MediaDownloadError => e
     retry_media_or_finalize(channel, params, media_attempt, e) do
-      original = find_message_by_source_id(channel, payload['editedMessageId'])
-      Waha::IncomingMessageService.new(channel: channel, payload: payload, edited_original: original, media_terminal: true).perform
+      edited = Waha::IncomingMessageService.new(channel: channel, payload: payload, edited_original: original, media_terminal: true).perform
+      supersede_edit_family(channel, original, except: edited) if edited
     end
   end
 
@@ -171,9 +178,11 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # WhatsApp keeps a single message across N edits (all pointing at the original
   # stanza), but we mirror each edit as a fresh message. So on every edit we
   # strike through the whole prior family — the original plus any earlier edit
-  # mirrors — leaving only the newest version un-struck as the current one.
-  def supersede_edit_family(channel, original)
-    edit_family(channel, original.source_id).find_each { |message| mark_superseded(message) }
+  # mirrors — leaving only the just-persisted version un-struck as the current
+  # one. Called only once that version exists, so a failure before this point
+  # never leaves the family without an un-struck head.
+  def supersede_edit_family(channel, original, except:)
+    edit_family(channel, original.source_id).where.not(id: except.id).find_each { |message| mark_superseded(message) }
   end
 
   def mark_superseded(message)
