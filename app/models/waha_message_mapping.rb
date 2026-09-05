@@ -33,7 +33,7 @@ class WahaMessageMapping < ApplicationRecord
   # `edit` covers an edit mirror's own event; a future engine that reuses the
   # original message's id for it still gets a distinct row because event_type
   # is part of the unique identity (see the migration).
-  enum :event_type, { message: 0, edit: 1 }
+  enum :event_type, { message: 0, edit: 1, poll_vote: 2 }
 
   validates :chat_jid, :external_id, presence: true
   # A friendly, non-racy check backed by index_waha_message_mappings_on_identity

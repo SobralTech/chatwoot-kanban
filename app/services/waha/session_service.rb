@@ -1,9 +1,9 @@
 class Waha::SessionService
   pattr_initialize [:channel!]
 
-  # GOWS emits group delivery receipts on their own event, so a channel that only
-  # subscribes to message.ack never sees a single group ack.
-  WEBHOOK_EVENTS = %w[message.any message.ack message.ack.group message.edited message.revoked message.reaction session.status].freeze
+  # GOWS emits group delivery receipts and poll votes on their own events, so a
+  # channel that only subscribes to message.any/message.ack never receives them.
+  WEBHOOK_EVENTS = %w[message.any message.ack message.ack.group message.edited message.revoked message.reaction poll.vote session.status].freeze
 
   def start
     safely('start') do

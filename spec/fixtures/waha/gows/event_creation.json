@@ -1,0 +1,27 @@
+{
+  "id": "true_5511888888888@c.us_EVENT01",
+  "timestamp": 1762358700,
+  "from": "5511999999999@c.us",
+  "to": "5511888888888@c.us",
+  "fromMe": true,
+  "body": null,
+  "hasMedia": false,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "PushName": "Atendimento"
+    },
+    "Message": {
+      "eventMessage": {
+        "name": "Reunião de planejamento",
+        "description": "Leve as prioridades da semana.",
+        "startTime": 1762362000,
+        "endTime": 1762365600,
+        "location": {
+          "name": "Sala Aurora",
+          "address": "Rua das Flores, 100"
+        }
+      }
+    }
+  }
+}

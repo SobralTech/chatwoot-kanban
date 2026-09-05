@@ -2,8 +2,8 @@
 # location, one or more vCards, a real media message (matches
 # Waha::MediaAttacher#media?, the same hasMedia+url gate that already governed
 # download/attach before this registry existed), a text body, or — for anything
-# else, including a still-unsupported WhatsApp message type (poll, list, event,
-# ...) and a known type with no usable payload — the visible fallback.
+# else, including a still-unsupported WhatsApp message type (PIX, Facebook ad,
+# album, ...) and a known type with no usable payload — the visible fallback.
 #
 # GOWS rarely sets a top-level `type` string at all, so the structured types
 # are recognized from the raw proto node under `_data.Message` (with WAHA's
@@ -22,11 +22,8 @@ class Waha::MessageConverters::Registry
   end
 
   def self.content_converter(channel:, payload:, terminal:)
-    location = Waha::MessageConverters::Location.extract(payload)
-    return Waha::MessageConverters::Location.new(location: location) if location
-
-    vcards = Waha::MessageConverters::VCard.extract(payload)
-    return Waha::MessageConverters::VCard.new(vcards: vcards) if vcards.present?
+    structured = structured_converter(payload)
+    return structured if structured
 
     media_attacher = Waha::MediaAttacher.new(channel: channel, payload: payload, terminal: terminal)
     return Waha::MessageConverters::Media.new(channel: channel, payload: payload, media_attacher: media_attacher) if media_attacher.media?
@@ -35,5 +32,35 @@ class Waha::MessageConverters::Registry
     Waha::MessageConverters::Fallback.new
   end
 
-  private_class_method :content_converter
+  def self.structured_converter(payload)
+    location_converter(payload) || vcard_converter(payload) || poll_converter(payload) || list_converter(payload) || event_converter(payload)
+  end
+
+  def self.location_converter(payload)
+    location = Waha::MessageConverters::Location.extract(payload)
+    Waha::MessageConverters::Location.new(location: location) if location
+  end
+
+  def self.vcard_converter(payload)
+    vcards = Waha::MessageConverters::VCard.extract(payload)
+    Waha::MessageConverters::VCard.new(vcards: vcards) if vcards.present?
+  end
+
+  def self.poll_converter(payload)
+    poll = Waha::MessageConverters::Poll.extract(payload)
+    Waha::MessageConverters::Poll.new(poll: poll) if poll
+  end
+
+  def self.list_converter(payload)
+    list = Waha::MessageConverters::List.extract(payload)
+    Waha::MessageConverters::List.new(list: list) if list
+  end
+
+  def self.event_converter(payload)
+    event = Waha::MessageConverters::Event.extract(payload)
+    Waha::MessageConverters::Event.new(event: event) if event
+  end
+
+  private_class_method :content_converter, :structured_converter, :location_converter, :vcard_converter, :poll_converter, :list_converter,
+                       :event_converter
 end

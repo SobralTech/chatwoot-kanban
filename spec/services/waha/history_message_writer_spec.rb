@@ -32,6 +32,14 @@ describe Waha::HistoryMessageWriter do
       expect(message.content).to include('Carlos Lima', '+55 11 3333-2222')
       expect(message.attachments.sole.file.filename.to_s).to eq('contact-1.vcf')
     end
+
+    it 'backdates an event invitation while retaining its converted content' do
+      payload = gows_payload('event_creation')
+      message = perform(payload)
+
+      expect(message.created_at.to_i).to eq(payload['timestamp'])
+      expect(message.content).to include('Reunião de planejamento', 'Sala Aurora')
+    end
   end
 
   describe 'media' do

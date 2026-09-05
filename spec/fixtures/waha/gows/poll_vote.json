@@ -1,0 +1,38 @@
+{
+  "session": "gows-contract-session",
+  "event": "poll.vote",
+  "payload": {
+    "poll": {
+      "id": "true_5511888888888@c.us_POLL01",
+      "from": "5511999999999@c.us",
+      "to": "5511888888888@c.us",
+      "fromMe": true
+    },
+    "vote": {
+      "id": "false_5511888888888@c.us_VOTE01",
+      "from": "5511888888888@c.us",
+      "to": "5511999999999@c.us",
+      "fromMe": false,
+      "selectedOptions": ["Terça-feira"],
+      "timestamp": 1762358460000
+    },
+    "_data": {
+      "Info": {
+        "Chat": "5511888888888@c.us",
+        "ID": "VOTE01",
+        "IsFromMe": false
+      },
+      "Message": {
+        "pollUpdateMessage": {
+          "pollCreationMessageKey": {
+            "remoteJID": "5511888888888@c.us",
+            "fromMe": true,
+            "ID": "POLL01"
+          },
+          "senderTimestampMS": 1762358460000
+        }
+      },
+      "Votes": ["Terça-feira"]
+    }
+  }
+}

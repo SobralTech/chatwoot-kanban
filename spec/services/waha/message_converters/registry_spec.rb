@@ -24,23 +24,8 @@ describe Waha::MessageConverters::Registry do
     }
   end
 
-  # A real GOWS poll payload: no top-level `type`, no `body`, no `hasMedia` — the
-  # structured content lives entirely under `_data.Message.pollCreationMessage`.
-  # Poll conversion is out of scope for this ticket (see ticket 20); the registry
-  # must still resolve this to the visible fallback instead of a blank message.
   def poll_payload
-    {
-      'id' => 'x',
-      'hasMedia' => false,
-      '_data' => {
-        'Message' => {
-          'pollCreationMessage' => {
-            'name' => 'Qual dia é melhor?',
-            'options' => [{ 'optionName' => 'Segunda' }, { 'optionName' => 'Terça' }]
-          }
-        }
-      }
-    }
+    gows_payload('poll_creation')
   end
 
   def converter_for(payload)
@@ -58,8 +43,8 @@ describe Waha::MessageConverters::Registry do
       expect(converter_for(text_payload)).to be_a(Waha::MessageConverters::Text)
     end
 
-    it 'selects the fallback converter for an unsupported GOWS message type' do
-      expect(converter_for(poll_payload)).to be_a(Waha::MessageConverters::Fallback)
+    it 'selects the poll converter for a GOWS poll creation' do
+      expect(converter_for(poll_payload)).to be_a(Waha::MessageConverters::Poll)
     end
 
     it 'selects the fallback converter for a declared media type with no media info and no caption' do
@@ -80,6 +65,16 @@ describe Waha::MessageConverters::Registry do
       it "selects the vCard converter for the #{fixture} GOWS payload" do
         expect(converter_for(gows_payload(fixture))).to be_a(Waha::MessageConverters::VCard)
       end
+    end
+
+    %w[list_creation list_selection].each do |fixture|
+      it "selects the list converter for the #{fixture} GOWS payload" do
+        expect(converter_for(gows_payload(fixture))).to be_a(Waha::MessageConverters::List)
+      end
+    end
+
+    it 'selects the event converter for a GOWS event invitation' do
+      expect(converter_for(gows_payload('event_creation'))).to be_a(Waha::MessageConverters::Event)
     end
 
     %w[status_reply_text status_reply_image].each do |fixture|
@@ -108,6 +103,18 @@ describe Waha::MessageConverters::Registry do
       expect(converter_for(gows_payload('contact_without_vcard'))).to be_a(Waha::MessageConverters::Fallback)
     end
 
+    it 'falls back for a list with no usable rows' do
+      payload = { 'id' => 'x', '_data' => { 'Message' => { 'listMessage' => { 'title' => 'Empty', 'sections' => [] } } } }
+
+      expect(converter_for(payload)).to be_a(Waha::MessageConverters::Fallback)
+    end
+
+    it 'falls back for an event with no title' do
+      payload = { 'id' => 'x', '_data' => { 'Message' => { 'eventMessage' => { 'startTime' => 1_762_362_000 } } } }
+
+      expect(converter_for(payload)).to be_a(Waha::MessageConverters::Fallback)
+    end
+
     it 'does not treat an ordinary reply as a status reply' do
       payload = text_payload.merge(
         'replyTo' => { 'id' => 'AAA111', 'body' => 'anterior' },
@@ -119,8 +126,8 @@ describe Waha::MessageConverters::Registry do
   end
 
   describe 'the fallback converter' do
-    it 'produces no content and marks the message as unsupported, never raw payload details' do
-      converter = converter_for(poll_payload)
+    it 'produces no content and marks an invalid structured payload as unsupported, never raw payload details' do
+      converter = converter_for('id' => 'x', '_data' => { 'Message' => { 'pollCreationMessage' => { 'name' => 'Missing options' } } })
 
       expect(converter.content).to be_nil
       expect(converter.metadata).to eq(is_unsupported: true)

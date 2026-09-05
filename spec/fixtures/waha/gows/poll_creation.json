@@ -1,0 +1,25 @@
+{
+  "id": "true_5511888888888@c.us_POLL01",
+  "timestamp": 1762358400,
+  "from": "5511999999999@c.us",
+  "to": "5511888888888@c.us",
+  "fromMe": true,
+  "body": null,
+  "hasMedia": false,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "PushName": "Atendimento"
+    },
+    "Message": {
+      "pollCreationMessage": {
+        "name": "Qual dia é melhor?",
+        "options": [
+          { "optionName": "Segunda-feira" },
+          { "optionName": "Terça-feira" }
+        ],
+        "selectableOptionsCount": 1
+      }
+    }
+  }
+}

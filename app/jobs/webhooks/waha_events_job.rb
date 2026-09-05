@@ -50,6 +50,8 @@ class Webhooks::WahaEventsJob < ApplicationJob
       handle_message_ack(channel, params, ack_retries)
     when 'message.edited', 'message.revoked', 'message.reaction'
       handle_message_mutation(channel, params, ack_retries, media_attempt)
+    when 'poll.vote'
+      handle_poll_vote(channel, params, ack_retries)
     when 'session.status'
       handle_session_status(channel, params['payload'])
     end
@@ -78,7 +80,16 @@ class Webhooks::WahaEventsJob < ApplicationJob
   end
 
   def mutation_source_id(payload)
-    payload['editedMessageId'] || payload['revokedMessageId'] || payload.dig('before', 'id') || payload.dig('reaction', 'messageId')
+    payload['editedMessageId'] || payload['revokedMessageId'] || payload.dig('before', 'id') || payload.dig('reaction', 'messageId') ||
+      payload.dig('poll', 'id')
+  end
+
+  # GOWS emits a poll vote separately from message.any. The vote must find the
+  # creation message first, so a race with the poll webhook is retried through
+  # the same bounded, observable path as edits, reactions and acknowledgements.
+  def handle_poll_vote(channel, params, retries)
+    applied = Waha::PollVoteApplier.new(channel: channel, payload: params['payload'] || {}).perform
+    retry_event(channel, params, retries) unless applied
   end
 
   def dispatch_message_mutation(channel, params, retries, media_attempt)

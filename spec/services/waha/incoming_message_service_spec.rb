@@ -333,12 +333,12 @@ describe Waha::IncomingMessageService do
   end
 
   describe 'unsupported and invalid payloads' do
-    it 'marks an unrecognized GOWS message type as a visible fallback instead of a blank message' do
+    it 'marks a malformed GOWS poll as a visible fallback instead of a blank message' do
       conversation
 
-      # A real GOWS poll payload: no body, no media — the content lives entirely
-      # under _data.Message.pollCreationMessage, which no converter reads yet
-      # (see ticket 20). It must not silently disappear as an empty bubble.
+      # A poll without its options is invalid. It must not silently disappear as
+      # an empty bubble, even now that complete pollCreationMessage payloads have
+      # a dedicated converter.
       payload = build_payload(stanza: 'POLL01', body: nil).merge(
         'hasMedia' => false,
         '_data' => {
@@ -366,7 +366,7 @@ describe Waha::IncomingMessageService do
       expect(message.attachments).to be_empty
     end
 
-    it 'still preserves group participant metadata around an unsupported type' do
+    it 'still preserves group participant metadata around a malformed poll' do
       channel.update!(groups_enabled: true)
       group_jid = '120363000000000000@g.us'
       group_contact = create(:contact, account: channel.account, name: 'Family Group')

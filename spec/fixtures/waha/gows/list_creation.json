@@ -1,0 +1,32 @@
+{
+  "id": "true_5511888888888@c.us_LIST01",
+  "timestamp": 1762358500,
+  "from": "5511999999999@c.us",
+  "to": "5511888888888@c.us",
+  "fromMe": true,
+  "body": null,
+  "hasMedia": false,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "PushName": "Atendimento"
+    },
+    "Message": {
+      "listMessage": {
+        "title": "Cardápio de hoje",
+        "description": "Escolha uma opção para o almoço",
+        "buttonText": "Ver opções",
+        "footerText": "Valores sujeitos a alteração",
+        "sections": [
+          {
+            "title": "Pratos",
+            "rows": [
+              { "title": "Massa", "description": "Molho de tomate", "rowID": "massa" },
+              { "title": "Salada", "description": "Folhas e legumes", "rowID": "salada" }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
