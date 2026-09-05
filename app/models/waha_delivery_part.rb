@@ -13,6 +13,7 @@
 #  status                   :integer          default("pending"), not null
 #  created_at               :datetime         not null
 #  updated_at               :datetime         not null
+#  ack_status               :integer
 #  attachment_id            :bigint
 #  client_message_id        :string
 #  external_id              :string
@@ -38,6 +39,10 @@ class WahaDeliveryPart < ApplicationRecord
 
   enum :part_type, { text: 0, attachment: 1 }
   enum :status, { pending: 0, sent: 1 }
+  # This part's own WhatsApp delivery receipt, using Message's status vocabulary
+  # so the aggregate can be assigned to the Chatwoot message as-is. nil means no
+  # receipt has arrived for this part yet.
+  enum :ack_status, { sent: 0, delivered: 1, read: 2, failed: 3 }, prefix: :ack
 
   validates :position, presence: true, uniqueness: { scope: :waha_delivery_attempt_id }
   validates :attachment, presence: true, if: :attachment?

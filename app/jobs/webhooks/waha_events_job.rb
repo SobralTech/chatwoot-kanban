@@ -46,7 +46,7 @@ class Webhooks::WahaEventsJob < ApplicationJob
     case params['event'].to_s
     when 'message.any'
       handle_message(channel, params, media_attempt)
-    when 'message.ack'
+    when 'message.ack', 'message.ack.group'
       handle_message_ack(channel, params, ack_retries)
     when 'message.edited', 'message.revoked', 'message.reaction'
       handle_message_mutation(channel, params, ack_retries, media_attempt)
@@ -126,15 +126,16 @@ class Webhooks::WahaEventsJob < ApplicationJob
     true
   end
 
-  # Maps WhatsApp delivery acks to Chatwoot statuses so outgoing bubbles show the
-  # right check state (sent → delivered → read), mirroring WhatsApp itself.
+  # Maps WhatsApp delivery receipts onto Chatwoot statuses so outgoing bubbles
+  # show the right check state (sent → delivered → read), mirroring WhatsApp
+  # itself. GOWS splits them in two: `message.ack` for direct chats and
+  # `message.ack.group` for per-participant group receipts.
   def handle_message_ack(channel, params, retries)
-    payload = params['payload']
-    message = find_message_by_source_id(channel, payload&.dig('id'))
-    return update_delivery_status(message, payload&.dig('ack')) if message
-
+    applied = Waha::AckApplier.new(
+      channel: channel, payload: params['payload'] || {}, group: params['event'] == 'message.ack.group'
+    ).perform
     # The mirror is likely still being created — retry so we don't drop the ack.
-    retry_event(channel, params, retries)
+    retry_event(channel, params, retries) unless applied
   end
 
   # The mirror may still be being created (contact/conversation resolution takes
@@ -151,32 +152,6 @@ class Webhooks::WahaEventsJob < ApplicationJob
 
     Rails.logger.warn "[WAHA] Event retry scheduled #{context} delay=#{ACK_RETRY_DELAY.to_i}s"
     self.class.set(wait: ACK_RETRY_DELAY).perform_later(channel.id, params, retries + 1)
-  end
-
-  def update_delivery_status(message, ack)
-    return unless message&.outgoing?
-
-    new_status = ack_to_status(ack)
-    return if new_status.nil? || status_downgrade?(message.status, new_status)
-
-    message.update!(status: new_status)
-  end
-
-  def ack_to_status(ack)
-    case ack
-    when -1 then 'failed'
-    when 1 then 'sent'
-    when 2 then 'delivered'
-    when 3, 4 then 'read'
-    end
-  end
-
-  # Acks can arrive out of order; never move a message backwards (e.g. read → delivered).
-  def status_downgrade?(current, new_status)
-    return false if new_status == 'failed'
-
-    rank = { 'sent' => 1, 'delivered' => 2, 'read' => 3 }
-    rank.fetch(new_status, 0) <= rank.fetch(current, 0)
   end
 
   # A WhatsApp edit keeps the original in place; instead we post the new content
@@ -350,14 +325,7 @@ class Webhooks::WahaEventsJob < ApplicationJob
   end
 
   def find_message_by_source_id(channel, source_id, chat_jid = nil)
-    stanza = Waha::Anchoring.stanza_of(source_id)
-    chat_jid ||= Waha::Anchoring.chat_jid_of(source_id)
-    mapping = channel.message_mappings.find_by(chat_jid: chat_jid, external_id: stanza, event_type: :message) if chat_jid
-    return mapping.message if mapping
-
-    messages = Waha::Anchoring.by_stanza(channel.inbox, source_id)
-    messages = messages.where("split_part(source_id, '_', 2) = ?", chat_jid) if chat_jid
-    messages.first
+    Waha::Anchoring.find_message(channel, source_id, chat_jid)
   end
 end
 # rubocop:enable Metrics/ClassLength

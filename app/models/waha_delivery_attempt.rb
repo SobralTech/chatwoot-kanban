@@ -93,6 +93,22 @@ class WahaDeliveryAttempt < ApplicationRecord
     end
   end
 
+  # The delivery state of a multipart message is the weakest state across its
+  # parts: a message with a caption and two photos is only `read` once all three
+  # WhatsApp messages were read. A part still waiting for its first receipt
+  # leaves the aggregate undefined, so one part's ack is never shown as the
+  # whole message's. `failed` is not a rung on that ladder — a single failed
+  # part keeps the whole send visible as failed and resumable.
+  def aggregate_ack_status
+    states = delivery_parts.pluck(:ack_status)
+    return nil if states.empty? || states.any?(&:nil?)
+    return 'failed' if states.include?('failed')
+
+    # The enum declares sent/delivered/read in ascending delivery order, so its
+    # own values are the ranking.
+    states.min_by { |state| WahaDeliveryPart.ack_statuses[state] }
+  end
+
   def correlated_part(wa_message_id)
     stanza = Waha::Anchoring.stanza_of(wa_message_id)
     delivery_parts.find_by(client_message_id: stanza) || delivery_parts.find_by(external_id: stanza)
