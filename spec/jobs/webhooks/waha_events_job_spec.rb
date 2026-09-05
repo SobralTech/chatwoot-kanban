@@ -100,6 +100,108 @@ describe Webhooks::WahaEventsJob do
     }
   end
 
+  def plain_message_params(stanza:, body: 'hi', reply_to: nil)
+    payload = {
+      'id' => "false_5511888888888@c.us_#{stanza}",
+      'body' => body,
+      'from' => '5511888888888@c.us',
+      'to' => '5511999999999@c.us',
+      'fromMe' => false,
+      'type' => 'chat',
+      'hasMedia' => false,
+      '_data' => { 'Info' => { 'Chat' => '5511888888888@c.us', 'PushName' => 'John Doe' } }
+    }
+    payload['replyTo'] = reply_to if reply_to
+    { 'session' => channel.session_name, 'event' => 'message.any', 'payload' => payload }
+  end
+
+  # Shape confirmed against the GOWS engine adapter: the edit's own `id` is a
+  # fresh envelope (`${fromMe}_${chatJid}_${info.ID}`, same as any other
+  # message), while `editedMessageId` carries the bare original WhatsApp
+  # message id (`protocolMessage.key.ID`, no chat/direction prefix) — never the
+  # id of an intermediate edit, since every edit on the wire targets the same
+  # original stanza.
+  def edited_message_params(edited_message_id:, stanza:, body: 'edited text', from_me: false)
+    {
+      'session' => channel.session_name,
+      'event' => 'message.edited',
+      'payload' => {
+        'id' => "#{from_me}_5511888888888@c.us_#{stanza}",
+        'body' => body,
+        'editedMessageId' => edited_message_id,
+        'from' => from_me ? '5511999999999@c.us' : '5511888888888@c.us',
+        'to' => from_me ? '5511888888888@c.us' : '5511999999999@c.us',
+        'fromMe' => from_me,
+        'type' => 'chat',
+        'hasMedia' => false,
+        '_data' => { 'Info' => { 'Chat' => '5511888888888@c.us' } }
+      }
+    }
+  end
+
+  describe 'message edits (real GOWS payload shape)' do
+    let(:original) do
+      create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                       source_id: 'false_5511888888888@c.us_AAA111', content: 'original text')
+    end
+
+    it 'persists and anchors the new version, then supersedes the original' do
+      original
+      params = edited_message_params(edited_message_id: 'AAA111', stanza: 'EDIT01')
+
+      described_class.perform_now(channel.id, params)
+
+      edited = Message.find_by!(source_id: 'false_5511888888888@c.us_EDIT01')
+      expect(edited.additional_attributes['edit_of']).to eq(original.source_id)
+      expect(edited.content).to include('edited text')
+      expect(edited.additional_attributes['superseded']).to be_blank
+      expect(original.reload.additional_attributes['superseded']).to be(true)
+    end
+
+    it 'leaves the original intact and un-superseded when persisting the new version fails' do
+      original
+      params = edited_message_params(edited_message_id: 'AAA111', stanza: 'EDIT02')
+      allow_any_instance_of(Waha::IncomingMessageService).to receive(:perform).and_raise(StandardError, 'boom') # rubocop:disable RSpec/AnyInstance
+
+      expect { described_class.perform_now(channel.id, params) }.to raise_error(StandardError, 'boom')
+
+      expect(original.reload.additional_attributes['superseded']).to be_blank
+      expect(Message.exists?(source_id: 'false_5511888888888@c.us_EDIT02')).to be(false)
+    end
+
+    it 'keeps an edit that arrives before its base message pending and reapplies it once the base lands' do
+      params = edited_message_params(edited_message_id: 'BASE01', stanza: 'EDIT03')
+
+      expect { described_class.perform_now(channel.id, params) }
+        .to have_enqueued_job(described_class)
+        .with(channel.id, params, 1)
+        .at(a_value_within(1.second).of(described_class::ACK_RETRY_DELAY.from_now))
+      expect(Message.exists?(source_id: 'false_5511888888888@c.us_EDIT03')).to be(false)
+
+      base = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
+                              source_id: 'false_5511888888888@c.us_BASE01', content: 'original text')
+
+      described_class.perform_now(channel.id, params, 1)
+
+      edited = Message.find_by!(source_id: 'false_5511888888888@c.us_EDIT03')
+      expect(edited.additional_attributes['edit_of']).to eq(base.source_id)
+      expect(base.reload.additional_attributes['superseded']).to be(true)
+    end
+
+    it 'keeps replies anchored to the original while quoting the current edit head' do
+      original
+      described_class.perform_now(channel.id, edited_message_params(edited_message_id: 'AAA111', stanza: 'EDIT04'))
+      head = Message.find_by!(source_id: 'false_5511888888888@c.us_EDIT04')
+
+      reply_params = plain_message_params(stanza: 'REPLY01', body: 'quoting the edited message', reply_to: { 'id' => 'AAA111' })
+      described_class.perform_now(channel.id, reply_params)
+
+      reply = Message.find_by!(source_id: reply_params['payload']['id'])
+      expect(reply.content_attributes['in_reply_to']).to eq(head.id)
+      expect(reply.content_attributes['in_reply_to_external_id']).to eq(original.source_id)
+    end
+  end
+
   describe 'fromMe echo correlation' do
     it 'absorbs a fromMe event correlated to a pending Chatwoot delivery attempt, without mirroring it' do
       conversation
