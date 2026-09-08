@@ -123,9 +123,17 @@ class Waha::MediaAttacher
     content_attribute(content_attributes, 'media_download_provenance') == HISTORY_MEDIA_PROVENANCE
   end
 
+  # The placeholder was written in whatever locale the account had when the
+  # message was imported, and it is read back much later — after a language
+  # change, or from a row imported before the jobs learned to use the account's
+  # locale at all. Recognizing it in the default locale too keeps the stale
+  # placeholder from surviving next to the attachment that finally arrived.
   def self.synthetic_content?(message, content_attributes, token)
-    content_attribute(content_attributes, 'media_download_content') == token &&
-      message.content == I18n.t("conversations.messages.#{token}")
+    return false unless content_attribute(content_attributes, 'media_download_content') == token
+
+    [I18n.locale, I18n.default_locale].uniq.any? do |locale|
+      message.content == I18n.t("conversations.messages.#{token}", locale: locale)
+    end
   end
 
   def self.content_attribute(content_attributes, key)

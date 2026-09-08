@@ -36,7 +36,7 @@ class Waha::HistoryMediaJob < ApplicationJob
     remaining = Array(message_ids)
     return if remaining.first.nil?
 
-    outcome = process(remaining.first)
+    outcome = Waha::AccountLocale.with(@channel) { process(remaining.first) }
     remaining.shift unless outcome == :transient
     return if remaining.empty?
 

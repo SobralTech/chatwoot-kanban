@@ -23,7 +23,7 @@ class Waha::ImportChatWorkerJob < ApplicationJob
     row = claim_next_chat
     return finalize_if_last if row.nil?
 
-    wait = import_chat(row)
+    wait = Waha::AccountLocale.with(@channel) { import_chat(row) }
     enqueue_successor(wait || THROTTLE)
   end
 
