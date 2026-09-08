@@ -55,22 +55,44 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     return unless delivery_attempt.claim!
 
     ensure_delivery_parts!
-    return release_attempt! if delivery_parts.empty?
+    return release_attempt!(:no_deliverable_parts) if delivery_parts.empty?
 
     delivery_parts.pending.in_delivery_order.each do |part|
-      ensure_client_message_id!(part)
-      dispatched_at = Time.current
-      part.update!(dispatched_at: dispatched_at)
-      delivery_attempt.update!(dispatched_at: dispatched_at)
-
-      result = deliver_part(part)
-      return release_attempt! if result.nil?
-
-      wa_message_id = result.is_a?(Hash) ? result['id'] : nil
-      raise CustomExceptions::Waha::ApiError, 'WAHA accepted the request but returned no message id' if wa_message_id.blank?
-
-      delivery_attempt.confirm_part_sent!(part, wa_message_id)
+      return nil unless dispatch_part!(part)
     end
+  end
+
+  # Sends one part and turns WAHA's response into that part's checkpoint.
+  # Returns false when the part had nothing to send, which releases the attempt
+  # rather than leaving it claimed.
+  def dispatch_part!(part)
+    ensure_client_message_id!(part)
+    dispatched_at = Time.current
+    part.update!(dispatched_at: dispatched_at)
+    delivery_attempt.update!(dispatched_at: dispatched_at)
+    emit(:delivery_dispatched, part: part, part_type: part.part_type)
+
+    result = deliver_part(part)
+    if result.nil?
+      release_attempt!(:unresolved_attachment, part)
+      return false
+    end
+
+    wa_message_id = result.is_a?(Hash) ? result['id'] : nil
+    raise CustomExceptions::Waha::ApiError, 'WAHA accepted the request but returned no message id' if wa_message_id.blank?
+
+    confirm_part!(part, wa_message_id)
+    true
+  end
+
+  # The pre-generated id the request carried is replaced here by the id WhatsApp
+  # assigned, so this is where an outgoing trace joins the `waha_id` every
+  # inbound signal for the same message uses — whether the confirmation came
+  # from the response or from reconciling an ambiguous dispatch.
+  def confirm_part!(part, wa_message_id)
+    delivery_attempt.confirm_part_sent!(part, wa_message_id)
+    emit(:delivery_confirmed, level: :info, part: part, part_type: part.part_type,
+                              waha_id: Waha::Anchoring.stanza_of(wa_message_id).presence)
   end
 
   # WAHA's pre-generated id is the closest thing GOWS offers to a client-defined
@@ -93,14 +115,18 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   rescue CustomExceptions::Waha::TransientError
     raise
   rescue CustomExceptions::Waha::ApiError => e
-    Rails.logger.warn "[WAHA] engine does not support pre-generated message ids for message #{message.id}: #{e.message}"
+    # Without a client-defined id every send on this engine is potentially
+    # ambiguous after a lost response, so the limitation is a standing signal
+    # rather than an incident.
+    emit(:delivery_without_idempotency_key, level: :warn, reason: :engine_unsupported, error: e.class.name)
     nil
   end
 
   # An attachment we can't resolve a URL for leaves nothing to retry towards, so
   # release the claim instead of leaving the attempt stuck in `sending` forever.
-  def release_attempt!
+  def release_attempt!(reason = nil, part = nil)
     delivery_attempt.update!(status: :pending)
+    emit(:delivery_released, level: :warn, reason: reason, part: part, part_type: part&.part_type) if reason
     nil
   end
 
@@ -114,8 +140,9 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     if delivery_attempt.attempt_count < MAX_SEND_ATTEMPTS
       return unless delivery_attempt.release_to_pending!(error.message)
 
-      Rails.logger.warn "[WAHA] Transient send failure for message #{message.id} (attempt #{delivery_attempt.attempt_count}): #{error.message}"
-      Waha::DeliverJob.set(wait: RETRY_DELAYS[delivery_attempt.attempt_count - 1]).perform_later(message.id)
+      delay = RETRY_DELAYS[delivery_attempt.attempt_count - 1]
+      emit(:delivery_retry_scheduled, level: :warn, error: error.class.name, delay_ms: delay.in_milliseconds)
+      Waha::DeliverJob.set(wait: delay).perform_later(message.id)
     else
       fail_message!(error)
     end
@@ -132,12 +159,17 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     return false unless part
 
     match = recent_own_messages.find { |msg| Waha::Anchoring.stanza_of(msg['id']) == part.client_message_id }
+    # A request left this process with an outcome we do not know: whether the
+    # reconciliation scan then found it on WhatsApp or not, the ambiguity itself
+    # is the signal, and `outcome` says how it was settled.
+    emit(:delivery_ambiguous, level: :warn, part: part, part_type: part.part_type,
+                              outcome: match ? :recovered : :unresolved)
     return false unless match
 
-    delivery_attempt.confirm_part_sent!(part, match['id'])
+    confirm_part!(part, match['id'])
     true
   rescue StandardError => e
-    Rails.logger.warn "[WAHA] Reconciliation check failed for message #{message.id}: #{e.message}"
+    emit(:delivery_ambiguous, level: :warn, outcome: :check_failed, error: e.class.name)
     false
   end
 
@@ -155,8 +187,21 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   def fail_message!(error)
     return unless delivery_attempt.mark_failed!(error.message)
 
-    Rails.logger.error "[WAHA] Send failed for message #{message.id}: #{error.message}"
+    emit(:delivery_failed, level: :error, error: error.class.name, confirmed_parts: delivery_parts.sent.count,
+                           total_parts: delivery_parts.count)
     message.update!(status: :failed, external_error: error.message)
+  end
+
+  # The correlation every outgoing signal shares. `attempt_id` and `try` pin a
+  # line to one persisted send attempt, so a late signal from a superseded
+  # attempt is never mistaken for the current one; the error text itself stays
+  # on the attempt row and the message, and never enters a signal.
+  def emit(signal, level: :debug, part: nil, **context)
+    Waha::Telemetry.emit(
+      signal, channel: channel, chat: chat_id, level: level, direction: :outgoing,
+              message_id: message.id, conversation_id: conversation.id, attempt_id: delivery_attempt.id,
+              try: delivery_attempt.attempt_count, part: part&.position, **context
+    )
   end
 
   def delivery_attempt
@@ -193,7 +238,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def warn_clock_unavailable(error)
-    Rails.logger.warn "[WAHA] Conversation clock unavailable for message #{message.id}: #{error.message}"
+    emit(:delivery_clock_unavailable, level: :warn, error: error.class.name)
   end
 
   def send_seen

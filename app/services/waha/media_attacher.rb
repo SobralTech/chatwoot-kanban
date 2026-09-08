@@ -45,10 +45,14 @@ class Waha::MediaAttacher
       headers: { 'X-Api-Key' => channel.api_key },
       open_timeout: 10, read_timeout: 60
     )
+    observe(:success, kind: media_kind)
+    @file
   rescue *TRANSIENT_DOWNLOAD_ERRORS => e
     raise CustomExceptions::Waha::MediaDownloadError, "WAHA media download failed for #{payload['id']}: #{e.message}"
   rescue StandardError => e
-    Rails.logger.error "[WAHA] Media download failed permanently for #{payload['id']}: #{e.message}"
+    # Not worth retrying (expired media, a malformed URL): the caller gets a nil
+    # file and marks the message, so this is where the attempt ends.
+    observe(:terminal, level: :error, reason: :not_retryable, error: e.class.name)
     @file = nil
   end
 
@@ -93,6 +97,17 @@ class Waha::MediaAttacher
   end
 
   private
+
+  # The download itself is the unit an administrator counts, so success and
+  # terminal give-up are reported from here; a transient failure is reported by
+  # whichever caller owns its retry budget (the live event job or the history
+  # media job), which is the only place that knows how many tries are left.
+  def observe(outcome, level: :debug, **context)
+    Waha::Telemetry.emit(
+      :media_download, channel: channel, chat: payload.dig('_data', 'Info', 'Chat'), level: level, outcome: outcome,
+                       waha_id: Waha::Anchoring.stanza_of(payload['id']).presence, **context
+    )
+  end
 
   # WAHA WEBJS/WPP send `payload.mediaUrl` (deprecated) and `payload.media.url`;
   # GOWS sends only `payload.media.url`. Prefer the current field and fall back.

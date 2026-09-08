@@ -254,8 +254,9 @@ class Waha::ContactResolver
   end
 
   def log_alias_conflict(contact_inboxes, error = nil)
-    Rails.logger.error(
-      "[WAHA] contact alias conflict channel=#{channel.id} contact_inbox_ids=#{contact_inboxes.map(&:id).sort.join(',')} error=#{error&.class&.name}"
+    Waha::Telemetry.emit(
+      :contact_identity_conflict, channel: channel, level: :error, reason: error ? :merge_failed : :multiple_claimants,
+                                  contact_inbox_ids: contact_inboxes.map(&:id).sort.join('|'), error: error&.class&.name
     )
   end
 

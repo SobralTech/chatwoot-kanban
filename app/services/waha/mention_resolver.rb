@@ -23,7 +23,7 @@ class Waha::MentionResolver
   def resolve_mentioned_name(jid)
     Waha::ParticipantResolver.new(channel: channel, jid: jid).perform.name
   rescue StandardError => e
-    Rails.logger.error "[WAHA] mention resolution failed for #{jid}: #{e.message}"
+    Waha::Telemetry.emit(:enrichment_failed, channel: channel, level: :warn, reason: :mention_name, error: e.class.name)
     nil
   end
 

@@ -57,9 +57,11 @@ describe Waha::CallEventService do
 
   it 'ignores an unsupported group call with an operational signal' do
     group_payload = payload('id' => 'GROUPCALL01', 'from' => '120363000000000000@g.us', 'isGroup' => true)
-    allow(Rails.logger).to receive(:info)
 
-    expect { described_class.new(channel: channel, event: 'call.received', payload: group_payload).perform }.not_to change(Message, :count)
-    expect(Rails.logger).to have_received(:info).with(include('event=call.received action=ignore reason=group_call'))
+    signals = capture_waha_signals do
+      expect { described_class.new(channel: channel, event: 'call.received', payload: group_payload).perform }.not_to change(Message, :count)
+    end
+
+    expect(waha_signal(signals, :event_ignored).first).to include(event: 'call.received', reason: :group_call)
   end
 end

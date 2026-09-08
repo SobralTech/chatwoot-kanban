@@ -33,16 +33,20 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # The controller rejects missing or mismatched sessions before enqueueing. The
   # repeat check protects retries and jobs enqueued before a channel was edited.
   def invalid_webhook_session?(channel, params)
-    error = channel.webhook_error(params['session'])
-    return false unless error
+    return false unless channel.webhook_error(params['session'])
 
-    Rails.logger.warn "[WAHA] Ignored webhook for channel #{channel.id}: #{error}"
+    Waha::Telemetry.emit(
+      :event_ignored, channel: channel, level: :warn, event: params['event'],
+                      reason: channel.connection_identity_conflict? ? :connection_identity_conflict : :session_mismatch
+    )
     true
   end
 
   # We subscribe to message.any only (the superset of every message event) so
   # each message is processed exactly once, regardless of direction.
   def route_event(channel, params, ack_retries, media_attempt)
+    observe_event(channel, params, :event_received, try: ack_retries)
+
     case params['event'].to_s
     when 'message.any'
       handle_message(channel, params, media_attempt)
@@ -57,7 +61,7 @@ class Webhooks::WahaEventsJob < ApplicationJob
     when 'session.status'
       handle_session_status(channel, params['payload'])
     else
-      Rails.logger.warn "[WAHA] Ignored unsupported webhook event channel=#{channel.id} inbox=#{channel.inbox.id} event=#{params['event']}"
+      Waha::Telemetry.emit(:event_ignored, channel: channel, level: :warn, event: params['event'], reason: :unsupported_event)
     end
   end
 
@@ -92,6 +96,23 @@ class Webhooks::WahaEventsJob < ApplicationJob
   def mutation_source_id(payload)
     payload['editedMessageId'] || payload['revokedMessageId'] || payload.dig('before', 'id') || payload.dig('reaction', 'messageId') ||
       payload.dig('poll', 'id')
+  end
+
+  # The provider id an event is about, whichever envelope shape carries it.
+  def event_source_id(payload)
+    mutation_source_id(payload) || payload['id']
+  end
+
+  # The correlation shared by every signal about one inbound webhook event: the
+  # chat it belongs to and the external message it is about, both derived from
+  # whichever envelope shape this event uses.
+  def observe_event(channel, params, signal, level: :debug, **context)
+    payload = params['payload'] || {}
+    source_id = event_source_id(payload)
+    Waha::Telemetry.emit(
+      signal, channel: channel, chat: mutation_chat_jid(payload, source_id), level: level, event: params['event'],
+              waha_id: Waha::Anchoring.stanza_of(source_id).presence, **context
+    )
   end
 
   # GOWS emits a poll vote separately from message.any. The vote must find the
@@ -146,6 +167,10 @@ class Webhooks::WahaEventsJob < ApplicationJob
     return false unless attempt
 
     attempt.confirm_sent!(payload['id'])
+    Waha::Telemetry.emit(
+      :message_deduplicated, channel: channel, chat: attempt.chat_jid, reason: :chatwoot_echo, direction: :outgoing,
+                             waha_id: Waha::Anchoring.stanza_of(payload['id']).presence, message_id: attempt.message_id, attempt_id: attempt.id
+    )
     true
   end
 
@@ -164,16 +189,16 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # The mirror may still be being created (contact/conversation resolution takes
   # ~1s while the event lands in milliseconds), so replay the event a few times
   # before giving up on it.
-  def retry_event(channel, params, retries, reason: 'missing_anchor')
-    context = "channel=#{channel.id} inbox=#{channel.inbox.id} event=#{params['event']} retry=#{retries} reason=#{reason}"
-    payload = params['payload'] || {}
-    context += " source_id=#{mutation_source_id(payload) || payload['id']}"
+  def retry_event(channel, params, retries, reason: :missing_anchor)
+    # `try` is the depth of the pending-event backlog for this one event: how
+    # many times it has already been replayed waiting for its base message.
     if retries >= ACK_MAX_RETRIES
-      Rails.logger.error "[WAHA] Event retries exhausted #{context}"
+      observe_event(channel, params, :event_retries_exhausted, level: :error, reason: reason, try: retries)
       return
     end
 
-    Rails.logger.warn "[WAHA] Event retry scheduled #{context} delay=#{ACK_RETRY_DELAY.to_i}s"
+    observe_event(channel, params, :event_retry_scheduled, level: :warn, reason: reason, try: retries,
+                                                           delay_ms: ACK_RETRY_DELAY.in_milliseconds)
     self.class.set(wait: ACK_RETRY_DELAY).perform_later(channel.id, params, retries + 1)
   end
 
@@ -209,11 +234,12 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # explicitly given up on). Once MEDIA_MAX_ATTEMPTS is reached, the block
   # persists the message anyway with Waha::MediaAttacher's visible fallback.
   def retry_media_or_finalize(channel, params, media_attempt, error)
+    context = { scope: :live, error: error.class.name, try: media_attempt }
     if media_attempt < MEDIA_MAX_ATTEMPTS
-      Rails.logger.warn "[WAHA] Transient media download failure (attempt #{media_attempt}): #{error.message}"
+      observe_event(channel, params, :media_download, level: :warn, outcome: :transient, **context)
       self.class.set(wait: MEDIA_RETRY_DELAYS[media_attempt - 1]).perform_later(channel.id, params, 0, media_attempt + 1)
     else
-      Rails.logger.error "[WAHA] Media download exhausted retries, using visible fallback: #{error.message}"
+      observe_event(channel, params, :media_download, level: :error, outcome: :terminal, reason: :retries_exhausted, **context)
       yield
     end
   end

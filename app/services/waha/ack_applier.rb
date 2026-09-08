@@ -127,7 +127,7 @@ class Waha::AckApplier
     return true if attempt.present?
     return true if message.waha_delivery_attempt.nil?
 
-    Rails.logger.warn "[WAHA] Ignored uncorrelated failure ack #{log_context}"
+    observe(:uncorrelated_failure)
     false
   end
 
@@ -146,7 +146,7 @@ class Waha::AckApplier
 
     participant = payload['participant'].presence || payload['to'].presence
     if participant.blank?
-      Rails.logger.warn "[WAHA] Group ack without participant granularity #{log_context}"
+      observe(:group_without_participant)
       return false
     end
 
@@ -157,8 +157,15 @@ class Waha::AckApplier
     true
   end
 
-  def log_context
-    "channel=#{channel.id} inbox=#{channel.inbox.id} chat=#{chat_jid} source_id=#{payload['id']} ack=#{payload['ack']} " \
-      "message=#{message&.id} attempt=#{attempt&.id} part=#{part&.position}"
+  # A receipt this applier refuses to act on. `ack_status` is the state the
+  # receipt claimed, kept so a stream of ignored failures is distinguishable
+  # from a stream of ignored group receipts at a glance.
+  def observe(reason)
+    Waha::Telemetry.emit(
+      :ack_ignored, channel: channel, chat: chat_jid, level: :warn, reason: reason,
+                    event: group ? 'message.ack.group' : 'message.ack', ack_status: status,
+                    waha_id: Waha::Anchoring.stanza_of(payload['id']).presence,
+                    message_id: message&.id, attempt_id: attempt&.id, part: part&.position
+    )
   end
 end

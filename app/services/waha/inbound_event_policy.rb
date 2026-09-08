@@ -27,8 +27,6 @@ class Waha::InboundEventPolicy
   def self.observe(channel:, event:, decision:)
     return if decision.action == :represent
 
-    Rails.logger.info(
-      "[WAHA] inbound policy channel=#{channel.id} inbox=#{channel.inbox.id} event=#{event} action=#{decision.action} reason=#{decision.reason}"
-    )
+    Waha::Telemetry.emit(:event_ignored, channel: channel, level: :info, event: event, reason: decision.reason)
   end
 end

@@ -124,6 +124,13 @@ class Waha::ChatHistoryImporter
     return { ts: cursor[:ts] + 1, id: nil } if resolved_tie
     return nil unless full_page
 
+    # A full page that advanced the cursor by nothing: the engine is returning
+    # the same window forever. Distinct from a failed fetch and from a finished
+    # chat, and reported as such before the exception stops the chat.
+    Waha::Telemetry.emit(
+      :import_stalled, channel: channel, chat: chat_id, level: :error, kind: kind,
+                       reason: :no_progress, cursor_ts: cursor[:ts], page_size: PAGE_SIZE
+    )
     raise CustomExceptions::Waha::ApiError, stall_message(cursor)
   end
 

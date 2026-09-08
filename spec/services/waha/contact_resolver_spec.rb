@@ -234,21 +234,21 @@ describe Waha::ContactResolver do
       expect(channel.contact_aliases.where(alias_type: 'jid', value: jid).count).to eq(1)
     end
 
-    it 'leaves pre-existing duplicate contact inboxes separate and logs the conflict' do
+    it 'leaves pre-existing duplicate contact inboxes separate and signals the conflict' do
       lid_contact = create(:contact, account: channel.account)
       lid_contact_inbox = create(:contact_inbox, inbox: channel.inbox, contact: lid_contact, source_id: lid)
       phone_contact = create(:contact, account: channel.account, phone_number: '+5511888888888')
       phone_contact_inbox = create(:contact_inbox, inbox: channel.inbox, contact: phone_contact, source_id: jid)
-      allow(Rails.logger).to receive(:error)
 
-      result = resolver(jid: lid, sender_alt: '5511888888888@s.whatsapp.net').perform
+      result = nil
+      signals = capture_waha_signals { result = resolver(jid: lid, sender_alt: '5511888888888@s.whatsapp.net').perform }
 
       expect(result).to eq(lid_contact_inbox)
       expect(lid_contact_inbox.reload.source_id).to eq(lid)
       expect(phone_contact_inbox.reload.source_id).to eq(jid)
       expect(channel.contact_aliases).to be_empty
-      expect(Rails.logger).to have_received(:error).with(
-        /contact alias conflict.*contact_inbox_ids=#{lid_contact_inbox.id},#{phone_contact_inbox.id}/
+      expect(waha_signal(signals, :contact_identity_conflict).first).to include(
+        reason: :multiple_claimants, contact_inbox_ids: [lid_contact_inbox.id, phone_contact_inbox.id].sort.join('|')
       )
     end
   end

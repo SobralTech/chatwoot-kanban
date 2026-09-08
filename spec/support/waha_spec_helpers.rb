@@ -1,4 +1,22 @@
 module WahaSpecHelpers
+  # Captures the operational signals emitted while the block runs, as
+  # [signal_name, payload] pairs. Assertions read the payload's fields, never a
+  # log line's wording, so the signal contract is what is pinned down here.
+  def capture_waha_signals
+    captured = []
+    subscriber = ActiveSupport::Notifications.subscribe(/^waha\./) do |name, _start, _finish, _id, payload|
+      captured << [name.delete_prefix('waha.').to_sym, payload]
+    end
+    yield
+    captured
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber)
+  end
+
+  def waha_signal(signals, name)
+    signals.select { |signal, _payload| signal == name }.map(&:last)
+  end
+
   def waha_messages(provider_id, scope = Message.all)
     scope.where(id: WahaMessageMapping.where(provider_id: provider_id).select(:message_id))
   end

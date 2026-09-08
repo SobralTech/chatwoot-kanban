@@ -42,6 +42,13 @@ class Waha::HistoryImportJob < ApplicationJob
     pending_count = @channel.import_chats.pending.count
     return @channel.finalize_import_if_drained!(@execution_id) if pending_count.zero?
 
+    # The backlog this execution starts with. Paired with :import_finished it
+    # bounds how long a channel has been behind, without a per-chat gauge.
+    Waha::Telemetry.emit(
+      :import_started, channel: @channel, level: :info, kind: @kind, execution_id: @execution_id,
+                       chats: @channel.import_chats.count, pending: pending_count
+    )
+
     pending_count.clamp(1, WORKER_POOL).times do
       Waha::ImportChatWorkerJob.perform_later(@channel.id, @window, @kind, @execution_id)
     end
@@ -76,13 +83,10 @@ class Waha::HistoryImportJob < ApplicationJob
     outcome = @channel.retry_import_after_failure!(@execution_id, error.message)
     return unless outcome
 
-    case outcome[:status]
-    when :scheduled
-      Rails.logger.warn "[WAHA] History import: channel #{@channel.id} retry #{outcome[:retries]}/#{MAX_RETRIES}: #{error.message}"
-    when :failed
-      Rails.logger.error "[WAHA] History import: channel #{@channel.id} failed after #{MAX_RETRIES} retries: #{error.message}"
-    when :running
-      Rails.logger.warn "[WAHA] History import: channel #{@channel.id} dispatcher failed while workers remain active: #{error.message}"
-    end
+    Waha::Telemetry.emit(
+      :import_dispatch_failed, channel: @channel, level: outcome[:status] == :failed ? :error : :warn,
+                               kind: @kind, execution_id: @execution_id, outcome: outcome[:status],
+                               error: error.class.name, try: outcome[:retries], max_tries: MAX_RETRIES
+    )
   end
 end

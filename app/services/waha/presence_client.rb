@@ -30,7 +30,9 @@ class Waha::PresenceClient
   def request(action, chat_id)
     yield
   rescue StandardError => e
-    Rails.logger.warn "[WAHA] presence #{action} failed for #{chat_id}: #{e.message}"
+    Waha::Telemetry.emit(
+      :enrichment_failed, channel: channel, chat: chat_id, level: :warn, reason: :presence, kind: action, error: e.class.name
+    )
     nil
   end
 
