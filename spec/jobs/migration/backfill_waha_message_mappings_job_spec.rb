@@ -65,30 +65,106 @@ RSpec.describe Migration::BackfillWahaMessageMappingsJob do
     expect(stats).to include(checked: 1, backfilled: 0, skipped_ambiguous: 1)
   end
 
-  it 'backfills the first of a colliding pair and reports the second as a conflict, without guessing an association' do
+  it 'quarantines every claimant of a colliding identity without choosing a message' do
     first = create_message(source_id: 'false_5511888888888@c.us_DUP001')
-    second = create_message(source_id: 'false_5511888888888@c.us_DUP001_stray')
-    # Force the two messages to resolve to the exact same canonical identity —
-    # the same bug class the unique index exists to catch.
-    allow(Waha::Anchoring).to receive(:stanza_of).and_call_original
-    allow(Waha::Anchoring).to receive(:stanza_of).with(second.source_id).and_return('DUP001')
+    second = create_message(source_id: 'true_5511888888888@c.us_DUP001')
 
     stats = described_class.perform_now
 
     expect(WahaMessageMapping.where(chat_jid: '5511888888888@c.us', external_id: 'DUP001').count).to eq(1)
     expect(WahaMessageMapping.find_by(message: first)).to be_present
     expect(WahaMessageMapping.find_by(message: second)).to be_nil
-    expect(stats).to include(checked: 2, backfilled: 1, skipped_conflict: 1)
+    expect(Waha::Anchoring.find_message(channel, first.source_id)).to be_nil
+    expect(Waha::Anchoring.find_message(channel, second.source_id)).to be_nil
+    expect(WahaMessageMapping.find_by(message: first)).to be_ambiguous
+    expect(stats).to include(checked: 2, backfilled: 1, skipped_conflict: 2)
   end
 
-  it 'does not reprocess a message that already has a mapping' do
+  it 'fills provider metadata without creating a second mapping on repeated runs' do
     message = create_message(source_id: 'false_5511888888888@c.us_AAA111')
     WahaMessageMapping.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
                                external_id: 'AAA111', direction: :incoming)
 
     stats = described_class.perform_now
 
-    expect(stats).to include(checked: 0, backfilled: 0)
+    expect(stats).to include(checked: 1, backfilled: 0)
+    expect(WahaMessageMapping.find_by!(message: message).provider_id).to eq(message.source_id)
+    expect { described_class.perform_now }.not_to change(WahaMessageMapping, :count)
+  end
+
+  it 'keeps old replies and edit families usable after the legacy columns are cleared' do
+    original = create_message(source_id: 'false_5511888888888@c.us_OLD01')
+    edit = create_message(source_id: 'false_5511888888888@c.us_EDIT01')
+    edit.update!(additional_attributes: { 'edit_of' => original.source_id })
+    described_class.perform_now
+    [original, edit].each { |message| message.update!(source_id: nil, additional_attributes: {}) }
+
+    result = Waha::ReplyContextResolver.new(channel: channel, conversation: conversation,
+                                            payload: { 'replyTo' => { 'id' => 'OLD01' } }).perform
+
+    expect(result).to include(in_reply_to: edit.id, in_reply_to_external_id: 'false_5511888888888@c.us_OLD01')
+    expect(Waha::Anchoring.family(inbox, edit)).to contain_exactly(original, edit)
+  end
+
+  it 'reports a disagreement between the provider chat and conversation without mapping it' do
+    message = create_message(source_id: 'false_5511777777777@c.us_WRONG01')
+
+    expect(described_class.perform_now).to include(skipped_ambiguous: 1)
+    expect(message.waha_message_mappings).to be_empty
+  end
+
+  it 'converts a dispatched pre-multipart attempt so its returning echo confirms the same message' do
+    message = create_message(source_id: nil, message_type: :outgoing)
+    attempt = WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: contact_inbox.source_id,
+                                          status: :sending, client_message_id: 'PENDING01', dispatched_at: Time.current)
+    described_class.perform_now
+
+    payload = { 'id' => 'true_5511888888888@c.us_PENDING01', 'fromMe' => true, 'to' => contact_inbox.source_id }
+    Webhooks::WahaEventsJob.perform_now(channel.id, { 'session' => channel.session_name, 'event' => 'message.any', 'payload' => payload })
+
+    expect(attempt.reload).to be_sent
+    expect(inbox.messages).to contain_exactly(message)
+    expect(message.reload.source_id).to be_nil
+    expect(message.presented_source_id).to eq('true_5511888888888@c.us_PENDING01')
+  end
+
+  it 'preserves every previously confirmed multipart provider ID' do
+    message = create_message(source_id: 'true_5511888888888@c.us_FIRST', message_type: :outgoing)
+    attempt = WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: contact_inbox.source_id, status: :sent)
+    %w[FIRST SECOND].each_with_index do |stanza, position|
+      attempt.delivery_parts.create!(position: position, part_type: :text, status: :sent,
+                                     external_id: stanza, source_id: "true_5511888888888@c.us_#{stanza}")
+      WahaMessageMapping.create!(channel: channel, message: message, chat_jid: contact_inbox.source_id,
+                                 direction: :outgoing, external_id: stanza, part: position)
+    end
+
+    described_class.perform_now
+
+    expect(Waha::Anchoring.mappings_for(message).pluck(:provider_id))
+      .to eq(%w[true_5511888888888@c.us_FIRST true_5511888888888@c.us_SECOND])
+  end
+
+  it 'recovers a confirmed legacy attempt even when its old message correlation is missing' do
+    message = create_message(source_id: nil, message_type: :outgoing)
+    WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: contact_inbox.source_id, status: :sent, external_id: 'CONFIRMED')
+    edit = create_message(source_id: 'true_5511888888888@c.us_EDITRECOVERED', message_type: :outgoing)
+    edit.update!(additional_attributes: { 'edit_of' => 'true_5511888888888@c.us_CONFIRMED' })
+
+    described_class.perform_now
+
+    expect(Waha::Anchoring.find_message(channel, 'true_5511888888888@c.us_CONFIRMED')).to eq(message)
+    expect(message.reload.source_id).to be_nil
+    expect(Waha::Anchoring.family_anchor_message(edit)).to eq(message)
+  end
+
+  it 'retains old revoked identities for deduplication without age-based expiry' do
+    message = create_message(source_id: 'false_5511888888888@c.us_OLD01')
+    message.update!(created_at: 5.years.ago, content_attributes: { 'deleted' => true })
+
+    described_class.perform_now
+
+    expect(Waha::Anchoring.find_message(channel, message.source_id)).to eq(message)
+    expect(Waha::Anchoring.external_anchor_source_id(message)).to eq(message.source_id)
   end
 
   it 'scopes to a single channel when channel_id is given' do

@@ -28,6 +28,9 @@
 class WahaMessageMapping < ApplicationRecord
   belongs_to :channel, class_name: 'Channel::Waha', foreign_key: :channel_waha_id, inverse_of: :message_mappings
   belongs_to :message
+  belongs_to :anchor_message, class_name: 'Message', optional: true
+
+  scope :resolved, -> { where(ambiguous: false) }
 
   enum :direction, { incoming: 0, outgoing: 1 }
   # `edit` covers an edit mirror's own event; a future engine that reuses the
@@ -44,41 +47,26 @@ class WahaMessageMapping < ApplicationRecord
   def self.find_mapping(channel:, chat_jid:, external_id:, event_type: :message)
     return nil if chat_jid.blank? || external_id.blank?
 
-    where(channel: channel, chat_jid: chat_jid, external_id: external_id, event_type: event_type).first
+    matches = where(channel: channel, chat_jid: Waha::Anchoring.chat_jids(channel, chat_jid),
+                    external_id: external_id, event_type: event_type).to_a
+    return nil if matches.any?(&:ambiguous?)
+    return matches.first if matches.map(&:message_id).uniq.size <= 1
+
+    raise CustomExceptions::Waha::AmbiguousIdentity, "channel=#{channel.id} external_id=#{external_id} matches multiple messages"
   end
 
   # Creates canonical mapping within the caller's transaction, enforcing uniqueness.
-  # Unlike `record!`, this raises on conflict so the enclosing message creation
-  # transaction rolls back, guaranteeing zero duplicate messages in the DB.
+  # Conflicts roll back the enclosing message creation transaction.
   # rubocop:disable Metrics/ParameterLists
-  def self.create_canonical!(channel:, message:, chat_jid:, external_id:, direction:, event_type: :message, participant_jid: nil, part: 0)
-    return if chat_jid.blank? || external_id.blank?
-
+  def self.create_canonical!(channel:, message:, chat_jid:, external_id:, direction:, event_type: :message, participant_jid: nil, part: 0,
+                             provider_id: nil, anchor_message: nil)
     create!(
       channel: channel, message: message, chat_jid: chat_jid, external_id: external_id,
-      direction: direction, event_type: event_type, participant_jid: participant_jid, part: part
+      direction: direction, event_type: event_type, participant_jid: participant_jid, part: part,
+      provider_id: provider_id || [direction.to_s == 'outgoing', chat_jid, external_id, participant_jid].compact.join('_'),
+      anchor_message: anchor_message
     )
   end
 
-  # Dual-write into the canonical mapping alongside the legacy source_id
-  # correlation (Waha::Anchoring). Used by unmigrated flows like outgoing sends.
-  def self.record!(channel:, message:, chat_jid:, external_id:, direction:, event_type: :message, participant_jid: nil, part: 0)
-    return if chat_jid.blank? || external_id.blank?
-
-    # Every call site dual-writes from inside the transaction that persists the
-    # message itself. A real constraint violation here (not just a Ruby-level
-    # exception) aborts the whole Postgres transaction, and rescuing in Ruby
-    # alone wouldn't stop that — only rolling back to a savepoint does, which
-    # is what requires_new: true gives us.
-    ActiveRecord::Base.transaction(requires_new: true) do
-      create!(
-        channel: channel, message: message, chat_jid: chat_jid, external_id: external_id,
-        direction: direction, event_type: event_type, participant_jid: participant_jid, part: part
-      )
-    end
-  rescue StandardError => e
-    Rails.logger.error "[WAHA] canonical mapping write failed for message #{message.id}: #{e.message}"
-    nil
-  end
   # rubocop:enable Metrics/ParameterLists
 end

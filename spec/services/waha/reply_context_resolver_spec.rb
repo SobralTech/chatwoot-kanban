@@ -10,8 +10,8 @@ RSpec.describe Waha::ReplyContextResolver do
   end
 
   it 'resolves a reply to any multipart part back to the aggregate message and its first-part anchor' do
-    message = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                               message_type: :outgoing, source_id: 'true_5511888888888@c.us_FIRST')
+    message = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                  message_type: :outgoing, source_id: 'true_5511888888888@c.us_FIRST')
     attempt = WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: contact_inbox.source_id, status: :sent)
     attempt.delivery_parts.create!(position: 0, part_type: :text, status: :sent,
                                    source_id: 'true_5511888888888@c.us_FIRST', external_id: 'FIRST')

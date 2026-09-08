@@ -72,7 +72,7 @@ class Waha::AckApplier
   # pins the receipt to one attempt and one part of a multipart send. Everything
   # else falls back to the canonical external mapping.
   def resolve_target
-    @attempt = WahaDeliveryAttempt.find_by_correlated_id(channel: channel, wa_message_id: payload['id'])
+    @attempt = WahaDeliveryAttempt.find_by_correlated_id(channel: channel, wa_message_id: payload['id'], chat_jid: chat_jid)
     @part = @attempt&.correlated_part(payload['id'])
     @message = @attempt&.message || Waha::Anchoring.find_message(channel, payload['id'], chat_jid)
   end

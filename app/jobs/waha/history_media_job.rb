@@ -50,7 +50,7 @@ class Waha::HistoryMediaJob < ApplicationJob
   # A message that already carries an attachment was done by an earlier run; it
   # succeeds without counting against the circuit breaker.
   def process(channel, chat_id, message_id)
-    message = Message.where(id: message_id).where.missing(:attachments).first
+    message = channel.inbox.messages.where(id: message_id).where.missing(:attachments).first
     return :success if message.nil?
 
     attach_media(channel, chat_id, message)
@@ -60,8 +60,11 @@ class Waha::HistoryMediaJob < ApplicationJob
   # blip, WAHA 5xx/timeout); trips the circuit breaker but keeps the item queued.
   # :terminal - registered as a permanent failure (Waha::MediaAttacher's visible
   # fallback) and the item is skipped for good.
-  def attach_media(channel, chat_id, message)
-    payload = fetch_message(channel, chat_id, message.source_id)
+  def attach_media(channel, _chat_id, message)
+    mapping = Waha::Anchoring.mappings_for(message).first
+    return finalize(message, terminal: true) unless mapping
+
+    payload = fetch_message(channel, mapping.chat_jid, mapping.provider_id)
     return finalize(message, terminal: true) if payload.blank?
 
     Waha::MediaAttacher.new(channel: channel, payload: payload).attach_to(message)

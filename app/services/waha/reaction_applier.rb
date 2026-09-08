@@ -106,8 +106,7 @@ class Waha::ReactionApplier
   def anchor_message
     return @anchor_message if defined?(@anchor_message)
 
-    anchor_source_id = target_message.additional_attributes['edit_of'].presence
-    @anchor_message = anchor_source_id ? channel.inbox.messages.find_by(source_id: anchor_source_id) : target_message
+    @anchor_message = Waha::Anchoring.family_anchor_message(target_message)
   end
 
   # "5511999999999:23@s.whatsapp.net" -> "+5511999999999"

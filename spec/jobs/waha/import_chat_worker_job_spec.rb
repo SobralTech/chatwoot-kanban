@@ -107,7 +107,7 @@ describe Waha::ImportChatWorkerJob do
       expect(row.status).to eq('failed')
       expect(row.cursor).to be_nil
       expect(row.imported_count).to eq(0)
-      expect(Message.find_by(source_id: 'false_unresolvable@c.us_1')).to be_nil
+      expect(waha_messages('false_unresolvable@c.us_1', Message.all).first).to be_nil
     end
   end
 end

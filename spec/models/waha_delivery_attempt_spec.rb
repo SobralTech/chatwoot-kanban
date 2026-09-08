@@ -13,7 +13,10 @@ RSpec.describe WahaDeliveryAttempt do
   end
 
   def build_attempt(**attrs)
-    described_class.new({ channel: channel, message: message, chat_jid: '5511888888888@c.us' }.merge(attrs))
+    described_class.new({ channel: channel, message: message, chat_jid: '5511888888888@c.us' }.merge(attrs)).tap do |attempt|
+      attempt.delivery_parts.build(position: 0, part_type: :text, status: attempt.sent? ? :sent : :pending,
+                                   client_message_id: attrs[:client_message_id], external_id: attrs[:external_id])
+    end
   end
 
   it 'requires a chat_jid' do
@@ -65,8 +68,10 @@ RSpec.describe WahaDeliveryAttempt do
 
       attempt.confirm_sent!('true_5511888888888@c.us_GENID001')
 
-      expect(message.reload.source_id).to eq('true_5511888888888@c.us_GENID001')
-      expect(attempt.reload).to have_attributes(status: 'sent', external_id: 'GENID001')
+      expect(message.reload.source_id).to be_nil
+      expect(message.presented_source_id).to eq('true_5511888888888@c.us_GENID001')
+      expect(attempt.reload.status).to eq('sent')
+      expect(attempt.delivery_parts.first.external_id).to eq('GENID001')
       mapping = WahaMessageMapping.find_by!(message: message)
       expect(mapping).to have_attributes(chat_jid: '5511888888888@c.us', external_id: 'GENID001', direction: 'outgoing')
     end

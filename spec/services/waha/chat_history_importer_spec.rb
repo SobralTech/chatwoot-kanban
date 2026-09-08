@@ -75,7 +75,7 @@ describe Waha::ChatHistoryImporter do
       expect { import_history(kind: 'gap_fill', conversation: conversation) }
         .to have_enqueued_job(SendReplyJob).exactly(:once)
 
-      recovered_message = conversation.messages.find_by!(source_id: payload['id'])
+      recovered_message = waha_messages(payload['id'], conversation.messages).first!
       expect(recovered_message.created_at).to eq(message_time)
       expect(recovered_message.additional_attributes).to include('waha_import_kind' => 'gap_fill')
       expect(recovered_message.additional_attributes).not_to have_key('imported')
@@ -104,7 +104,7 @@ describe Waha::ChatHistoryImporter do
     expect { import_history(kind: 'initial', conversation: conversation) }
       .not_to have_enqueued_job(SendReplyJob)
 
-    imported_message = conversation.messages.find_by!(source_id: payload['id'])
+    imported_message = waha_messages(payload['id'], conversation.messages).first!
     expect(imported_message.created_at).to eq(message_time)
     expect(imported_message.additional_attributes).to include('waha_import_kind' => 'initial', 'imported' => true)
     expect(conversation.status).to eq('resolved')
@@ -123,7 +123,7 @@ describe Waha::ChatHistoryImporter do
 
       expect(import_chat.reload.cursor).to be_nil
       expect(import_chat.imported_count).to eq(0)
-      expect(Message.find_by(source_id: payload['id'])).to be_nil
+      expect(waha_messages(payload['id'], Message.all).first).to be_nil
     end
   end
 
@@ -176,7 +176,7 @@ describe Waha::ChatHistoryImporter do
       ).run
 
       expect(imported).to eq(messages.size)
-      expect(conversation.messages.where.not(source_id: nil).pluck(:source_id)).to match_array(messages.pluck('id'))
+      expect(WahaMessageMapping.where(message: conversation.messages, event_type: :message).pluck(:provider_id)).to match_array(messages.pluck('id'))
       import_chat.reload
       expect(import_chat.imported_count).to eq(messages.size)
       # Every message in the cluster is confirmed, so the checkpoint has
@@ -193,8 +193,8 @@ describe Waha::ChatHistoryImporter do
       conversation = create(:conversation, account: channel.account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
       already_confirmed = payloads.first(220)
       already_confirmed.each do |p|
-        create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                         message_type: :incoming, source_id: p['id'], created_at: Time.zone.at(p['timestamp']))
+        create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                            message_type: :incoming, source_id: p['id'], created_at: Time.zone.at(p['timestamp']))
       end
       checkpoint = already_confirmed.last
       import_chat = WahaImportChat.create!(
@@ -207,8 +207,8 @@ describe Waha::ChatHistoryImporter do
       ).run
 
       expect(imported).to eq(80)
-      expect(conversation.messages.where.not(source_id: nil).count).to eq(300)
-      expect(conversation.messages.pluck(:source_id).uniq.size).to eq(300)
+      expect(WahaMessageMapping.where(message: conversation.messages, event_type: :message).count).to eq(300)
+      expect(WahaMessageMapping.where(message: conversation.messages, event_type: :message).pluck(:provider_id).uniq.size).to eq(300)
       import_chat.reload
       expect(import_chat.imported_count).to eq(300)
       expect(import_chat.cursor).to eq(payloads.last['timestamp'])
@@ -274,7 +274,7 @@ describe Waha::ChatHistoryImporter do
       conversation = create(:conversation, account: channel.account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
       import_history(kind: 'initial', conversation: conversation)
 
-      message = conversation.messages.find_by!(source_id: unsupported_payload['id'])
+      message = waha_messages(unsupported_payload['id'], conversation.messages).first!
       expect(message.content_attributes['is_unsupported']).to be(true)
       expect(message.attachments).to be_empty
     end

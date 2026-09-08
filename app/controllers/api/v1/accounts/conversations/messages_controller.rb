@@ -103,7 +103,7 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   # Only our own messages can be revoked on WhatsApp; deleting a contact's
   # message stays a local-only soft delete.
   def waha_deletable?
-    @conversation.inbox.waha? && message.outgoing? && message.source_id.present?
+    @conversation.inbox.waha? && message.outgoing? && Waha::Anchoring.mappings_for(message).exists?
   end
 
   def waha_editable?
@@ -119,17 +119,14 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     @conversation.inbox.waha? &&
       !message.activity? &&
       !message.private? &&
-      message.source_id.present? &&
+      Waha::Anchoring.mappings_for(message).exists? &&
       !message.content_attributes['deleted']
   end
 
   # The 15-minute window is measured from the original message, not from the
   # latest edit mirror, so we resolve to the family anchor before checking.
   def edit_anchor
-    @edit_anchor ||= begin
-      anchor_source_id = message.additional_attributes['edit_of'].presence || message.source_id
-      @conversation.messages.find_by(source_id: anchor_source_id)
-    end
+    @edit_anchor ||= Waha::Anchoring.family_anchor_message(message) if Waha::Anchoring.mappings_for(message).exists?
   end
 
   def message_finder

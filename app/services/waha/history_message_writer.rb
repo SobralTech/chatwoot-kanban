@@ -26,7 +26,7 @@ class Waha::HistoryMessageWriter
       end
     end
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
-    find_canonical_message
+    find_canonical_message || raise
   end
 
   private
@@ -56,9 +56,7 @@ class Waha::HistoryMessageWriter
       external_id: stanza,
       event_type: :message
     )
-    return mapping.message if mapping&.message
-
-    conversation.messages.where("#{Waha::Anchoring::STANZA_SQL} = ?", stanza).first
+    mapping&.message
   end
 
   def record_canonical_mapping!
@@ -69,6 +67,7 @@ class Waha::HistoryMessageWriter
       external_id: stanza,
       direction: incoming? ? :incoming : :outgoing,
       event_type: :message,
+      provider_id: payload['id'],
       participant_jid: chat_id.to_s.end_with?('@g.us') ? sender_jid : nil
     )
   end
@@ -80,7 +79,6 @@ class Waha::HistoryMessageWriter
       inbox_id: inbox.id,
       message_type: incoming? ? :incoming : :outgoing,
       sender: incoming? ? conversation.contact : nil,
-      source_id: payload['id'],
       status: initial_status,
       created_at: Time.zone.at(payload['timestamp'].to_i),
       content_attributes: build_content_attributes,

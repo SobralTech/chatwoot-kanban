@@ -20,7 +20,7 @@ describe Waha::IncomingMessageService do
 
   def perform(payload)
     described_class.new(channel: channel, payload: payload).perform
-    Message.find_by!(source_id: payload['id'])
+    waha_messages(payload['id'], Message.all).first!
   end
 
   describe 'a static location' do
@@ -162,15 +162,15 @@ describe Waha::IncomingMessageService do
     end
 
     it 'renders a list response as a readable selection while retaining reply context' do
-      quoted = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                source_id: 'true_5511888888888@c.us_PREVIOUS01', content: 'Qual prato você quer?')
+      quoted = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                   source_id: 'true_5511888888888@c.us_PREVIOUS01', content: 'Qual prato você quer?')
       payload = gows_payload('list_selection')
       payload['replyTo'] = { 'id' => 'PREVIOUS01', 'body' => 'Qual prato você quer?' }
 
       message = perform(payload)
 
       expect(message.content).to eq("📋 List\nList selection\nSelected: Massa")
-      expect(message.content_attributes).to include('in_reply_to' => quoted.id, 'in_reply_to_external_id' => quoted.source_id)
+      expect(message.content_attributes).to include('in_reply_to' => quoted.id, 'in_reply_to_external_id' => quoted.presented_source_id)
     end
   end
 

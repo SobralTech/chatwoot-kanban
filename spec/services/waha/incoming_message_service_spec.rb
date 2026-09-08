@@ -35,31 +35,31 @@ describe Waha::IncomingMessageService do
   describe 'reply context resolution' do
     context 'when the quoted message is in the same conversation' do
       it 'stores a local clickable quote' do
-        quoted = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                  source_id: 'false_5511888888888@c.us_AAA111')
+        quoted = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                     source_id: 'false_5511888888888@c.us_AAA111')
 
         perform(build_payload(stanza: 'BBB222', reply_to: { 'id' => 'AAA111' }))
 
         message = conversation.reload.messages.last
         expect(message.content_attributes['in_reply_to']).to eq(quoted.id)
-        expect(message.content_attributes['in_reply_to_external_id']).to eq(quoted.source_id)
+        expect(message.content_attributes['in_reply_to_external_id']).to eq(quoted.presented_source_id)
         expect(message.content_attributes['in_reply_to_snapshot']).to be_nil
       end
     end
 
     context 'when the quoted message has edit mirrors' do
       it 'points the quote at the newest edit mirror and keeps the anchor as external id' do
-        original = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                    source_id: 'false_5511888888888@c.us_AAA111')
-        head = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                source_id: 'false_5511888888888@c.us_EDIT01',
-                                additional_attributes: { 'edit_of' => original.source_id })
+        original = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                       source_id: 'false_5511888888888@c.us_AAA111')
+        head = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                   source_id: 'false_5511888888888@c.us_EDIT01',
+                                   additional_attributes: { 'edit_of' => original.presented_source_id })
 
         perform(build_payload(stanza: 'BBB222', reply_to: { 'id' => 'AAA111' }))
 
         message = conversation.reload.messages.last
         expect(message.content_attributes['in_reply_to']).to eq(head.id)
-        expect(message.content_attributes['in_reply_to_external_id']).to eq(original.source_id)
+        expect(message.content_attributes['in_reply_to_external_id']).to eq(original.presented_source_id)
       end
     end
 
@@ -67,16 +67,16 @@ describe Waha::IncomingMessageService do
       it 'stores a ghost snapshot built from the local message content' do
         other_conversation = create(:conversation, account: channel.account, inbox: inbox, contact: contact,
                                                    contact_inbox: contact_inbox, status: :resolved)
-        quoted = create(:message, conversation: other_conversation, inbox: inbox, account: channel.account,
-                                  message_type: :incoming, sender: contact, content: 'the old answer',
-                                  source_id: 'false_5511888888888@c.us_AAA111')
+        quoted = create_waha_message(conversation: other_conversation, inbox: inbox, account: channel.account,
+                                     message_type: :incoming, sender: contact, content: 'the old answer',
+                                     source_id: 'false_5511888888888@c.us_AAA111')
         conversation
 
         perform(build_payload(stanza: 'BBB222', reply_to: { 'id' => 'AAA111' }))
 
         message = conversation.reload.messages.last
         expect(message.content_attributes['in_reply_to']).to be_nil
-        expect(message.content_attributes['in_reply_to_external_id']).to eq(quoted.source_id)
+        expect(message.content_attributes['in_reply_to_external_id']).to eq(quoted.presented_source_id)
         expect(message.content_attributes['in_reply_to_snapshot']).to eq(
           'body' => 'the old answer', 'author' => contact.name
         )
@@ -124,17 +124,17 @@ describe Waha::IncomingMessageService do
 
     context 'when the message is an edit mirror of a message that was itself a reply' do
       it 'quotes the previous version instead of the original reply target' do
-        target = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                  source_id: 'false_5511888888888@c.us_OLD001')
-        original = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                    source_id: 'false_5511888888888@c.us_AAA111',
-                                    content_attributes: { in_reply_to: target.id, in_reply_to_external_id: target.source_id })
+        target = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                     source_id: 'false_5511888888888@c.us_OLD001')
+        original = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                       source_id: 'false_5511888888888@c.us_AAA111',
+                                       content_attributes: { in_reply_to: target.id, in_reply_to_external_id: target.presented_source_id })
 
         perform(build_payload(stanza: 'BBB222', reply_to: { 'id' => 'OLD001' }), edited_original: original)
 
         message = conversation.reload.messages.last
         expect(message.content_attributes['in_reply_to']).to eq(original.id)
-        expect(message.content_attributes['in_reply_to_external_id']).to eq(original.source_id)
+        expect(message.content_attributes['in_reply_to_external_id']).to eq(original.presented_source_id)
         expect(message.content_attributes['in_reply_to_snapshot']).to be_nil
       end
     end
@@ -153,7 +153,7 @@ describe Waha::IncomingMessageService do
         )
 
         expect { perform(payload) }.to raise_error(CustomExceptions::Waha::TransientError)
-        expect(Message.find_by(source_id: payload['id'])).to be_nil
+        expect(waha_messages(payload['id'], Message.all).first).to be_nil
       end
     end
 
@@ -169,13 +169,13 @@ describe Waha::IncomingMessageService do
         stub_request(:get, lookup_url)
           .to_return(status: 503, body: '{}', headers: { 'Content-Type' => 'application/json' })
         expect { perform(payload) }.to raise_error(CustomExceptions::Waha::TransientError)
-        expect(Message.where(source_id: payload['id']).count).to eq(0)
+        expect(waha_messages(payload['id'], Message.all).count).to eq(0)
 
         stub_request(:get, lookup_url)
           .to_return(status: 200, body: { 'pn' => '5511777666555' }.to_json,
                      headers: { 'Content-Type' => 'application/json' })
         expect { perform(payload) }.not_to raise_error
-        expect(Message.where(source_id: payload['id']).count).to eq(1)
+        expect(waha_messages(payload['id'], Message.all).count).to eq(1)
       end
     end
 
@@ -200,7 +200,7 @@ describe Waha::IncomingMessageService do
 
         expect { perform(payload) }.not_to raise_error
 
-        message = Message.find_by!(source_id: payload['id'])
+        message = waha_messages(payload['id'], Message.all).first!
         expect(message.content_attributes['participant_jid']).to eq(participant_lid)
         expect(message.content_attributes['participant_phone']).to be_nil
       end
@@ -235,14 +235,14 @@ describe Waha::IncomingMessageService do
       )
       perform(payload)
 
-      message = Message.find_by!(source_id: payload['id'])
+      message = waha_messages(payload['id'], Message.all).first!
       mapping = WahaMessageMapping.find_by!(message: message)
       expect(mapping).to have_attributes(chat_jid: group_jid, participant_jid: participant)
     end
 
     it 'marks an edit mirror with event_type edit' do
-      original = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                  source_id: 'false_5511888888888@c.us_AAA111')
+      original = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                     source_id: 'false_5511888888888@c.us_AAA111')
 
       perform(build_payload(stanza: 'EDIT01'), edited_original: original)
 
@@ -258,12 +258,12 @@ describe Waha::IncomingMessageService do
       perform(payload)
       perform(payload)
 
-      message = Message.find_by!(source_id: payload['id'])
+      message = waha_messages(payload['id'], Message.all).first!
       expect(WahaMessageMapping.where(message: message).count).to eq(1)
     end
 
     it 'returns the already persisted message without creating a duplicate when identity collides' do
-      other_message = create(:message, conversation: conversation, inbox: inbox, account: channel.account, source_id: 'unrelated')
+      other_message = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account, source_id: 'unrelated')
       WahaMessageMapping.create!(channel: channel, message: other_message, chat_jid: '5511888888888@c.us',
                                  external_id: 'COLLIDE1', direction: :incoming)
 
@@ -272,7 +272,7 @@ describe Waha::IncomingMessageService do
       expect { result = perform(payload) }.not_to raise_error
 
       expect(result).to eq(other_message)
-      expect(Message.where(source_id: payload['id'])).to be_empty
+      expect(waha_messages(payload['id'], Message.all)).to be_empty
       expect(WahaMessageMapping.where(chat_jid: '5511888888888@c.us', external_id: 'COLLIDE1').count).to eq(1)
     end
   end
@@ -295,7 +295,7 @@ describe Waha::IncomingMessageService do
         payload = media_payload
 
         expect { perform(payload) }.to raise_error(CustomExceptions::Waha::MediaDownloadError)
-        expect(Message.find_by(source_id: payload['id'])).to be_nil
+        expect(waha_messages(payload['id'], Message.all).first).to be_nil
       end
     end
 
@@ -305,14 +305,14 @@ describe Waha::IncomingMessageService do
         payload = media_payload
         stub_request(:get, media_url).to_return(status: 503)
         expect { perform(payload) }.to raise_error(CustomExceptions::Waha::MediaDownloadError)
-        expect(Message.where(source_id: payload['id']).count).to eq(0)
+        expect(waha_messages(payload['id'], Message.all).count).to eq(0)
 
         stub_request(:get, media_url).to_return(status: 200, body: 'bytes', headers: { 'Content-Type' => 'image/jpeg' })
         expect { perform(payload) }.not_to raise_error
 
-        message = Message.find_by!(source_id: payload['id'])
+        message = waha_messages(payload['id'], Message.all).first!
         expect(message.attachments.size).to eq(1)
-        expect(Message.where(source_id: payload['id']).count).to eq(1)
+        expect(waha_messages(payload['id'], Message.all).count).to eq(1)
       end
     end
 
@@ -324,7 +324,7 @@ describe Waha::IncomingMessageService do
         described_class.new(channel: channel, payload: payload, media_terminal: true).perform
 
         expect(a_request(:get, media_url)).not_to have_been_made
-        message = Message.find_by!(source_id: payload['id'])
+        message = waha_messages(payload['id'], Message.all).first!
         expect(message.attachments).to be_empty
         expect(message.content_attributes['media_download_failed']).to be(true)
         expect(message.content).to eq(I18n.t('conversations.messages.waha_media_unavailable'))
@@ -349,7 +349,7 @@ describe Waha::IncomingMessageService do
 
       perform(payload)
 
-      message = Message.find_by!(source_id: payload['id'])
+      message = waha_messages(payload['id'], Message.all).first!
       expect(message.content_attributes['is_unsupported']).to be(true)
       expect(message.content).to be_blank
       expect(message.attachments).to be_empty
@@ -361,7 +361,7 @@ describe Waha::IncomingMessageService do
 
       perform(payload)
 
-      message = Message.find_by!(source_id: payload['id'])
+      message = waha_messages(payload['id'], Message.all).first!
       expect(message.content_attributes['is_unsupported']).to be(true)
       expect(message.attachments).to be_empty
     end
@@ -386,7 +386,7 @@ describe Waha::IncomingMessageService do
 
       perform(payload)
 
-      message = Message.find_by!(source_id: payload['id'])
+      message = waha_messages(payload['id'], Message.all).first!
       expect(message.content_attributes['is_unsupported']).to be(true)
       expect(message.content_attributes['participant_jid']).to eq(participant)
     end
@@ -415,7 +415,7 @@ describe Waha::IncomingMessageService do
 
       expect { perform(group_payload(stanza: 'GRPK01')) }.not_to change(ContactInbox, :count)
 
-      message = Message.find_by!(source_id: 'false_5511888888888@c.us_GRPK01')
+      message = waha_messages('false_5511888888888@c.us_GRPK01', Message.all).first!
       expect(message.content_attributes).to include(
         'sender_name' => 'Ana Souza', 'participant_jid' => participant, 'participant_phone' => '+5511777777777'
       )
@@ -431,7 +431,7 @@ describe Waha::IncomingMessageService do
 
       expect { perform(group_payload(stanza: 'GRPU01')) }.not_to change(Contact, :count)
 
-      message = Message.find_by!(source_id: 'false_5511888888888@c.us_GRPU01')
+      message = waha_messages('false_5511888888888@c.us_GRPU01', Message.all).first!
       expect(message.content_attributes['sender_name']).to eq('Ana Souza')
       expect(inbox.contact_inboxes.pluck(:source_id)).to eq([group_jid])
     end
@@ -439,7 +439,7 @@ describe Waha::IncomingMessageService do
     it 'keeps the participant JID and phone when nobody can name them' do
       perform(group_payload(stanza: 'GRPU02', push_name: nil))
 
-      message = Message.find_by!(source_id: 'false_5511888888888@c.us_GRPU02')
+      message = waha_messages('false_5511888888888@c.us_GRPU02', Message.all).first!
       expect(message.content_attributes['sender_name']).to be_nil
       expect(message.content_attributes['participant_phone']).to eq('+5511777777777')
     end
@@ -447,7 +447,7 @@ describe Waha::IncomingMessageService do
     it 'does not label a group message we sent with the session business profile name' do
       perform(group_payload(stanza: 'GRPM01', from_me: true, push_name: 'Loja do Zé'))
 
-      message = Message.find_by!(source_id: 'false_5511888888888@c.us_GRPM01')
+      message = waha_messages('false_5511888888888@c.us_GRPM01', Message.all).first!
       expect(message.content_attributes['sender_name']).to be_nil
     end
   end

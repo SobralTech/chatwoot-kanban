@@ -9,11 +9,13 @@ RSpec.describe Waha::DeleteMessageService do
     create(:conversation, account: channel.account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
   end
   let(:message) do
-    create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                     message_type: :outgoing, source_id: 'true_5511888888888@c.us_FIRST')
+    create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                        message_type: :outgoing, source_id: 'true_5511888888888@c.us_FIRST')
   end
 
   it 'revokes every confirmed multipart source in deterministic order' do
+    WahaMessageMapping.create_canonical!(channel: channel, message: message, chat_jid: contact_inbox.source_id,
+                                         external_id: 'SECOND', direction: :outgoing, part: 1)
     attempt = WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: contact_inbox.source_id, status: :sent)
     attempt.delivery_parts.create!(position: 0, part_type: :text, status: :sent,
                                    source_id: 'true_5511888888888@c.us_FIRST', external_id: 'FIRST')

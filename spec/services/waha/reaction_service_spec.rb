@@ -10,8 +10,8 @@ describe Waha::ReactionService do
   end
   let(:user) { create(:user, account: channel.account) }
   let(:message) do
-    create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                     message_type: :incoming, source_id: 'false_5511888888888@c.us_AAA111')
+    create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                        message_type: :incoming, source_id: 'false_5511888888888@c.us_AAA111')
   end
 
   before { Current.user = user }

@@ -65,63 +65,16 @@ RSpec.describe WahaMessageMapping do
     expect(vote).to be_valid
   end
 
-  describe '.record!' do
-    it 'creates a mapping row for the given attributes' do
-      message = build_message(source_id: 'false_5511888888888@c.us_AAA111')
-
-      mapping = described_class.record!(
-        channel: channel, message: message, chat_jid: '5511888888888@c.us', external_id: 'AAA111', direction: :incoming
-      )
-
-      expect(mapping).to be_persisted
-      expect(described_class.find_by(message: message)).to have_attributes(
-        chat_jid: '5511888888888@c.us', external_id: 'AAA111', direction: 'incoming', event_type: 'message', part: 0
-      )
-    end
-
-    it 'skips without raising when chat_jid or external_id is blank' do
-      message = build_message(source_id: 'false_5511888888888@c.us_AAA111')
-
-      result = described_class.record!(
-        channel: channel, message: message, chat_jid: nil, external_id: 'AAA111', direction: :incoming
-      )
-
-      expect(result).to be_nil
-      expect(described_class.where(message: message)).to be_empty
-    end
-
-    it 'swallows a write failure instead of raising, so the caller (message persistence) is unaffected' do
-      message = build_message(source_id: 'false_5511888888888@c.us_AAA111')
-      allow(described_class).to receive(:create!).and_raise(ActiveRecord::RecordNotUnique, 'boom')
-
-      result = nil
-      expect do
-        result = described_class.record!(
-          channel: channel, message: message, chat_jid: '5511888888888@c.us', external_id: 'AAA111', direction: :incoming
-        )
-      end.not_to raise_error
-      expect(result).to be_nil
-    end
-
-    it 'does not abort an enclosing transaction when the write collides with an existing identity' do
-      build_mapping.save!
-
-      expect do
-        ActiveRecord::Base.transaction do
-          described_class.record!(
-            channel: channel, message: build_message(source_id: 'false_5511888888888@c.us_AAA999'),
-            chat_jid: '5511888888888@c.us', external_id: 'AAA111', direction: :incoming
-          )
-          # Proves the transaction is still usable after the swallowed conflict:
-          # without the savepoint in record!, Postgres would have aborted it and
-          # this write would raise "current transaction is aborted".
-          build_message(source_id: 'false_5511888888888@c.us_PROOF01')
-        end
-      end.not_to raise_error
-    end
-  end
-
   describe '.find_mapping' do
+    it 'refuses to choose between different messages in candidate chats' do
+      build_mapping.save!
+      build_mapping(chat_jid: '5511999999999@c.us').save!
+
+      expect do
+        described_class.find_mapping(channel: channel, chat_jid: %w[5511888888888@c.us 5511999999999@c.us], external_id: 'AAA111')
+      end.to raise_error(CustomExceptions::Waha::AmbiguousIdentity)
+    end
+
     it 'finds an existing mapping by channel, chat_jid, external_id and event_type' do
       mapping = build_mapping.tap(&:save!)
 

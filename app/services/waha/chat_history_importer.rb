@@ -252,18 +252,15 @@ class Waha::ChatHistoryImporter
   end
 
   def load_existing_messages
-    candidate_chat_jids = [@conversation.contact_inbox&.source_id, chat_id].compact.uniq
+    candidate_chat_jids = Waha::Anchoring.chat_jids(channel, [@conversation.contact_inbox&.source_id, chat_id])
 
-    mappings = channel.message_mappings
-                      .where(chat_jid: candidate_chat_jids, event_type: :message)
-                      .pluck(:external_id, :message_id)
-                      .to_h
+    rows = channel.message_mappings.resolved.where(chat_jid: candidate_chat_jids, event_type: :message).pluck(:external_id, :message_id)
+    rows.group_by(&:first).transform_values do |parts|
+      ids = parts.map(&:last).uniq
+      raise CustomExceptions::Waha::AmbiguousIdentity, "channel=#{channel.id} history identity matches multiple messages" if ids.many?
 
-    legacy = @conversation.messages.where.not(source_id: nil)
-                          .pluck(:id, :source_id)
-                          .to_h { |id, source_id| [Waha::Anchoring.stanza_of(source_id), id] }
-
-    legacy.merge(mappings)
+      ids.first
+    end
   end
 
   def track_timestamp(unix)
