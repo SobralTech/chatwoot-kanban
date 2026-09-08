@@ -92,11 +92,11 @@ class Waha::HistoryMessageWriter
 
   # Media downloads stay the live path's concern (Waha::HistoryMediaJob attaches
   # history media later, off the import's critical path); everything the payload
-  # already carries — a location, a vCard — is attached inline, and the same
-  # registry still marks an unsupported or otherwise-empty payload instead of
-  # writing a blank row.
+  # already carries — a location, a vCard — is attached inline. History media
+  # without a URL is persisted as pending by the registry, while unsupported or
+  # otherwise-empty payloads retain their visible fallback.
   def converter
-    @converter ||= Waha::MessageConverters::Registry.for(channel: channel, payload: payload)
+    @converter ||= Waha::MessageConverters::Registry.for(channel: channel, payload: payload, defer_media: true)
   end
 
   def incoming?

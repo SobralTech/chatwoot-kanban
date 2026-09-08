@@ -2,7 +2,8 @@
 # location, one or more vCards, a poll, a list, an event, a Pix payment
 # request, an album header, a real media message (matches
 # Waha::MediaAttacher#media?, the same hasMedia+url gate that already governed
-# download/attach before this registry existed), a text body, or — for
+# download/attach before this registry existed; historical media without a URL
+# is also recognized when explicitly deferred), a text body, or — for
 # anything else, including a still-unsupported WhatsApp message type and a
 # known type with no usable payload — the visible fallback.
 #
@@ -16,8 +17,8 @@
 # wrap whichever converter their own content would otherwise get, instead of
 # replacing it — the same idiom a reply to a status uses below.
 class Waha::MessageConverters::Registry
-  def self.for(channel:, payload:, terminal: nil)
-    converter = content_converter(channel: channel, payload: payload, terminal: terminal)
+  def self.for(channel:, payload:, terminal: nil, defer_media: false)
+    converter = content_converter(channel: channel, payload: payload, terminal: terminal, defer_media: defer_media)
     converter = wrap_facebook_ad(converter, payload)
     converter = wrap_album_item(converter, payload)
     return Waha::MessageConverters::StatusReply.new(inner: converter) if Waha::StatusContext.reply_to_status?(payload)
@@ -25,12 +26,18 @@ class Waha::MessageConverters::Registry
     converter
   end
 
-  def self.content_converter(channel:, payload:, terminal:)
+  def self.content_converter(channel:, payload:, terminal:, defer_media:)
     structured = structured_converter(payload)
     return structured if structured
 
     media_attacher = Waha::MediaAttacher.new(channel: channel, payload: payload, terminal: terminal)
-    return Waha::MessageConverters::Media.new(channel: channel, payload: payload, media_attacher: media_attacher) if media_attacher.media?
+    pending = deferred_media?(payload, media_attacher, defer_media)
+    if media_attacher.media? || pending
+      return Waha::MessageConverters::Media.new(
+        channel: channel, payload: payload, media_attacher: media_attacher,
+        pending: pending
+      )
+    end
     return Waha::MessageConverters::Text.new(channel: channel, payload: payload) if payload['body'].present?
 
     # The one place a WhatsApp message type reaches the visible fallback, so it
@@ -49,6 +56,17 @@ class Waha::MessageConverters::Registry
   def self.unsupported_reason(payload)
     node = payload.dig('_data', 'Message')
     (node.is_a?(Hash) ? node.keys.first : nil).presence || payload['type'].presence || :empty_payload
+  end
+
+  # History pages intentionally ask WAHA not to download media. Keep that
+  # path distinct from the live URL-backed gate: a real, recognized media kind
+  # with hasMedia=true is still media even while its URL is absent.
+  def self.deferred_media?(payload, media_attacher, defer_media)
+    defer_media && payload['hasMedia'] == true && media_attacher.media_kind.present? && media_url(payload).blank?
+  end
+
+  def self.media_url(payload)
+    payload.dig('media', 'url').presence || payload['mediaUrl'].presence
   end
 
   def self.structured_converter(payload)
@@ -111,7 +129,8 @@ class Waha::MessageConverters::Registry
     Waha::MessageConverters::AlbumItem.new(inner: converter, album_id: album_id)
   end
 
-  private_class_method :content_converter, :unsupported_reason, :structured_converter, :location_converter, :vcard_converter,
+  private_class_method :content_converter, :unsupported_reason, :deferred_media?, :media_url, :structured_converter,
+                       :location_converter, :vcard_converter,
                        :poll_converter, :list_converter, :event_converter, :pix_converter, :album_converter, :wrap_facebook_ad,
                        :wrap_album_item
 end

@@ -108,6 +108,59 @@ describe Waha::ChatHistoryImporter do
     expect(conversation.unread_incoming_messages_count).to eq(0)
   end
 
+  it 'queues every recognized historical media kind, including old video and document, but not unknown media' do
+    base_timestamp = 2.months.ago.to_i
+    video = gows_payload('album_item_video').deep_dup
+    video['id'] = "false_#{chat_id}_VIDEOOLD"
+    video['timestamp'] = base_timestamp + 1
+    video['media'].delete('url')
+    document = {
+      'id' => "false_#{chat_id}_DOCUMENTOLD",
+      'timestamp' => base_timestamp,
+      'from' => chat_id,
+      'to' => '5511999999999@c.us',
+      'fromMe' => false,
+      'body' => nil,
+      'hasMedia' => true,
+      'media' => { 'mimetype' => 'application/pdf' },
+      '_data' => {
+        'Info' => { 'Chat' => chat_id, 'MediaType' => 'document' },
+        'Message' => { 'documentMessage' => { 'mimetype' => 'application/pdf' } }
+      }
+    }
+    unknown = document.deep_dup.merge(
+      'id' => "false_#{chat_id}_UNKNOWNOLD",
+      'timestamp' => base_timestamp + 2,
+      'type' => 'mystery',
+      'media' => { 'mimetype' => 'unknown/unknown' },
+      '_data' => {
+        'Info' => { 'Chat' => chat_id, 'MediaType' => 'mystery' },
+        'Message' => { 'mysteryMessage' => {} }
+      }
+    )
+    messages = [video, document, unknown]
+    stub_request(:get, %r{https://waha\.test/api/#{channel.session_name}/chats/#{Regexp.escape(chat_id)}/messages\?})
+      .to_return(status: 200, body: messages.to_json, headers: { 'Content-Type' => 'application/json' })
+
+    conversation = create(:conversation, account: channel.account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
+    import_chat = WahaImportChat.create!(channel: channel, chat_id: chat_id)
+    import_window = { 'window_start' => 90.days.ago.utc.iso8601, 'window_end' => Time.current.utc.iso8601 }
+    importer = described_class.new(channel: channel, chat_id: chat_id, window: import_window, import_chat: import_chat, kind: 'initial')
+    allow(importer).to receive(:fetch_page).and_return(messages)
+
+    expect do
+      importer.run
+    end.to have_enqueued_job(Waha::HistoryMediaJob).exactly(:once)
+
+    document_message = waha_messages(document['id'], conversation.messages).first!
+    video_message = waha_messages(video['id'], conversation.messages).first!
+    expect(import_chat.reload.media_message_ids).to contain_exactly(document_message.id, video_message.id)
+    queued_media_ids = enqueued_jobs.find { |job| job[:job] == Waha::HistoryMediaJob }[:args].last
+    expect(queued_media_ids).to contain_exactly(document_message.id, video_message.id)
+    unknown_message = waha_messages(unknown['id'], conversation.messages).first!
+    expect(unknown_message.content_attributes['is_unsupported']).to be(true)
+  end
+
   context 'when resolving the chat fails (core failure)' do
     it 'propagates the error and leaves the checkpoint untouched' do
       allow(Waha::ContactResolver).to receive(:from_payload).and_raise(CustomExceptions::Waha::TransientError, 'WAHA unreachable')

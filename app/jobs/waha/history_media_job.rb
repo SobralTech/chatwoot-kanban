@@ -61,8 +61,9 @@ class Waha::HistoryMediaJob < ApplicationJob
   # A message that already carries an attachment was done by an earlier run; it
   # succeeds without counting against the circuit breaker.
   def process(message_id)
-    message = @channel.inbox.messages.where(id: message_id).where.missing(:attachments).first
+    message = @channel.inbox.messages.find_by(id: message_id)
     return :success if message.nil?
+    return finalize(message, terminal: false) if message.attachments.exists?
 
     attach_media(message)
   end
@@ -89,7 +90,11 @@ class Waha::HistoryMediaJob < ApplicationJob
   end
 
   def finalize(message, terminal:, reason: nil)
-    Waha::MediaAttacher.mark_download_failed(message) if terminal
+    if terminal
+      Waha::MediaAttacher.mark_download_failed(message)
+    else
+      Waha::MediaAttacher.mark_download_succeeded(message)
+    end
     message.imported = true
     message.save!
     return :success unless terminal

@@ -13,12 +13,6 @@ class Waha::ChatHistoryImporter
   # shot — bounding how large a cluster we can fully resolve in one page.
   MAX_TIED_SECOND_SIZE = PAGE_SIZE * 10
 
-  FULL_WINDOW_MEDIA_KINDS = %w[image audio ptt sticker].freeze
-  # Videos, documents and unknown media remain bounded because older WhatsApp
-  # files are commonly expired and expensive to probe. Keep the existing env key
-  # backwards compatible for installations that already tune the 30-day window.
-  RECENT_MEDIA_MAX_AGE = ENV.fetch('WAHA_IMPORT_MEDIA_MAX_AGE_DAYS', 30).to_i.days
-
   pattr_initialize [:channel!, :chat_id!, :window!, :import_chat!, { kind: 'initial' }]
 
   # Imports one chat's messages within the window. Resolves the conversation once,
@@ -210,17 +204,13 @@ class Waha::ChatHistoryImporter
     @media_message_ids << message_id if downloadable_media?(payload)
   end
 
-  # Images, audio and stickers follow the full import window. Videos, documents
-  # and unknown media keep the bounded recent-media window.
+  # Every recognized media kind is eligible, regardless of age. Unknown payloads
+  # stay out of the queue because the history job cannot attach them safely.
   def downloadable_media?(payload)
     return false if payload['hasMedia'].blank?
 
     kind = Waha::MediaAttacher.new(channel: channel, payload: payload).media_kind
-    FULL_WINDOW_MEDIA_KINDS.include?(kind) || payload['timestamp'].to_i >= media_cutoff
-  end
-
-  def media_cutoff
-    @media_cutoff ||= RECENT_MEDIA_MAX_AGE.ago.to_i
+    Waha::MediaAttacher::MEDIA_KINDS.include?(kind)
   end
 
   # One serial media job per chat (not per page): it fetches this chat's media

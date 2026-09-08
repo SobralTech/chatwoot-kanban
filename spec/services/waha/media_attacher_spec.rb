@@ -73,6 +73,35 @@ describe Waha::MediaAttacher do
       expect(message.content_attributes['media_download_failed']).to be_nil
     end
 
+    it 'clears pending and unsupported state while preserving a real caption' do
+      stub_request(:get, media_url).to_return(status: 200, body: 'bytes', headers: { 'Content-Type' => 'image/jpeg' })
+      message = build(
+        :message,
+        content: 'real caption',
+        content_attributes: {
+          'media_download_pending' => true,
+          'media_download_provenance' => 'waha_history', 'is_unsupported' => true
+        }
+      )
+
+      described_class.new(channel: channel, payload: media_payload).attach_to(message)
+
+      expect(message.attachments.size).to eq(1)
+      expect(message.content).to eq('real caption')
+      expect(message.content_attributes).not_to have_key('media_download_pending')
+      expect(message.content_attributes).not_to have_key('is_unsupported')
+    end
+
+    it 'does not erase a live caption that happens to equal the pending translation' do
+      stub_request(:get, media_url).to_return(status: 200, body: 'bytes', headers: { 'Content-Type' => 'image/jpeg' })
+      message = build(:message, content: I18n.t('conversations.messages.waha_media_pending'))
+
+      described_class.new(channel: channel, payload: media_payload).attach_to(message)
+
+      expect(message.attachments.size).to eq(1)
+      expect(message.content).to eq(I18n.t('conversations.messages.waha_media_pending'))
+    end
+
     it 'marks a visible fallback (content + content_attributes) on a terminal download failure' do
       stub_request(:get, media_url).to_return(status: 404)
       message = build(:message, content: nil)
@@ -94,14 +123,53 @@ describe Waha::MediaAttacher do
       expect(message.content_attributes['media_download_failed']).to be(true)
     end
 
+    it 'replaces only the pending placeholder on terminal failure' do
+      stub_request(:get, media_url).to_return(status: 404)
+      message = build(
+        :message,
+        content: I18n.t('conversations.messages.waha_media_pending'),
+        content_attributes: {
+          'media_download_pending' => true, 'media_download_provenance' => 'waha_history',
+          'media_download_content' => 'waha_media_pending', 'is_unsupported' => true
+        }
+      )
+
+      described_class.new(channel: channel, payload: media_payload).attach_to(message)
+
+      expect(message.attachments).to be_empty
+      expect(message.content).to eq(I18n.t('conversations.messages.waha_media_unavailable'))
+      expect(message.content_attributes['media_download_failed']).to be(true)
+      expect(message.content_attributes).not_to have_key('media_download_pending')
+      expect(message.content_attributes).not_to have_key('is_unsupported')
+    end
+
+    it 'does not convert a live caption matching the pending translation on terminal failure' do
+      stub_request(:get, media_url).to_return(status: 404)
+      message = build(:message, content: I18n.t('conversations.messages.waha_media_pending'))
+
+      described_class.new(channel: channel, payload: media_payload).attach_to(message)
+
+      expect(message.content).to eq(I18n.t('conversations.messages.waha_media_pending'))
+      expect(message.content_attributes['media_download_failed']).to be(true)
+    end
+
     it 'preserves an existing caption instead of overwriting it with the fallback label' do
       stub_request(:get, media_url).to_return(status: 404)
-      message = build(:message, content: 'check this out')
+      message = build(
+        :message,
+        content: 'check this out',
+        content_attributes: {
+          'media_download_pending' => true,
+          'media_download_provenance' => 'waha_history', 'is_unsupported' => true
+        }
+      )
 
       described_class.new(channel: channel, payload: media_payload).attach_to(message)
 
       expect(message.content).to eq('check this out')
       expect(message.content_attributes['media_download_failed']).to be(true)
+      expect(message.content_attributes).not_to have_key('media_download_pending')
+      expect(message.content_attributes).not_to have_key('is_unsupported')
     end
 
     it 'does not attach anything or mark a failure for a message with no media' do

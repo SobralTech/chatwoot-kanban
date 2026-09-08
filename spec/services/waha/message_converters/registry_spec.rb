@@ -24,18 +24,50 @@ describe Waha::MessageConverters::Registry do
     }
   end
 
+  def historical_media_payload(kind:, body: nil)
+    node_key = { 'image' => 'imageMessage', 'video' => 'videoMessage', 'audio' => 'audioMessage' }.fetch(kind)
+    mimetype = { 'image' => 'image/jpeg', 'video' => 'video/mp4', 'audio' => 'audio/ogg' }.fetch(kind)
+
+    {
+      'id' => "false_5511888888888@c.us_HISTORY_#{kind}",
+      'body' => body,
+      'type' => kind,
+      'hasMedia' => true,
+      'media' => { 'mimetype' => mimetype },
+      '_data' => {
+        'Info' => { 'Chat' => '5511888888888@c.us', 'MediaType' => kind },
+        'Message' => { node_key => { 'mimetype' => mimetype } }
+      }
+    }
+  end
+
   def poll_payload
     gows_payload('poll_creation')
   end
 
-  def converter_for(payload)
-    described_class.for(channel: channel, payload: payload)
+  def converter_for(payload = nil, defer_media: false, **keyword_payload)
+    payload ||= keyword_payload
+    described_class.for(channel: channel, payload: payload, defer_media: defer_media)
   end
 
   describe '.for' do
     Waha::MediaAttacher::MEDIA_KINDS.each do |kind|
       it "selects the media converter for a #{kind} payload" do
         expect(converter_for(media_payload(kind: kind))).to be_a(Waha::MessageConverters::Media)
+      end
+    end
+
+    %w[image video audio].each do |kind|
+      it "selects pending media for a historical #{kind} without a URL" do
+        converter = converter_for(historical_media_payload(kind: kind), defer_media: true)
+
+        expect(converter).to be_a(Waha::MessageConverters::Media)
+        expect(converter.metadata).to eq(
+          media_download_pending: true,
+          media_download_provenance: 'waha_history',
+          media_download_content: 'waha_media_pending'
+        )
+        expect(converter.metadata).not_to have_key(:is_unsupported)
       end
     end
 

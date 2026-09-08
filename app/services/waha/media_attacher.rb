@@ -1,5 +1,8 @@
 class Waha::MediaAttacher
   MEDIA_KINDS = %w[image audio ptt video document sticker].freeze
+  HISTORY_MEDIA_PROVENANCE = 'waha_history'.freeze
+  PENDING_CONTENT = 'waha_media_pending'.freeze
+  UNAVAILABLE_CONTENT = 'waha_media_unavailable'.freeze
 
   # GOWS engine encodes media as raw `_data.Message.<kind>Message` keys; use this
   # mapping when neither `payload.type` nor `_data.Info.MediaType` is set.
@@ -24,8 +27,25 @@ class Waha::MediaAttacher
   # recovered (download exhausted its retries, or failed for a non-transient
   # reason) so the content never just silently disappears.
   def self.mark_download_failed(message)
-    message.content_attributes = message.content_attributes.merge('media_download_failed' => true)
-    message.content = I18n.t('conversations.messages.waha_media_unavailable') if message.content.blank?
+    attrs = message.content_attributes || {}
+    terminal_attrs = if history_media_managed?(attrs)
+                       terminal_history_attributes(message, attrs)
+                     else
+                       unmanaged_failure_attributes(message, attrs)
+                     end
+    message.content_attributes = terminal_attrs.merge('media_download_failed' => true)
+  end
+
+  # Removes the historical pending/fallback state after an attachment is ready.
+  # The exact placeholder is the only content this method is allowed to erase;
+  # a real caption survives the transition to the native attachment bubble.
+  def self.mark_download_succeeded(message)
+    attrs = message.content_attributes || {}
+    return unless history_media_managed?(attrs)
+
+    message.content = nil if synthetic_content?(message, attrs, PENDING_CONTENT) ||
+                             synthetic_content?(message, attrs, UNAVAILABLE_CONTENT)
+    message.content_attributes = cleared_media_state(attrs)
   end
 
   # Fetches the media ahead of time so callers can keep the (potentially slow)
@@ -70,6 +90,7 @@ class Waha::MediaAttacher
         content_type: file.content_type
       }
     )
+    self.class.mark_download_succeeded(message)
     # Stickers are stored as image attachments (for gallery/download reuse) but
     # flagged via content_type so the UI can render them with the compact,
     # background-less sticker bubble instead of a full-size image.
@@ -97,6 +118,51 @@ class Waha::MediaAttacher
   end
 
   private
+
+  def self.history_media_managed?(content_attributes)
+    content_attribute(content_attributes, 'media_download_provenance') == HISTORY_MEDIA_PROVENANCE
+  end
+
+  def self.synthetic_content?(message, content_attributes, token)
+    content_attribute(content_attributes, 'media_download_content') == token &&
+      message.content == I18n.t("conversations.messages.#{token}")
+  end
+
+  def self.content_attribute(content_attributes, key)
+    content_attributes[key] || content_attributes[key.to_sym]
+  end
+
+  def self.terminal_history_attributes(message, content_attributes)
+    pending_placeholder = synthetic_content?(message, content_attributes, PENDING_CONTENT)
+    unavailable_placeholder = synthetic_content?(message, content_attributes, UNAVAILABLE_CONTENT)
+    attrs = content_attributes.except(
+      'media_download_pending', :media_download_pending, 'is_unsupported', :is_unsupported,
+      'media_download_content', :media_download_content
+    )
+    return attrs.merge('media_download_content' => UNAVAILABLE_CONTENT) if unavailable_placeholder
+    return attrs unless pending_placeholder || message.content.blank?
+
+    message.content = I18n.t('conversations.messages.waha_media_unavailable')
+    attrs.merge('media_download_content' => UNAVAILABLE_CONTENT)
+  end
+
+  def self.unmanaged_failure_attributes(message, content_attributes)
+    message.content = I18n.t('conversations.messages.waha_media_unavailable') if message.content.blank?
+    content_attributes.merge('media_download_failed' => true)
+  end
+
+  def self.cleared_media_state(content_attributes)
+    (content_attributes || {}).except(
+      'media_download_pending', :media_download_pending,
+      'media_download_failed', :media_download_failed,
+      'is_unsupported', :is_unsupported,
+      'media_download_provenance', :media_download_provenance,
+      'media_download_content', :media_download_content
+    )
+  end
+
+  private_class_method :history_media_managed?, :synthetic_content?, :content_attribute, :terminal_history_attributes,
+                       :unmanaged_failure_attributes, :cleared_media_state
 
   # The download itself is the unit an administrator counts, so success and
   # terminal give-up are reported from here; a transient failure is reported by

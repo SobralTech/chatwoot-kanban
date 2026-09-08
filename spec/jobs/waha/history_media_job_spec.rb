@@ -50,17 +50,36 @@ describe Waha::HistoryMediaJob do
     it 'skips a message that already carries an attachment without counting it as a failure' do
       done = build_message('AAA')
       done.attachments.create!(account: channel.account, file_type: :image)
+      done.update!(
+        content: I18n.t('conversations.messages.waha_media_pending'),
+        content_attributes: {
+          'media_download_pending' => true, 'media_download_provenance' => 'waha_history',
+          'media_download_content' => 'waha_media_pending', 'is_unsupported' => true
+        }
+      )
       pending_message = build_message('BBB')
 
       expect { described_class.perform_now(channel.id, 'chat@c.us', [done.id, pending_message.id], 0) }
         .to have_enqueued_job(described_class)
         .with(channel.id, 'chat@c.us', [pending_message.id], 0)
+
+      expect(done.reload.content).to be_nil
+      expect(done.content_attributes).not_to have_key('media_download_pending')
+      expect(done.content_attributes).not_to have_key('is_unsupported')
     end
   end
 
   describe 'transient failures' do
     it 'keeps the item at the front of the queue for a retry, without dropping it' do
       message = build_message('AAA')
+      message.update!(
+        content: I18n.t('conversations.messages.waha_media_pending'),
+        content_attributes: {
+          'media_download_pending' => true,
+          'media_download_provenance' => 'waha_history',
+          'media_download_content' => 'waha_media_pending'
+        }
+      )
       stub_request(:get, /waha\.test/).to_return(status: 503, body: '{}', headers: { 'Content-Type' => 'application/json' })
 
       expect { described_class.perform_now(channel.id, 'chat@c.us', [message.id]) }
@@ -69,10 +88,19 @@ describe Waha::HistoryMediaJob do
 
       expect(message.reload.attachments).to be_empty
       expect(message.content_attributes['media_download_failed']).to be_nil
+      expect(message.content_attributes['media_download_pending']).to be(true)
+      expect(message.content).to eq(I18n.t('conversations.messages.waha_media_pending'))
     end
 
     it 'attaches the media once the transient failure clears, without a duplicate attachment' do
       message = build_message('AAA')
+      message.update!(
+        content: I18n.t('conversations.messages.waha_media_pending'),
+        content_attributes: {
+          'media_download_pending' => true, 'media_download_provenance' => 'waha_history',
+          'media_download_content' => 'waha_media_pending', 'is_unsupported' => true
+        }
+      )
       fetch_path = %r{/chats/5511888888888(?:@|%40)c\.us/messages/}
       payload = {
         'id' => message.presented_source_id, 'hasMedia' => true, 'type' => 'image',
@@ -94,13 +122,22 @@ describe Waha::HistoryMediaJob do
         .not_to have_enqueued_job(described_class)
 
       expect(message.reload.attachments.size).to eq(1)
+      expect(message.content).to be_nil
+      expect(message.content_attributes).not_to have_key('media_download_pending')
+      expect(message.content_attributes).not_to have_key('is_unsupported')
     end
   end
 
   describe 'terminal failures' do
     it 'registers a visible fallback and advances past the item instead of dropping it silently' do
       message = build_message('AAA')
-      message.update!(content: nil)
+      message.update!(
+        content: I18n.t('conversations.messages.waha_media_pending'),
+        content_attributes: {
+          'media_download_pending' => true, 'media_download_provenance' => 'waha_history',
+          'media_download_content' => 'waha_media_pending', 'is_unsupported' => true
+        }
+      )
       # The default before-block stub (404) is a permanent, non-retryable miss.
 
       expect { described_class.perform_now(channel.id, 'chat@c.us', [message.id]) }
@@ -110,6 +147,44 @@ describe Waha::HistoryMediaJob do
       expect(message.attachments).to be_empty
       expect(message.content_attributes['media_download_failed']).to be(true)
       expect(message.content).to eq(I18n.t('conversations.messages.waha_media_unavailable'))
+      expect(message.content_attributes).not_to have_key('media_download_pending')
+      expect(message.content_attributes).not_to have_key('is_unsupported')
+    end
+
+    it 'reconciles a terminal synthetic placeholder if a later execution finds the media' do
+      message = build_message('RECOVER')
+      message.update!(
+        content: I18n.t('conversations.messages.waha_media_pending'),
+        content_attributes: {
+          'media_download_pending' => true, 'media_download_provenance' => 'waha_history',
+          'media_download_content' => 'waha_media_pending'
+        }
+      )
+
+      expect { described_class.perform_now(channel.id, 'chat@c.us', [message.id]) }
+        .not_to have_enqueued_job(described_class)
+
+      message.reload
+      expect(message.content).to eq(I18n.t('conversations.messages.waha_media_unavailable'))
+      expect(message.content_attributes['media_download_provenance']).to eq('waha_history')
+
+      payload = {
+        'id' => message.presented_source_id, 'hasMedia' => true, 'type' => 'image',
+        'media' => { 'url' => 'http://localhost:3000/api/files/recovered.jpeg', 'mimetype' => 'image/jpeg' }
+      }
+      fetch_path = %r{/chats/5511888888888(?:@|%40)c\.us/messages/}
+      stub_request(:get, fetch_path).to_return(status: 200, body: payload.to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:get, 'https://waha.test/api/files/recovered.jpeg')
+        .to_return(status: 200, body: 'bytes', headers: { 'Content-Type' => 'image/jpeg' })
+
+      described_class.perform_now(channel.id, 'chat@c.us', [message.id])
+
+      message.reload
+      expect(message.attachments.size).to eq(1)
+      expect(message.content).to be_nil
+      expect(message.content_attributes.keys).not_to include(
+        'media_download_failed', 'media_download_provenance', 'media_download_content'
+      )
     end
   end
 
