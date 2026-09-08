@@ -29,68 +29,86 @@ class Waha::HistoryMediaJob < ApplicationJob
   # next run (after the throttle, or the circuit-breaker cooldown) retries the
   # very item that failed instead of skipping past it.
   def perform(channel_id, chat_id, message_ids, consecutive_failures = 0)
-    channel = Channel::Waha.find_by(id: channel_id)
-    return if channel.nil?
+    @channel = Channel::Waha.find_by(id: channel_id)
+    @chat_id = chat_id
+    return if @channel.nil?
 
     remaining = Array(message_ids)
-    message_id = remaining.first
-    return if message_id.nil?
+    return if remaining.first.nil?
 
-    outcome = process(channel, chat_id, message_id)
+    outcome = process(remaining.first)
     remaining.shift unless outcome == :transient
     return if remaining.empty?
 
-    failures = outcome == :success ? 0 : consecutive_failures + 1
-    wait, next_failures = failures >= MAX_CONSECUTIVE_FAILURES ? [FAILURE_COOLDOWN, 0] : [THROTTLE, failures]
-    self.class.set(wait: wait).perform_later(channel_id, chat_id, remaining, next_failures)
+    chain(remaining, outcome == :success ? 0 : consecutive_failures + 1)
   end
 
   private
 
+  # Hands the rest of the chat's media to a successor job, pausing longer once
+  # the circuit breaker trips — which is itself a signal, since a chat whose
+  # media is repeatedly failing is a backlog that will not drain on its own.
+  def chain(remaining, failures)
+    tripped = failures >= MAX_CONSECUTIVE_FAILURES
+    if tripped
+      observe(nil, signal: :media_backlog_paused, level: :warn, reason: :consecutive_failures,
+                   pending: remaining.size, delay_ms: FAILURE_COOLDOWN.in_milliseconds)
+    end
+    wait, next_failures = tripped ? [FAILURE_COOLDOWN, 0] : [THROTTLE, failures]
+    self.class.set(wait: wait).perform_later(@channel.id, @chat_id, remaining, next_failures)
+  end
+
   # A message that already carries an attachment was done by an earlier run; it
   # succeeds without counting against the circuit breaker.
-  def process(channel, chat_id, message_id)
-    message = channel.inbox.messages.where(id: message_id).where.missing(:attachments).first
+  def process(message_id)
+    message = @channel.inbox.messages.where(id: message_id).where.missing(:attachments).first
     return :success if message.nil?
 
-    attach_media(channel, chat_id, message)
+    attach_media(message)
   end
 
   # :success - media fetched and attached. :transient - worth retrying (network
   # blip, WAHA 5xx/timeout); trips the circuit breaker but keeps the item queued.
   # :terminal - registered as a permanent failure (Waha::MediaAttacher's visible
   # fallback) and the item is skipped for good.
-  def attach_media(channel, _chat_id, message)
+  def attach_media(message)
     mapping = Waha::Anchoring.mappings_for(message).first
-    return finalize(message, terminal: true) unless mapping
+    return finalize(message, terminal: true, reason: :missing_mapping) unless mapping
 
-    payload = fetch_message(channel, mapping.chat_jid, mapping.provider_id)
-    return finalize(message, terminal: true) if payload.blank?
+    payload = fetch_message(mapping.chat_jid, mapping.provider_id)
+    return finalize(message, terminal: true, reason: :message_gone) if payload.blank?
 
-    Waha::MediaAttacher.new(channel: channel, payload: payload).attach_to(message)
-    finalize(message, terminal: message.attachments.blank?)
+    Waha::MediaAttacher.new(channel: @channel, payload: payload).attach_to(message)
+    finalize(message, terminal: message.attachments.blank?, reason: :not_attached)
   rescue CustomExceptions::Waha::TransientError => e
-    Rails.logger.warn "[WAHA] History media: message #{message.id} transient failure: #{e.message}"
+    observe(message, level: :warn, outcome: :transient, reason: :fetch_failed, error: e.class.name)
     :transient
   rescue StandardError => e
-    Rails.logger.error "[WAHA] History media: message #{message.id} failed: #{e.message}"
+    observe(message, level: :error, outcome: :terminal, reason: :fetch_failed, error: e.class.name)
     finalize(message, terminal: true)
   end
 
-  def finalize(message, terminal:)
+  def finalize(message, terminal:, reason: nil)
     Waha::MediaAttacher.mark_download_failed(message) if terminal
     message.imported = true
     message.save!
-    terminal ? :terminal : :success
+    return :success unless terminal
+
+    observe(message, level: :info, outcome: :terminal, reason: reason) if reason
+    :terminal
   end
 
-  def fetch_message(channel, chat_id, source_id)
-    path = "#{channel.session_name}/chats/#{CGI.escape(chat_id.to_s)}/messages/#{CGI.escape(source_id.to_s)}?downloadMedia=true"
-    response = http_client(channel).get(path, timeout: FETCH_TIMEOUT)
+  def observe(message, signal: :media_download, **context)
+    Waha::Telemetry.emit(signal, channel: @channel, chat: @chat_id, scope: :history, message_id: message&.id, **context)
+  end
+
+  def fetch_message(chat_jid, source_id)
+    path = "#{@channel.session_name}/chats/#{CGI.escape(chat_jid.to_s)}/messages/#{CGI.escape(source_id.to_s)}?downloadMedia=true"
+    response = http_client.get(path, timeout: FETCH_TIMEOUT)
     response.is_a?(Hash) ? response : nil
   end
 
-  def http_client(channel)
-    @http_client ||= Waha::HttpClient.new(channel: channel)
+  def http_client
+    @http_client ||= Waha::HttpClient.new(channel: @channel)
   end
 end

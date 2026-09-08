@@ -167,7 +167,9 @@ class Waha::HistoryMessageWriter
       sender_alt: payload.dig('_data', 'Info', 'SenderAlt')
     ).perform
   rescue StandardError => e
-    Rails.logger.error "[WAHA] group participant resolution failed for #{sender_jid}: #{e.message}"
+    Waha::Telemetry.emit(
+      :enrichment_failed, channel: channel, level: :warn, reason: :group_participant, scope: :history, error: e.class.name
+    )
     @resolve_participant = nil
   end
 

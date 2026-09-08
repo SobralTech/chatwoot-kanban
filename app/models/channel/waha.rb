@@ -194,12 +194,14 @@ class Channel::Waha < ApplicationRecord
       'status' => 'completed', 'finished_at' => Time.current.utc.iso8601,
       'queued_window' => nil, 'queued_kind' => nil
     )
+    observe_import_finished(:completed)
   end
 
   def fail_import!(message)
     update_import_state!(
       'status' => 'failed', 'error' => message.to_s.truncate(500), 'finished_at' => Time.current.utc.iso8601
     )
+    observe_import_finished(:failed)
   end
 
   # Resumes a failed import from where it stopped, replaying the same window.
@@ -300,6 +302,22 @@ class Channel::Waha < ApplicationRecord
   end
 
   private
+
+  # Both terminal transitions of an import are the same signal, separated by
+  # `outcome`, so how long a channel takes to catch up is one series regardless
+  # of whether it succeeded. `failed_chats` is what remains stuck; the failure
+  # text stays in import_state and on the chat rows, out of the signal.
+  def observe_import_finished(outcome)
+    started_at = import_state['started_at']
+    progress = import_progress
+    Waha::Telemetry.emit(
+      :import_finished, channel: self, level: outcome == :failed ? :error : :info,
+                        kind: import_state['kind'], execution_id: import_state['execution_id'], outcome: outcome,
+                        duration_ms: (started_at && ((Time.current - Time.zone.parse(started_at)) * 1000).round),
+                        chats: progress['total_chats'], imported_messages: progress['imported_messages'],
+                        failed_chats: import_chats.failed.count
+    )
+  end
 
   # All callers hold the channel row lock. A fresh execution may remove old chat
   # rows only after the previous execution reached a terminal state; resumptions

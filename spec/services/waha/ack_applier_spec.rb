@@ -229,11 +229,10 @@ describe Waha::AckApplier do
 
     it 'produces an observable signal and no state change when the payload carries no participant' do
       group_message
-      allow(Rails.logger).to receive(:warn)
 
-      apply(group_ack(ack: 3, participant: nil).merge('to' => nil), group: true)
+      signals = capture_waha_signals { apply(group_ack(ack: 3, participant: nil).merge('to' => nil), group: true) }
 
-      expect(Rails.logger).to have_received(:warn).with(/Group ack without participant granularity/)
+      expect(waha_signal(signals, :ack_ignored).first).to include(reason: :group_without_participant, event: 'message.ack.group')
       expect(group_message.reload.status).to eq('sent')
       expect(group_message.content_attributes['waha_group_acks']).to be_nil
     end

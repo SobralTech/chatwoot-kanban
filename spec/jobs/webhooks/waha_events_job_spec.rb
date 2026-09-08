@@ -273,18 +273,20 @@ describe Webhooks::WahaEventsJob do
     end
 
     it 'leaves unsupported group calls out of the conversation and emits an operational decision' do
-      allow(Rails.logger).to receive(:info)
+      signals = capture_waha_signals do
+        expect { described_class.perform_now(channel.id, call_params(overrides: { 'isGroup' => true })) }.not_to change(Message, :count)
+      end
 
-      expect { described_class.perform_now(channel.id, call_params(overrides: { 'isGroup' => true })) }.not_to change(Message, :count)
-      expect(Rails.logger).to have_received(:info).with(include('event=call.received action=ignore reason=group_call'))
+      expect(waha_signal(signals, :event_ignored).first).to include(event: 'call.received', reason: :group_call)
     end
 
     it 'records a malformed call decision instead of silently dropping the webhook' do
-      allow(Rails.logger).to receive(:info)
+      signals = capture_waha_signals do
+        expect { described_class.perform_now(channel.id, 'session' => channel.session_name, 'event' => 'call.received') }
+          .not_to change(Message, :count)
+      end
 
-      expect { described_class.perform_now(channel.id, 'session' => channel.session_name, 'event' => 'call.received') }
-        .not_to change(Message, :count)
-      expect(Rails.logger).to have_received(:info).with(include('event=call.received action=ignore reason=missing_call_id'))
+      expect(waha_signal(signals, :event_ignored).first).to include(event: 'call.received', reason: :missing_call_id)
     end
   end
 

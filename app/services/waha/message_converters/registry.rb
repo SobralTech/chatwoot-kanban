@@ -33,7 +33,22 @@ class Waha::MessageConverters::Registry
     return Waha::MessageConverters::Media.new(channel: channel, payload: payload, media_attacher: media_attacher) if media_attacher.media?
     return Waha::MessageConverters::Text.new(channel: channel, payload: payload) if payload['body'].present?
 
+    # The one place a WhatsApp message type reaches the visible fallback, so it
+    # is also the single signal for it — live, edited and historical alike. The
+    # raw engine node is what is unsupported, but publishing it would be
+    # publishing the message, so only its top-level key is reported.
+    Waha::Telemetry.emit(
+      :message_unsupported_type, channel: channel, level: :info, reason: unsupported_reason(payload),
+                                 waha_id: Waha::Anchoring.stanza_of(payload['id']).presence
+    )
     Waha::MessageConverters::Fallback.new
+  end
+
+  # Names the shape that could not be converted without quoting any of it: the
+  # proto node GOWS sent, or the fact that it sent none.
+  def self.unsupported_reason(payload)
+    node = payload.dig('_data', 'Message')
+    (node.is_a?(Hash) ? node.keys.first : nil).presence || payload['type'].presence || :empty_payload
   end
 
   def self.structured_converter(payload)
@@ -96,6 +111,7 @@ class Waha::MessageConverters::Registry
     Waha::MessageConverters::AlbumItem.new(inner: converter, album_id: album_id)
   end
 
-  private_class_method :content_converter, :structured_converter, :location_converter, :vcard_converter, :poll_converter, :list_converter,
-                       :event_converter, :pix_converter, :album_converter, :wrap_facebook_ad, :wrap_album_item
+  private_class_method :content_converter, :unsupported_reason, :structured_converter, :location_converter, :vcard_converter,
+                       :poll_converter, :list_converter, :event_converter, :pix_converter, :album_converter, :wrap_facebook_ad,
+                       :wrap_album_item
 end

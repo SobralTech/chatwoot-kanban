@@ -16,7 +16,7 @@ class Waha::IncomingMessageService
     return if policy.action == :ignore
 
     existing = find_canonical_message
-    return existing if existing
+    return deduplicated(existing, :already_mapped) if existing
 
     if edited_original
       # An edit reuses the original message's conversation and contact. The edit
@@ -33,7 +33,7 @@ class Waha::IncomingMessageService
     end
 
     existing = find_canonical_message
-    return existing if existing
+    return deduplicated(existing, :already_mapped) if existing
 
     # Downloading media and resolving @mentions can each block on a WAHA call, so
     # both happen before the transaction opens rather than pinning a connection
@@ -51,7 +51,7 @@ class Waha::IncomingMessageService
       # same event can be in flight twice (Sidekiq delivers at least once, and WAHA
       # retries webhooks it considers failed) or race with history import.
       existing = find_canonical_message
-      return existing if existing
+      return deduplicated(existing, :already_mapped) if existing
 
       ActiveRecord::Base.transaction do
         set_conversation unless @conversation
@@ -59,7 +59,7 @@ class Waha::IncomingMessageService
         record_canonical_mapping!
         clear_pending_editor
         clear_migrated_reactions
-        @message
+        persisted(@message)
       end
     end
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
@@ -67,7 +67,32 @@ class Waha::IncomingMessageService
     # if concurrent execution bypassed the lock or raced within it, the loser
     # transaction was rolled back, leaving zero duplicate messages in the DB.
     # Return the winning persisted message idempotently.
-    find_canonical_message || raise
+    winner = find_canonical_message || raise
+    deduplicated(winner, :unique_violation)
+  end
+
+  # Every path that ends in "this event already exists" reports the same signal
+  # with a distinct reason, so a spike in webhook replays, a live/history race
+  # and a lock that was bypassed under concurrency stay separable.
+  def deduplicated(existing, reason)
+    Waha::Telemetry.emit(
+      :message_deduplicated, **signal_context, reason: reason, message_id: existing.id,
+                                               level: reason == :unique_violation ? :info : :debug
+    )
+    existing
+  end
+
+  def persisted(message)
+    Waha::Telemetry.emit(
+      :message_persisted, **signal_context, message_id: message.id, conversation_id: message.conversation_id,
+                                            attachments: message.attachments.size
+    )
+    message
+  end
+
+  def signal_context
+    { channel: channel, chat: canonical_chat_jid, event: event_type, waha_id: stanza.presence,
+      direction: incoming? ? :incoming : :outgoing }
   end
 
   def chat_id
@@ -108,7 +133,9 @@ class Waha::IncomingMessageService
       sender_alt: payload.dig('_data', 'Info', 'SenderAlt')
     ).perform
   rescue StandardError => e
-    Rails.logger.error "[WAHA] group participant resolution failed for #{sender_jid}: #{e.message}"
+    Waha::Telemetry.emit(
+      :enrichment_failed, channel: channel, chat: chat_id, level: :warn, reason: :group_participant, scope: :live, error: e.class.name
+    )
     @resolve_participant = nil
   end
 

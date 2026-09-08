@@ -49,7 +49,10 @@ class Waha::ImportChatWorkerJob < ApplicationJob
     Waha::ChatHistoryImporter.new(channel: @channel, chat_id: row.chat_id, window: @window, import_chat: row, kind: @kind).run
     row.done!
   rescue StandardError => e
-    Rails.logger.error "[WAHA] History import: chat #{row.chat_id} failed: #{e.message}"
+    Waha::Telemetry.emit(
+      :import_chat_failed, channel: @channel, chat: row.chat_id, level: :error, kind: @kind,
+                           execution_id: @execution_id, error: e.class.name, imported_messages: row.imported_count
+    )
     row.update!(status: :failed, error: e.message.to_s.truncate(500))
   end
 

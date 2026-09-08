@@ -121,10 +121,13 @@ describe Webhooks::WahaEventsJob do
 
   it 'limits missing-anchor retries and reports exhaustion' do
     params = revoke
-    allow(Rails.logger).to receive(:error)
-    expect { perform_enqueued_jobs(only: described_class) { described_class.perform_later(channel.id, params) } }
-      .to have_performed_job(described_class).exactly(4).times
-    expect(Rails.logger).to have_received(:error).with(/Event retries exhausted.*retry=3 reason=missing_anchor/)
+    signals = capture_waha_signals do
+      expect { perform_enqueued_jobs(only: described_class) { described_class.perform_later(channel.id, params) } }
+        .to have_performed_job(described_class).exactly(4).times
+    end
+
+    expect(waha_signal(signals, :event_retry_scheduled).size).to eq(3)
+    expect(waha_signal(signals, :event_retries_exhausted).first).to include(reason: :missing_anchor, try: 3)
   end
 
   it 'does not revoke the same stanza in a different chat' do
@@ -139,15 +142,16 @@ describe Webhooks::WahaEventsJob do
   it 'exhausts transient failures after three retries without marking a failed deletion complete' do
     base.attachments.create!(account: channel.account, file_type: :image)
     allow_any_instance_of(Attachment).to receive(:destroy!).and_raise(ActiveRecord::Deadlocked) # rubocop:disable RSpec/AnyInstance
-    allow(Rails.logger).to receive(:error)
     params = revoke
 
-    expect { perform_enqueued_jobs(only: described_class) { described_class.perform_later(channel.id, params) } }
-      .to have_performed_job(described_class).exactly(4).times
+    signals = capture_waha_signals do
+      expect { perform_enqueued_jobs(only: described_class) { described_class.perform_later(channel.id, params) } }
+        .to have_performed_job(described_class).exactly(4).times
+    end
 
     expect(base.reload.content_attributes['deleted']).to be_nil
     expect(base.attachments.count).to eq(1)
-    expect(Rails.logger).to have_received(:error).with(/Event retries exhausted.*retry=3 reason=ActiveRecord::Deadlocked/)
+    expect(waha_signal(signals, :event_retries_exhausted).first).to include(reason: 'ActiveRecord::Deadlocked', try: 3)
   end
 
   describe 'concurrent database transactions' do
