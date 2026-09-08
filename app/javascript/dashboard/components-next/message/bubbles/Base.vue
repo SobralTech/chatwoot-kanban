@@ -9,7 +9,7 @@ import { useI18n } from 'vue-i18n';
 
 import MessageFormatter from 'shared/helpers/MessageFormatter.js';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
-import { MESSAGE_VARIANTS, ORIENTATION } from '../constants';
+import { MESSAGE_TYPES, MESSAGE_VARIANTS, ORIENTATION } from '../constants';
 
 const props = defineProps({
   hideMeta: { type: Boolean, default: false },
@@ -25,6 +25,7 @@ const {
   shouldGroupWithNext,
   isOwnMessage,
   contentAttributes,
+  messageType,
 } = useMessageContext();
 const { t } = useI18n();
 
@@ -33,6 +34,8 @@ const { t } = useI18n();
 // useCamelCase before this ever reaches props) — the "sender" on the message
 // itself is the group contact, not the individual member.
 const groupSenderLabel = computed(() => {
+  if (messageType.value !== MESSAGE_TYPES.INCOMING) return '';
+
   const { senderName: name, participantPhone: phone } =
     contentAttributes.value || {};
   if (!phone) return '';
