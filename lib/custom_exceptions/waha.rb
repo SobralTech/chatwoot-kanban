@@ -1,7 +1,7 @@
 module CustomExceptions::Waha
   class ApiError < StandardError; end
-  class HistoryNotReady < StandardError; end
   class AmbiguousIdentity < StandardError; end
+  class StaleImportWorker < StandardError; end
 
   # Worth retrying: the server errored or the request never got a response
   # (timeout, connection failure). A 4xx or a malformed body is a request/

@@ -96,3 +96,11 @@ waha_periodic_gap_fill_job:
   cron: '*/30 * * * *'
   class: 'Waha::PeriodicGapFillJob'
   queue: scheduled_jobs
+
+# executed every minute
+# recovers WAHA history dispatchers/workers lost during a crash or deploy and
+# reclaims chat rows whose persisted lease expired
+waha_history_import_reconciler_job:
+  cron: '*/1 * * * *'
+  class: 'Waha::HistoryImportReconcilerJob'
+  queue: scheduled_jobs

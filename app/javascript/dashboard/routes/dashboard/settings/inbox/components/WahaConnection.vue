@@ -73,6 +73,14 @@ const showImportProgress = computed(() => Boolean(importStatus.value));
 const importTotal = computed(() => importState.value.total_chats || 0);
 const importProcessed = computed(() => importState.value.processed_chats || 0);
 const importMessages = computed(() => importState.value.imported_messages || 0);
+const importDiscoveredMessages = computed(
+  () => importState.value.discovered_messages || 0
+);
+const importPass = computed(() => importState.value.pass_number || 1);
+const importStablePasses = computed(() => importState.value.stable_passes || 0);
+const importFailedChats = computed(() => importState.value.failed_chats || 0);
+const importLastGrowth = computed(() => importState.value.last_growth_at);
+const importNextAttempt = computed(() => importState.value.next_attempt_at);
 // While no chats are counted yet the bar is indeterminate ("discovering…").
 const isImportIndeterminate = computed(
   () =>
@@ -92,6 +100,29 @@ const importRunningLabel = computed(() =>
     ? t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.GAP_FILL_RUNNING')
     : t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.RUNNING')
 );
+const importPhaseLabel = computed(() =>
+  translateOrRaw(
+    t,
+    `INBOX_MGMT.WAHA_CONNECTION.IMPORT.PHASES.${importState.value.phase || importStatus.value}`,
+    importState.value.phase || importStatus.value
+  )
+);
+const importFailureLabel = computed(() => {
+  const reason = importState.value.failure_reason;
+  if (!reason) return t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.FAILED');
+  if (reason === 'not_converged' && importState.value.not_converged_reason) {
+    return translateOrRaw(
+      t,
+      `INBOX_MGMT.WAHA_CONNECTION.IMPORT.NOT_CONVERGED_REASONS.${importState.value.not_converged_reason}`,
+      t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.FAILURE_REASONS.not_converged')
+    );
+  }
+  return translateOrRaw(
+    t,
+    `INBOX_MGMT.WAHA_CONNECTION.IMPORT.FAILURE_REASONS.${reason}`,
+    t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.FAILED')
+  );
+});
 
 function eventLabel(status) {
   return translateOrRaw(
@@ -300,7 +331,7 @@ onUnmounted(() => {
 
       <div v-else class="flex items-center justify-between gap-3">
         <span class="text-body-main text-n-ruby-11">
-          {{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.FAILED') }}
+          {{ importFailureLabel }}
         </span>
         <NextButton
           sm
@@ -310,6 +341,40 @@ onUnmounted(() => {
           @click="retryImport"
         />
       </div>
+      <dl
+        class="grid grid-cols-2 gap-x-4 gap-y-1 text-body-small text-n-slate-11"
+      >
+        <dt>{{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.PASS') }}</dt>
+        <dd class="text-right tabular-nums">{{ importPass }}</dd>
+        <dt>{{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.PHASE') }}</dt>
+        <dd class="text-right">{{ importPhaseLabel }}</dd>
+        <dt>{{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.CHATS_DISCOVERED') }}</dt>
+        <dd class="text-right tabular-nums">{{ importTotal }}</dd>
+        <dt>
+          {{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.MESSAGES_DISCOVERED') }}
+        </dt>
+        <dd class="text-right tabular-nums">{{ importDiscoveredMessages }}</dd>
+        <dt>{{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.STABLE_PASSES') }}</dt>
+        <dd class="text-right tabular-nums">
+          {{
+            $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.STABLE_PROGRESS', {
+              count: importStablePasses,
+            })
+          }}
+        </dd>
+        <template v-if="importLastGrowth">
+          <dt>{{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.LAST_GROWTH') }}</dt>
+          <dd class="text-right">{{ formatTimestamp(importLastGrowth) }}</dd>
+        </template>
+        <template v-if="importNextAttempt">
+          <dt>{{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.NEXT_ATTEMPT') }}</dt>
+          <dd class="text-right">{{ formatTimestamp(importNextAttempt) }}</dd>
+        </template>
+        <template v-if="importFailedChats">
+          <dt>{{ $t('INBOX_MGMT.WAHA_CONNECTION.IMPORT.FAILED_CHATS') }}</dt>
+          <dd class="text-right tabular-nums">{{ importFailedChats }}</dd>
+        </template>
+      </dl>
     </div>
 
     <!-- Connection log -->

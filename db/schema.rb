@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_05_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_08_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1753,9 +1753,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_05_130000) do
     t.datetime "updated_at", null: false
     t.bigint "media_message_ids", default: [], null: false, array: true
     t.string "cursor_message_id"
+    t.string "execution_id"
+    t.string "pass_id"
+    t.integer "pass_number", default: 1, null: false
+    t.integer "discovered_pass", default: 1, null: false
+    t.integer "attempts", default: 0, null: false
+    t.datetime "next_attempt_at"
+    t.string "lease_token"
+    t.datetime "lease_expires_at"
+    t.integer "pass_imported_count", default: 0, null: false
+    t.integer "observed_message_count", default: 0, null: false
+    t.string "observed_message_digest"
+    t.integer "pass_observed_message_count", default: 0, null: false
+    t.string "pass_observed_message_digest"
     t.index ["channel_waha_id", "chat_id"], name: "index_waha_import_chats_on_channel_waha_id_and_chat_id", unique: true
+    t.index ["channel_waha_id", "execution_id", "pass_id", "status"], name: "index_waha_import_chats_on_pass_claim"
     t.index ["channel_waha_id", "status"], name: "index_waha_import_chats_on_channel_waha_id_and_status"
     t.index ["channel_waha_id"], name: "index_waha_import_chats_on_channel_waha_id"
+    t.index ["lease_expires_at"], name: "index_waha_import_chats_on_lease_expires_at"
   end
 
   create_table "waha_message_mappings", force: :cascade do |t|

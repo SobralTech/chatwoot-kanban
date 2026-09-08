@@ -755,6 +755,33 @@
         "MESSAGES_IMPORTED": "{count} messages imported",
         "DONE": "Import complete — {count} messages imported",
         "FAILED": "Import failed",
+        "PASS": "Pass",
+        "PHASE": "State",
+        "CHATS_DISCOVERED": "Chats discovered",
+        "MESSAGES_DISCOVERED": "Messages discovered",
+        "STABLE_PASSES": "Stable passes",
+        "STABLE_PROGRESS": "{count} / 2",
+        "LAST_GROWTH": "Last growth",
+        "NEXT_ATTEMPT": "Next attempt",
+        "FAILED_CHATS": "Failed chats",
+        "PHASES": {
+          "scheduled": "Scheduled",
+          "discovering": "Discovering chats",
+          "importing": "Scanning the fixed window",
+          "settling": "Waiting for the next pass",
+          "completed": "Completed",
+          "failed": "Failed"
+        },
+        "FAILURE_REASONS": {
+          "not_converged": "History did not converge within the configured limits",
+          "chat_failed": "One or more chats could not be imported",
+          "dispatcher_terminal": "WAHA returned an invalid history response",
+          "dispatcher_retries_exhausted": "WAHA remained unavailable after all retries"
+        },
+        "NOT_CONVERGED_REASONS": {
+          "max_passes": "History kept changing through the maximum number of passes",
+          "settling_timeout": "History did not stay quiet before the settling deadline"
+        },
         "RETRY_BUTTON": "Try again"
       }
     },

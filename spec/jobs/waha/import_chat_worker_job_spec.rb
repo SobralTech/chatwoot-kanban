@@ -25,7 +25,7 @@ describe Waha::ImportChatWorkerJob do
       queue_chats('a@c.us', 'b@c.us', 'c@c.us')
 
       expect { described_class.perform_now(channel.id, window, 'initial', execution_id) }
-        .to have_enqueued_job(described_class).with(channel.id, window, 'initial', execution_id).exactly(:once)
+        .to have_enqueued_job(described_class).with(channel.id, window, 'initial', execution_id, anything).exactly(:once)
 
       expect(channel.import_chats.done.count).to eq(1)
       expect(channel.import_chats.pending.count).to eq(2)
@@ -37,7 +37,7 @@ describe Waha::ImportChatWorkerJob do
       expect { described_class.perform_now(channel.id, window, 'initial', execution_id) }
         .not_to have_enqueued_job(described_class)
 
-      expect(channel.reload.import_state['status']).to eq('completed')
+      expect(channel.reload.import_state).to include('status' => 'running', 'phase' => 'settling', 'stable_passes' => 1)
     end
 
     it 'leaves finalization to the worker still importing a chat' do
@@ -86,9 +86,10 @@ describe Waha::ImportChatWorkerJob do
   # Reproduces the historical-flow half of ticket 03: a core contact-resolution
   # failure used to be absorbed inside Waha::ContactResolver, so ChatHistoryImporter
   # returned normally with 0 imported and this job called row.done! on a chat it
-  # never actually processed. It must now surface as `failed`, never `done`.
+  # never actually processed. It must now remain pending for a bounded retry,
+  # never be reported as done.
   describe 'a chat whose contact resolution fails with a core error' do
-    it 'marks the row failed, not done, and leaves the checkpoint unset' do
+    it 'schedules a transient retry and leaves the checkpoint unset' do
       allow(Waha::ChatHistoryImporter).to receive(:new).and_call_original
       chat_id = 'unresolvable@c.us'
       queue_chats(chat_id)
@@ -104,10 +105,37 @@ describe Waha::ImportChatWorkerJob do
       described_class.perform_now(channel.id, window, 'initial', execution_id)
 
       row = channel.import_chats.find_by!(chat_id: chat_id)
-      expect(row.status).to eq('failed')
+      expect(row.status).to eq('pending')
+      expect(row.attempts).to eq(1)
+      expect(row.next_attempt_at).to be_present
       expect(row.cursor).to be_nil
       expect(row.imported_count).to eq(0)
       expect(waha_messages('false_unresolvable@c.us_1', Message.all).first).to be_nil
+    end
+  end
+
+  describe 'bounded transient retries' do
+    it 'turns exhaustion into a terminal chat failure' do
+      stub_const('Waha::ImportChatWorkerJob::MAX_RETRIES', 0)
+      queue_chats('a@c.us')
+      allow(importer).to receive(:run).and_raise(CustomExceptions::Waha::TransientError, 'temporary')
+
+      described_class.perform_now(channel.id, window, 'initial', execution_id)
+
+      expect(channel.import_chats.first).to have_attributes(status: 'failed', attempts: 1, error: 'temporary')
+    end
+  end
+
+  describe 'pass ownership' do
+    it 'does not let a delayed worker from the previous pass claim current rows' do
+      pass_id = channel.ensure_import_pass_identity!(execution_id)
+      queue_chats('a@c.us')
+      channel.import_chats.find_each { |row| row.update!(execution_id: execution_id, pass_id: pass_id) }
+
+      described_class.perform_now(channel.id, window, 'initial', execution_id, SecureRandom.uuid)
+
+      expect(importer).not_to have_received(:run)
+      expect(channel.import_chats.first).to have_attributes(status: 'pending', pass_id: pass_id)
     end
   end
 end

@@ -108,7 +108,7 @@ describe Waha::ChatHistoryImporter do
     expect(conversation.unread_incoming_messages_count).to eq(0)
   end
 
-  it 'queues every recognized historical media kind, including old video and document, but not unknown media' do
+  it 'records every recognized historical media kind without downloading it during initial settling' do
     base_timestamp = 2.months.ago.to_i
     video = gows_payload('album_item_video').deep_dup
     video['id'] = "false_#{chat_id}_VIDEOOLD"
@@ -148,15 +148,11 @@ describe Waha::ChatHistoryImporter do
     importer = described_class.new(channel: channel, chat_id: chat_id, window: import_window, import_chat: import_chat, kind: 'initial')
     allow(importer).to receive(:fetch_page).and_return(messages)
 
-    expect do
-      importer.run
-    end.to have_enqueued_job(Waha::HistoryMediaJob).exactly(:once)
+    expect { importer.run }.not_to have_enqueued_job(Waha::HistoryMediaJob)
 
     document_message = waha_messages(document['id'], conversation.messages).first!
     video_message = waha_messages(video['id'], conversation.messages).first!
     expect(import_chat.reload.media_message_ids).to contain_exactly(document_message.id, video_message.id)
-    queued_media_ids = enqueued_jobs.find { |job| job[:job] == Waha::HistoryMediaJob }[:args].last
-    expect(queued_media_ids).to contain_exactly(document_message.id, video_message.id)
     unknown_message = waha_messages(unknown['id'], conversation.messages).first!
     expect(unknown_message.content_attributes['is_unsupported']).to be(true)
   end
@@ -298,6 +294,65 @@ describe Waha::ChatHistoryImporter do
       expect(import_chat.cursor_message_id).to eq('STALL0199')
       expect(import_chat.imported_count).to eq(200)
     end
+
+    it 'fails before checkpointing a same-second cluster that reaches the resolvable limit' do
+      tied_ts = message_time.to_i
+      messages = build_payloads(
+        count: described_class::MAX_TIED_SECOND_SIZE, base_ts: tied_ts, prefix: 'OVERFLOW'
+      )
+      import_chat = WahaImportChat.create!(channel: channel, chat_id: chat_id)
+      importer = described_class.new(
+        channel: channel, chat_id: chat_id, window: window, import_chat: import_chat, kind: 'initial'
+      )
+      allow(importer).to receive(:fetch_page).and_return(messages.first(described_class::PAGE_SIZE), messages)
+
+      expect { importer.run }.to raise_error(CustomExceptions::Waha::ApiError, /cannot resolve/)
+
+      expect(import_chat.reload).to have_attributes(cursor: nil, cursor_message_id: nil, imported_count: 0)
+      expect(WahaMessageMapping.where(channel: channel)).to be_empty
+    end
+  end
+
+  it 'finds an old message that appears only on a later full-window pass' do
+    first_payload = payload.deep_dup.merge('id' => "false_#{chat_id}_FIRSTPASS")
+    late_payload = payload.deep_dup.merge(
+      'id' => "false_#{chat_id}_LATEPASS", 'body' => 'Materialized later', 'timestamp' => 30.minutes.ago.to_i
+    )
+    conversation = create(:conversation, account: channel.account, inbox: inbox, contact: contact, contact_inbox: contact_inbox)
+    import_chat = WahaImportChat.create!(channel: channel, chat_id: chat_id)
+    first_importer = described_class.new(
+      channel: channel, chat_id: chat_id, window: window, import_chat: import_chat, kind: 'initial'
+    )
+    allow(first_importer).to receive(:fetch_page).and_return([first_payload])
+    expect(first_importer.run).to eq(1)
+
+    import_chat.update!(
+      cursor: nil, cursor_message_id: nil, pass_imported_count: 0,
+      pass_observed_message_count: 0, pass_observed_message_digest: nil
+    )
+    second_importer = described_class.new(
+      channel: channel, chat_id: chat_id, window: window, import_chat: import_chat, kind: 'initial'
+    )
+    allow(second_importer).to receive(:fetch_page).and_return([first_payload, late_payload])
+
+    expect(second_importer.run).to eq(1)
+    expect(WahaMessageMapping.where(message: conversation.messages).pluck(:external_id)).to contain_exactly('FIRSTPASS', 'LATEPASS')
+  end
+
+  it 'does not resolve or mark read a conversation that received a live message during initial import' do
+    conversation = create(
+      :conversation, account: channel.account, inbox: inbox, contact: contact, contact_inbox: contact_inbox,
+                     status: :open, agent_last_seen_at: 2.hours.ago, assignee_last_seen_at: 2.hours.ago
+    )
+    live_message = create(:message, account: channel.account, inbox: inbox, conversation: conversation,
+                                    message_type: :incoming, created_at: 5.minutes.ago)
+    seen_at = conversation.reload.agent_last_seen_at
+
+    import_history(kind: 'initial', conversation: conversation)
+
+    expect(conversation).to have_attributes(status: 'open', agent_last_seen_at: seen_at)
+    expect(conversation.unread_incoming_messages_count).to eq(2)
+    expect(live_message.reload.additional_attributes).not_to have_key('waha_import_kind')
   end
 
   context 'with a malformed GOWS structured message' do
