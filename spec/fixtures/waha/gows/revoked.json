@@ -1,0 +1,14 @@
+{
+  "session": "gows-contract-session",
+  "event": "message.revoked",
+  "payload": {
+    "revokedMessageId": "3EB0BASE01",
+    "before": null,
+    "after": {
+      "id": "false_5511888888888@c.us_3EB0REVOKE01",
+      "from": "5511888888888@c.us",
+      "to": "5511999999999@c.us",
+      "fromMe": false
+    }
+  }
+}

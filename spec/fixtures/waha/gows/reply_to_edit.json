@@ -1,0 +1,57 @@
+{
+  "id": "false_5511888888888@c.us_3EB0REPLYEDIT01",
+  "timestamp": 1757001900,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": "respondendo à mensagem editada",
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "replyTo": {
+    "id": "3EB0EDITBASE",
+    "participant": "5511888888888@c.us",
+    "body": "texto original",
+    "hasMedia": false,
+    "media": null,
+    "_data": {
+      "extendedTextMessage": {
+        "text": "texto original"
+      }
+    }
+  },
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0REPLYEDIT01",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:24:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "extendedTextMessage": {
+        "text": "respondendo à mensagem editada",
+        "contextInfo": {
+          "stanzaID": "3EB0EDITBASE",
+          "participant": "5511888888888@s.whatsapp.net",
+          "remoteJID": "5511888888888@c.us",
+          "quotedMessage": {
+            "extendedTextMessage": {
+              "text": "texto original"
+            }
+          }
+        }
+      }
+    },
+    "Status": 1
+  }
+}

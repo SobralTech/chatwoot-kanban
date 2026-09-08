@@ -1,0 +1,63 @@
+{
+  "id": "false_5511888888888@c.us_3EB0REPLY01",
+  "timestamp": 1757001700,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": "resposta sobre a foto",
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "replyTo": {
+    "id": "3EB0QUOTED01",
+    "participant": "5511888888888@c.us",
+    "body": "foto antiga",
+    "hasMedia": true,
+    "media": null,
+    "_data": {
+      "imageMessage": {
+        "mimetype": "image/jpeg",
+        "caption": "foto antiga",
+        "fileLength": "184320",
+        "height": 1280,
+        "width": 720,
+        "JPEGThumbnail": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA=="
+      }
+    }
+  },
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0REPLY01",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:21:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "extendedTextMessage": {
+        "text": "resposta sobre a foto",
+        "contextInfo": {
+          "stanzaID": "3EB0QUOTED01",
+          "participant": "5511888888888@s.whatsapp.net",
+          "remoteJID": "5511888888888@c.us",
+          "quotedMessage": {
+            "imageMessage": {
+              "mimetype": "image/jpeg",
+              "caption": "foto antiga"
+            }
+          }
+        }
+      }
+    },
+    "Status": 1
+  }
+}

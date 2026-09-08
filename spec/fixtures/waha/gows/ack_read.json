@@ -1,0 +1,12 @@
+{
+  "session": "gows-contract-session",
+  "event": "message.ack",
+  "payload": {
+    "id": "true_5511888888888@c.us_3EB0ACK01",
+    "from": "5511888888888@c.us",
+    "to": null,
+    "participant": null,
+    "fromMe": true,
+    "ack": 3
+  }
+}

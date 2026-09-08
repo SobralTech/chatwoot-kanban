@@ -11,22 +11,17 @@ describe Waha::ChatHistoryImporter do
     { 'window_start' => 1.hour.ago.utc.iso8601, 'window_end' => Time.current.utc.iso8601 }
   end
   let(:payload) do
-    {
+    gows_payload('status_reply_text').merge(
       'id' => 'false_5511888888888@c.us_GAPFILL001',
       'body' => 'Recovered while WAHA was disconnected',
-      'from' => chat_id,
-      'to' => '5511999999999@c.us',
-      'fromMe' => false,
-      'timestamp' => message_time.to_i,
-      'type' => 'chat',
-      'hasMedia' => false,
-      '_data' => { 'Info' => { 'Chat' => chat_id, 'PushName' => 'Jane Doe' } }
-    }
+      'timestamp' => message_time.to_i
+    )
   end
 
   before do
     allow(Waha::ContactResolver).to receive(:from_payload)
       .and_return(instance_double(Waha::ContactResolver, perform: contact_inbox))
+    stub_request(:get, /waha\.test/).to_return(status: 404, body: '{}', headers: { 'Content-Type' => 'application/json' })
     stub_request(:get, %r{https://waha\.test/api/#{channel.session_name}/chats/5511888888888@c\.us/messages\?})
       .to_return(status: 200, body: [payload].to_json, headers: { 'Content-Type' => 'application/json' })
   end

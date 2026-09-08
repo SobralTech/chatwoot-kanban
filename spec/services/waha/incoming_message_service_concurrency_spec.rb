@@ -40,6 +40,18 @@ describe Waha::IncomingMessageService do
     described_class.new(channel: channel_instance, payload: payload).perform
   end
 
+  def gows_message(stanza:, chat_jid:, body:, timestamp: Time.current.to_i, sender_alt: nil)
+    payload = gows_payload('status_reply_text').deep_dup
+    payload['id'] = "false_#{chat_jid}_#{stanza}"
+    payload['from'] = chat_jid
+    payload['body'] = body
+    payload['timestamp'] = timestamp
+    payload['_data']['Info']['Chat'] = chat_jid
+    payload['_data']['Info']['ID'] = stanza
+    payload['_data']['Info']['SenderAlt'] = sender_alt.to_s
+    payload
+  end
+
   def clean_database!
     ActiveRecord::Base.connection_pool.with_connection do |connection|
       connection.disable_referential_integrity do
@@ -72,23 +84,37 @@ describe Waha::IncomingMessageService do
   end
 
   describe 'a burst from a contact with no conversation yet' do
-    it 'takes the contact_inbox lock before reading, and reuses what the winner created' do
-      competitor = nil
+    it 'converges concurrent GOWS messages to one contact inbox and conversation' do
+      payloads = [
+        gows_message(stanza: 'LOCKRACE1', chat_jid: '5511888888888@c.us', body: 'first burst message'),
+        gows_message(stanza: 'LOCKRACE2', chat_jid: '5511888888888@c.us', body: 'second burst message')
+      ]
+      barrier = Concurrent::CyclicBarrier.new(2)
+      results = Concurrent::Array.new
+      errors = Concurrent::Array.new
 
-      allow_any_instance_of(ContactInbox).to receive(:lock!).and_wrap_original do |original| # rubocop:disable RSpec/AnyInstance
-        if competitor.nil?
-          contact_inbox = ContactInbox.find_by!(inbox_id: inbox.id)
-          competitor = create(:conversation, account: channel.account, inbox: inbox,
-                                             contact: contact_inbox.contact, contact_inbox: contact_inbox)
+      threads = payloads.map do |payload|
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            ch = Channel::Waha.find(channel.id)
+            barrier.wait
+            results << described_class.new(channel: ch, payload: payload).perform
+          end
+        rescue StandardError => e
+          errors << e
         end
-        original.call
       end
+      threads.each(&:join)
 
-      perform(build_payload(stanza: 'AAA111'))
-
-      expect(competitor).to be_present
-      expect(Conversation.where(inbox_id: inbox.id).count).to eq(1)
-      expect(inbox.messages.last.conversation_id).to eq(competitor.id)
+      expect(errors).to be_empty
+      expect(results.map(&:id).uniq.size).to eq(2)
+      expect(channel.account.contacts.count).to eq(1)
+      expect(inbox.contact_inboxes.count).to eq(1)
+      expect(inbox.conversations.count).to eq(1)
+      expect(inbox.messages.count).to eq(2)
+      expect(inbox.messages.order(:created_at).pluck(:content)).to contain_exactly(
+        'first burst message', 'second burst message'
+      )
     end
   end
 
@@ -118,6 +144,45 @@ describe Waha::IncomingMessageService do
       expect(waha_messages(payload['id'], inbox.messages).count).to eq(1)
       expect(WahaMessageMapping.where(channel: channel, external_id: 'RACE100').count).to eq(1)
       expect(Conversation.where(inbox_id: inbox.id).count).to eq(1)
+    end
+
+    it 'reuses one contact, inbox, and conversation for concurrent phone and alias messages' do
+      phone_jid = '5511888888888@c.us'
+      lid = '111222333@lid'
+      payloads = [
+        gows_message(stanza: 'RACEPHONE1', chat_jid: phone_jid, body: 'first message'),
+        gows_message(
+          stanza: 'RACELID01', chat_jid: lid, body: 'second message',
+          sender_alt: '5511888888888:17@s.whatsapp.net'
+        )
+      ]
+      barrier = Concurrent::CyclicBarrier.new(2)
+      results = Concurrent::Array.new
+      errors = Concurrent::Array.new
+
+      threads = payloads.map do |payload|
+        Thread.new do
+          ActiveRecord::Base.connection_pool.with_connection do
+            ch = Channel::Waha.find(channel.id)
+            barrier.wait
+            results << described_class.new(channel: ch, payload: payload).perform
+          end
+        rescue StandardError => e
+          errors << e
+        end
+      end
+      threads.each(&:join)
+
+      expect(errors).to be_empty
+      expect(results.map(&:id).uniq.size).to eq(2)
+      expect(
+        [channel.account.contacts.count, inbox.contact_inboxes.count, inbox.conversations.count, inbox.messages.count]
+      ).to eq([1, 1, 1, 2])
+      expect(inbox.messages.order(:created_at).pluck(:content)).to contain_exactly('first message', 'second message')
+      expect(channel.contact_aliases.pluck(:alias_type, :value)).to contain_exactly(
+        ['jid', phone_jid], ['lid', lid], ['phone', '+5511888888888']
+      )
+      expect(WahaMessageMapping.where(channel: channel).pluck(:external_id)).to contain_exactly('RACEPHONE1', 'RACELID01')
     end
   end
 
@@ -220,6 +285,17 @@ describe Waha::IncomingMessageService do
       mapping = WahaMessageMapping.find_by!(channel: channel, chat_jid: group_jid, external_id: 'GRPMSG1')
       expect(mapping.participant_jid).to eq(participant)
       expect(waha_messages(payload['id'], inbox.messages).count).to eq(1)
+    end
+
+    it 'keeps the group participant out of direct contact inboxes' do
+      payload = gows_payload('location_group')
+
+      message = perform(payload)
+
+      expect(message.content_attributes['participant_jid']).to eq('5511777777777@c.us')
+      expect(inbox.contact_inboxes.pluck(:source_id)).to eq(['120363000000000000@g.us'])
+      expect(channel.account.contacts.count).to eq(1)
+      expect(channel.account.contacts.first.additional_attributes['is_group']).to be(true)
     end
   end
 

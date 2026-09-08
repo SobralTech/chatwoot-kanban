@@ -42,6 +42,35 @@ describe Waha::HistoryMessageWriter do
     end
   end
 
+  describe 'backdated ordering beside live delivery' do
+    it 'keeps historical timestamps and ordering without marking the live message imported' do
+      historical_time = 2.hours.ago.change(usec: 0)
+      historical_payload = gows_payload('status_reply_text').merge(
+        'id' => 'false_5511888888888@c.us_HISTORYORDER1',
+        'timestamp' => historical_time.to_i,
+        'body' => 'historical message'
+      )
+      live_payload = gows_payload('status_reply_text').merge(
+        'id' => 'false_5511888888888@c.us_LIVEORDER1',
+        'timestamp' => Time.current.to_i,
+        'body' => 'live message'
+      )
+
+      historical_message = perform(historical_payload)
+      live_message = Waha::IncomingMessageService.new(channel: channel, payload: live_payload).perform
+
+      expect(historical_message.created_at.to_i).to eq(historical_time.to_i)
+      expect(live_message.additional_attributes).not_to have_key('imported')
+      expect(live_message.created_at).to be > historical_message.created_at
+      expect(conversation.messages.reload.order(:created_at).pluck(:id)).to eq(
+        [historical_message.id, live_message.id]
+      )
+      expect(WahaMessageMapping.where(message: conversation.messages).pluck(:external_id)).to contain_exactly(
+        'HISTORYORDER1', 'LIVEORDER1'
+      )
+    end
+  end
+
   describe 'media' do
     it 'leaves the download to Waha::HistoryMediaJob instead of fetching it on the import path' do
       payload = {

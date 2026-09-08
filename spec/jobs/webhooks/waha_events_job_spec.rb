@@ -200,6 +200,29 @@ describe Webhooks::WahaEventsJob do
       expect(reply.content_attributes['in_reply_to']).to eq(head.id)
       expect(reply.content_attributes['in_reply_to_external_id']).to eq(original.presented_source_id)
     end
+
+    it 'uses the GOWS edit envelope and points a reply at the family head' do
+      original = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                     source_id: 'false_5511888888888@c.us_3EB0EDITBASE', content: 'texto original')
+      edit_params = gows_event('message_edited')
+      edit_params['session'] = channel.session_name
+
+      described_class.perform_now(channel.id, edit_params)
+
+      head = waha_messages('false_5511888888888@c.us_3EB0EDIT01', Message.all).first!
+      reply_params = {
+        'session' => channel.session_name,
+        'event' => 'message.any',
+        'payload' => gows_payload('reply_to_edit')
+      }
+      described_class.perform_now(channel.id, reply_params)
+
+      reply = waha_messages('false_5511888888888@c.us_3EB0REPLYEDIT01', Message.all).first!
+      expect(reply.content_attributes).to include(
+        'in_reply_to' => head.id,
+        'in_reply_to_external_id' => original.presented_source_id
+      )
+    end
   end
 
   describe 'fromMe echo correlation' do
