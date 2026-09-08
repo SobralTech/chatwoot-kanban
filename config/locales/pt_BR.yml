@@ -165,6 +165,10 @@ pt_BR:
       search:
         query_missing: Especifique a string de busca com o parâmetro q
     messages:
+      waha_connection_conflict: 'Este servidor e sessão WAHA são usados por várias caixas de entrada existentes. Atualize uma delas antes de usar esta conexão.'
+      waha_connection_in_use: 'Este servidor e sessão WAHA já estão conectados a outra caixa de entrada.'
+      waha_url_invalid: 'deve ser uma URL HTTP(S) válida de servidor WAHA, sem credenciais ou parâmetros de consulta'
+      waha_webhook_session_mismatch: 'A sessão do webhook não corresponde a esta caixa de entrada WAHA.'
       search:
         time_range_limit_exceeded: 'A pesquisa está limitada aos últimos %{days} dias'
     categories:
@@ -323,6 +327,75 @@ pt_BR:
       deleted: Esta mensagem foi excluída
       waha_edit_not_allowed: Esta mensagem não pode mais ser editada
       waha_react_not_allowed: Não é possível reagir a esta mensagem
+      waha_media_pending: 'Baixando a mídia'
+      waha_media_unavailable: 'Mídia indisponível: o download falhou após várias tentativas'
+      waha_call:
+        # Só existem chamadas recebidas, então o estado (%{result}) carrega a
+        # frase e %{direction} fica disponível sem poluir o texto.
+        event: 'Chamada de %{kind} %{result} no WhatsApp%{duration}'
+        direction:
+          incoming: 'recebida'
+        kind:
+          voice: 'voz'
+          video: 'vídeo'
+        result:
+          received: 'recebida'
+          accepted: 'atendida'
+          rejected: 'encerrada'
+        duration: ' (%{duration}s)'
+      waha_location:
+        live: '📡 Localização em tempo real'
+      waha_contacts:
+        header:
+          one: '👤 Contato compartilhado'
+          other: '👤 Contatos compartilhados'
+        name: '🪪 %{name}'
+        phone: '📞 %{phone}'
+        unnamed: 'Contato sem nome'
+      waha_poll:
+        header: '📊 Enquete'
+        selectable_options:
+          one: 'Selecione uma opção'
+          other: 'Selecione até %{count} opções'
+        option: '• %{option}'
+        observed_votes: 'Votos observados'
+        observed_vote:
+          one: '• %{option} — 1 voto'
+          other: '• %{option} — %{count} votos'
+      waha_list:
+        header: '📋 Lista'
+        response: 'Item selecionado'
+        section: '%{title}'
+        option: '• %{title}%{description}'
+        selected: 'Selecionado: %{option}'
+      waha_event:
+        header: '📅 Evento'
+        canceled: 'Cancelado'
+        starts_at: 'Início: %{time}'
+        ends_at: 'Término: %{time}'
+        location: 'Local: %{location}'
+      waha_pix:
+        header: '💰 Cobrança Pix'
+        merchant: 'Recebedor: %{name}'
+        key: 'Chave Pix: %{key}'
+        key_with_type: 'Chave Pix: %{key} (%{key_type})'
+        amount: 'Valor: %{amount}'
+        reference: 'Identificador: %{reference}'
+      waha_facebook_ad:
+        header: '📣 Anúncio do Facebook/Instagram'
+        media: 'Mídia: %{url}'
+        source: 'Origem: %{url}'
+      waha_album:
+        header: '🖼️ Álbum'
+        photos:
+          one: '%{count} foto'
+          other: '%{count} fotos'
+        videos:
+          one: '%{count} vídeo'
+          other: '%{count} vídeos'
+      waha_status_reply:
+        quoted_author: '%{author} · Status'
+        quoted_author_unknown: 'Status'
       whatsapp:
         list_button_label: 'Escolha um item'
         call_permission_request_body: 'Gostaríamos de ligar para você em relação à sua conversa.'
