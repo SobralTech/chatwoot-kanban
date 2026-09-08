@@ -10,6 +10,12 @@ class Waha::HttpClient
     EOFError, SocketError, OpenSSL::SSL::SSLError, HTTParty::Error
   ].freeze
 
+  # A session that is starting, restarting or briefly out of sync answers every
+  # request with a 422 carrying this message, and recovers by itself. Treating
+  # it as permanent fails a whole history import (and any send in flight) on a
+  # blip a retry would have ridden out.
+  SESSION_NOT_READY = /session status is not as expected/i
+
   pattr_initialize [:channel!]
 
   def get(path, timeout: nil)
@@ -42,11 +48,17 @@ class Waha::HttpClient
   private
 
   # 5xx is the server's own fault and worth retrying; any other non-2xx (4xx)
-  # is a request/contract problem retrying will not fix.
+  # is a request/contract problem retrying will not fix — except the one 422
+  # WAHA answers while the session is reconnecting, which resolves on its own.
   def raise_for_status!(response)
-    message = ["WAHA request failed (HTTP #{response.code})", error_detail(response)].compact.join(': ')
-    error_class = response.code >= 500 ? CustomExceptions::Waha::TransientError : CustomExceptions::Waha::ApiError
+    detail = error_detail(response)
+    message = ["WAHA request failed (HTTP #{response.code})", detail].compact.join(': ')
+    error_class = transient_status?(response.code, detail) ? CustomExceptions::Waha::TransientError : CustomExceptions::Waha::ApiError
     raise error_class, message
+  end
+
+  def transient_status?(code, detail)
+    code >= 500 || (code == 422 && detail.to_s.match?(SESSION_NOT_READY))
   end
 
   def error_detail(response)

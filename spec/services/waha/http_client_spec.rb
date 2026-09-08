@@ -29,6 +29,19 @@ describe Waha::HttpClient do
         .to raise_error(CustomExceptions::Waha::TransientError, 'WAHA request failed (HTTP 503): session not ready')
     end
 
+    # Verbatim body GOWS 2026.8.2 returns for every request made while the
+    # session is restarting; observed during the ticket 26 homologation, where
+    # it failed eleven history chats that a retry would have recovered.
+    it 'raises a TransientError on the 422 WAHA returns while the session is reconnecting' do
+      stub_request(:post, 'https://waha.test/api/sendText')
+        .to_return(status: 422,
+                   body: '{"message":"Session status is not as expected. Try again later or restart the session"}',
+                   headers: { 'Content-Type' => 'application/json' })
+
+      expect { client.post('sendText', {}) }
+        .to raise_error(CustomExceptions::Waha::TransientError, /Session status is not as expected/)
+    end
+
     it 'raises a TransientError on a timeout' do
       stub_request(:post, 'https://waha.test/api/sendText').to_timeout
 
