@@ -7,13 +7,12 @@ class Waha::ReplyContextResolver
   pattr_initialize [:channel!, :payload!, :conversation!]
 
   # WhatsApp keeps a single message across N edits; every edit mirror anchors to
-  # the original via edit_of, so the head (latest version) is what the contact
+  # the original through its mapping, so the head (latest version) is what the contact
   # actually saw when replying.
   def self.family_head(inbox, original)
-    inbox.messages
-         .where("additional_attributes->>'edit_of' = ?", original.source_id)
-         .order(:created_at)
-         .last || original
+    Waha::Anchoring.family(inbox, original)
+                   .order(:created_at)
+                   .last || original
   end
 
   # Resolves a payload's replyTo into content_attributes for the new message:
@@ -39,13 +38,9 @@ class Waha::ReplyContextResolver
   def original
     return @original if defined?(@original)
 
-    # Prefer a match in the current conversation: stanzas are only guaranteed
-    # unique per chat, so this minimizes cross-chat false positives.
-    mapped = channel.message_mappings.find_by(
-      chat_jid: conversation.contact_inbox.source_id, external_id: stanza, event_type: :message
-    )&.message || channel.message_mappings.find_by(external_id: stanza, event_type: :message)&.message
-    scope = Waha::Anchoring.by_stanza(inbox, stanza)
-    @original = mapped || scope.find_by(conversation_id: conversation.id) || scope.first
+    quoted_id = payload.dig('replyTo', 'id')
+    chat_jid = Waha::Anchoring.chat_jid_of(quoted_id) || conversation.contact_inbox.source_id
+    @original = Waha::Anchoring.find_message(channel, quoted_id, chat_jid)
   end
 
   def head

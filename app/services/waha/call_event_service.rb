@@ -48,6 +48,7 @@ class Waha::CallEventService
         external_id: external_id,
         direction: :incoming,
         event_type: :call,
+        provider_id: "waha-call:#{external_id}",
         participant_jid: participant_jid
       )
       message
@@ -94,14 +95,9 @@ class Waha::CallEventService
       account_id: channel.inbox.account_id,
       inbox_id: channel.inbox.id,
       message_type: :activity,
-      source_id: source_id,
       content: content,
       content_attributes: { waha_call: call_attributes }
     )
-  end
-
-  def source_id
-    "waha-call:#{external_id}"
   end
 
   def content

@@ -28,7 +28,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   # keep passing the base service guard until its aggregate attempt is sent.
   def outgoing_message_originated_from_channel?
     attempt = message.waha_delivery_attempt
-    message.source_id.present? && (attempt.nil? || attempt.sent?)
+    message.waha_message_mappings.exists? && (attempt.nil? || attempt.sent?)
   end
 
   def perform_reply
@@ -86,7 +86,6 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     return if id.blank?
 
     part.update!(client_message_id: id)
-    delivery_attempt.update!(client_message_id: id) if part.position == delivery_parts.minimum(:position)
   end
 
   def fetch_client_message_id
@@ -200,7 +199,8 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   def send_seen
     return if skip_presence || !channel.auto_read_receipts || presence_excluded?
 
-    source_id = conversation.last_incoming_message&.source_id
+    incoming = conversation.last_incoming_message
+    source_id = Waha::Anchoring.external_anchor_source_id(incoming) if incoming
     return if source_id.blank?
 
     presence_client.seen(chat_id, message_ids: [source_id])
@@ -352,7 +352,7 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
   end
 
   def quoted_message(external_id, in_reply_to_id)
-    (inbox.messages.find_by(source_id: external_id) if external_id.present?) ||
+    (Waha::Anchoring.find_message(channel, external_id, chat_id) if external_id.present?) ||
       (inbox.messages.find_by(id: in_reply_to_id) if in_reply_to_id.present?)
   end
 

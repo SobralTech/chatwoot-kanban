@@ -41,16 +41,17 @@ class WahaDeliveryAttempt < ApplicationRecord
 
   validates :chat_jid, presence: true
 
-  def self.find_by_correlated_id(channel:, wa_message_id:)
+  def self.find_by_correlated_id(channel:, wa_message_id:, chat_jid: nil)
     stanza = Waha::Anchoring.stanza_of(wa_message_id)
     return nil if stanza.blank?
 
-    scope = where(channel: channel)
-    chat_jid = Waha::Anchoring.chat_jid_of(wa_message_id)
-    scope = scope.where(chat_jid: chat_jid) if chat_jid.present?
+    chat_jid ||= Waha::Anchoring.chat_jid_of(wa_message_id)
+    return nil if chat_jid.blank?
+
+    scope = where(channel: channel, chat_jid: Waha::Anchoring.chat_jids(channel, chat_jid))
+            .where.not(message_id: WahaMessageMapping.where(ambiguous: true).select(:message_id))
     scope.joins(:delivery_parts).find_by(waha_delivery_parts: { client_message_id: stanza }) ||
-      scope.joins(:delivery_parts).find_by(waha_delivery_parts: { external_id: stanza }) ||
-      scope.find_by(client_message_id: stanza) || scope.find_by(external_id: stanza)
+      scope.joins(:delivery_parts).find_by(waha_delivery_parts: { external_id: stanza })
   end
 
   # Transitions pending/failed -> sending and bumps the persisted attempt count,
@@ -73,9 +74,7 @@ class WahaDeliveryAttempt < ApplicationRecord
   # the HTTP response) is a no-op once the attempt is already sent.
   def confirm_sent!(wa_message_id)
     part = correlated_part(wa_message_id)
-    return confirm_part_sent!(part, wa_message_id) if part
-
-    confirm_legacy_sent!(wa_message_id)
+    confirm_part_sent!(part, wa_message_id) if part
   end
 
   def confirm_part_sent!(part, wa_message_id)
@@ -85,10 +84,10 @@ class WahaDeliveryAttempt < ApplicationRecord
       next if part.sent?
 
       WahaMessageMapping.create_canonical!(
-        channel: channel, message: message, chat_jid: chat_jid, external_id: stanza, direction: :outgoing, part: part.position
+        channel: channel, message: message, chat_jid: chat_jid, external_id: stanza, direction: :outgoing,
+        part: part.position, provider_id: wa_message_id
       )
-      part.update!(status: :sent, source_id: wa_message_id, external_id: stanza, confirmed_at: Time.current)
-      set_anchor!(part, wa_message_id, stanza) if part.position == delivery_parts.minimum(:position)
+      part.update!(status: :sent, external_id: stanza, confirmed_at: Time.current)
       complete_delivery! unless delivery_parts.pending.exists?
     end
   end
@@ -130,28 +129,6 @@ class WahaDeliveryAttempt < ApplicationRecord
   end
 
   private
-
-  # Ticket 23 owns legacy migration. This fallback deliberately keeps an
-  # already-running pre-multipart attempt confirmable without backfilling it.
-  def confirm_legacy_sent!(wa_message_id)
-    stanza = Waha::Anchoring.stanza_of(wa_message_id)
-    with_lock do
-      next if sent?
-
-      message.update!(source_id: wa_message_id) if message.source_id.blank?
-      WahaMessageMapping.create_canonical!(
-        channel: channel, message: message, chat_jid: chat_jid, external_id: stanza, direction: :outgoing
-      )
-      update!(status: :sent, external_id: stanza)
-    end
-  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
-    update!(status: :sent, external_id: stanza)
-  end
-
-  def set_anchor!(part, source_id, stanza)
-    message.update!(source_id: source_id) if message.source_id.blank?
-    update!(client_message_id: part.client_message_id, external_id: stanza)
-  end
 
   def complete_delivery!
     message.update!(status: :sent, external_error: nil) if message.failed?

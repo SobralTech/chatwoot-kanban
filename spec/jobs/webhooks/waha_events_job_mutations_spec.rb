@@ -9,8 +9,8 @@ describe Webhooks::WahaEventsJob do
   let(:contact_inbox) { create(:contact_inbox, inbox: inbox, contact: contact, source_id: chat) }
   let(:conversation) { create(:conversation, account: channel.account, inbox: inbox, contact_inbox: contact_inbox, contact: contact) }
   let(:base) do
-    create(:message, account: channel.account, inbox: inbox, conversation: conversation,
-                     source_id: "false_#{chat}_BASE", content: 'Original')
+    create_waha_message(account: channel.account, inbox: inbox, conversation: conversation,
+                        source_id: "false_#{chat}_BASE", content: 'Original')
   end
 
   def event(name, payload)
@@ -61,7 +61,7 @@ describe Webhooks::WahaEventsJob do
     base
     described_class.perform_now(channel.id, params, 1)
     described_class.perform_now(channel.id, edit)
-    head = inbox.messages.find_by!(source_id: "false_#{chat}_EDIT")
+    head = waha_messages("false_#{chat}_EDIT", inbox.messages).first!
     expect(base.reload.content_attributes['reactions']).to be_nil
     expect(head.content_attributes.dig('reactions', '5511888888888@c.us', 'emoji')).to eq('👍')
 
@@ -85,7 +85,7 @@ describe Webhooks::WahaEventsJob do
     described_class.perform_now(channel.id, reaction('❤️'))
     described_class.perform_now(channel.id, edit)
 
-    family = Waha::Anchoring.family(inbox, base.source_id)
+    family = Waha::Anchoring.family(inbox, base)
     expect(family.count).to eq(2)
     family.each do |message|
       expect(message.content_attributes['deleted']).to be(true)
@@ -98,7 +98,7 @@ describe Webhooks::WahaEventsJob do
   it 'rolls back a transient attachment deletion failure and succeeds on the queued retry' do
     base
     described_class.perform_now(channel.id, edit)
-    head = inbox.messages.find_by!(source_id: "false_#{chat}_EDIT")
+    head = waha_messages("false_#{chat}_EDIT", inbox.messages).first!
     attachment = head.attachments.create!(account: channel.account, file_type: :image)
     attempts = 0
     allow_any_instance_of(Attachment).to receive(:destroy!).and_wrap_original do |original, *args| # rubocop:disable RSpec/AnyInstance
@@ -128,8 +128,8 @@ describe Webhooks::WahaEventsJob do
   end
 
   it 'does not revoke the same stanza in a different chat' do
-    other = create(:message, account: channel.account, inbox: inbox, conversation: conversation,
-                             source_id: 'false_5511666666666@c.us_BASE', content: 'Unrelated')
+    other = create_waha_message(account: channel.account, inbox: inbox, conversation: conversation,
+                                source_id: 'false_5511666666666@c.us_BASE', content: 'Unrelated')
     base
     described_class.perform_now(channel.id, revoke)
     expect(base.reload.content_attributes['deleted']).to be(true)
@@ -206,7 +206,7 @@ describe Webhooks::WahaEventsJob do
 
       concurrently(*events.map { |params| -> { described_class.perform_now(channel_id, params) } })
 
-      head = inbox.messages.find_by!(source_id: "false_#{chat}_EDIT")
+      head = waha_messages("false_#{chat}_EDIT", inbox.messages).first!
       expect(head.content_attributes.dig('reactions', '5511888888888@c.us', 'emoji')).to eq('👍')
       expect(base.reload.content_attributes['reactions']).to be_nil
       expect(base.additional_attributes['superseded']).to be(true)
@@ -220,7 +220,7 @@ describe Webhooks::WahaEventsJob do
 
       concurrently(*events.map { |params| -> { described_class.perform_now(channel_id, params) } })
 
-      Waha::Anchoring.family(inbox, base.source_id).each do |message|
+      Waha::Anchoring.family(inbox, base).each do |message|
         expect(message.content_attributes['deleted']).to be(true)
         expect(message.content_attributes['reactions']).to be_nil
       end

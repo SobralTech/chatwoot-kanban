@@ -43,7 +43,7 @@ describe Webhooks::WahaEventsJob do
         .with(channel.id, params, 0, 2)
         .at(a_value_within(1.second).of(described_class::MEDIA_RETRY_DELAYS[0].from_now))
 
-      expect(Message.find_by(source_id: params['payload']['id'])).to be_nil
+      expect(waha_messages(params['payload']['id'], Message.all).first).to be_nil
     end
 
     it 'creates exactly one message with its attachment once the download recovers, with no duplicate on redelivery' do
@@ -51,17 +51,17 @@ describe Webhooks::WahaEventsJob do
       params = media_message_params
       stub_request(:get, media_url).to_return(status: 503)
       described_class.perform_now(channel.id, params)
-      expect(Message.where(source_id: params['payload']['id']).count).to eq(0)
+      expect(waha_messages(params['payload']['id'], Message.all).count).to eq(0)
 
       stub_request(:get, media_url).to_return(status: 200, body: 'bytes', headers: { 'Content-Type' => 'image/jpeg' })
       described_class.perform_now(channel.id, params, 0, 2)
 
-      message = Message.find_by!(source_id: params['payload']['id'])
+      message = waha_messages(params['payload']['id'], Message.all).first!
       expect(message.attachments.size).to eq(1)
 
       # WAHA (or Sidekiq) redelivering the same event afterwards must not duplicate it.
       described_class.perform_now(channel.id, params, 0, 2)
-      expect(Message.where(source_id: params['payload']['id']).count).to eq(1)
+      expect(waha_messages(params['payload']['id'], Message.all).count).to eq(1)
     end
 
     it 'persists the message with a visible fallback after exhausting retries, without scheduling another one' do
@@ -75,7 +75,7 @@ describe Webhooks::WahaEventsJob do
         .not_to have_enqueued_job(described_class)
 
       expect(a_request(:get, media_url)).to have_been_made.once
-      message = Message.find_by!(source_id: params['payload']['id'])
+      message = waha_messages(params['payload']['id'], Message.all).first!
       expect(message.attachments).to be_empty
       expect(message.content_attributes['media_download_failed']).to be(true)
       expect(message.content).to eq(I18n.t('conversations.messages.waha_media_unavailable'))
@@ -141,8 +141,8 @@ describe Webhooks::WahaEventsJob do
 
   describe 'message edits (real GOWS payload shape)' do
     let(:original) do
-      create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                       source_id: 'false_5511888888888@c.us_AAA111', content: 'original text')
+      create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                          source_id: 'false_5511888888888@c.us_AAA111', content: 'original text')
     end
 
     it 'persists and anchors the new version, then supersedes the original' do
@@ -151,8 +151,8 @@ describe Webhooks::WahaEventsJob do
 
       described_class.perform_now(channel.id, params)
 
-      edited = Message.find_by!(source_id: 'false_5511888888888@c.us_EDIT01')
-      expect(edited.additional_attributes['edit_of']).to eq(original.source_id)
+      edited = waha_messages('false_5511888888888@c.us_EDIT01', Message.all).first!
+      expect(Waha::Anchoring.family_anchor_message(edited)).to eq(original)
       expect(edited.content).to include('edited text')
       expect(edited.additional_attributes['superseded']).to be_blank
       expect(original.reload.additional_attributes['superseded']).to be(true)
@@ -178,49 +178,51 @@ describe Webhooks::WahaEventsJob do
         .at(a_value_within(1.second).of(described_class::ACK_RETRY_DELAY.from_now))
       expect(Message.exists?(source_id: 'false_5511888888888@c.us_EDIT03')).to be(false)
 
-      base = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                              source_id: 'false_5511888888888@c.us_BASE01', content: 'original text')
+      base = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                 source_id: 'false_5511888888888@c.us_BASE01', content: 'original text')
 
       described_class.perform_now(channel.id, params, 1)
 
-      edited = Message.find_by!(source_id: 'false_5511888888888@c.us_EDIT03')
-      expect(edited.additional_attributes['edit_of']).to eq(base.source_id)
+      edited = waha_messages('false_5511888888888@c.us_EDIT03', Message.all).first!
+      expect(Waha::Anchoring.family_anchor_message(edited)).to eq(base)
       expect(base.reload.additional_attributes['superseded']).to be(true)
     end
 
     it 'keeps replies anchored to the original while quoting the current edit head' do
       original
       described_class.perform_now(channel.id, edited_message_params(edited_message_id: 'AAA111', stanza: 'EDIT04'))
-      head = Message.find_by!(source_id: 'false_5511888888888@c.us_EDIT04')
+      head = waha_messages('false_5511888888888@c.us_EDIT04', Message.all).first!
 
       reply_params = plain_message_params(stanza: 'REPLY01', body: 'quoting the edited message', reply_to: { 'id' => 'AAA111' })
       described_class.perform_now(channel.id, reply_params)
 
-      reply = Message.find_by!(source_id: reply_params['payload']['id'])
+      reply = waha_messages(reply_params['payload']['id'], Message.all).first!
       expect(reply.content_attributes['in_reply_to']).to eq(head.id)
-      expect(reply.content_attributes['in_reply_to_external_id']).to eq(original.source_id)
+      expect(reply.content_attributes['in_reply_to_external_id']).to eq(original.presented_source_id)
     end
   end
 
   describe 'fromMe echo correlation' do
     it 'absorbs a fromMe event correlated to a pending Chatwoot delivery attempt, without mirroring it' do
       conversation
-      outgoing = create(:message, conversation: conversation, inbox: inbox, account: channel.account, message_type: :outgoing)
+      outgoing = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account, message_type: :outgoing)
       attempt = WahaDeliveryAttempt.create!(channel: channel, message: outgoing, chat_jid: '5511888888888@c.us',
                                             status: :sending, client_message_id: 'ECHOID1', dispatched_at: Time.current)
       params = own_message_params(stanza: 'ECHOID1')
+      attempt.delivery_parts.create!(position: 0, part_type: :text, client_message_id: 'ECHOID1', dispatched_at: Time.current)
 
       expect(Waha::IncomingMessageService).not_to receive(:new)
 
       described_class.perform_now(channel.id, params)
 
-      expect(attempt.reload).to have_attributes(status: 'sent', external_id: 'ECHOID1')
-      expect(outgoing.reload.source_id).to eq('true_5511888888888@c.us_ECHOID1')
+      expect(attempt.reload.status).to eq('sent')
+      expect(attempt.delivery_parts.first.external_id).to eq('ECHOID1')
+      expect(outgoing.reload.presented_source_id).to eq('true_5511888888888@c.us_ECHOID1')
     end
 
     it 'is idempotent when WAHA redelivers the same correlated echo' do
       conversation
-      outgoing = create(:message, conversation: conversation, inbox: inbox, account: channel.account, message_type: :outgoing)
+      outgoing = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account, message_type: :outgoing)
       WahaDeliveryAttempt.create!(channel: channel, message: outgoing, chat_jid: '5511888888888@c.us',
                                   status: :sending, client_message_id: 'ECHOID2', dispatched_at: Time.current)
       params = own_message_params(stanza: 'ECHOID2')
@@ -237,7 +239,7 @@ describe Webhooks::WahaEventsJob do
 
       described_class.perform_now(channel.id, params)
 
-      message = Message.find_by(source_id: params['payload']['id'])
+      message = waha_messages(params['payload']['id'], Message.all).first
       expect(message).to be_present
       expect(message).to have_attributes(message_type: 'outgoing')
     end
@@ -288,8 +290,8 @@ describe Webhooks::WahaEventsJob do
 
   describe 'multipart event correlation' do
     it 'applies an ack for any mapped part to the aggregate Chatwoot message' do
-      outgoing = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                  message_type: :outgoing, source_id: 'true_5511888888888@c.us_FIRST', status: :sent)
+      outgoing = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                     message_type: :outgoing, source_id: 'true_5511888888888@c.us_FIRST', status: :sent)
       WahaMessageMapping.create_canonical!(channel: channel, message: outgoing, chat_jid: contact_inbox.source_id,
                                            external_id: 'SECOND', direction: :outgoing, part: 1)
       params = {
@@ -359,17 +361,17 @@ describe Webhooks::WahaEventsJob do
         .with(channel.id, params, 1)
         .at(a_value_within(1.second).of(described_class::ACK_RETRY_DELAY.from_now))
 
-      outgoing = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                  message_type: :outgoing, status: :sent, source_id: 'true_5511888888888@c.us_LATE01')
+      outgoing = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                     message_type: :outgoing, status: :sent, source_id: 'true_5511888888888@c.us_LATE01')
       described_class.perform_now(channel.id, params, 1)
 
       expect(outgoing.reload.status).to eq('read')
     end
 
     it 'routes a group ack to the message the participant read' do
-      outgoing = create(:message, conversation: group_conversation, inbox: inbox, account: channel.account,
-                                  message_type: :outgoing, status: :sent,
-                                  source_id: 'true_1203630000@g.us_GRP001_5511999999999@c.us')
+      outgoing = create_waha_message(conversation: group_conversation, inbox: inbox, account: channel.account,
+                                     message_type: :outgoing, status: :sent,
+                                     source_id: 'true_1203630000@g.us_GRP001_5511999999999@c.us')
       params = ack_params(
         event: 'message.ack.group',
         payload: { 'id' => 'true_1203630000@g.us_GRP001_5511999999999@c.us', 'from' => '1203630000@g.us',
@@ -407,7 +409,7 @@ describe Webhooks::WahaEventsJob do
 
       described_class.perform_now(channel.id, params)
 
-      expect(Message.where(source_id: params['payload']['id']).count).to eq(1)
+      expect(waha_messages(params['payload']['id'], Message.all).count).to eq(1)
     end
   end
 end

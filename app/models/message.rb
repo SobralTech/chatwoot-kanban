@@ -33,8 +33,6 @@
 #  index_messages_on_conversation_account_type_created  (conversation_id,account_id,message_type,created_at)
 #  index_messages_on_conversation_id                    (conversation_id)
 #  index_messages_on_created_at                         (created_at)
-#  index_messages_on_inbox_and_edit_of                  (inbox_id, ((additional_attributes ->> 'edit_of'::text))) WHERE ((additional_attributes ->> 'edit_of'::text) IS NOT NULL)
-#  index_messages_on_inbox_and_source_stanza            (inbox_id, regexp_replace(regexp_replace(source_id, '_[^_]*@[^_]*$'::text, ''::text), '^.*_'::text, ''::text)) WHERE (source_id IS NOT NULL)
 #  index_messages_on_inbox_id                           (inbox_id)
 #  index_messages_on_sender_type_and_sender_id          (sender_type,sender_id)
 #  index_messages_on_source_id                          (source_id)
@@ -163,6 +161,7 @@ class Message < ApplicationRecord
 
   def push_event_data
     data = attributes.symbolize_keys.merge(
+      source_id: presented_source_id,
       created_at: created_at.to_i,
       message_type: message_type_before_type_cast,
       conversation_id: conversation&.display_id,
@@ -210,10 +209,17 @@ class Message < ApplicationRecord
       message_type: message_type,
       private: private,
       sender: sender.try(:webhook_data),
-      source_id: source_id
+      source_id: presented_source_id
     }
     data[:attachments] = attachments.map(&:push_event_data) if attachments.present?
     data
+  end
+
+  # Keep the public source_id field while WAHA stores correlation only in mappings.
+  def presented_source_id
+    return source_id unless inbox.waha?
+
+    Waha::Anchoring.external_anchor_source_id(self) || waha_message_mappings.resolved.where(event_type: :call).pick(:provider_id)
   end
 
   # Method to get content with survey URL for outgoing channel delivery

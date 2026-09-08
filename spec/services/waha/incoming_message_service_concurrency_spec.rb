@@ -66,7 +66,7 @@ describe Waha::IncomingMessageService do
       perform(payload)
 
       expect(twin_landed).to be(true)
-      expect(inbox.messages.where(source_id: payload['id']).count).to eq(1)
+      expect(waha_messages(payload['id'], inbox.messages).count).to eq(1)
       expect(WahaMessageMapping.where(chat_jid: '5511888888888@c.us', external_id: 'AAA111').count).to eq(1)
     end
   end
@@ -115,7 +115,7 @@ describe Waha::IncomingMessageService do
       expect(errors).to be_empty
       expect(results.size).to eq(2)
       expect(results.map(&:id).uniq.size).to eq(1)
-      expect(inbox.messages.where(source_id: payload['id']).count).to eq(1)
+      expect(waha_messages(payload['id'], inbox.messages).count).to eq(1)
       expect(WahaMessageMapping.where(channel: channel, external_id: 'RACE100').count).to eq(1)
       expect(Conversation.where(inbox_id: inbox.id).count).to eq(1)
     end
@@ -160,7 +160,7 @@ describe Waha::IncomingMessageService do
       expect(errors).to be_empty
       expect(results.size).to eq(2)
       expect(results.map(&:id).uniq.size).to eq(1)
-      expect(inbox.messages.where(source_id: payload['id']).count).to eq(1)
+      expect(waha_messages(payload['id'], inbox.messages).count).to eq(1)
       expect(WahaMessageMapping.where(channel: channel, external_id: 'HISTRACE1').count).to eq(1)
       expect(Conversation.where(inbox_id: inbox.id).count).to eq(1)
     end
@@ -168,7 +168,7 @@ describe Waha::IncomingMessageService do
 
   describe 'database unique constraint rollback on concurrent collision' do
     it 'rolls back the losing transaction without leaving a phantom message, returning the winner' do
-      other_message = create(:message, account: channel.account, inbox: inbox, source_id: 'unrelated_other')
+      other_message = create_waha_message(account: channel.account, inbox: inbox, source_id: 'unrelated_other')
       WahaMessageMapping.create!(
         channel: channel, message: other_message, chat_jid: '5511888888888@c.us',
         external_id: 'DBRACE1', direction: :incoming
@@ -178,7 +178,7 @@ describe Waha::IncomingMessageService do
       result = described_class.new(channel: channel, payload: payload).perform
 
       expect(result).to eq(other_message)
-      expect(inbox.messages.where(source_id: payload['id'])).to be_empty
+      expect(waha_messages(payload['id'], inbox.messages)).to be_empty
       expect(WahaMessageMapping.where(chat_jid: '5511888888888@c.us', external_id: 'DBRACE1').count).to eq(1)
     end
   end
@@ -219,7 +219,7 @@ describe Waha::IncomingMessageService do
       expect(msg1.content_attributes['participant_jid']).to eq(participant)
       mapping = WahaMessageMapping.find_by!(channel: channel, chat_jid: group_jid, external_id: 'GRPMSG1')
       expect(mapping.participant_jid).to eq(participant)
-      expect(inbox.messages.where(source_id: payload['id']).count).to eq(1)
+      expect(waha_messages(payload['id'], inbox.messages).count).to eq(1)
     end
   end
 
@@ -233,7 +233,7 @@ describe Waha::IncomingMessageService do
 
       expect(reply1.id).to eq(reply2.id)
       expect(reply1.content_attributes['in_reply_to']).to eq(quoted.id)
-      expect(inbox.messages.where(source_id: reply_payload['id']).count).to eq(1)
+      expect(waha_messages(reply_payload['id'], inbox.messages).count).to eq(1)
     end
   end
 
@@ -257,7 +257,7 @@ describe Waha::IncomingMessageService do
       live_result = perform(payload)
 
       expect(live_result.id).to eq(hist_msg.id)
-      expect(inbox.messages.where(source_id: payload['id']).count).to eq(1)
+      expect(waha_messages(payload['id'], inbox.messages).count).to eq(1)
       hist_msg.reload
       expect(hist_msg.imported).to be(true)
       expect(hist_msg.created_at.to_i).to eq(historical_ts.to_i)

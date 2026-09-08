@@ -38,8 +38,8 @@ describe Waha::SendOnWahaService do
 
   describe 'two concurrent delivery attempts for the same message' do
     it 'makes at most one active sendText call and converges on a single confirmed mapping' do
-      message = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                 message_type: :outgoing, content: 'hello')
+      message = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                    message_type: :outgoing, content: 'hello')
 
       barrier = Concurrent::CyclicBarrier.new(2)
       errors = Concurrent::Array.new
@@ -60,7 +60,7 @@ describe Waha::SendOnWahaService do
       expect(errors).to be_empty
       expect(a_request(:post, 'https://waha.test/api/sendText')).to have_been_made.once
       expect(WahaMessageMapping.where(message: message).count).to eq(1)
-      expect(message.reload.source_id).to eq('true_5511888888888@c.us_RACEID01')
+      expect(message.reload.presented_source_id).to eq('true_5511888888888@c.us_RACEID01')
       expect(WahaDeliveryAttempt.find_by(message: message)).to have_attributes(status: 'sent', attempt_count: 1)
     end
   end

@@ -14,12 +14,19 @@ class Messages::InReplyToMessageBuilder
   # quotes for messages outside the conversation) that a plain lookup here would
   # clobber or wipe.
   def set_in_reply_to_attribute
-    @message.content_attributes[:in_reply_to_external_id] ||= in_reply_to_message.try(:source_id)
+    @message.content_attributes[:in_reply_to_external_id] ||= in_reply_to_message&.presented_source_id
     @message.content_attributes[:in_reply_to] ||= in_reply_to_message.try(:id)
   end
 
   def in_reply_to_message
     return conversation.messages.find_by(id: @in_reply_to) if @in_reply_to.present?
+
+    if conversation.inbox.waha?
+      quoted = Waha::Anchoring.find_message(conversation.inbox.channel, @in_reply_to_external_id, conversation.contact_inbox.source_id)
+      return quoted if quoted&.conversation_id == conversation.id
+
+      return nil
+    end
 
     return conversation.messages.find_by(source_id: @in_reply_to_external_id) if @in_reply_to_external_id
 

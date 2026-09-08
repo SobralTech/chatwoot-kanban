@@ -19,7 +19,7 @@ describe Waha::IncomingMessageService do
 
   def perform(payload)
     described_class.new(channel: channel, payload: payload).perform
-    Message.find_by!(source_id: payload['id'])
+    waha_messages(payload['id'], Message.all).first!
   end
 
   describe 'a Pix payment request' do
@@ -98,7 +98,7 @@ describe Waha::IncomingMessageService do
     let(:photo1) { perform(gows_payload('album_item_image_1')) }
     let(:photo2) { perform(gows_payload('album_item_image_2')) }
     let(:video) { perform(gows_payload('album_item_video')) }
-    let(:album_id) { Waha::Anchoring.stanza_of(header.source_id) }
+    let(:album_id) { Waha::Anchoring.stanza_of(header.presented_source_id) }
 
     it 'renders the header with the expected photo and video counts' do
       expect(header.content).to eq('🖼️ Album · 2 photos, 1 video')

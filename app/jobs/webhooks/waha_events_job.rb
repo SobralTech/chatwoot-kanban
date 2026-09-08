@@ -140,7 +140,9 @@ class Webhooks::WahaEventsJob < ApplicationJob
   def suppress_chatwoot_echo?(channel, payload)
     return false unless payload['fromMe']
 
-    attempt = WahaDeliveryAttempt.find_by_correlated_id(channel: channel, wa_message_id: payload['id'])
+    attempt = WahaDeliveryAttempt.find_by_correlated_id(
+      channel: channel, wa_message_id: payload['id'], chat_jid: mutation_chat_jid(payload, payload['id'])
+    )
     return false unless attempt
 
     attempt.confirm_sent!(payload['id'])
@@ -223,7 +225,7 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # one. Called only once that version exists, so a failure before this point
   # never leaves the family without an un-struck head.
   def supersede_edit_family(channel, original, except:)
-    edit_family(channel, original.source_id).where.not(id: except.id).find_each { |message| mark_superseded(message) }
+    edit_family(channel, original).where.not(id: except.id).find_each { |message| mark_superseded(message) }
   end
 
   def mark_superseded(message)
@@ -243,11 +245,11 @@ class Webhooks::WahaEventsJob < ApplicationJob
     revoked = find_message_by_source_id(channel, source_id, mutation_chat_jid(payload, source_id))
     return retry_event(channel, params, retries) unless revoked
 
-    edit_family(channel, Waha::Anchoring.anchor_source_id(revoked)).find_each { |message| soft_delete_message(message) }
+    edit_family(channel, revoked).find_each { |message| soft_delete_message(message) }
   end
 
-  def edit_family(channel, anchor_source_id)
-    Waha::Anchoring.family(channel.inbox, anchor_source_id)
+  def edit_family(channel, message)
+    Waha::Anchoring.family(channel.inbox, message)
   end
 
   # Applies a WhatsApp reaction to the mirrored message. Reactions sent from
@@ -267,7 +269,7 @@ class Webhooks::WahaEventsJob < ApplicationJob
   # Reactions are displayed on the current (un-struck) member of the edit family,
   # not necessarily on the anchor the webhook points at.
   def current_family_member(channel, message)
-    edit_family(channel, Waha::Anchoring.anchor_source_id(message))
+    edit_family(channel, message)
       .where("COALESCE(additional_attributes->>'superseded', 'false') = 'false'").first || message
   end
 

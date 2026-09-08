@@ -10,7 +10,7 @@ json.content_attributes message.content_attributes
 json.additional_attributes message.additional_attributes
 json.created_at message.created_at.to_i
 json.private message.private
-json.source_id message.source_id
+json.source_id message.presented_source_id
 json.sender message.sender.push_event_data if message.sender
 json.attachments message.attachments.map(&:push_event_data) if message.attachments.present?
 

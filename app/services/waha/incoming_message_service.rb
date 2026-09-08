@@ -67,7 +67,7 @@ class Waha::IncomingMessageService
     # if concurrent execution bypassed the lock or raced within it, the loser
     # transaction was rolled back, leaving zero duplicate messages in the DB.
     # Return the winning persisted message idempotently.
-    find_canonical_message
+    find_canonical_message || raise
   end
 
   def chat_id
@@ -145,14 +145,7 @@ class Waha::IncomingMessageService
       external_id: stanza,
       event_type: event_type
     )
-    mapping&.message || legacy_conversation_message
-  end
-
-  def legacy_conversation_message
-    scoped_conversation = @conversation || @contact_inbox&.conversations&.last
-    return unless scoped_conversation
-
-    scoped_conversation.messages.where("#{Waha::Anchoring::STANZA_SQL} = ?", stanza).first
+    mapping&.message
   end
 
   def resolve_contact
@@ -189,7 +182,6 @@ class Waha::IncomingMessageService
       inbox_id: inbox.id,
       message_type: incoming? ? :incoming : :outgoing,
       sender: message_sender,
-      source_id: source_id,
       status: initial_status,
       content_attributes: build_content_attributes,
       additional_attributes: build_additional_attributes
@@ -217,6 +209,8 @@ class Waha::IncomingMessageService
       external_id: stanza,
       direction: incoming? ? :incoming : :outgoing,
       event_type: event_type,
+      provider_id: source_id,
+      anchor_message: (Waha::Anchoring.family_anchor_message(edited_original) if edited_original),
       participant_jid: chat_id.to_s.end_with?('@g.us') ? sender_jid : nil
     )
   end
@@ -267,18 +261,11 @@ class Waha::IncomingMessageService
     # Incoming, or an agent-attributed edit: the sender association already names
     # the author, so no sender_name override is needed. Everything else outgoing
     # (a phone-sent message or a phone-side edit) keeps the WhatsApp label.
-    attrs = if incoming? || (edited_original && pending_editor)
-              {}
-            else
-              { sender_name: SENT_FROM_WHATSAPP_LABEL }
-            end
-
-    # Anchor every edit mirror to the original message's source_id so the whole
-    # edit family can be found later (to strike the previous head, and to resolve
-    # replies back to the single real WhatsApp message).
-    attrs[:edit_of] = edited_original.source_id if edited_original
-
-    attrs
+    if incoming? || (edited_original && pending_editor)
+      {}
+    else
+      { sender_name: SENT_FROM_WHATSAPP_LABEL }
+    end
   end
 
   def build_text_content
@@ -312,7 +299,7 @@ class Waha::IncomingMessageService
     return @previous_reactions_holder if defined?(@previous_reactions_holder)
     return @previous_reactions_holder = nil unless edited_original
 
-    family = Waha::Anchoring.family(inbox, Waha::Anchoring.anchor_source_id(edited_original))
+    family = Waha::Anchoring.family(inbox, edited_original)
     @previous_reactions_holder = family.find { |member| member.content_attributes['reactions'].present? }
   end
 
@@ -332,7 +319,7 @@ class Waha::IncomingMessageService
 
     attrs.delete(:in_reply_to_snapshot)
     attrs[:in_reply_to] = Waha::ReplyContextResolver.family_head(inbox, edited_original).id
-    attrs[:in_reply_to_external_id] = edited_original.source_id
+    attrs[:in_reply_to_external_id] = Waha::Anchoring.external_anchor_source_id(edited_original)
     attrs[:reactions] = previous_reactions_holder.content_attributes['reactions'] if previous_reactions_holder
   end
 

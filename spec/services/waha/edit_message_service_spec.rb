@@ -10,12 +10,12 @@ describe Waha::EditMessageService do
   end
   let(:user) { create(:user, account: channel.account) }
   let(:message) do
-    create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                     message_type: :outgoing, source_id: 'false_5511888888888@c.us_AAA111')
+    create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                        message_type: :outgoing, source_id: 'false_5511888888888@c.us_AAA111')
   end
 
   def edit_url
-    "https://waha.test/api/#{channel.session_name}/chats/5511888888888@c.us/messages/#{message.source_id}"
+    "https://waha.test/api/#{channel.session_name}/chats/5511888888888@c.us/messages/#{message.presented_source_id}"
   end
 
   before { Current.user = user }

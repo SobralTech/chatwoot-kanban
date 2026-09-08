@@ -6,8 +6,8 @@ describe Waha::HistoryMediaJob do
   let(:conversation) { create(:conversation, account: channel.account, inbox: inbox) }
 
   def build_message(stanza)
-    create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                     source_id: "false_5511888888888@c.us_#{stanza}")
+    create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                        source_id: "false_5511888888888@c.us_#{stanza}")
   end
 
   before do
@@ -73,9 +73,9 @@ describe Waha::HistoryMediaJob do
 
     it 'attaches the media once the transient failure clears, without a duplicate attachment' do
       message = build_message('AAA')
-      fetch_path = %r{/chats/chat@c\.us/messages/}
+      fetch_path = %r{/chats/5511888888888(?:@|%40)c\.us/messages/}
       payload = {
-        'id' => message.source_id, 'hasMedia' => true, 'type' => 'image',
+        'id' => message.presented_source_id, 'hasMedia' => true, 'type' => 'image',
         'media' => { 'url' => 'http://localhost:3000/api/files/abc.jpeg', 'mimetype' => 'image/jpeg' }
       }
       # WebMock replays the responses of a single stub in sequence per matching

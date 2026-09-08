@@ -21,11 +21,8 @@ describe Waha::AckApplier do
   end
 
   def outgoing_message(stanza: 'DIRECT1', status: :sent, conversation_record: conversation, chat_jid: '5511888888888@c.us')
-    message = create(:message, conversation: conversation_record, inbox: inbox, account: channel.account,
-                               message_type: :outgoing, status: status, source_id: "true_#{chat_jid}_#{stanza}")
-    WahaMessageMapping.create_canonical!(channel: channel, message: message, chat_jid: chat_jid,
-                                         external_id: stanza, direction: :outgoing)
-    message
+    create_waha_message(conversation: conversation_record, inbox: inbox, account: channel.account,
+                        message_type: :outgoing, status: status, source_id: "true_#{chat_jid}_#{stanza}")
   end
 
   describe 'direct conversation' do
@@ -57,8 +54,8 @@ describe Waha::AckApplier do
     end
 
     it 'ignores an ack for an incoming message' do
-      message = create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                                 message_type: :incoming, source_id: 'false_5511888888888@c.us_INCOMING')
+      message = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                                    message_type: :incoming, source_id: 'false_5511888888888@c.us_INCOMING')
 
       apply(direct_ack(stanza: 'INCOMING', ack: 3).merge('fromMe' => false))
 
@@ -89,8 +86,8 @@ describe Waha::AckApplier do
 
   describe 'multipart aggregation' do
     let(:message) do
-      create(:message, conversation: conversation, inbox: inbox, account: channel.account,
-                       message_type: :outgoing, status: :sent, source_id: 'true_5511888888888@c.us_PART0')
+      create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
+                          message_type: :outgoing, status: :sent, source_id: 'true_5511888888888@c.us_PART0')
     end
     let(:attempt) do
       WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
@@ -103,8 +100,10 @@ describe Waha::AckApplier do
         attempt.delivery_parts.create!(position: position, part_type: position.zero? ? :text : :attachment,
                                        status: :sent, external_id: external_id, attachment: attachment,
                                        source_id: "true_5511888888888@c.us_#{external_id}")
-        WahaMessageMapping.create_canonical!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
-                                             external_id: external_id, direction: :outgoing, part: position)
+        unless position.zero?
+          WahaMessageMapping.create_canonical!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
+                                               external_id: external_id, direction: :outgoing, part: position)
+        end
       end
     end
 
@@ -143,8 +142,8 @@ describe Waha::AckApplier do
   describe 'failure transitions' do
     it 'fails a message on an error ack correlated to its accepted attempt' do
       message = outgoing_message
-      WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
-                                  status: :sent, external_id: 'DIRECT1')
+      create_waha_attempt(channel: channel, message: message, chat_jid: '5511888888888@c.us',
+                          status: :sent, external_id: 'DIRECT1')
 
       apply(direct_ack(stanza: 'DIRECT1', ack: -1))
 
@@ -153,8 +152,8 @@ describe Waha::AckApplier do
 
     it 'leaves a delivered message alone when a stale error ack arrives' do
       message = outgoing_message(status: :delivered)
-      WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
-                                  status: :sent, external_id: 'DIRECT1')
+      create_waha_attempt(channel: channel, message: message, chat_jid: '5511888888888@c.us',
+                          status: :sent, external_id: 'DIRECT1')
 
       apply(direct_ack(stanza: 'DIRECT1', ack: -1))
 
@@ -163,8 +162,8 @@ describe Waha::AckApplier do
 
     it 'refuses to fail a message when the ack cannot be tied to its attempt' do
       message = outgoing_message
-      WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
-                                  status: :sent, external_id: 'OTHERATTEMPT')
+      create_waha_attempt(channel: channel, message: message, chat_jid: '5511888888888@c.us',
+                          status: :sent, external_id: 'OTHERATTEMPT')
 
       apply(direct_ack(stanza: 'DIRECT1', ack: -1))
 
@@ -174,8 +173,8 @@ describe Waha::AckApplier do
     it 'lifts a failed message when the ack belongs to the attempt WAHA accepted' do
       message = outgoing_message(status: :failed)
       message.update!(external_error: 'timeout')
-      WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
-                                  status: :sent, external_id: 'DIRECT1')
+      create_waha_attempt(channel: channel, message: message, chat_jid: '5511888888888@c.us',
+                          status: :sent, external_id: 'DIRECT1')
 
       apply(direct_ack(stanza: 'DIRECT1', ack: 2))
 
@@ -184,8 +183,8 @@ describe Waha::AckApplier do
 
     it 'keeps a failed message failed when the ack belongs to an attempt that was never accepted' do
       message = outgoing_message(status: :failed)
-      WahaDeliveryAttempt.create!(channel: channel, message: message, chat_jid: '5511888888888@c.us',
-                                  status: :failed, client_message_id: 'DIRECT1')
+      create_waha_attempt(channel: channel, message: message, chat_jid: '5511888888888@c.us',
+                          status: :failed, client_message_id: 'DIRECT1')
 
       apply(direct_ack(stanza: 'DIRECT1', ack: 2))
 

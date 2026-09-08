@@ -35,11 +35,7 @@ class Waha::BaseMessageActionService
   # on that same anchor record — which differs from the mirror the agent clicked
   # when the message had already been edited before.
   def anchor_message
-    @anchor_message ||= if message.additional_attributes['edit_of'].present?
-                          message.inbox.messages.find_by(source_id: anchor_source_id)
-                        else
-                          message
-                        end
+    @anchor_message ||= Waha::Anchoring.family_anchor_message(message)
   end
 
   def anchor_source_id
@@ -51,12 +47,13 @@ class Waha::BaseMessageActionService
   end
 
   def message_paths
-    sources = anchor_message.waha_delivery_attempt&.delivery_parts&.sent&.in_delivery_order&.pluck(:source_id)
-    Array(sources.presence || anchor_source_id).map { |source_id| "#{channel.session_name}/chats/#{chat_id}/messages/#{source_id}" }
+    Waha::Anchoring.mappings_for(message).map do |mapping|
+      "#{channel.session_name}/chats/#{mapping.chat_jid}/messages/#{mapping.provider_id}"
+    end
   end
 
   def chat_id
-    message.conversation.contact_inbox.source_id
+    Waha::Anchoring.mappings_for(message).first&.chat_jid
   end
 
   def channel

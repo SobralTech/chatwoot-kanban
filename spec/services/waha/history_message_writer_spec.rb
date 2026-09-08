@@ -15,7 +15,7 @@ describe Waha::HistoryMessageWriter do
 
   def perform(payload)
     described_class.new(channel: channel, payload: payload, conversation: conversation).perform
-    Message.find_by!(source_id: payload['id'])
+    waha_messages(payload['id'], Message.all).first!
   end
 
   describe 'structured types the payload already carries' do
