@@ -38,7 +38,12 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     Waha::DeleteMessageService.new(message: message).perform if waha_deletable?
 
     ActiveRecord::Base.transaction do
-      message.update!(content: I18n.t('conversations.messages.deleted'), content_type: :text, content_attributes: { deleted: true })
+      # This text is persisted and read by everyone on the conversation, so it
+      # follows the account's language rather than the language of whichever
+      # agent happened to press delete — the same locale the webhook that
+      # mirrors a phone-side deletion writes it in.
+      message.update!(content: I18n.t('conversations.messages.deleted', locale: Current.account.locale),
+                      content_type: :text, content_attributes: { deleted: true })
       message.attachments.destroy_all
     end
   rescue ActiveRecord::RecordNotFound

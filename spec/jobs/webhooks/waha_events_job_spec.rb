@@ -80,6 +80,23 @@ describe Webhooks::WahaEventsJob do
       expect(message.content_attributes['media_download_failed']).to be(true)
       expect(message.content).to eq(I18n.t('conversations.messages.waha_media_unavailable'))
     end
+
+    # The placeholder is persisted, and this job runs in Sidekiq where
+    # I18n.locale is the process default — so without the account's locale the
+    # text is frozen into the message in English no matter what the inbox is
+    # read in.
+    it 'writes the fallback in the account language' do
+      channel.account.update!(locale: 'pt_BR')
+      conversation
+      stub_request(:get, media_url).to_return(status: 404)
+      params = media_message_params(stanza: 'MEDIALOCALE')
+
+      described_class.perform_now(channel.id, params, 0, described_class::MEDIA_MAX_ATTEMPTS)
+
+      message = waha_messages(params['payload']['id'], Message.all).first!
+      expect(message.content).to eq(I18n.t('conversations.messages.waha_media_unavailable', locale: :pt_BR))
+      expect(message.content).to eq('Mídia indisponível: o download falhou após várias tentativas')
+    end
   end
 
   def own_message_params(stanza:, source: 'api')

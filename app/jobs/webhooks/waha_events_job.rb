@@ -25,7 +25,7 @@ class Webhooks::WahaEventsJob < ApplicationJob
     return unless channel&.account&.active?
     return if invalid_webhook_session?(channel, params)
 
-    route_event(channel, params, ack_retries, media_attempt)
+    Waha::AccountLocale.with(channel) { route_event(channel, params, ack_retries, media_attempt) }
   end
 
   private
