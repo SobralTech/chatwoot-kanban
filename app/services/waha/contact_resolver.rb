@@ -81,7 +81,13 @@ class Waha::ContactResolver
                        [Waha::Jid.phone_jid(jid), resolve_phone_to_lid(jid)]
                      end
     phone_jid = nil if session_number?(phone_jid)
-    resolved_jid = phone_jid.presence || jid
+    # The session's own number is dropped as an identity above (a fromMe message
+    # must not adopt us as the contact), but the "message yourself" chat is a
+    # real chat whose JID is that number. Falling back to the raw `jid` there
+    # would store `@s.whatsapp.net` as the source_id, and every anchoring lookup
+    # normalizes to `@c.us` — so edits, reactions, revokes and acks on that chat
+    # would never find their message.
+    resolved_jid = phone_jid.presence || Waha::Jid.phone_jid(jid) || jid
 
     { jid: resolved_jid, lid: lid.presence, aliases: aliases_for(phone_jid, lid) }
   end
@@ -172,12 +178,21 @@ class Waha::ContactResolver
     end
   end
 
+  # A ContactInbox keyed by anything but the canonical `@c.us` form — a LID, or
+  # a raw `@s.whatsapp.net` JID stored before the normalization above — is
+  # rekeyed as soon as the phone identity is known, so mappings recorded from
+  # its source_id stay reachable by the normalized lookups.
   def promote_phone_identity!(contact_inbox, identity)
-    return unless Waha::Jid.lid?(contact_inbox.source_id) && Waha::Jid.phone?(identity[:jid])
+    return if contact_inbox.source_id == identity[:jid]
+    return unless non_canonical_source?(contact_inbox.source_id) && Waha::Jid.phone?(identity[:jid])
 
     contact_inbox.update!(source_id: identity[:jid])
   rescue ActiveRecord::RecordInvalid => e
     log_alias_conflict([contact_inbox], e)
+  end
+
+  def non_canonical_source?(source_id)
+    Waha::Jid.lid?(source_id) || (Waha::Jid.phone?(source_id) && !source_id.to_s.end_with?('@c.us'))
   end
 
   def enrich_contact!(contact, identity, enrichment)
