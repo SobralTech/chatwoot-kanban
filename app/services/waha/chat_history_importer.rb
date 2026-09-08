@@ -13,7 +13,7 @@ class Waha::ChatHistoryImporter
   # shot — bounding how large a cluster we can fully resolve in one page.
   MAX_TIED_SECOND_SIZE = PAGE_SIZE * 10
 
-  pattr_initialize [:channel!, :chat_id!, :window!, :import_chat!, { kind: 'initial' }]
+  pattr_initialize [:channel!, :chat_id!, :window!, :import_chat!, { kind: 'initial', lease_token: nil, lease_duration: 5.minutes }]
 
   # Imports one chat's messages within the window. Resolves the conversation once,
   # batch-dedups against existing stanza ids, then writes each new message using
@@ -22,8 +22,9 @@ class Waha::ChatHistoryImporter
   # Best-effort: only what WhatsApp synced to the device is available.
   def run
     imported = import_messages
+    heartbeat
     finalize_conversation if imported.positive?
-    enqueue_media
+    enqueue_media unless initial_import?
     imported
   end
 
@@ -40,9 +41,13 @@ class Waha::ChatHistoryImporter
   def import_messages
     imported = 0
     @media_message_ids = Set.new(import_chat.media_message_ids)
+    @observed_message_count = import_chat.pass_observed_message_count
+    @observed_message_digest = import_chat.pass_observed_message_digest
     cursor = resume_cursor
     loop do
+      heartbeat
       raw_page = fetch_page(cursor[:ts])
+      heartbeat
       break if raw_page.blank?
 
       delta, next_cursor, full_page = handle_page(raw_page, cursor)
@@ -83,7 +88,17 @@ class Waha::ChatHistoryImporter
   def resolve_page(raw_page)
     tied = tied_second?(raw_page)
     page = tied ? fetch_tied_second(raw_page.first['timestamp'].to_i) : raw_page
+    fail_tied_second_overflow!(raw_page.first['timestamp'].to_i) if tied && page.size >= MAX_TIED_SECOND_SIZE
     [sort_by_composite_key(page), tied && page.size < MAX_TIED_SECOND_SIZE]
+  end
+
+  def fail_tied_second_overflow!(timestamp)
+    Waha::Telemetry.emit(
+      :import_stalled, channel: channel, chat: chat_id, level: :error, kind: kind,
+                       reason: :same_second_overflow, cursor_ts: timestamp, page_size: MAX_TIED_SECOND_SIZE
+    )
+    raise CustomExceptions::Waha::ApiError,
+          "WAHA history import cannot resolve more than #{MAX_TIED_SECOND_SIZE - 1} messages for chat #{chat_id} at timestamp #{timestamp}"
   end
 
   # A full-size page that sits entirely within one second can't be trusted to
@@ -168,9 +183,22 @@ class Waha::ChatHistoryImporter
   # bumps its imported count and persists the composite cursor for mid-chat resume.
   def write_page(new_items, next_cursor)
     imported = new_items.count { |payload| write_message(payload) }
-    import_chat.update!(cursor: next_cursor[:ts], cursor_message_id: next_cursor[:id],
-                        media_message_ids: @media_message_ids.to_a, imported_count: import_chat.imported_count + imported)
+    observe(new_items)
+    checkpoint(
+      cursor: next_cursor[:ts], cursor_message_id: next_cursor[:id], media_message_ids: @media_message_ids.to_a,
+      imported_count: import_chat.imported_count + imported,
+      pass_imported_count: import_chat.pass_imported_count + imported,
+      pass_observed_message_count: @observed_message_count,
+      pass_observed_message_digest: @observed_message_digest
+    )
     imported
+  end
+
+  def observe(payloads)
+    payloads.filter_map { |payload| Waha::Anchoring.stanza_of(payload['id']).presence }.uniq.each do |stanza|
+      @observed_message_count += 1
+      @observed_message_digest = Digest::SHA256.hexdigest("#{@observed_message_digest}:#{stanza}")
+    end
   end
 
   def write_message(payload)
@@ -249,8 +277,6 @@ class Waha::ChatHistoryImporter
   end
 
   def load_existing_messages
-    candidate_chat_jids = Waha::Anchoring.chat_jids(channel, [@conversation.contact_inbox&.source_id, chat_id])
-
     rows = channel.message_mappings.resolved.where(chat_jid: candidate_chat_jids, event_type: :message).pluck(:external_id, :message_id)
     rows.group_by(&:first).transform_values do |parts|
       ids = parts.map(&:last).uniq
@@ -258,6 +284,10 @@ class Waha::ChatHistoryImporter
 
       ids.first
     end
+  end
+
+  def candidate_chat_jids
+    Waha::Anchoring.chat_jids(channel, [@conversation.contact_inbox&.source_id, chat_id])
   end
 
   def track_timestamp(unix)
@@ -274,16 +304,34 @@ class Waha::ChatHistoryImporter
   def finalize_conversation
     return unless initial_import?
 
-    now = Time.current
-    # rubocop:disable Rails/SkipsModelValidations
-    @conversation.update_columns(
-      status: ::Conversation.statuses[:resolved],
+    Waha::Locking.with_chat_lock(channel, candidate_chat_jids) do
+      @conversation.reload
+      attrs = historical_conversation_timestamps
+      attrs.merge!(read_conversation_state) unless live_or_recovered_messages?
+      # rubocop:disable Rails/SkipsModelValidations
+      @conversation.update_columns(attrs)
+      # rubocop:enable Rails/SkipsModelValidations
+    end
+  end
+
+  def live_or_recovered_messages?
+    @conversation.messages.where("COALESCE(additional_attributes ->> 'waha_import_kind', '') <> 'initial'").exists?
+  end
+
+  def historical_conversation_timestamps
+    {
       last_activity_at: [@conversation.last_activity_at, Time.zone.at(@max_ts)].compact.max,
-      created_at: [@conversation.created_at, Time.zone.at(@min_ts)].compact.min,
-      agent_last_seen_at: now,
-      assignee_last_seen_at: now
-    )
-    # rubocop:enable Rails/SkipsModelValidations
+      created_at: [@conversation.created_at, Time.zone.at(@min_ts)].compact.min
+    }
+  end
+
+  def read_conversation_state
+    now = Time.current
+    {
+      status: ::Conversation.statuses[:resolved],
+      agent_last_seen_at: [@conversation.agent_last_seen_at, now].compact.max,
+      assignee_last_seen_at: [@conversation.assignee_last_seen_at, now].compact.max
+    }
   end
 
   def fetch_page(cursor_ts, limit: PAGE_SIZE, upper: window_unix('window_end'))
@@ -311,6 +359,20 @@ class Waha::ChatHistoryImporter
 
   def http_client
     @http_client ||= Waha::HttpClient.new(channel: channel)
+  end
+
+  def heartbeat
+    return if lease_token.blank?
+
+    import_chat.heartbeat!(lease_token, lease_duration: lease_duration)
+  end
+
+  def checkpoint(attrs)
+    if lease_token.present?
+      import_chat.checkpoint!(lease_token, attrs.merge(lease_expires_at: lease_duration.from_now))
+    else
+      import_chat.update!(attrs)
+    end
   end
 end
 # rubocop:enable Metrics/ClassLength

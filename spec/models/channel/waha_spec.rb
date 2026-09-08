@@ -63,7 +63,8 @@ RSpec.describe Channel::Waha, type: :model do
     it 'keeps active chat checkpoints intact for initial, gap-fill, and periodic triggers' do
       channel.enqueue_history_import!(window, kind: 'initial')
       execution_id = channel.reload.import_state.fetch('execution_id')
-      channel.start_scheduled_import!(execution_id)
+      pass_id = channel.import_state.fetch('pass_id')
+      channel.claim_import_pass!(execution_id, pass_id)
       import_chat = WahaImportChat.create!(
         channel: channel, chat_id: '5511888888888@c.us', status: :importing, cursor: 123, imported_count: 4
       )
