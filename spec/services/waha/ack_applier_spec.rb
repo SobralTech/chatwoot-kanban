@@ -26,6 +26,24 @@ describe Waha::AckApplier do
   end
 
   describe 'direct conversation' do
+    it 'applies the GOWS receipt shape through delivered and read states' do
+      message = outgoing_message(stanza: '3EB0ACK01')
+      payload = gows_event('ack_read')['payload']
+
+      payload['ack'] = 2
+      apply(payload)
+      expect(message.reload.status).to eq('delivered')
+
+      payload['ack'] = 3
+      apply(payload)
+      expect(message.reload.status).to eq('read')
+
+      message.update!(status: :sent)
+      payload['ack'] = -1
+      apply(payload)
+      expect(message.reload.status).to eq('failed')
+    end
+
     it 'advances the bubble through sent, delivered and read' do
       message = outgoing_message
 

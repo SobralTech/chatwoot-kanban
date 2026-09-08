@@ -70,6 +70,25 @@ describe Waha::IncomingMessageService do
     end
   end
 
+  describe 'a GOWS group text message' do
+    it 'keeps the body unchanged and persists the structured sender' do
+      channel.update!(groups_enabled: true)
+      group_contact = create(:contact, account: channel.account, name: 'Family Group')
+      group_contact_inbox = create(:contact_inbox, contact: group_contact, inbox: inbox, source_id: '120363000000000000@g.us')
+      create(:conversation, account: channel.account, inbox: inbox, contact: group_contact, contact_inbox: group_contact_inbox)
+
+      message = perform(gows_payload('group_text'))
+
+      expect(message.content).to eq('bom dia a todos')
+      expect(message.content_attributes).to include(
+        'sender_name' => 'Zé do Grupo',
+        'participant_jid' => '5511777777777@c.us',
+        'participant_phone' => '+5511777777777'
+      )
+      expect(WahaMessageMapping.find_by!(message: message).participant_jid).to eq('5511777777777@c.us')
+    end
+  end
+
   describe 'a location with no coordinates' do
     it 'falls back visibly instead of persisting a location with no position' do
       message = perform(gows_payload('location_without_coordinates'))
@@ -208,6 +227,32 @@ describe Waha::IncomingMessageService do
       expect(message.content_attributes['in_reply_to_snapshot']).to eq(
         'body' => 'Novidades da semana', 'author' => '+5511999999999 · Status', 'media_type' => 'image'
       )
+    end
+  end
+
+  describe 'a reply whose original is not in the inbox' do
+    it 'persists a ghost snapshot with the author, body and actual quoted media type' do
+      message = perform(gows_payload('reply_missing_original'))
+
+      expect(message.content).to eq('resposta sobre a foto')
+      expect(message.content_attributes['in_reply_to']).to be_nil
+      expect(message.content_attributes['in_reply_to_external_id']).to eq('3EB0QUOTED01')
+      expect(message.content_attributes['in_reply_to_snapshot']).to eq(
+        'body' => 'foto antiga', 'author' => 'Ana Souza', 'media_type' => 'image'
+      )
+    end
+  end
+
+  describe 'a GOWS sticker' do
+    it 'persists sticker content type and its attachment' do
+      stub_request(:get, 'https://waha.test/api/files/sticker.webp')
+        .to_return(status: 200, body: 'sticker-bytes', headers: { 'Content-Type' => 'image/webp' })
+
+      message = perform(gows_payload('sticker'))
+
+      expect(message.content_type).to eq('sticker')
+      expect(message.attachments.sole).to have_attributes(file_type: 'image')
+      expect(message.attachments.sole.file.content_type).to eq('image/webp')
     end
   end
 

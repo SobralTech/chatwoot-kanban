@@ -152,18 +152,13 @@ describe Waha::ContactResolver do
     let(:jid) { '5511888888888@c.us' }
 
     def payload(id:, chat:, sender_alt: nil)
-      {
-        'id' => "false_#{chat}_#{id}",
-        'body' => "message #{id}",
-        'from' => chat,
-        'to' => '5511999999999@c.us',
-        'fromMe' => false,
-        'type' => 'chat',
-        'hasMedia' => false,
-        '_data' => {
-          'Info' => { 'Chat' => chat, 'PushName' => 'Jane Doe', 'SenderAlt' => sender_alt }.compact
-        }
-      }
+      fixture = gows_payload('status_reply_text').deep_dup
+      fixture['id'] = "false_#{chat}_#{id}"
+      fixture['body'] = "message #{id}"
+      fixture['from'] = chat
+      fixture['_data']['Info']['Chat'] = chat
+      fixture['_data']['Info']['SenderAlt'] = sender_alt if sender_alt
+      fixture
     end
 
     it 'keeps the contact, contact inbox and conversation when an unknown LID later resolves to a phone JID' do

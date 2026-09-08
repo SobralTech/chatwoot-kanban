@@ -47,9 +47,15 @@ const mountMessage = props =>
       stubs: {
         BaseBubble: { template: '<div><slot /></div>' },
         AttachmentChips: true,
+        MessageReactions: {
+          template: '<div data-testid="reactions">reactions</div>',
+        },
         TranslationToggle: true,
         ContextMenu: true,
         Avatar: true,
+        StickerBubble: {
+          template: '<div data-bubble-name="sticker">sticker</div>',
+        },
       },
     },
     attachTo: document.body,
@@ -153,5 +159,34 @@ describe('Message', () => {
     await wrapper.vm.$nextTick();
 
     expect(wrapper.classes()).toContain('before:animate-message-flash');
+  });
+
+  it('does not show reactions for deleted or superseded messages', () => {
+    const deleted = mountMessage({
+      contentAttributes: {
+        deleted: true,
+        reactions: { me: { emoji: '👍', name: 'You' } },
+      },
+    });
+    const superseded = mountMessage({
+      additionalAttributes: { superseded: true },
+      contentAttributes: { reactions: { me: { emoji: '👍', name: 'You' } } },
+    });
+
+    expect(deleted.find('[data-testid="reactions"]').exists()).toBe(false);
+    expect(superseded.find('[data-testid="reactions"]').exists()).toBe(false);
+    expect(superseded.find('.line-through').exists()).toBe(true);
+  });
+
+  it('uses the sticker bubble for a sticker attachment', () => {
+    const wrapper = mountMessage({
+      content: null,
+      contentType: 'sticker',
+      attachments: [
+        { fileType: 'image', dataUrl: 'https://example.test/sticker.webp' },
+      ],
+    });
+
+    expect(wrapper.find('[data-bubble-name="sticker"]').exists()).toBe(true);
   });
 });

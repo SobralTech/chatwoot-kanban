@@ -39,12 +39,12 @@ describe Webhooks::WahaEventsJob do
     stub_request(:get, /waha\.test/).to_return(status: 404, body: '{}', headers: { 'Content-Type' => 'application/json' })
   end
 
-  it 'replaces and removes only the matching participant and deduplicates activities' do
+  it 'replaces and removes only the matching participant without extra messages' do
     base
     described_class.perform_now(channel.id, reaction('👍'))
     described_class.perform_now(channel.id, reaction('❤️', '5511777777777@c.us'))
     described_class.perform_now(channel.id, reaction('👍'))
-    expect(conversation.messages.activity.count).to eq(2)
+    expect(conversation.messages.activity).to be_empty
 
     described_class.perform_now(channel.id, reaction('🔥'))
     expect(base.reload.content_attributes['reactions'].transform_values { |value| value['emoji'] })
@@ -52,7 +52,7 @@ describe Webhooks::WahaEventsJob do
     described_class.perform_now(channel.id, reaction(''))
     described_class.perform_now(channel.id, reaction(''))
     expect(base.reload.content_attributes['reactions'].keys).to eq(['5511777777777@c.us'])
-    expect(conversation.messages.activity.count).to eq(3)
+    expect(conversation.messages.activity).to be_empty
   end
 
   it 'replays a reaction delivered before its base and keeps chips on the current edit head' do
@@ -68,6 +68,20 @@ describe Webhooks::WahaEventsJob do
     described_class.perform_now(channel.id, reaction('❤️', '5511777777777@c.us'))
     expect(head.reload.content_attributes['reactions'].size).to eq(2)
     expect(base.reload.content_attributes['reactions']).to be_nil
+  end
+
+  it 'keeps a GOWS reaction on the canonical message without creating another message' do
+    canonical = create_waha_message(account: channel.account, inbox: inbox, conversation: conversation,
+                                    source_id: 'false_5511888888888@c.us_3EB0BASE01', content: 'Original')
+    params = gows_event('reaction')
+    params['session'] = channel.session_name
+    message_count = conversation.messages.count
+
+    described_class.perform_now(channel.id, params)
+
+    expect(canonical.reload.content_attributes.dig('reactions', '5511888888888@c.us', 'emoji')).to eq('👍')
+    expect(conversation.messages.count).to eq(message_count)
+    expect(conversation.messages.activity).to be_empty
   end
 
   it 'replays an early revoke and preserves real deletion on redelivery and late mutations' do
@@ -90,6 +104,27 @@ describe Webhooks::WahaEventsJob do
     family.each do |message|
       expect(message.content_attributes['deleted']).to be(true)
       expect(message.content_attributes['reactions']).to be_nil
+      expect(message.content).to eq(I18n.t('conversations.messages.deleted'))
+    end
+    expect(Attachment.exists?(attachment.id)).to be(false)
+  end
+
+  it 'applies the GOWS revocation envelope to the family and removes its attachments' do
+    canonical = create_waha_message(account: channel.account, inbox: inbox, conversation: conversation,
+                                    source_id: 'false_5511888888888@c.us_3EB0BASE01', content: 'Original')
+    edit_params = gows_event('message_edited')
+    edit_params['session'] = channel.session_name
+    edit_params['payload']['editedMessageId'] = '3EB0BASE01'
+    described_class.perform_now(channel.id, edit_params)
+    head = waha_messages('false_5511888888888@c.us_3EB0EDIT01', inbox.messages).first!
+    attachment = head.attachments.create!(account: channel.account, file_type: :image)
+    params = gows_event('revoked')
+    params['session'] = channel.session_name
+
+    described_class.perform_now(channel.id, params)
+
+    Waha::Anchoring.family(inbox, canonical).each do |message|
+      expect(message.reload.content_attributes['deleted']).to be(true)
       expect(message.content).to eq(I18n.t('conversations.messages.deleted'))
     end
     expect(Attachment.exists?(attachment.id)).to be(false)
@@ -188,7 +223,7 @@ describe Webhooks::WahaEventsJob do
 
       expect(base.reload.content_attributes['reactions'].transform_values { |value| value['emoji'] })
         .to eq('5511888888888@c.us' => '👍', '5511777777777@c.us' => '❤️')
-      expect(conversation.messages.activity.count).to eq(2)
+      expect(conversation.messages.activity).to be_empty
     end
 
     it 'deduplicates concurrent reactions from the same participant' do
@@ -200,7 +235,7 @@ describe Webhooks::WahaEventsJob do
       concurrently(operation, operation)
 
       expect(base.reload.content_attributes['reactions'].size).to eq(1)
-      expect(conversation.messages.activity.count).to eq(1)
+      expect(conversation.messages.activity).to be_empty
     end
 
     it 'keeps reactions on the new head when an edit races a reaction' do

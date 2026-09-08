@@ -1,0 +1,31 @@
+{
+  "session": "gows-contract-session",
+  "event": "message.edited",
+  "payload": {
+    "id": "false_5511888888888@c.us_3EB0EDIT01",
+    "timestamp": 1757001800,
+    "from": "5511888888888@c.us",
+    "fromMe": false,
+    "to": "5511999999999@c.us",
+    "body": "texto editado",
+    "editedMessageId": "3EB0EDITBASE",
+    "type": "chat",
+    "hasMedia": false,
+    "media": null,
+    "_data": {
+      "Info": {
+        "Chat": "5511888888888@c.us",
+        "IsFromMe": false,
+        "IsGroup": false,
+        "ID": "3EB0EDIT01",
+        "Type": "text",
+        "MediaType": ""
+      },
+      "Message": {
+        "extendedTextMessage": {
+          "text": "texto editado"
+        }
+      }
+    }
+  }
+}

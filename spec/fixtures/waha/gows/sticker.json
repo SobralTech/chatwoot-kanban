@@ -1,0 +1,43 @@
+{
+  "id": "false_5511888888888@c.us_3EB0STICKER01",
+  "timestamp": 1757002000,
+  "from": "5511888888888@c.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": null,
+  "body": null,
+  "hasMedia": true,
+  "media": {
+    "url": "http://localhost:3000/api/files/sticker.webp",
+    "mimetype": "image/webp"
+  },
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "5511888888888@c.us",
+      "Sender": "5511888888888@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": false,
+      "ID": "3EB0STICKER01",
+      "PushName": "Ana Souza",
+      "Timestamp": "2026-09-04T13:25:00Z",
+      "Type": "sticker",
+      "MediaType": "sticker"
+    },
+    "Message": {
+      "stickerMessage": {
+        "mimetype": "image/webp",
+        "fileLength": "4218",
+        "height": 512,
+        "width": 512,
+        "directPath": "/v/t62.15575-24/anon/sticker.webp"
+      }
+    },
+    "Status": 1
+  }
+}

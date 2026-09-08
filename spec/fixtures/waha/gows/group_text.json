@@ -1,0 +1,36 @@
+{
+  "id": "false_120363000000000000@g.us_3EB0GROUPTEXT01",
+  "timestamp": 1757001600,
+  "from": "120363000000000000@g.us",
+  "fromMe": false,
+  "source": "app",
+  "to": "5511999999999@c.us",
+  "participant": "5511777777777@c.us",
+  "body": "bom dia a todos",
+  "hasMedia": false,
+  "media": null,
+  "mediaUrl": null,
+  "ack": 1,
+  "ackName": "SERVER",
+  "replyTo": null,
+  "_data": {
+    "Info": {
+      "Chat": "120363000000000000@g.us",
+      "Sender": "5511777777777@s.whatsapp.net",
+      "SenderAlt": "",
+      "IsFromMe": false,
+      "IsGroup": true,
+      "ID": "3EB0GROUPTEXT01",
+      "PushName": "Zé do Grupo",
+      "Timestamp": "2026-09-04T13:20:00Z",
+      "Type": "text",
+      "MediaType": ""
+    },
+    "Message": {
+      "extendedTextMessage": {
+        "text": "bom dia a todos"
+      }
+    },
+    "Status": 1
+  }
+}

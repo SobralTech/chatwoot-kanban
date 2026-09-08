@@ -1,0 +1,16 @@
+{
+  "session": "gows-contract-session",
+  "event": "message.reaction",
+  "payload": {
+    "id": "false_5511888888888@c.us_3EB0REACTION01",
+    "from": "5511888888888@c.us",
+    "to": "5511999999999@c.us",
+    "fromMe": false,
+    "participant": null,
+    "timestamp": 1757001850,
+    "reaction": {
+      "text": "👍",
+      "messageId": "false_5511888888888@c.us_3EB0BASE01"
+    }
+  }
+}
