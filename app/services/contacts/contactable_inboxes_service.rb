@@ -8,21 +8,19 @@ class Contacts::ContactableInboxesService
 
   private
 
+  CONTACTABLE_INBOX_BUILDERS = {
+    'Channel::TwilioSms' => :twilio_contactable_inbox,
+    'Channel::Whatsapp' => :whatsapp_contactable_inbox,
+    'Channel::Waha' => :waha_contactable_inbox,
+    'Channel::Sms' => :sms_contactable_inbox,
+    'Channel::Email' => :email_contactable_inbox,
+    'Channel::Api' => :api_contactable_inbox,
+    'Channel::WebWidget' => :website_contactable_inbox
+  }.freeze
+
   def get_contactable_inbox(inbox)
-    case inbox.channel_type
-    when 'Channel::TwilioSms'
-      twilio_contactable_inbox(inbox)
-    when 'Channel::Whatsapp'
-      whatsapp_contactable_inbox(inbox)
-    when 'Channel::Sms'
-      sms_contactable_inbox(inbox)
-    when 'Channel::Email'
-      email_contactable_inbox(inbox)
-    when 'Channel::Api'
-      api_contactable_inbox(inbox)
-    when 'Channel::WebWidget'
-      website_contactable_inbox(inbox)
-    end
+    builder = CONTACTABLE_INBOX_BUILDERS[inbox.channel_type]
+    send(builder, inbox) if builder
   end
 
   def website_contactable_inbox(inbox)
@@ -52,6 +50,13 @@ class Contacts::ContactableInboxesService
 
     # Remove the plus since thats the format 360 dialog uses
     { source_id: @contact.phone_number.delete('+'), inbox: inbox }
+  end
+
+  def waha_contactable_inbox(inbox)
+    return if @contact.phone_number.blank?
+
+    existing = inbox.contact_inboxes.where(contact: @contact).last
+    { source_id: existing&.source_id || "#{@contact.phone_number.delete('+')}@c.us", inbox: inbox }
   end
 
   def sms_contactable_inbox(inbox)

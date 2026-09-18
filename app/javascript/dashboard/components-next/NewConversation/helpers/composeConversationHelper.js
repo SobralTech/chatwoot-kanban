@@ -6,6 +6,7 @@ import ContactAPI from 'dashboard/api/contacts';
 const CHANNEL_PRIORITY = {
   'Channel::Email': 1,
   'Channel::Whatsapp': 2,
+  'Channel::Waha': 2,
   'Channel::Sms': 3,
   'Channel::TwilioSms': 4,
   'Channel::WebWidget': 5,
@@ -23,7 +24,8 @@ export const generateLabelForContactableInboxesList = ({
   }
   if (
     channelType === INBOX_TYPES.TWILIO ||
-    channelType === INBOX_TYPES.WHATSAPP
+    channelType === INBOX_TYPES.WHATSAPP ||
+    channelType === INBOX_TYPES.WAHA
   ) {
     return phoneNumber ? `${name} (${phoneNumber})` : name;
   }
