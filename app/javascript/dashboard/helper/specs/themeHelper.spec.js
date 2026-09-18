@@ -4,6 +4,10 @@ import { LocalStorage } from 'shared/helpers/localStorage';
 vi.mock('shared/helpers/localStorage');
 
 describe('setColorTheme', () => {
+  beforeEach(() => {
+    document.body.classList.remove('dark', 'black');
+  });
+
   it('should set body class to dark if selectedColorScheme is dark', () => {
     LocalStorage.get.mockReturnValue('dark');
     setColorTheme(true);
@@ -32,6 +36,25 @@ describe('setColorTheme', () => {
     LocalStorage.get.mockReturnValue(undefined);
     setColorTheme(true);
     expect(document.body.classList.contains('dark')).toBe(true);
+  });
+
+  it('should set dark and black body classes for the black color scheme', () => {
+    LocalStorage.get.mockReturnValue('black');
+
+    setColorTheme(false);
+
+    expect(document.body.classList.contains('dark')).toBe(true);
+    expect(document.body.classList.contains('black')).toBe(true);
+  });
+
+  it('should remove the black body class when another scheme is selected', () => {
+    document.body.classList.add('dark', 'black');
+    LocalStorage.get.mockReturnValue('light');
+
+    setColorTheme(true);
+
+    expect(document.body.classList.contains('dark')).toBe(false);
+    expect(document.body.classList.contains('black')).toBe(false);
   });
 
   it('should set documentElement style to dark if selectedColorScheme is dark', () => {

@@ -20,6 +20,7 @@ import {
 } from './helper/pushHelper';
 import ReconnectService from 'dashboard/helper/ReconnectService';
 import { useUISettings } from 'dashboard/composables/useUISettings';
+import { useColorScheme } from 'dashboard/composables/useColorScheme';
 
 export default {
   name: 'App',
@@ -40,6 +41,7 @@ export default {
     // Use the font size composable (it automatically sets up the watcher)
     const { currentFontSize } = useFontSize();
     const { uiSettings } = useUISettings();
+    useColorScheme(uiSettings);
 
     return {
       router,
