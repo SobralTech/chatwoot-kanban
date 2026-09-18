@@ -235,7 +235,7 @@ RSpec.describe AutomationRules::ActionService do
       end
 
       it 'continues with later actions when the board rejects the inbox' do
-        kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+        restrict_board_to_inboxes(kanban_board)
         rule.update!(actions: [
                        { action_name: 'add_to_kanban_board', action_params: [kanban_params] },
                        { action_name: 'add_label', action_params: ['after_kanban'] }

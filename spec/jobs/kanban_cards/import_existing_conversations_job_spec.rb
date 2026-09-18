@@ -21,6 +21,7 @@ RSpec.describe KanbanCards::ImportExistingConversationsJob do
     expect(KanbanCards::ImportExistingConversationsService).to have_received(:new).with(
       account: account,
       kanban_board: board,
+      entry_rule: nil,
       ignore_groups: true
     )
     expect(service).to have_received(:perform!)

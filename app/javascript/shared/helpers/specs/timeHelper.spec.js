@@ -33,7 +33,7 @@ describe('#messageTimestamp', () => {
     expect(messageTimestamp(1680777464)).toEqual('Apr 6, 2023');
   });
   it('should return the message date and time in a different format if the message was sent in a different year', () => {
-    expect(messageTimestamp(1612971343)).toEqual('Feb 10 2021, 3:35 PM');
+    expect(messageTimestamp(1612971343)).toEqual('Feb 10 2021, 15:35');
   });
 });
 

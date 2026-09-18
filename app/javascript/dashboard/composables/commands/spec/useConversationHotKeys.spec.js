@@ -186,7 +186,10 @@ describe('useConversationHotKeys', () => {
   });
 
   it('should return unmute action when conversation is muted', () => {
-    store.getters.getSelectedChat = { ...mockCurrentChat, muted: true };
+    store.getters.getSelectedChat = {
+      ...mockCurrentChat,
+      additional_attributes: { notifications_muted: true },
+    };
     const { conversationHotKeys } = useConversationHotKeys();
     const unmuteAction = conversationHotKeys.value.find(
       action => action.id === 'unmute_conversation'

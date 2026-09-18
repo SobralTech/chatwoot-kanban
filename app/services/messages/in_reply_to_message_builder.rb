@@ -14,8 +14,15 @@ class Messages::InReplyToMessageBuilder
   # quotes for messages outside the conversation) that a plain lookup here would
   # clobber or wipe.
   def set_in_reply_to_attribute
-    @message.content_attributes[:in_reply_to_external_id] ||= in_reply_to_message&.presented_source_id
-    @message.content_attributes[:in_reply_to] ||= in_reply_to_message.try(:id)
+    quoted_message = in_reply_to_message
+
+    if conversation.inbox.waha?
+      @message.content_attributes[:in_reply_to_external_id] ||= quoted_message&.presented_source_id
+      @message.content_attributes[:in_reply_to] ||= quoted_message&.id
+    else
+      @message.content_attributes[:in_reply_to_external_id] = quoted_message&.presented_source_id
+      @message.content_attributes[:in_reply_to] = quoted_message&.id
+    end
   end
 
   def in_reply_to_message

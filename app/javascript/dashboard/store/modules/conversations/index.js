@@ -337,8 +337,8 @@ export const mutations = {
       }
     } else {
       const { conversationType } = _state.conversationFilters || {};
-      const { MENTION, PARTICIPATING } = wootConstants.CONVERSATION_TYPE;
-      if (![MENTION, PARTICIPATING].includes(conversationType)) {
+      const { MENTION } = wootConstants.CONVERSATION_TYPE;
+      if (conversationType !== MENTION) {
         _state.allConversations.push(conversation);
       }
     }

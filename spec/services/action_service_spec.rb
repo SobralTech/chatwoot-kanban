@@ -174,7 +174,7 @@ describe ActionService do
     end
 
     it 'skips a conversation outside the board inbox scope' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      restrict_board_to_inboxes(kanban_board)
 
       expect { action_service.add_to_kanban_board(params) }.not_to change(KanbanCard, :count)
     end
