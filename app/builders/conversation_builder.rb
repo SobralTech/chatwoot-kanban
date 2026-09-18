@@ -8,9 +8,17 @@ class ConversationBuilder
   private
 
   def look_up_exising_conversation
+    return waha_existing_conversation if @contact_inbox.inbox.channel_type == 'Channel::Waha'
     return unless @contact_inbox.inbox.lock_to_single_conversation?
 
     @contact_inbox.conversations.last
+  end
+
+  # WAHA is always single-conversation (see Waha::IncomingMessageService#set_conversation).
+  # A contact can hold several contact_inboxes in the same WAHA inbox (phone JID and LID),
+  # so the lookup spans the whole inbox instead of the contact_inbox picked by the composer.
+  def waha_existing_conversation
+    @contact_inbox.inbox.conversations.where(contact_id: @contact_inbox.contact_id).last
   end
 
   def create_new_conversation
