@@ -36,10 +36,17 @@ describe('useAppearanceHotKeys', () => {
     ]);
   });
 
-  it('should save the selected theme to the user ui settings', () => {
-    const { goToAppearanceHotKeys } = useAppearanceHotKeys();
-    goToAppearanceHotKeys.value.find(option => option.id === 'black').handler();
+  it.each(['light', 'dark', 'black', 'auto'])(
+    'should save the %s theme to the user ui settings',
+    colorScheme => {
+      const { goToAppearanceHotKeys } = useAppearanceHotKeys();
+      goToAppearanceHotKeys.value
+        .find(option => option.id === colorScheme)
+        .handler();
 
-    expect(updateUISettings).toHaveBeenCalledWith({ color_scheme: 'black' });
-  });
+      expect(updateUISettings).toHaveBeenCalledWith({
+        color_scheme: colorScheme,
+      });
+    }
+  );
 });

@@ -11,8 +11,6 @@ import { useRouter } from 'vue-router';
 import { useStore } from 'dashboard/composables/store';
 import WootSnackbarBox from './components/SnackbarContainer.vue';
 import { setColorTheme } from './helper/themeHelper';
-import { LocalStorage } from 'shared/helpers/localStorage';
-import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import { isOnOnboardingView } from 'v3/helpers/RouteHelper';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useFontSize } from 'dashboard/composables/useFontSize';
@@ -22,6 +20,7 @@ import {
 } from './helper/pushHelper';
 import ReconnectService from 'dashboard/helper/ReconnectService';
 import { useUISettings } from 'dashboard/composables/useUISettings';
+import { useColorScheme } from 'dashboard/composables/useColorScheme';
 
 export default {
   name: 'App',
@@ -42,6 +41,7 @@ export default {
     // Use the font size composable (it automatically sets up the watcher)
     const { currentFontSize } = useFontSize();
     const { uiSettings } = useUISettings();
+    useColorScheme(uiSettings);
 
     return {
       router,
@@ -70,14 +70,6 @@ export default {
   },
 
   watch: {
-    'uiSettings.color_scheme': {
-      immediate: true,
-      handler(colorScheme) {
-        if (!colorScheme) return;
-        LocalStorage.set(LOCAL_STORAGE_KEYS.COLOR_SCHEME, colorScheme);
-        this.initializeColorTheme();
-      },
-    },
     currentAccountId: {
       immediate: true,
       handler() {

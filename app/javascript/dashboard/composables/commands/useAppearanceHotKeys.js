@@ -7,25 +7,26 @@ import {
   ICON_SYSTEM_MODE,
 } from 'dashboard/helper/commandbar/icons';
 import { useUISettings } from 'dashboard/composables/useUISettings';
+import { COLOR_SCHEMES } from 'dashboard/constants/colorSchemes';
 
 const getThemeOptions = t => [
   {
-    key: 'light',
+    key: COLOR_SCHEMES.LIGHT,
     label: t('COMMAND_BAR.COMMANDS.LIGHT_MODE'),
     icon: ICON_LIGHT_MODE,
   },
   {
-    key: 'dark',
+    key: COLOR_SCHEMES.DARK,
     label: t('COMMAND_BAR.COMMANDS.DARK_MODE'),
     icon: ICON_DARK_MODE,
   },
   {
-    key: 'black',
+    key: COLOR_SCHEMES.BLACK,
     label: t('COMMAND_BAR.COMMANDS.BLACK_MODE'),
     icon: ICON_DARK_MODE,
   },
   {
-    key: 'auto',
+    key: COLOR_SCHEMES.AUTO,
     label: t('COMMAND_BAR.COMMANDS.SYSTEM_MODE'),
     icon: ICON_SYSTEM_MODE,
   },
