@@ -6,9 +6,7 @@ import {
   ICON_DARK_MODE,
   ICON_SYSTEM_MODE,
 } from 'dashboard/helper/commandbar/icons';
-import { LocalStorage } from 'shared/helpers/localStorage';
-import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
-import { setColorTheme } from 'dashboard/helper/themeHelper.js';
+import { useUISettings } from 'dashboard/composables/useUISettings';
 
 const getThemeOptions = t => [
   {
@@ -22,22 +20,20 @@ const getThemeOptions = t => [
     icon: ICON_DARK_MODE,
   },
   {
+    key: 'black',
+    label: t('COMMAND_BAR.COMMANDS.BLACK_MODE'),
+    icon: ICON_DARK_MODE,
+  },
+  {
     key: 'auto',
     label: t('COMMAND_BAR.COMMANDS.SYSTEM_MODE'),
     icon: ICON_SYSTEM_MODE,
   },
 ];
 
-const setAppearance = theme => {
-  LocalStorage.set(LOCAL_STORAGE_KEYS.COLOR_SCHEME, theme);
-  const isOSOnDarkMode = window.matchMedia(
-    '(prefers-color-scheme: dark)'
-  ).matches;
-  setColorTheme(isOSOnDarkMode);
-};
-
 export function useAppearanceHotKeys() {
   const { t } = useI18n();
+  const { updateUISettings } = useUISettings();
 
   const themeOptions = computed(() => getThemeOptions(t));
 
@@ -49,7 +45,7 @@ export function useAppearanceHotKeys() {
       section: t('COMMAND_BAR.SECTIONS.APPEARANCE'),
       icon: theme.icon,
       handler: () => {
-        setAppearance(theme.key);
+        updateUISettings({ color_scheme: theme.key });
       },
     }));
     return [

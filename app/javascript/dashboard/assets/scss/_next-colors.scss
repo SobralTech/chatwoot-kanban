@@ -292,5 +292,27 @@
     --border-container: 255, 255, 255, 0;
     --white-alpha: 255, 255, 255, 0.1;
   }
+
+  .dark.black {
+    --slate-1: 0 0 0;
+    --slate-2: 10 10 11;
+    --slate-3: 20 20 22;
+    --gray-1: 0 0 0;
+    --gray-2: 10 10 10;
+    --gray-3: 20 20 20;
+    --background-color: 0 0 0;
+    --surface-1: 0 0 0;
+    --surface-2: 6 6 7;
+    --solid-1: 0 0 0;
+    --solid-2: 10 10 12;
+    --solid-3: 24 24 28;
+    --solid-blue-2: 8 10 14;
+    --card-color: 8 8 9;
+    --border-strong: 36 36 40;
+    --border-weak: 22 22 25;
+    --label-background: 20 20 23;
+    --alpha-1: 18, 18, 20, 0.8;
+    --alpha-3: 0, 0, 0, 0.95;
+  }
 }
 // NEXT COLORS END
