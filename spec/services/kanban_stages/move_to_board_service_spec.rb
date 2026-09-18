@@ -172,8 +172,7 @@ RSpec.describe KanbanStages::MoveToBoardService do
 
     it 'rejects the whole stage when an inbox is outside the destination scope' do
       card
-      target_board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: target_board, inbox: create(:inbox, account: account))
+      restrict_board_to_inboxes(target_board, create(:inbox, account: account))
 
       result = service.perform!
 

@@ -290,7 +290,7 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
     end
 
     it 'rejects board when inbox is not in selected_inboxes scope' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
+      restrict_board_to_inboxes(kanban_board)
 
       post_conversation_kanban_card
 
@@ -299,8 +299,7 @@ RSpec.describe 'Conversation Kanban Cards API', type: :request do
     end
 
     it 'accepts board when inbox is selected in selected_inboxes scope' do
-      kanban_board.update!(inbox_scope_mode: 'selected_inboxes')
-      create(:kanban_board_inbox, account: account, kanban_board: kanban_board, inbox: inbox)
+      restrict_board_to_inboxes(kanban_board, inbox)
 
       post_conversation_kanban_card
 

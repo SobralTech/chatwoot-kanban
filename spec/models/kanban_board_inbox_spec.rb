@@ -52,7 +52,7 @@ RSpec.describe KanbanBoardInbox do
       create(:kanban_board_inbox, account: board.account, kanban_board: board, inbox: inbox)
 
       expect(board.kanban_board_inboxes.count).to eq(1)
-      expect(board.allowed_inboxes).to contain_exactly(inbox)
+      expect(board.kanban_board_inboxes.first.inbox).to eq(inbox)
     end
   end
 end

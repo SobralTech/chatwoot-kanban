@@ -69,11 +69,11 @@ describe('useKanbanAgendaData', () => {
     const {
       cardsByDay,
       cardsWithoutDate,
-      fetchWithoutDate,
       hasMoreWithoutDate,
+      openWithoutDateList,
       withoutDateCount,
     } = useKanbanAgendaData({ boardId });
-    await fetchWithoutDate({ reset: true });
+    await openWithoutDateList();
 
     expect(KanbanBoardsAPI.getBoardCards).toHaveBeenCalledWith(
       3,

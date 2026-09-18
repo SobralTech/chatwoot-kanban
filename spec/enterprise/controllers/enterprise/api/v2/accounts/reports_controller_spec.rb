@@ -69,7 +69,9 @@ RSpec.describe 'Enterprise Reports API', type: :request do
     context 'when it is an authenticated report_manage user' do
       let(:inbox) { create(:inbox, account: account) }
       let(:allowed_conversation) { create(:conversation, account: account, inbox: inbox, status: 'open') }
-      let(:restricted_conversation) { create(:conversation, account: account, inbox: inbox, status: 'open') }
+      let(:restricted_conversation) do
+        create(:conversation, account: account, inbox: inbox, status: 'open', access_mode: :selected_agents)
+      end
       let(:authorized_agent) { create(:user, account: account, role: :agent) }
 
       before do

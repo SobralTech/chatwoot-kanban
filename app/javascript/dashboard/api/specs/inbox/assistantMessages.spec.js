@@ -25,7 +25,8 @@ describe('#AssistantMessagesAPI', () => {
     assistantMessagesAPI.get(12);
 
     expect(axiosMock.get).toHaveBeenCalledWith(
-      '/api/v1/conversations/12/assistant_messages'
+      '/api/v1/conversations/12/assistant_messages',
+      { params: { page: 1 } }
     );
   });
 

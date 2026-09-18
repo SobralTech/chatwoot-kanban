@@ -22,7 +22,9 @@ RSpec.describe KanbanCardListener do
   end
 
   describe '#message_created' do
-    let(:kanban_board) { create(:kanban_board, account: conversation.account) }
+    let(:kanban_board) do
+      create(:kanban_board, account: conversation.account, won_recurrence_enabled: true, won_recurrence_window_minutes: 1)
+    end
     let(:message) { create(:message, conversation: conversation, account: conversation.account, inbox: conversation.inbox) }
 
     it 'enqueues recurrence evaluation for an inbound message' do
@@ -102,26 +104,26 @@ RSpec.describe KanbanCardListener do
 
   describe 'async dispatcher registration' do
     it 'registers the Kanban listener' do
-      expect(async_listener_classes).to include(described_class)
+      expect(async_listener_class_names).to include(described_class.name)
     end
 
     it 'keeps existing async listeners registered' do
-      expect(async_listener_classes).to include(
-        AutomationRuleListener,
-        CampaignListener,
-        CsatSurveyListener,
-        HookListener,
-        InstallationWebhookListener,
-        NotificationListener,
-        ParticipationListener,
-        Conversations::UnreadCounts::Listener,
-        ReportingEventListener,
-        WebhookListener
+      expect(async_listener_class_names).to include(
+        'AutomationRuleListener',
+        'CampaignListener',
+        'CsatSurveyListener',
+        'HookListener',
+        'InstallationWebhookListener',
+        'NotificationListener',
+        'ParticipationListener',
+        'Conversations::UnreadCounts::Listener',
+        'ReportingEventListener',
+        'WebhookListener'
       )
     end
   end
 
-  def async_listener_classes
-    AsyncDispatcher.new.listeners.map(&:class)
+  def async_listener_class_names
+    AsyncDispatcher.new.listeners.map { |listener| listener.class.name }
   end
 end
