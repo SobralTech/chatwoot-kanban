@@ -1,8 +1,7 @@
 <script setup>
 import { computed } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 
+import CardMessageContent from './CardMessageContent.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 
 const props = defineProps({
@@ -14,19 +13,6 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-});
-
-const { t } = useI18n();
-
-const { getPlainText } = useMessageFormatter();
-
-const lastNonActivityMessageContent = computed(() => {
-  const { lastNonActivityMessage = {}, customAttributes = {} } =
-    props.conversation;
-  const { email: { subject } = {} } = customAttributes;
-  return getPlainText(
-    subject || lastNonActivityMessage?.content || t('CHAT_LIST.NO_CONTENT')
-  );
 });
 
 const assignee = computed(() => {
@@ -47,7 +33,7 @@ const unreadMessagesCount = computed(() => {
 <template>
   <div class="flex items-end w-full gap-2 pb-1">
     <p class="w-full mb-0 text-sm leading-7 text-n-slate-12 line-clamp-2">
-      {{ lastNonActivityMessageContent }}
+      <CardMessageContent :conversation="conversation" />
     </p>
     <div class="flex items-center flex-shrink-0 gap-2 pb-2">
       <Avatar
