@@ -151,7 +151,7 @@ const handleAvatarDelete = async () => {
               class="i-ph-activity text-n-slate-10 size-4"
             />
             {{ $t('CONTACTS_LAYOUT.DETAILS.CREATED_AT', { date: createdAt }) }}
-            •
+            <span class="size-1 rounded-full bg-n-slate-10" />
             {{
               $t('CONTACTS_LAYOUT.DETAILS.LAST_ACTIVITY', {
                 date: lastActivityAt,
