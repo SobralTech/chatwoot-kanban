@@ -1,10 +1,12 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { onKeyStroke } from '@vueuse/core';
 import { removeEmoji } from 'shared/helpers/emoji';
 
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
+import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
 import wootConstants from 'dashboard/constants/globals';
 
 const props = defineProps({
@@ -46,6 +48,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  expandable: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['upload', 'delete']);
@@ -54,6 +60,19 @@ const { t } = useI18n();
 
 const isImageValid = ref(true);
 const fileInput = ref(null);
+const isPreviewOpen = ref(false);
+
+const canExpand = computed(
+  () => props.expandable && !!props.src && isImageValid.value
+);
+
+const openPreview = () => {
+  if (canExpand.value) isPreviewOpen.value = true;
+};
+
+onKeyStroke('Escape', () => {
+  isPreviewOpen.value = false;
+});
 
 const AVATAR_COLORS = {
   dark: [
@@ -243,12 +262,14 @@ watch(
       :class="[
         borderRadiusClass,
         {
+          'cursor-zoom-in': canExpand,
           'dark:!bg-[var(--dark-bg)] dark:!text-[var(--dark-text)]':
             !showDefaultAvatar && (!src || !isImageValid),
           'bg-n-slate-3 dark:bg-n-slate-4': showDefaultAvatar,
         },
       ]"
       :style="avatarStyles"
+      @click="openPreview"
     >
       <!-- Avatar Content -->
       <img
@@ -292,12 +313,13 @@ watch(
         <div
           class="absolute inset-0 z-10 flex items-center justify-center invisible w-full h-full transition-all duration-300 ease-in-out opacity-0 bg-n-alpha-black1 group-hover/avatar:visible group-hover/avatar:opacity-100"
           :class="borderRadiusClass"
-          @click="handleUploadAvatar"
+          @click="canExpand ? openPreview() : handleUploadAvatar()"
         >
           <Icon
             icon="i-lucide-upload"
-            class="text-white"
+            class="text-white cursor-pointer"
             :style="{ width: `${size / 2}px`, height: `${size / 2}px` }"
+            @click.stop="handleUploadAvatar"
           />
           <input
             v-if="allowUpload"
@@ -310,5 +332,26 @@ watch(
         </div>
       </slot>
     </span>
+
+    <TeleportWithDirection>
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0 [&>img]:scale-50"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-to-class="opacity-0 [&>img]:scale-50"
+      >
+        <div
+          v-if="isPreviewOpen"
+          class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 cursor-zoom-out"
+          @click="isPreviewOpen = false"
+        >
+          <img
+            :src="src"
+            :alt="name"
+            class="object-cover rounded-full size-[min(80vw,80vh,32rem)] shadow-2xl transition-transform duration-200"
+          />
+        </div>
+      </Transition>
+    </TeleportWithDirection>
   </span>
 </template>

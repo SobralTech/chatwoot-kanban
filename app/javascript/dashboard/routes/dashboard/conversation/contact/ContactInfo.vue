@@ -189,6 +189,7 @@ export default {
           :size="48"
           hide-offline-status
           rounded-full
+          expandable
         />
       </div>
 

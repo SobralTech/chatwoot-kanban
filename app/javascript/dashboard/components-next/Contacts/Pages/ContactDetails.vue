@@ -128,6 +128,8 @@ const handleAvatarDelete = async () => {
         :name="selectedContact?.name || ''"
         :size="72"
         allow-upload
+        rounded-full
+        expandable
         @upload="handleAvatarUpload"
         @delete="handleAvatarDelete"
       />
