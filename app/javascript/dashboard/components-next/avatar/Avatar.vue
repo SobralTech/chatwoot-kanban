@@ -255,6 +255,14 @@ watch(
       <Icon icon="i-lucide-x" class="text-n-slate-11 size-4" />
     </div>
 
+    <div
+      v-if="canExpand && allowUpload"
+      class="absolute z-20 flex items-center justify-center invisible w-6 h-6 transition-all duration-300 ease-in-out opacity-0 cursor-pointer outline outline-1 outline-n-container -bottom-2 ltr:-right-2 rtl:-left-2 rounded-xl bg-n-solid-3 group-hover/avatar:visible group-hover/avatar:opacity-100"
+      @click="handleUploadAvatar"
+    >
+      <Icon icon="i-lucide-upload" class="text-n-slate-11 size-4" />
+    </div>
+
     <!-- Avatar Container -->
     <span
       role="img"
@@ -262,7 +270,7 @@ watch(
       :class="[
         borderRadiusClass,
         {
-          'cursor-zoom-in': canExpand,
+          'cursor-pointer': canExpand,
           'dark:!bg-[var(--dark-bg)] dark:!text-[var(--dark-text)]':
             !showDefaultAvatar && (!src || !isImageValid),
           'bg-n-slate-3 dark:bg-n-slate-4': showDefaultAvatar,
@@ -311,25 +319,26 @@ watch(
         :handle-image-upload="handleImageUpload"
       >
         <div
+          v-if="!canExpand"
           class="absolute inset-0 z-10 flex items-center justify-center invisible w-full h-full transition-all duration-300 ease-in-out opacity-0 bg-n-alpha-black1 group-hover/avatar:visible group-hover/avatar:opacity-100"
           :class="borderRadiusClass"
-          @click="canExpand ? openPreview() : handleUploadAvatar()"
+          @click="handleUploadAvatar"
         >
           <Icon
             icon="i-lucide-upload"
-            class="text-white cursor-pointer"
+            class="text-white"
             :style="{ width: `${size / 2}px`, height: `${size / 2}px` }"
-            @click.stop="handleUploadAvatar"
-          />
-          <input
-            v-if="allowUpload"
-            ref="fileInput"
-            type="file"
-            accept="image/png, image/jpeg, image/jpg, image/gif, image/webp"
-            class="hidden"
-            @change="handleImageUpload"
           />
         </div>
+        <input
+          v-if="allowUpload"
+          ref="fileInput"
+          type="file"
+          accept="image/png, image/jpeg, image/jpg, image/gif, image/webp"
+          class="hidden"
+          @click.stop
+          @change="handleImageUpload"
+        />
       </slot>
     </span>
 
@@ -342,7 +351,7 @@ watch(
       >
         <div
           v-if="isPreviewOpen"
-          class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 cursor-zoom-out"
+          class="fixed inset-0 z-[9999] flex items-center justify-center bg-modal-backdrop-dark backdrop-blur-sm cursor-pointer"
           @click="isPreviewOpen = false"
         >
           <img
