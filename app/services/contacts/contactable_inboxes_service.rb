@@ -56,7 +56,8 @@ class Contacts::ContactableInboxesService
     return if @contact.phone_number.blank?
 
     existing = inbox.contact_inboxes.where(contact: @contact).last
-    { source_id: existing&.source_id || "#{@contact.phone_number.delete('+')}@c.us", inbox: inbox }
+    source_id = existing&.source_id || Waha::PhoneJidResolver.new(channel: inbox.channel, phone_number: @contact.phone_number).perform
+    { source_id: source_id, inbox: inbox }
   end
 
   def sms_contactable_inbox(inbox)

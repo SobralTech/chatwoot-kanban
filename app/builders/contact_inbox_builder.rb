@@ -68,6 +68,10 @@ class ContactInboxBuilder
     ::ContactInbox.where(attrs).first_or_create!(hmac_verified: hmac_verified || false)
   rescue ActiveRecord::RecordNotUnique
     Rails.logger.info("[ContactInboxBuilder] RecordNotUnique #{@source_id} #{@contact.id} #{@inbox.id}")
+    # A WAHA chat JID is the real WhatsApp chat: when a duplicate contact already
+    # owns it, reuse that contact inbox so the message reaches the right chat.
+    return ::ContactInbox.find_by!(inbox_id: @inbox.id, source_id: @source_id) if @inbox.channel_type == 'Channel::Waha'
+
     update_old_contact_inbox
     retry
   end
