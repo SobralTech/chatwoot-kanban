@@ -208,7 +208,7 @@ export default {
     this.initialize();
     this.$watch('$store.state.route', () => this.initialize());
     this.$watch('chatList.length', () => {
-      this.setActiveChat();
+      this.setActiveChat({ isListChange: true });
     });
   },
 
@@ -323,7 +323,7 @@ export default {
         this.isSyncingRouteWithArchivedState = false;
       });
     },
-    setActiveChat() {
+    setActiveChat({ isListChange = false } = {}) {
       if (this.conversationId) {
         const selectedConversation = this.findConversation();
         if (!selectedConversation) {
@@ -331,11 +331,11 @@ export default {
         }
         const { messageId } = this.$route.query;
         // Conversation is already active: only honour an explicit message
-        // target. This runs again on every chat list change, so scrolling
-        // without one would yank an agent reading older messages back to the
-        // bottom whenever another conversation enters or leaves the list.
+        // target on route changes. A chat list change (another conversation
+        // entering or leaving) must not yank an agent reading elsewhere back
+        // to the searched message that is still in the URL.
         if (selectedConversation.id === this.currentChat.id) {
-          if (messageId) {
+          if (messageId && !isListChange) {
             this.scrollToSearchedMessage(messageId, selectedConversation.id);
           }
           return;
