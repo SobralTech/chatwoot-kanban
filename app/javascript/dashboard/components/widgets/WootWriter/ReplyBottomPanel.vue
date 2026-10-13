@@ -390,12 +390,15 @@ export default {
         @click="$emit('toggleQuotedReply')"
       />
       <NextButton
-        v-if="!singleLine && enableWhatsAppTemplates"
+        v-if="enableWhatsAppTemplates"
         v-tooltip.top-end="$t('CONVERSATION.FOOTER.WHATSAPP_TEMPLATES')"
         icon="i-ph-whatsapp-logo"
-        slate
-        faded
-        sm
+        :slate="!shouldUseLargeActionIcons"
+        :faded="!shouldUseLargeActionIcons"
+        :color="shouldUseLargeActionIcons ? 'slate' : null"
+        :variant="shouldUseLargeActionIcons ? 'link' : null"
+        :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
+        :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
         @click="$emit('selectWhatsappTemplate')"
       />
       <NextButton
