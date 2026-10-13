@@ -402,17 +402,19 @@ export default {
         @click="$emit('selectWhatsappTemplate')"
       />
       <NextButton
-        v-if="!singleLine && enableContentTemplates"
+        v-if="enableContentTemplates"
         v-tooltip.top-end="'Content Templates'"
         icon="i-ph-whatsapp-logo"
-        slate
-        faded
-        sm
+        :slate="!shouldUseLargeActionIcons"
+        :faded="!shouldUseLargeActionIcons"
+        :color="shouldUseLargeActionIcons ? 'slate' : null"
+        :variant="shouldUseLargeActionIcons ? 'link' : null"
+        :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
+        :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
         @click="$emit('selectContentTemplate')"
       />
       <VideoCallButton
         v-if="
-          !singleLine &&
           (isAWebWidgetInbox || isAPIInbox) &&
           !isOnPrivateNote &&
           !isEditorDisabled
@@ -431,12 +433,15 @@ export default {
         </div>
       </transition>
       <NextButton
-        v-if="!singleLine && enableInsertArticleInReply"
+        v-if="enableInsertArticleInReply"
         v-tooltip.top-end="$t('HELP_CENTER.ARTICLE_SEARCH.OPEN_ARTICLE_SEARCH')"
         icon="i-ph-article-ny-times"
-        slate
-        faded
-        sm
+        :slate="!shouldUseLargeActionIcons"
+        :faded="!shouldUseLargeActionIcons"
+        :color="shouldUseLargeActionIcons ? 'slate' : null"
+        :variant="shouldUseLargeActionIcons ? 'link' : null"
+        :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
+        :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
         @click="toggleInsertArticle"
       />
     </div>
