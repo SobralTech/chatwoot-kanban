@@ -19,22 +19,22 @@ RSpec.describe 'Webhooks::WahaController', type: :request do
     )
   end
 
-  it 'rejects an event whose session belongs to a different channel' do
+  it 'ignores an event whose session belongs to a different channel without asking WAHA to retry' do
     allow(Webhooks::WahaEventsJob).to receive(:perform_later)
 
     post_waha_webhook(session: 'another_session', event: 'message.any', payload: { id: 'message-id' })
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:ok)
     expect(response.parsed_body['error']).to eq(I18n.t('errors.messages.waha_webhook_session_mismatch'))
     expect(Webhooks::WahaEventsJob).not_to have_received(:perform_later)
   end
 
-  it 'rejects a webhook without a session' do
+  it 'ignores a webhook without a session' do
     allow(Webhooks::WahaEventsJob).to receive(:perform_later)
 
     post_waha_webhook(event: 'message.any', payload: { id: 'message-id' })
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:ok)
     expect(response.parsed_body['error']).to eq(I18n.t('errors.messages.waha_webhook_session_mismatch'))
     expect(Webhooks::WahaEventsJob).not_to have_received(:perform_later)
   end
@@ -48,7 +48,7 @@ RSpec.describe 'Webhooks::WahaController', type: :request do
 
     post_waha_webhook(session: channel.session_name, event: 'message.any', payload: { id: 'message-id' })
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:ok)
     expect(response.parsed_body['error']).to eq(I18n.t('errors.messages.waha_connection_conflict'))
     expect(Webhooks::WahaEventsJob).not_to have_received(:perform_later)
   end
