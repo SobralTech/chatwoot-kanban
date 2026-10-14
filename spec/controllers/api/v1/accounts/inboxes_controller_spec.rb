@@ -1818,4 +1818,40 @@ RSpec.describe 'Inboxes API', type: :request do
       expect(webhook_service).to have_received(:perform)
     end
   end
+
+  describe 'POST /api/v1/accounts/{account.id}/inboxes/:id/waha_reconnect' do
+    let(:inbox) { create(:channel_waha, account: account).inbox }
+    let(:session_service) { instance_double(Waha::SessionService, reconnect: nil) }
+
+    before { allow(Waha::SessionService).to receive(:new).and_return(session_service) }
+
+    it 'reconnects the session for an administrator' do
+      post "/api/v1/accounts/#{account.id}/inboxes/#{inbox.id}/waha_reconnect", headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(session_service).to have_received(:reconnect)
+    end
+
+    it 'rejects an agent' do
+      post "/api/v1/accounts/#{account.id}/inboxes/#{inbox.id}/waha_reconnect", headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe 'POST /api/v1/accounts/{account.id}/inboxes/:id/waha_import_retry' do
+    let(:inbox) { create(:channel_waha, account: account).inbox }
+
+    it 'returns unprocessable entity for an administrator when no import failed' do
+      post "/api/v1/accounts/#{account.id}/inboxes/#{inbox.id}/waha_import_retry", headers: admin.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it 'rejects an agent' do
+      post "/api/v1/accounts/#{account.id}/inboxes/#{inbox.id}/waha_import_retry", headers: agent.create_new_auth_token, as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
 end

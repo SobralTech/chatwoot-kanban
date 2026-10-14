@@ -94,6 +94,14 @@ class InboxPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 
+  def waha_reconnect?
+    @account_user.administrator?
+  end
+
+  def waha_import_retry?
+    @account_user.administrator?
+  end
+
   def set_inbound_calls?
     @account_user.administrator?
   end

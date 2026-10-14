@@ -127,7 +127,7 @@ describe Waha::SendOnWahaService do
         .with(body: hash_including('caption' => message.content, 'mentions' => ['5511999999999@c.us']))
     end
 
-    it 'keeps voice payloads unchanged because GOWS does not accept mentions on sendVoice' do
+    it 'sends voice without mentions (GOWS rejects them) and asks WAHA to convert it to OGG/Opus' do
       message = create_waha_message(conversation: conversation, inbox: inbox, account: channel.account,
                                     message_type: :outgoing, content: 'Ping @5511999999999')
       attachment = message.attachments.create!(account: channel.account, file_type: :audio,
@@ -140,7 +140,8 @@ describe Waha::SendOnWahaService do
       described_class.new(message: message).perform
 
       request_matcher = have_requested(:post, 'https://waha.test/api/sendVoice').with do |request|
-        !JSON.parse(request.body).key?('mentions')
+        body = JSON.parse(request.body)
+        !body.key?('mentions') && body['convert'] == true
       end
       expect(WebMock).to request_matcher
     end

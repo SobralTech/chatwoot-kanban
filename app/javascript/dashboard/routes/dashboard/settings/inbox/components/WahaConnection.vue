@@ -4,6 +4,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { translateOrRaw } from 'dashboard/helper/inbox';
+import { groupConnectionLog } from '../helpers/wahaConnectionLog';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import SpinnerLoader from 'dashboard/components-next/spinner/Spinner.vue';
 
@@ -63,8 +64,8 @@ const statusColorClass = computed(() => {
   return 'text-n-ruby-11';
 });
 
-// Most recent event first.
-const sortedLog = computed(() => [...statusHistory.value].reverse());
+// Most recent day first, repeated consecutive statuses collapsed.
+const logDays = computed(() => groupConnectionLog(statusHistory.value));
 
 // --- History import progress (shares the 5s status poll) ---
 const importStatus = computed(() => importState.value.status);
@@ -130,6 +131,24 @@ function eventLabel(status) {
     `INBOX_MGMT.WAHA_CONNECTION.EVENTS.${status}`,
     status
   );
+}
+
+function formatDay(timestamp) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
+    new Date(timestamp)
+  );
+}
+
+function formatTime(timestamp) {
+  return new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(
+    new Date(timestamp)
+  );
+}
+
+function formatEntryTime(entry) {
+  const first = formatTime(entry.firstAt);
+  const last = formatTime(entry.lastAt);
+  return first === last ? last : `${first} – ${last}`;
 }
 
 function formatTimestamp(timestamp) {
@@ -382,24 +401,39 @@ onUnmounted(() => {
       <span class="text-heading-3 text-n-slate-12">
         {{ $t('INBOX_MGMT.WAHA_CONNECTION.LOG_TITLE') }}
       </span>
-      <p v-if="!sortedLog.length" class="text-body-main text-n-slate-11">
+      <p v-if="!logDays.length" class="text-body-main text-n-slate-11">
         {{ $t('INBOX_MGMT.WAHA_CONNECTION.LOG_EMPTY') }}
       </p>
       <ul
         v-else
         class="flex flex-col outline outline-1 -outline-offset-1 outline-n-weak rounded-xl divide-y divide-n-weak"
       >
-        <li
-          v-for="(event, index) in sortedLog"
-          :key="index"
-          class="flex items-center justify-between gap-3 px-4 py-2.5"
-        >
-          <span class="text-body-main text-n-slate-12">
-            {{ eventLabel(event.status) }}
+        <li v-for="day in logDays" :key="day.day" class="flex flex-col">
+          <span
+            class="px-4 pt-2.5 pb-1 text-label-small text-n-slate-11 bg-n-alpha-1"
+          >
+            {{ formatDay(day.timestamp) }}
           </span>
-          <span class="text-body-main text-n-slate-11">
-            {{ formatTimestamp(event.timestamp) }}
-          </span>
+          <div
+            v-for="entry in day.entries"
+            :key="`${entry.status}-${entry.lastAt}`"
+            class="flex items-center justify-between gap-3 px-4 py-2.5"
+          >
+            <span
+              class="flex items-center gap-2 text-body-main text-n-slate-12"
+            >
+              {{ eventLabel(entry.status) }}
+              <span
+                v-if="entry.count > 1"
+                class="px-1.5 rounded-md text-label-small text-n-slate-11 bg-n-alpha-2"
+              >
+                {{ `×${entry.count}` }}
+              </span>
+            </span>
+            <span class="text-body-main text-n-slate-11">
+              {{ formatEntryTime(entry) }}
+            </span>
+          </div>
         </li>
       </ul>
     </div>
