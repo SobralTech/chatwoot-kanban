@@ -319,7 +319,7 @@ watch(
         :handle-image-upload="handleImageUpload"
       >
         <div
-          v-if="!canExpand"
+          v-if="allowUpload && !canExpand"
           class="absolute inset-0 z-10 flex items-center justify-center invisible w-full h-full transition-all duration-300 ease-in-out opacity-0 bg-n-alpha-black1 group-hover/avatar:visible group-hover/avatar:opacity-100"
           :class="borderRadiusClass"
           @click="handleUploadAvatar"

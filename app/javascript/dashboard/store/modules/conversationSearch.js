@@ -1,5 +1,17 @@
 import SearchAPI from '../../api/search';
 import types from '../mutation-types';
+
+const PER_PAGE = 15;
+
+// Paginated search responses can overlap across pages (new records shift
+// offsets between fetches), so drop records that are already in the list.
+const appendUniqueRecords = (existingRecords, newRecords) => {
+  const existingIds = new Set(existingRecords.map(record => record.id));
+  return [
+    ...existingRecords,
+    ...newRecords.filter(record => !existingIds.has(record.id)),
+  ];
+};
 export const initialState = {
   records: [],
   contactRecords: [],
@@ -95,14 +107,21 @@ export const actions = {
     try {
       const { data } = await SearchAPI.contacts({ ...searchParams, page });
       if (searchId !== undefined && searchId !== latestSearchId) {
-        return;
+        return false;
       }
       commit(types.CONTACT_SEARCH_SET, {
         records: data.payload.contacts,
         page,
       });
+      // hasMore uses the raw page size: the records above may shrink on
+      // dedupe, so stored counts cannot signal whether more pages exist
+      commit(types.CONTACT_SEARCH_SET_UI_FLAG, {
+        hasMore: data.payload.contacts.length === PER_PAGE,
+      });
+      return true;
     } catch (error) {
-      // Ignore error
+      // Failure is reported so callers can roll back their page counter
+      return false;
     } finally {
       commit(types.CONTACT_SEARCH_SET_UI_FLAG, { isFetching: false });
     }
@@ -113,14 +132,19 @@ export const actions = {
     try {
       const { data } = await SearchAPI.conversations({ ...searchParams, page });
       if (searchId !== undefined && searchId !== latestSearchId) {
-        return;
+        return false;
       }
       commit(types.CONVERSATION_SEARCH_SET, {
         records: data.payload.conversations,
         page,
       });
+      commit(types.CONVERSATION_SEARCH_SET_UI_FLAG, {
+        hasMore: data.payload.conversations.length === PER_PAGE,
+      });
+      return true;
     } catch (error) {
-      // Ignore error
+      // Failure is reported so callers can roll back their page counter
+      return false;
     } finally {
       commit(types.CONVERSATION_SEARCH_SET_UI_FLAG, { isFetching: false });
     }
@@ -131,14 +155,19 @@ export const actions = {
     try {
       const { data } = await SearchAPI.messages({ ...searchParams, page });
       if (searchId !== undefined && searchId !== latestSearchId) {
-        return;
+        return false;
       }
       commit(types.MESSAGE_SEARCH_SET, {
         records: data.payload.messages,
         page,
       });
+      commit(types.MESSAGE_SEARCH_SET_UI_FLAG, {
+        hasMore: data.payload.messages.length === PER_PAGE,
+      });
+      return true;
     } catch (error) {
-      // Ignore error
+      // Failure is reported so callers can roll back their page counter
+      return false;
     } finally {
       commit(types.MESSAGE_SEARCH_SET_UI_FLAG, { isFetching: false });
     }
@@ -149,14 +178,19 @@ export const actions = {
     try {
       const { data } = await SearchAPI.articles({ ...searchParams, page });
       if (searchId !== undefined && searchId !== latestSearchId) {
-        return;
+        return false;
       }
       commit(types.ARTICLE_SEARCH_SET, {
         records: data.payload.articles,
         page,
       });
+      commit(types.ARTICLE_SEARCH_SET_UI_FLAG, {
+        hasMore: data.payload.articles.length === PER_PAGE,
+      });
+      return true;
     } catch (error) {
-      // Ignore error
+      // Failure is reported so callers can roll back their page counter
+      return false;
     } finally {
       commit(types.ARTICLE_SEARCH_SET_UI_FLAG, { isFetching: false });
     }
@@ -172,19 +206,21 @@ export const mutations = {
   },
   [types.CONTACT_SEARCH_SET](state, { records, page }) {
     state.contactRecords =
-      page > 1 ? [...state.contactRecords, ...records] : records;
+      page > 1 ? appendUniqueRecords(state.contactRecords, records) : records;
   },
   [types.CONVERSATION_SEARCH_SET](state, { records, page }) {
     state.conversationRecords =
-      page > 1 ? [...state.conversationRecords, ...records] : records;
+      page > 1
+        ? appendUniqueRecords(state.conversationRecords, records)
+        : records;
   },
   [types.MESSAGE_SEARCH_SET](state, { records, page }) {
     state.messageRecords =
-      page > 1 ? [...state.messageRecords, ...records] : records;
+      page > 1 ? appendUniqueRecords(state.messageRecords, records) : records;
   },
   [types.ARTICLE_SEARCH_SET](state, { records, page }) {
     state.articleRecords =
-      page > 1 ? [...state.articleRecords, ...records] : records;
+      page > 1 ? appendUniqueRecords(state.articleRecords, records) : records;
   },
   [types.SEARCH_CONVERSATIONS_SET_UI_FLAG](state, uiFlags) {
     state.uiFlags = { ...state.uiFlags, ...uiFlags };

@@ -174,7 +174,7 @@ RSpec.describe Imap::FetchEmailService do
     context 'when imap_folders is configured' do
       let(:custom_folder_email) { create_inbound_email_from_fixture('only_text.eml') }
       let(:custom_folder_header) { Net::IMAP::FetchData.new(1, 'BODY[HEADER]' => eml_content_with_message_id) }
-      let(:custom_folder_fetch_mail) { Net::IMAP::FetchData.new(1, 'RFC822' => eml_content_with_message_id) }
+      let(:custom_folder_fetch_mail) { Net::IMAP::FetchData.new(1, 'BODY[]' => eml_content_with_message_id) }
 
       before do
         allow(imap).to receive(:logout)
@@ -207,7 +207,7 @@ RSpec.describe Imap::FetchEmailService do
       it 'selects multiple configured folders and concatenates their results' do
         imap_email_channel.update!(imap_folders: %w[INBOX Chatwoot])
         other_folder_header = Net::IMAP::FetchData.new(1, 'BODY[HEADER]' => eml_content_with_other_message_id)
-        other_folder_fetch_mail = Net::IMAP::FetchData.new(1, 'RFC822' => eml_content_with_other_message_id)
+        other_folder_fetch_mail = Net::IMAP::FetchData.new(1, 'BODY[]' => eml_content_with_other_message_id)
 
         travel_to '26.10.2020 10:00'.to_datetime do
           allow(imap).to receive(:select).with('INBOX')
@@ -215,7 +215,7 @@ RSpec.describe Imap::FetchEmailService do
           allow(imap).to receive(:search).with(%w[SINCE 25-Oct-2020]).and_return([1])
           # Sequential values: first call (INBOX) returns the first message, second call (Chatwoot) returns the second.
           allow(imap).to receive(:fetch).with([1], 'BODY.PEEK[HEADER]').and_return([custom_folder_header], [other_folder_header])
-          allow(imap).to receive(:fetch).with(1, 'RFC822').and_return([custom_folder_fetch_mail], [other_folder_fetch_mail])
+          allow(imap).to receive(:fetch).with(1, 'BODY.PEEK[]').and_return([custom_folder_fetch_mail], [other_folder_fetch_mail])
 
           result = described_class.new(channel: imap_email_channel).perform
 
@@ -234,7 +234,7 @@ RSpec.describe Imap::FetchEmailService do
           allow(imap).to receive(:select).with('Chatwoot')
           allow(imap).to receive(:search).with(%w[SINCE 25-Oct-2020]).and_return([1])
           allow(imap).to receive(:fetch).with([1], 'BODY.PEEK[HEADER]').and_return([custom_folder_header])
-          allow(imap).to receive(:fetch).with(1, 'RFC822').and_return([custom_folder_fetch_mail])
+          allow(imap).to receive(:fetch).with(1, 'BODY.PEEK[]').and_return([custom_folder_fetch_mail])
 
           result = described_class.new(channel: imap_email_channel).perform
 
@@ -254,7 +254,7 @@ RSpec.describe Imap::FetchEmailService do
           allow(imap).to receive(:select).with('Chatwoot')
           allow(imap).to receive(:search).with(%w[SINCE 25-Oct-2020]).and_return([1])
           allow(imap).to receive(:fetch).with([1], 'BODY.PEEK[HEADER]').and_return([custom_folder_header])
-          allow(imap).to receive(:fetch).with(1, 'RFC822').and_return([custom_folder_fetch_mail])
+          allow(imap).to receive(:fetch).with(1, 'BODY.PEEK[]').and_return([custom_folder_fetch_mail])
 
           result = described_class.new(channel: imap_email_channel).perform
 

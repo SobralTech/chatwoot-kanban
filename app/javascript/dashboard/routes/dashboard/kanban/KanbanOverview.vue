@@ -44,7 +44,13 @@ const extraItemsCount = (items = [], limit = 4) =>
   Math.max(items.length - limit, 0);
 
 const inboxIcon = inbox =>
-  getInboxIconByType(inbox.channelType, inbox.medium, 'line', inbox.name);
+  getInboxIconByType(
+    inbox.channelType,
+    inbox.medium,
+    'line',
+    inbox.voiceEnabled,
+    inbox.name
+  );
 
 const allInboxRuleSummary = board => {
   const ruleNames = board.allInboxRuleNames || [];

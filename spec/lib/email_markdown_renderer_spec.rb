@@ -37,8 +37,8 @@ describe EmailMarkdownRenderer do
 
   describe '#image' do
     it 'behaves identically to BaseMarkdownRenderer for images' do
-      markdown = '![Sample Title](https://example.com/image.jpg?cw_image_height=100)'
-      expect(render_markdown(markdown)).to include('<img src="https://example.com/image.jpg?cw_image_height=100" style="height: 100;" />')
+      markdown = '![Sample Title](https://example.com/image.jpg?cw_image_height=100px)'
+      expect(render_markdown(markdown)).to include('<img src="https://example.com/image.jpg?cw_image_height=100px" style="height: 100px;" />')
     end
   end
 

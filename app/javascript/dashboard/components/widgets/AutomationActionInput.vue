@@ -8,6 +8,8 @@ import MultiSelect from 'dashboard/components-next/filter/inputs/MultiSelect.vue
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import { parseBoardStageId } from 'dashboard/helper/kanbanActionOptions';
 
+const CONTACT_EMAIL_TOKEN = '{{contact.email}}';
+
 export default {
   components: {
     AutomationActionTeamMessageInput,
@@ -91,7 +93,11 @@ export default {
       },
     },
     actionTypesAsOptions() {
-      return this.actionTypes.map(a => ({ id: a.key, name: a.label }));
+      return this.actionTypes.map(a => ({
+        id: a.key,
+        name: a.label,
+        icon: a.icon,
+      }));
     },
     // Automation and macro action_params are a one-element array around the hash.
     kanbanParams() {
@@ -174,7 +180,7 @@ export default {
       };
     },
     isVerticalLayout() {
-      return ['team_message', 'textarea'].includes(this.inputType);
+      return ['team_message', 'textarea', 'email'].includes(this.inputType);
     },
     castMessageVmodel: {
       get() {
@@ -198,6 +204,19 @@ export default {
     onActionNameChange(value) {
       this.actionNameAsSelectModel = value;
       this.resetAction();
+    },
+    insertContactEmailToken() {
+      const existingEmails = (this.castMessageVmodel || '')
+        .split(',')
+        .map(email => email.trim())
+        .filter(Boolean);
+
+      const hasContactEmail = existingEmails.some(
+        email => email.replace(/\s+/g, '') === CONTACT_EMAIL_TOKEN
+      );
+      if (hasContactEmail) return;
+
+      this.action_params = [[...existingEmails, CONTACT_EMAIL_TOKEN].join(',')];
     },
   },
 };
@@ -256,13 +275,6 @@ export default {
             :dropdown-max-height="dropdownMaxHeight"
           />
           <NextInput
-            v-else-if="inputType === 'email'"
-            v-model="action_params"
-            type="email"
-            size="sm"
-            :placeholder="$t('AUTOMATION.ACTION.EMAIL_INPUT_PLACEHOLDER')"
-          />
-          <NextInput
             v-else-if="inputType === 'url'"
             v-model="action_params"
             type="url"
@@ -285,14 +297,31 @@ export default {
           @click="removeAction"
         />
       </div>
+      <div v-if="inputType === 'email'" class="flex items-center w-full gap-2">
+        <NextInput
+          v-model="action_params"
+          type="text"
+          size="sm"
+          class="flex-1"
+          :placeholder="$t('AUTOMATION.ACTION.EMAIL_INPUT_PLACEHOLDER')"
+        />
+        <NextButton
+          sm
+          faded
+          slate
+          class="flex-shrink-0 whitespace-nowrap"
+          :label="$t('AUTOMATION.ACTION.INSERT_CONTACT_EMAIL')"
+          @click="insertContactEmailToken"
+        />
+      </div>
       <AutomationActionTeamMessageInput
-        v-if="inputType === 'team_message'"
+        v-else-if="inputType === 'team_message'"
         v-model="action_params"
         :teams="dropdownValues"
         :dropdown-max-height="dropdownMaxHeight"
       />
       <WootMessageEditor
-        v-if="inputType === 'textarea'"
+        v-else-if="inputType === 'textarea'"
         v-model="castMessageVmodel"
         rows="4"
         enable-variables

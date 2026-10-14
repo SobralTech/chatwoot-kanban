@@ -7,6 +7,7 @@
 #  custom_attributes     :jsonb
 #  domain                :string(100)
 #  feature_flags         :bigint           default(0), not null
+#  feature_flags_ext_1   :bigint           default(0), not null
 #  internal_attributes   :jsonb            not null
 #  limits                :jsonb
 #  locale                :integer          default("en")
@@ -23,7 +24,7 @@
 #
 
 class Account < ApplicationRecord
-  # used for single column multi flags
+  # used for multi-flag bitset columns
   include FlagShihTzu
   include Reportable
   include Featurable
@@ -37,6 +38,9 @@ class Account < ApplicationRecord
     flag_query_mode: :bit_operator,
     check_for_column: false
   }.freeze
+  SUSPENSION_CATEGORIES = %w[spam non_payment other].freeze
+
+  attr_accessor :suspension_category, :suspension_reason
 
   validates :name, presence: true
   # `domain` is the inbound email domain used to construct reply addresses
@@ -55,7 +59,7 @@ class Account < ApplicationRecord
   store_accessor :settings, :captain_models, :captain_features
   store_accessor :settings, :reporting_timezone
   store_accessor :settings, :keep_pending_on_bot_failure
-  store_accessor :settings, :captain_auto_resolve_mode
+  store_accessor :settings, :captain_auto_resolve_mode, :captain_false_promise_harness_enabled
   include AccountCaptainAutoResolve
 
   has_many :account_users, dependent: :destroy_async
@@ -67,6 +71,7 @@ class Account < ApplicationRecord
   has_many :automation_rules, dependent: :destroy_async
   has_many :kanban_automation_rules, dependent: :destroy_async
   has_many :kanban_automation_logs, dependent: :destroy_async
+  has_many :automation_rule_pending_executions, dependent: :delete_all
   has_many :macros, dependent: :destroy_async
   has_many :campaigns, dependent: :destroy_async
   has_many :canned_responses, dependent: :destroy_async
@@ -114,6 +119,7 @@ class Account < ApplicationRecord
   before_validation :validate_limit_keys
   after_create_commit :notify_creation
   after_update_commit :clear_unread_conversation_counts_cache, if: :saved_change_to_feature_conversation_unread_counts?
+  after_update :resume_delayed_automations, if: -> { saved_change_to_feature_delayed_automations? && feature_delayed_automations? }
   after_destroy :remove_account_sequences
 
   def agents
@@ -141,6 +147,10 @@ class Account < ApplicationRecord
     }
   end
 
+  def suspension_history
+    internal_attributes['suspensions'] || []
+  end
+
   def inbound_email_domain
     domain.presence || GlobalConfig.get('MAILER_INBOUND_EMAIL_DOMAIN')['MAILER_INBOUND_EMAIL_DOMAIN'] || ENV.fetch('MAILER_INBOUND_EMAIL_DOMAIN',
                                                                                                                    false)
@@ -155,6 +165,10 @@ class Account < ApplicationRecord
       agents: ChatwootApp.max_limit.to_i,
       inboxes: ChatwootApp.max_limit.to_i
     }
+  end
+
+  def api_and_webhooks_enabled?
+    true
   end
 
   def locale_english_name
@@ -186,6 +200,10 @@ class Account < ApplicationRecord
 
   def clear_unread_conversation_counts_cache
     ::Conversations::UnreadCounts::Store.clear_account!(id)
+  end
+
+  def resume_delayed_automations
+    AutomationRulePendingExecution.reschedule_paused(self)
   end
 
   trigger.after(:insert).for_each(:row) do
@@ -224,5 +242,6 @@ end
 
 Account.prepend_mod_with('Account')
 Account.prepend_mod_with('Account::PlanUsageAndLimits')
+Account.include_mod_with('AccountBillingIdentity')
 Account.include_mod_with('Concerns::Account')
 Account.include_mod_with('Audit::Account')

@@ -8,7 +8,7 @@ import { useAlert } from 'dashboard/composables';
 import { formatCurrency } from 'dashboard/helper/kanbanCurrency';
 import KanbanBoardsAPI from 'dashboard/api/kanbanBoards';
 import KanbanReportsAPI from 'dashboard/api/kanbanReports';
-import BarChart from 'shared/components/charts/BarChart.vue';
+import BarChart from 'shared/components/charts/ChartJsBarChart.vue';
 import DoughnutChart from 'shared/components/charts/DoughnutChart.vue';
 import KanbanBoardViewShell from './board/KanbanBoardViewShell.vue';
 

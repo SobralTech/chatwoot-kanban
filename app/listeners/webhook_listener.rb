@@ -131,6 +131,8 @@ class WebhookListener < BaseListener
   end
 
   def subscribed_account_webhooks(account, event_name)
+    return [] unless account.api_and_webhooks_enabled?
+
     account.webhooks.account_type.select { |webhook| webhook.subscriptions.include?(event_name) }
   end
 

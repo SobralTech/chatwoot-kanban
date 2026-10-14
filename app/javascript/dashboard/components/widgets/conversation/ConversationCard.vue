@@ -47,7 +47,9 @@ const voiceCallData = computed(() => {
   };
 });
 
-const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
+const hasSlaPolicyId = computed(
+  () => props.chat?.applied_sla?.id && !props.currentContact?.blocked
+);
 
 const isPinned = computed(() => !!props.chat.account_pinned_at);
 

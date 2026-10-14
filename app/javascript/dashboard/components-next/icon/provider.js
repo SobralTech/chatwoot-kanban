@@ -2,6 +2,8 @@ import {
   INBOX_TYPES,
   TWILIO_CHANNEL_MEDIUM,
   isApiWhatsappInbox,
+  isVoiceCallEnabled,
+  getInboxVoiceIcon,
 } from 'dashboard/helper/inbox';
 import { computed } from 'vue';
 
@@ -37,6 +39,7 @@ const channelTypeBrandIconMap = {
   'Channel::Whatsapp': 'i-logos-whatsapp-icon',
   'Channel::Instagram': 'i-woot-instagram-color',
   'Channel::Tiktok': 'i-logos-tiktok-icon',
+  'Channel::Waha': 'i-logos-whatsapp-icon',
 };
 
 const providerBrandIconMap = {
@@ -69,16 +72,9 @@ export function useChannelIcon(inbox) {
       icon = 'i-woot-whatsapp';
     }
 
-    // Native Twilio voice inbox: a TwilioSms with voice enabled (and no WhatsApp medium)
-    // is presented as a Voice channel, so show the phone icon.
-    const voiceEnabled =
-      inboxDetails.voice_enabled || inboxDetails.voiceEnabled;
-    if (
-      type === INBOX_TYPES.TWILIO &&
-      voiceEnabled &&
-      inboxDetails.medium !== TWILIO_CHANNEL_MEDIUM.WHATSAPP
-    ) {
-      icon = 'i-woot-voice';
+    // Voice-enabled inboxes use the combined channel + voice-wave badge glyph.
+    if (isVoiceCallEnabled(inboxDetails)) {
+      icon = getInboxVoiceIcon(type, inboxDetails.medium);
     }
 
     return icon ?? 'i-ri-global-fill';

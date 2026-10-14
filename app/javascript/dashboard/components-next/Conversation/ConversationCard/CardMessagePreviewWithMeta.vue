@@ -19,6 +19,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  contact: {
+    type: Object,
+    required: true,
+  },
+  hasLabels: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const slaCardLabelRef = ref(null);
@@ -39,7 +47,9 @@ const unreadMessagesCount = computed(() => {
 
 const hasSlaThreshold = computed(() => {
   return (
-    slaCardLabelRef.value?.hasSlaThreshold && props.conversation?.slaPolicyId
+    !props.contact?.blocked &&
+    slaCardLabelRef.value?.hasSlaThreshold &&
+    props.conversation?.appliedSla?.id
   );
 });
 
@@ -68,7 +78,7 @@ defineExpose({
     <div
       class="grid items-center gap-2.5 h-7"
       :class="
-        hasSlaThreshold
+        hasSlaThreshold && hasLabels
           ? 'grid-cols-[auto_auto_1fr_20px]'
           : 'grid-cols-[1fr_20px]'
       "
@@ -78,8 +88,8 @@ defineExpose({
         ref="slaCardLabelRef"
         :conversation="conversation"
       />
-      <div v-if="hasSlaThreshold" class="w-px h-3 bg-n-slate-4" />
-      <div class="overflow-hidden">
+      <div v-if="hasSlaThreshold && hasLabels" class="w-px h-3 bg-n-slate-4" />
+      <div v-if="hasLabels" class="overflow-hidden">
         <CardLabels
           :conversation-labels="conversation.labels"
           :account-labels="accountLabels"

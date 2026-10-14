@@ -16,7 +16,7 @@ import EmptyState from 'dashboard/components/widgets/EmptyState.vue';
 import ReportHeader from './components/ReportHeader.vue';
 import ReportMetricCard from './components/ReportMetricCard.vue';
 import KanbanReportTable from './components/KanbanReportTable.vue';
-import BarChart from 'shared/components/charts/BarChart.vue';
+import BarChart from 'shared/components/charts/ChartJsBarChart.vue';
 import KanbanReportsAPI from 'dashboard/api/kanbanReports';
 import { downloadCsvFile } from 'dashboard/helper/downloadHelper';
 import { DATE_RANGE_TYPES } from 'dashboard/components/ui/DatePicker/helpers/DatePickerHelper';

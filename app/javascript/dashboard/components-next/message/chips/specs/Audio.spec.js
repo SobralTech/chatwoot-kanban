@@ -1,5 +1,8 @@
 import { mount } from '@vue/test-utils';
 import AudioChip from '../Audio.vue';
+import { withFullI18n } from 'test-i18n';
+
+withFullI18n();
 
 const buildAttachment = (overrides = {}) => ({
   id: 1,

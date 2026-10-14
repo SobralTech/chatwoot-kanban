@@ -8,6 +8,7 @@ import ComposeConversation from 'dashboard/components-next/NewConversation/Compo
 
 const props = defineProps({
   pageTitle: { type: String, required: true },
+  contactFilter: { type: Object, default: null },
   hasAppliedFilters: { type: Boolean, required: true },
   hasActiveFolders: { type: Boolean, required: true },
   isOnExpandedLayout: { type: Boolean, required: true },
@@ -35,17 +36,42 @@ const hasAppliedFiltersOrActiveFolders = computed(() => {
 
 const allCount = computed(() => props.conversationStats?.allCount || 0);
 const formattedAllCount = computed(() => formatNumber(allCount.value));
+
+// While filters narrow the list, the header names it and the back button exits.
+const showFilterScope = computed(
+  () => props.hasAppliedFilters && !props.hasActiveFolders
+);
+
+// The contact scope is set from the contact panel; it is exited, not edited.
+const isContactScoped = computed(
+  () => showFilterScope.value && !!props.contactFilter
+);
+
+const title = computed(
+  () => (isContactScoped.value && props.contactFilter.name) || props.pageTitle
+);
 </script>
 
 <template>
   <div class="border-b border-n-strong">
     <div class="flex items-center justify-between gap-2 px-3 h-[3.25rem]">
       <div class="flex items-center justify-center min-w-0">
+        <NextButton
+          v-if="isContactScoped"
+          v-tooltip.right="$t('FILTER.CLEAR_BUTTON_LABEL')"
+          :aria-label="$t('FILTER.CLEAR_BUTTON_LABEL')"
+          icon="i-lucide-chevron-left"
+          class="shrink-0 -ms-2 !h-6 !w-6 me-1"
+          slate
+          sm
+          ghost
+          @click="emit('resetFilters')"
+        />
         <h1
           class="text-base font-medium truncate text-n-slate-12"
-          :title="pageTitle"
+          :title="title"
         >
-          {{ pageTitle }}
+          {{ title }}
         </h1>
         <span
           v-if="
@@ -58,7 +84,7 @@ const formattedAllCount = computed(() => formatNumber(allCount.value));
         </span>
       </div>
       <div class="flex items-center gap-1">
-        <template v-if="hasAppliedFilters && !hasActiveFolders">
+        <template v-if="showFilterScope && !isContactScoped">
           <div class="relative">
             <NextButton
               v-tooltip.top-end="$t('FILTER.CUSTOM_VIEWS.ADD.SAVE_BUTTON')"
@@ -110,7 +136,7 @@ const formattedAllCount = computed(() => formatNumber(allCount.value));
             @click="emit('deleteFolders')"
           />
         </template>
-        <div v-else class="relative">
+        <div v-else-if="!isContactScoped" class="relative">
           <NextButton
             id="toggleConversationFilterButton"
             v-tooltip.right="$t('FILTER.TOOLTIP_LABEL')"

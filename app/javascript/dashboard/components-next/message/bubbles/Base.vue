@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import MessageMeta from '../MessageMeta.vue';
+import CaptainGenerationDetails from '../CaptainGenerationDetails.vue';
 
 import { emitter } from 'shared/helpers/mitt';
 import { useMessageContext } from '../provider.js';
@@ -9,7 +10,12 @@ import { useI18n } from 'vue-i18n';
 
 import MessageFormatter from 'shared/helpers/MessageFormatter.js';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
-import { MESSAGE_TYPES, MESSAGE_VARIANTS, ORIENTATION } from '../constants';
+import {
+  MESSAGE_TYPES,
+  MESSAGE_VARIANTS,
+  ORIENTATION,
+  SENDER_TYPES,
+} from '../constants';
 
 const props = defineProps({
   hideMeta: { type: Boolean, default: false },
@@ -26,6 +32,9 @@ const {
   isOwnMessage,
   contentAttributes,
   messageType,
+  id,
+  sender,
+  senderType,
 } = useMessageContext();
 const { t } = useI18n();
 
@@ -49,6 +58,21 @@ const groupSenderLabel = computed(() => {
 // read darker in light mode and lighter in dark mode than the current
 // user's own messages (which keep the default n-solid-blue).
 const otherAgentBubbleClass = 'bg-n-blue-6 text-n-slate-12';
+
+const isCaptainMessage = computed(
+  () =>
+    (sender.value?.type ?? senderType.value) === SENDER_TYPES.CAPTAIN_ASSISTANT
+);
+
+const metaColorClass = computed(() =>
+  variant.value === MESSAGE_VARIANTS.PRIVATE
+    ? 'text-n-amber-12/50'
+    : 'text-n-slate-11'
+);
+
+const emailMetaClass = computed(() =>
+  variant.value === MESSAGE_VARIANTS.EMAIL ? 'px-3 pb-3' : ''
+);
 
 const varaintBaseMap = {
   [MESSAGE_VARIANTS.AGENT]: 'bg-n-solid-blue text-n-slate-12',
@@ -178,16 +202,21 @@ const replyToPreview = computed(() => {
       {{ groupSenderLabel }}
     </div>
     <slot />
-    <MessageMeta
-      v-if="shouldShowMeta"
-      :class="[
-        flexOrientationClass,
-        variant === MESSAGE_VARIANTS.EMAIL ? 'px-3 pb-3' : '',
-        variant === MESSAGE_VARIANTS.PRIVATE
-          ? 'text-n-amber-12/50'
-          : 'text-n-slate-11',
-      ]"
-      class="mt-2"
-    />
+    <template v-if="shouldShowMeta">
+      <CaptainGenerationDetails
+        v-if="isCaptainMessage"
+        :message-id="id"
+        class="mt-2"
+      >
+        <template #meta>
+          <MessageMeta :class="[emailMetaClass, metaColorClass]" />
+        </template>
+      </CaptainGenerationDetails>
+      <MessageMeta
+        v-else
+        :class="[flexOrientationClass, emailMetaClass, metaColorClass]"
+        class="mt-2"
+      />
+    </template>
   </div>
 </template>

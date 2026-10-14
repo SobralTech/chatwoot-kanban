@@ -42,9 +42,13 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
+  showAnalytics: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(['edit', 'delete']);
+const emit = defineEmits(['edit', 'delete', 'analytics']);
 
 const { t } = useI18n();
 
@@ -83,8 +87,13 @@ const campaignStatus = computed(() => {
 const inboxName = computed(() => props.inbox?.name || '');
 
 const inboxIcon = computed(() => {
-  const { medium, channel_type: type, name } = props.inbox;
-  return getInboxIconByType(type, medium, 'fill', name);
+  const {
+    medium,
+    channel_type: type,
+    voice_enabled: voiceEnabled,
+    name,
+  } = props.inbox;
+  return getInboxIconByType(type, medium, 'fill', voiceEnabled, name);
 });
 </script>
 
@@ -124,6 +133,16 @@ const inboxIcon = computed(() => {
       </div>
     </div>
     <div class="flex items-center justify-end w-20 gap-2">
+      <Button
+        v-if="showAnalytics"
+        v-tooltip.top="t('CAMPAIGN.WHATSAPP.CARD.ANALYTICS')"
+        variant="faded"
+        size="sm"
+        color="slate"
+        icon="i-lucide-chart-no-axes-column"
+        :title="t('CAMPAIGN.WHATSAPP.CARD.ANALYTICS')"
+        @click="emit('analytics')"
+      />
       <Button
         v-if="isLiveChatType"
         variant="faded"

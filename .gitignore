@@ -112,3 +112,4 @@ Procfile.worktree
 DOC uazapi/
 .slim/deepwork/
 .slim/
+.nodeterm/project.json

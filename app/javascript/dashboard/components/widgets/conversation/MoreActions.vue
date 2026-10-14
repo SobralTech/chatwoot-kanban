@@ -220,7 +220,9 @@ const getConversationParams = () => {
 
 const keyboardEvents = {
   'Alt+KeyE': {
-    action: async () => {
+    action: async event => {
+      // Chrome on Windows treats Alt+E as a shortcut for its own menu.
+      event.preventDefault();
       onCmdResolveConversation();
     },
   },
