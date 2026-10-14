@@ -37,7 +37,8 @@ class Waha::HistoryImportJob < ApplicationJob
   end
 
   def dispatch_pass
-    chat_ids = Waha::ChatOverviewFetcher.new(channel: @channel).all.uniq
+    since = Time.zone.parse(@window['window_start'])
+    chat_ids = Waha::ChatOverviewFetcher.new(channel: @channel, since: since).all.uniq
     seed_chat_rows(chat_ids)
     rows = @channel.import_chats.for_pass(@execution_id, @pass_id)
     new_chats = rows.where(discovered_pass: @channel.import_state['pass_number']).count
