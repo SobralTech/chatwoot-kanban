@@ -73,7 +73,7 @@ class WebhookListener < BaseListener
     inbox, account = extract_inbox_and_account(event)
 
     deliver_account_webhooks(account, __method__.to_s) do
-      Inbox::EventDataPresenter.new(inbox).push_data.merge(event: __method__.to_s)
+      Inbox::EventDataPresenter.new(inbox).webhook_data.merge(event: __method__.to_s)
     end
   end
 
@@ -83,7 +83,7 @@ class WebhookListener < BaseListener
     return if changed_attributes.blank?
 
     deliver_account_webhooks(account, __method__.to_s) do
-      Inbox::EventDataPresenter.new(inbox).push_data.merge(event: __method__.to_s, changed_attributes: changed_attributes)
+      Inbox::EventDataPresenter.new(inbox).webhook_data.merge(event: __method__.to_s, changed_attributes: changed_attributes)
     end
   end
 

@@ -550,6 +550,10 @@
             "TITLE": "WhatsApp",
             "DESCRIPTION": "Atenda seus clientes no WhatsApp"
           },
+          "WHATSAPP_CALL": {
+            "TITLE": "Chamada do WhatsApp",
+            "DESCRIPTION": "Receba chamadas de voz no seu número do WhatsApp"
+          },
           "EMAIL": {
             "TITLE": "E-mail",
             "DESCRIPTION": "Conectar com Gmail, Outlook ou outros provedores"

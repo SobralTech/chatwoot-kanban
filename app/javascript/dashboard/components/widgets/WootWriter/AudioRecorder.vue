@@ -4,7 +4,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import WaveSurfer from 'wavesurfer.js';
 import RecordPlugin from 'wavesurfer.js/dist/plugins/record.js';
 import { format, intervalToDuration } from 'date-fns';
-import { convertAudio } from './utils/mp3ConversionUtils';
+import { convertAudio } from './utils/audioConversionUtils';
 
 const props = defineProps({
   audioRecordFormat: {
@@ -19,6 +19,7 @@ const emit = defineEmits([
   'recordingError',
   'pause',
   'play',
+  'recordError',
 ]);
 
 const waveformContainer = ref(null);
@@ -27,6 +28,7 @@ const record = ref(null);
 const isRecording = ref(false);
 const isPlaying = ref(false);
 const hasRecording = ref(false);
+const recordedAudioUrl = ref(null);
 
 const formatTimeProgress = time => {
   const duration = intervalToDuration({ start: 0, end: time });
@@ -34,6 +36,28 @@ const formatTimeProgress = time => {
     new Date(0, 0, 0, 0, duration.minutes, duration.seconds),
     'mm:ss'
   );
+};
+
+const AUDIO_EXTENSION_MAP = {
+  'audio/ogg': 'ogg',
+  'audio/mp3': 'mp3',
+  'audio/mpeg': 'mp3',
+  'audio/wav': 'wav',
+  'audio/webm': 'webm',
+};
+
+const getRecordPluginOptions = audioFormat => {
+  const options = {
+    scrollingWaveform: true,
+    renderRecordedAudio: false,
+  };
+  if (
+    audioFormat === 'audio/ogg' &&
+    MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+  ) {
+    options.mimeType = 'audio/ogg;codecs=opus';
+  }
+  return options;
 };
 
 const initWaveSurfer = () => {
@@ -46,10 +70,7 @@ const initWaveSurfer = () => {
     barGap: 1,
     barRadius: 2,
     plugins: [
-      RecordPlugin.create({
-        scrollingWaveform: true,
-        renderRecordedAudio: false,
-      }),
+      RecordPlugin.create(getRecordPluginOptions(props.audioRecordFormat)),
     ],
   });
 
@@ -63,33 +84,48 @@ const initWaveSurfer = () => {
   });
 
   record.value.on('record-end', async blob => {
-    const audioUrl = URL.createObjectURL(blob);
-    // If MP3/WAV conversion fails (e.g. decodeAudioData can't parse the
-    // browser's MediaRecorder output), fall back to the raw blob so the
-    // stop button still resolves and the send button becomes usable.
-    let audioBlob;
-    let mimeType = props.audioRecordFormat;
-    let extension = props.audioRecordFormat === 'audio/wav' ? 'wav' : 'mp3';
     try {
-      audioBlob = await convertAudio(blob, props.audioRecordFormat);
+      // If MP3/WAV conversion fails (e.g. decodeAudioData can't parse the
+      // browser's MediaRecorder output), fall back to the raw blob so the
+      // send button still becomes usable.
+      let audioBlob;
+      try {
+        audioBlob = await convertAudio(blob, props.audioRecordFormat);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[AudioRecorder] conversion failed, using raw blob',
+          error
+        );
+        audioBlob = blob;
+      }
+      // Use the blob's actual type, which may differ from the requested format
+      // (e.g. Safari falls back to MP3 instead of OGG), so the filename and
+      // content type match the real bytes.
+      const audioType = audioBlob.type || props.audioRecordFormat;
+      const ext =
+        AUDIO_EXTENSION_MAP[audioType] ||
+        (audioType.split('/')[1] || 'mp3').split(';')[0];
+      const fileName = `${getUuid()}.${ext}`;
+      const file = new File([audioBlob], fileName, {
+        type: audioType,
+      });
+      if (recordedAudioUrl.value) URL.revokeObjectURL(recordedAudioUrl.value);
+      recordedAudioUrl.value = URL.createObjectURL(audioBlob);
+      wavesurfer.value.load(recordedAudioUrl.value);
+      emit('finishRecord', {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        file,
+      });
+      hasRecording.value = true;
+      isRecording.value = false;
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('[AudioRecorder] conversion failed, using raw blob', error);
-      audioBlob = blob;
-      mimeType = blob.type || 'audio/webm';
-      extension = (mimeType.split('/')[1] || 'webm').split(';')[0];
+      isRecording.value = false;
+      hasRecording.value = false;
+      emit('recordError', { error });
     }
-    const fileName = `${getUuid()}.${extension}`;
-    const file = new File([audioBlob], fileName, { type: mimeType });
-    wavesurfer.value.load(audioUrl);
-    emit('finishRecord', {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      file,
-    });
-    hasRecording.value = true;
-    isRecording.value = false;
   });
 
   record.value.on('record-progress', time => {
@@ -144,6 +180,10 @@ onUnmounted(() => {
   // unhandled AbortError from inside wavesurfer's record plugin.
   if (isRecording.value) {
     record.value?.stopRecording();
+  }
+  if (recordedAudioUrl.value) {
+    URL.revokeObjectURL(recordedAudioUrl.value);
+    recordedAudioUrl.value = null;
   }
   wavesurfer.value?.destroy();
 });

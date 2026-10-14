@@ -81,4 +81,8 @@ class InboxPolicy < ApplicationPolicy
   def waha_session_status?
     @account_user.administrator?
   end
+
+  def set_inbound_calls?
+    @account_user.administrator?
+  end
 end
