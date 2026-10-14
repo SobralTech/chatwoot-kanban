@@ -1,6 +1,8 @@
 class Waha::SessionService
   pattr_initialize [:channel!]
 
+  SESSION_EXISTS = /already exists/i
+
   # GOWS emits group delivery receipts and poll votes on their own events, so a
   # channel that only subscribes to message.any/message.ack never receives them.
   WEBHOOK_EVENTS = %w[message.any message.ack message.ack.group message.edited message.revoked message.reaction poll.vote session.status].freeze
@@ -66,10 +68,13 @@ class Waha::SessionService
   end
 
   # Creates the WAHA session with our webhook configured. WAHA's /start endpoint
-  # requires the session to already exist, so this must run first. Idempotent:
-  # re-creating an existing session returns 4xx which we safely ignore.
+  # requires the session to already exist, so this must run first. Re-creating
+  # an existing session answers 422 "already exists"; only that one is ignored so
+  # /start (idempotent) still runs for a stopped session.
   def create_session
     http_client.request(:post, 'sessions', session_payload)
+  rescue CustomExceptions::Waha::ApiError => e
+    raise unless e.message.match?(SESSION_EXISTS)
   end
 
   def session_payload
