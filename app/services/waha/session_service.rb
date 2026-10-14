@@ -3,9 +3,12 @@ class Waha::SessionService
 
   SESSION_EXISTS = /already exists/i
 
-  # GOWS emits group delivery receipts and poll votes on their own events, so a
-  # channel that only subscribes to message.any/message.ack never receives them.
-  WEBHOOK_EVENTS = %w[message.any message.ack message.ack.group message.edited message.revoked message.reaction poll.vote session.status].freeze
+  # GOWS emits group delivery receipts, poll votes and calls on their own events,
+  # so a channel that only subscribes to message.any/message.ack never receives them.
+  WEBHOOK_EVENTS = (
+    %w[message.any message.ack message.ack.group message.edited message.revoked message.reaction poll.vote session.status] +
+    Waha::CallEventService::EVENT_RESULTS.keys
+  ).freeze
 
   def start
     safely('start') do

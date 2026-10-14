@@ -9,6 +9,10 @@ describe Waha::SessionService do
     expect(described_class::WEBHOOK_EVENTS).to include('poll.vote')
   end
 
+  it 'subscribes to the call events the webhook job handles' do
+    expect(described_class::WEBHOOK_EVENTS).to include('call.received', 'call.accepted', 'call.rejected')
+  end
+
   describe '#start' do
     let!(:start_request) do
       stub_request(:post, "https://waha.test/api/sessions/#{channel.session_name}/start").to_return(status: 201, body: '{}', headers: json_headers)
