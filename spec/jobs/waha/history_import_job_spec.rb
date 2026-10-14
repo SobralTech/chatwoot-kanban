@@ -40,6 +40,14 @@ describe Waha::HistoryImportJob do
       .to have_enqueued_job(Waha::ImportChatWorkerJob).with(channel.id, window, 'gap_fill', execution_id, pass_id).exactly(:once)
   end
 
+  it 'only discovers chats active since the window start' do
+    execution_id = schedule_import('gap_fill')
+
+    described_class.perform_now(channel.id, window, 'gap_fill', execution_id)
+
+    expect(Waha::ChatOverviewFetcher).to have_received(:new).with(channel: channel, since: Time.zone.parse(window['window_start']))
+  end
+
   it 'retries a transient discovery failure with the same execution and pass tokens' do
     allow(fetcher).to receive(:all).and_raise(CustomExceptions::Waha::TransientError, 'unavailable')
     execution_id = schedule_import('initial')
