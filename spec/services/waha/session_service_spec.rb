@@ -33,4 +33,41 @@ describe Waha::SessionService do
       expect(start_request).not_to have_been_requested
     end
   end
+
+  describe '#sync_webhook_config' do
+    let(:session_url) { "https://waha.test/api/sessions/#{channel.session_name}" }
+    let!(:update_request) { stub_request(:put, session_url).to_return(status: 200, body: '{}', headers: json_headers) }
+
+    it 'keeps the rest of the session config when replacing a drifted webhook' do
+      other_webhook = { 'url' => 'https://n8n.test/hook', 'events' => ['message'] }
+      session_info = {
+        'config' => {
+          'proxy' => { 'server' => 'proxy.test:3128' },
+          'webhooks' => [other_webhook, { 'url' => channel.webhook_url, 'events' => ['message.any'] }]
+        }
+      }
+
+      service.sync_webhook_config(session_info)
+
+      expected_config = {
+        'proxy' => { 'server' => 'proxy.test:3128' },
+        'webhooks' => [other_webhook, { 'url' => channel.webhook_url, 'events' => described_class::WEBHOOK_EVENTS }]
+      }
+      expect(update_request.with(body: { config: expected_config }.to_json)).to have_been_requested
+    end
+
+    it 'does nothing when the webhook is already current' do
+      webhook = { 'url' => channel.webhook_url, 'events' => described_class::WEBHOOK_EVENTS }
+
+      service.sync_webhook_config({ 'config' => { 'webhooks' => [webhook] } })
+
+      expect(update_request).not_to have_been_requested
+    end
+
+    it 'does nothing when the session could not be fetched' do
+      service.sync_webhook_config(nil)
+
+      expect(update_request).not_to have_been_requested
+    end
+  end
 end

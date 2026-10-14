@@ -17,12 +17,18 @@ class Waha::SessionService
   # WAHA only applies session config on creation, so a session created before a
   # config change keeps its old webhook until we PUT the update. Given the GET
   # session response, this pushes our current webhook config only when it drifted,
-  # avoiding needless session restarts on every status poll.
+  # avoiding needless session restarts on every status poll. The PUT replaces the
+  # whole config and restarts the session, so everything else (proxy, metadata,
+  # other webhooks) is carried over from the current config.
   def sync_webhook_config(session_info)
+    # Without the current session there is no config to carry over (and nothing to update).
+    return unless session_info.is_a?(Hash)
     return if webhook_current?(session_info)
 
+    config = session_info['config'].to_h
+    other_webhooks = Array(config['webhooks']).reject { |webhook| webhook['url'] == channel.webhook_url }
     safely('sync webhook for') do
-      http_client.request(:put, "sessions/#{channel.session_name}", { config: { webhooks: [webhook_config] } })
+      http_client.request(:put, "sessions/#{channel.session_name}", { config: config.merge('webhooks' => other_webhooks + [webhook_config]) })
     end
   end
 
@@ -88,7 +94,7 @@ class Waha::SessionService
   # True when the running session already has our webhook URL subscribed to all
   # the events we depend on.
   def webhook_current?(session_info)
-    webhooks = session_info.is_a?(Hash) ? session_info.dig('config', 'webhooks') : nil
+    webhooks = session_info.dig('config', 'webhooks')
     return false if webhooks.blank?
 
     webhooks.any? do |webhook|
