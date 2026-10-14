@@ -337,7 +337,8 @@ class Waha::SendOnWahaService < Base::SendOnChannelService
     caption_payload = media_payload(remote_file, caption)
     case file_type
     when :image  then ['sendImage', caption_payload]
-    when :audio  then ['sendVoice', { file: remote_file }]
+    # Voice notes must be OGG/Opus; Chatwoot records MP3, so WAHA converts via ffmpeg.
+    when :audio  then ['sendVoice', { file: remote_file, convert: true }]
     when :video  then ['sendVideo', caption_payload]
     else              ['sendFile', caption_payload]
     end
