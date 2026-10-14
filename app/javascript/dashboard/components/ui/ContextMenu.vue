@@ -81,12 +81,12 @@ const handleClose = () => {
   emit('close');
 };
 
-// Close only when focus leaves the menu entirely. Interactive content inside
-// the menu (e.g. the WhatsApp reaction buttons and emoji picker with its search
-// field) steals focus from the container; a plain @blur would then unmount the
-// menu on mousedown, before the inner click could fire.
 const handleFocusOut = event => {
-  if (menuRef.value?.contains(event.relatedTarget)) return;
+  // Keep the menu open while focus stays inside it (e.g. the label search
+  // input); close it once focus leaves the menu entirely.
+  if (menuRef.value?.contains(event.relatedTarget)) {
+    return;
+  }
   handleClose();
 };
 

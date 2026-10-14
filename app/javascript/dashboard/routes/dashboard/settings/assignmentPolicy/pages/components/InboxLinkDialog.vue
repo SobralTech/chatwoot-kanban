@@ -30,6 +30,7 @@ const inboxIcon = computed(() => {
     props.inbox.channelType,
     props.inbox.medium,
     'line',
+    props.inbox.voiceEnabled,
     props.inbox.name
   );
 });

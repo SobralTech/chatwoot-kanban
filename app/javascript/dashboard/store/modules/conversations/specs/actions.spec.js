@@ -29,6 +29,7 @@ describe('conversation actions', () => {
       await actions.getConversation(
         {
           commit,
+          dispatch: vi.fn(),
           state: { conversationFilters: { conversationView: 'all' } },
           rootGetters: {
             'inboxes/getInbox': () => ({}),
@@ -54,6 +55,7 @@ describe('conversation actions', () => {
       await actions.getConversation(
         {
           commit,
+          dispatch: vi.fn(),
           state: { conversationFilters: { conversationView: 'all' } },
           rootGetters: {
             'inboxes/getInbox': () => ({ show_in_all_conversations: false }),

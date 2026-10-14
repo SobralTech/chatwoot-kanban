@@ -38,6 +38,15 @@ describe('#mutations', () => {
       });
       expect(state.contactRecords).toEqual([{ id: 1 }, { id: 2 }]);
     });
+
+    it('should not append records already present', () => {
+      const state = { contactRecords: [{ id: 1 }, { id: 2 }] };
+      mutations[types.CONTACT_SEARCH_SET](state, {
+        records: [{ id: 2 }, { id: 3 }],
+        page: 2,
+      });
+      expect(state.contactRecords).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    });
   });
 
   describe('#CONVERSATION_SEARCH_SET', () => {
@@ -58,6 +67,19 @@ describe('#mutations', () => {
       });
       expect(state.conversationRecords).toEqual([{ id: 1 }, { id: 2 }]);
     });
+
+    it('should not append records already present', () => {
+      const state = { conversationRecords: [{ id: 1 }, { id: 2 }] };
+      mutations[types.CONVERSATION_SEARCH_SET](state, {
+        records: [{ id: 2 }, { id: 3 }],
+        page: 2,
+      });
+      expect(state.conversationRecords).toEqual([
+        { id: 1 },
+        { id: 2 },
+        { id: 3 },
+      ]);
+    });
   });
 
   describe('#MESSAGE_SEARCH_SET', () => {
@@ -77,6 +99,15 @@ describe('#mutations', () => {
         page: 2,
       });
       expect(state.messageRecords).toEqual([{ id: 1 }, { id: 2 }]);
+    });
+
+    it('should not append records already present', () => {
+      const state = { messageRecords: [{ id: 1 }, { id: 2 }] };
+      mutations[types.MESSAGE_SEARCH_SET](state, {
+        records: [{ id: 2 }, { id: 3 }],
+        page: 2,
+      });
+      expect(state.messageRecords).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
     });
   });
 
@@ -154,6 +185,15 @@ describe('#mutations', () => {
         page: 2,
       });
       expect(state.articleRecords).toEqual([{ id: 1 }, { id: 2 }]);
+    });
+
+    it('should not append records already present', () => {
+      const state = { articleRecords: [{ id: 1 }, { id: 2 }] };
+      mutations[types.ARTICLE_SEARCH_SET](state, {
+        records: [{ id: 2 }, { id: 3 }],
+        page: 2,
+      });
+      expect(state.articleRecords).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
     });
   });
 

@@ -32,7 +32,7 @@ class Conversations::SearchSerializationData
   def preload_conversation_associations
     ActiveRecord::Associations::Preloader.new(
       records: conversations,
-      associations: [:inbox, :assignee_agent_bot, { assignee: { avatar_attachment: :blob } }, { contact: { avatar_attachment: :blob } }]
+      associations: [:inbox, :ai_assignee, { assignee: { avatar_attachment: :blob } }, { contact: { avatar_attachment: :blob } }]
     ).call
   end
 

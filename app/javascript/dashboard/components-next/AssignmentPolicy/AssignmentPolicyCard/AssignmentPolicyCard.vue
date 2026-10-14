@@ -32,6 +32,7 @@ const inboxes = computed(() => {
         inbox.channelType,
         inbox.medium,
         'line',
+        inbox.voiceEnabled,
         inbox.name
       ),
     };

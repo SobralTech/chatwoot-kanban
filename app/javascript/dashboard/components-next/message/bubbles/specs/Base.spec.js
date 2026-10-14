@@ -33,6 +33,9 @@ const mountBubble = ({
           messageType: ref(messageType),
           status: ref('sent'),
           createdAt: ref(1710000000),
+          id: ref(1),
+          sender: ref(null),
+          senderType: ref('Contact'),
         });
       },
       template:

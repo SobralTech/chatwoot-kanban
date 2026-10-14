@@ -2,18 +2,10 @@
 import { computed, ref, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStore, useMapGetter } from 'dashboard/composables/store';
-import {
-  frontendURL,
-  conversationUrl,
-  kanbanConversationUrl,
-} from 'dashboard/helper/URLHelper';
+import { frontendURL, kanbanConversationUrl } from 'dashboard/helper/URLHelper';
 import { useEmbeddedConversation } from 'dashboard/composables/useEmbeddedConversation';
 import { pushEmbedded } from 'dashboard/helper/embeddedConversationHistory';
-import {
-  isOnMentionsView,
-  isOnUnattendedView,
-  isOnFoldersView,
-} from 'dashboard/store/modules/conversations/helpers/actionHelpers';
+import { useConversationRoutePath } from 'dashboard/composables/useConversationRoutePath';
 import ConversationCard from 'dashboard/components/widgets/conversation/ConversationCard.vue';
 import ContextMenu from 'dashboard/components/ui/ContextMenu.vue';
 import ConversationContextMenu from 'dashboard/components/widgets/conversation/contextMenu/Index.vue';
@@ -28,6 +20,7 @@ const store = useStore();
 const route = useRoute();
 const router = useRouter();
 const embedded = useEmbeddedConversation();
+const { buildConversationPath } = useConversationRoutePath();
 
 const currentChat = useMapGetter('getSelectedChat');
 const uiFlags = useMapGetter('contactConversations/getUIFlags');
@@ -57,35 +50,16 @@ const showContextMenu = ref(false);
 const contextMenu = ref({ x: null, y: null });
 
 const buildConversationUrl = conversationId => {
-  const {
-    params: { accountId, boardId, inbox_id: inboxId, label, teamId },
-    name,
-  } = route;
-
   if (embedded.value) {
+    const {
+      params: { accountId, boardId },
+    } = route;
     return frontendURL(
       kanbanConversationUrl({ accountId, boardId, conversationId })
     );
   }
 
-  let conversationType = '';
-  if (isOnMentionsView({ route: { name } })) {
-    conversationType = 'mention';
-  } else if (isOnUnattendedView({ route: { name } })) {
-    conversationType = 'unattended';
-  }
-
-  return frontendURL(
-    conversationUrl({
-      accountId,
-      activeInbox: inboxId,
-      id: conversationId,
-      label,
-      teamId,
-      foldersId: isOnFoldersView({ route: { name } }) ? route.params.id : 0,
-      conversationType,
-    })
-  );
+  return buildConversationPath(conversationId);
 };
 
 const conversationPath = computed(() => {

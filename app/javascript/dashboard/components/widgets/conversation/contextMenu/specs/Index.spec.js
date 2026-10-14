@@ -2,6 +2,9 @@ import { mount } from '@vue/test-utils';
 import { createStore } from 'vuex';
 import ConversationContextMenu from '../Index.vue';
 import FluentIcon from 'shared/components/FluentIcon/DashboardIcon.vue';
+import { withFullI18n } from 'test-i18n';
+
+withFullI18n();
 
 const createStoreMock = () =>
   createStore({

@@ -5,6 +5,7 @@ json.assignment_order assignment_policy.assignment_order
 json.conversation_priority assignment_policy.conversation_priority
 json.fair_distribution_limit assignment_policy.fair_distribution_limit
 json.fair_distribution_window assignment_policy.fair_distribution_window
+json.exclude_older_than_hours assignment_policy.exclude_older_than_hours
 json.enabled assignment_policy.enabled
 assigned_inbox_count = local_assigns.fetch(:assigned_inbox_count) { assignment_policy.inboxes.count }
 json.assigned_inbox_count assigned_inbox_count

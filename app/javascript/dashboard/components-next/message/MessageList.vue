@@ -63,6 +63,7 @@ const allMessages = computed(() => {
     stopPaths: [
       'content_attributes.translations',
       'content_attributes.reactions',
+      'content_attributes.whatsapp_flow_response.response_json',
     ],
   });
 });

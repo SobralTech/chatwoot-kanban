@@ -8,6 +8,7 @@ import inboxMixin from 'shared/mixins/inboxMixin';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import { getAllowedFileTypesByChannel } from '@chatwoot/utils';
 import VideoCallButton from '../VideoCallButton.vue';
+import RequestContactInfoButton from '../RequestContactInfoButton.vue';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
 import { mapGetters } from 'vuex';
 import NextButton from 'dashboard/components-next/button/Button.vue';
@@ -16,7 +17,13 @@ import { CHAR_LENGTH_WARNING } from './constants';
 
 export default {
   name: 'ReplyBottomPanel',
-  components: { NextButton, FileUpload, VideoCallButton, CopilotTrigger },
+  components: {
+    NextButton,
+    FileUpload,
+    VideoCallButton,
+    CopilotTrigger,
+    RequestContactInfoButton,
+  },
   mixins: [inboxMixin],
   props: {
     isNote: {
@@ -149,6 +156,7 @@ export default {
     'selectContentTemplate',
     'toggleQuotedReply',
     'executeCopilotAction',
+    'requestContactInfoTemplate',
   ],
   setup(props) {
     const { setSignatureFlagForInbox, fetchSignatureFlagFromUISettings } =
@@ -400,6 +408,10 @@ export default {
         :size="shouldUseLargeActionIcons ? 'lg' : 'sm'"
         :class="{ 'compact-action-button': shouldUseLargeActionIcons }"
         @click="$emit('selectWhatsappTemplate')"
+      />
+      <RequestContactInfoButton
+        v-if="!isOnPrivateNote"
+        @request-template="$emit('requestContactInfoTemplate')"
       />
       <NextButton
         v-if="enableContentTemplates"

@@ -55,7 +55,9 @@ const isNotificationsMuted = computed(
 const slaCardLabel = useTemplateRef('slaCardLabel');
 
 const hasSlaPolicyId = computed(
-  () => props.chat?.sla_policy_id || slaCardLabel.value?.hasSlaThreshold
+  () =>
+    !props.currentContact?.blocked &&
+    (props.chat?.applied_sla?.id || slaCardLabel.value?.hasSlaThreshold)
 );
 
 const selectedModel = computed({

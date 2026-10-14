@@ -26,7 +26,7 @@ class Conversations::SerializationData
 
   def preload_conversation_associations
     associations = [
-      :account, :account_pin, :assignee_agent_bot, :contact_inbox, :team,
+      :account, :account_pin, { ai_assignee: { avatar_attachment: :blob } }, :contact_inbox, :team,
       { assignee: { avatar_attachment: :blob } },
       { contact: { avatar_attachment: :blob } }
     ]
@@ -50,7 +50,7 @@ class Conversations::SerializationData
     messages = scope
                .reorder(nil)
                .select('DISTINCT ON (messages.conversation_id) messages.*')
-               .order('messages.conversation_id ASC, messages.created_at DESC')
+               .order('messages.conversation_id ASC, messages.created_at DESC, messages.id DESC')
                .preload({ sender: { avatar_attachment: :blob } }, { attachments: { file_attachment: :blob } })
                .index_by(&:conversation_id)
 

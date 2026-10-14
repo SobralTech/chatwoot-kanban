@@ -12,6 +12,8 @@
 #
 
 class CannedResponse < ApplicationRecord
+  include AccountCacheRevalidator
+
   MODES = %w[insert quick_send].freeze
 
   validates :content, presence: true

@@ -55,10 +55,10 @@ export const humanTimestamp = time => {
  * @param {number} time - Unix timestamp.
  * @returns {string} Formatted timestamp string.
  */
-export const relativeDayTimestamp = time => {
+export const relativeDayTimestamp = (time, yesterdayLabel = 'Ontem') => {
   const date = fromUnixTime(time);
   if (isToday(date)) return format(date, 'HH:mm');
-  if (isYesterday(date)) return 'Ontem';
+  if (isYesterday(date)) return yesterdayLabel;
   const daysAgo = differenceInCalendarDays(new Date(), date);
   if (daysAgo <= 6) return format(date, 'EEEE', { locale: ptBR });
   return format(date, 'dd/MM/yyyy');

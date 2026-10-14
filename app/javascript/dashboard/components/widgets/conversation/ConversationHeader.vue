@@ -142,7 +142,9 @@ const inbox = computed(() => {
   return store.getters['inboxes/getInbox'](inboxId);
 });
 
-const hasSlaPolicyId = computed(() => props.chat?.sla_policy_id);
+const hasSlaPolicyId = computed(
+  () => props.chat?.applied_sla?.id && !currentContact.value?.blocked
+);
 
 const toggleContactDetails = () => {
   emit('toggleContactDetails', toggleContactSidebar());

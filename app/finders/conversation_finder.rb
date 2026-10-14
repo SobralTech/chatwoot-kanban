@@ -2,23 +2,7 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
   attr_reader :current_user, :current_account, :params
 
   DEFAULT_STATUS = 'open'.freeze
-  SORT_OPTIONS = {
-    'last_activity_at_asc' => %w[sort_on_last_activity_at asc],
-    'last_activity_at_desc' => %w[sort_on_last_activity_at desc],
-    'created_at_asc' => %w[sort_on_created_at asc],
-    'created_at_desc' => %w[sort_on_created_at desc],
-    'priority_asc' => %w[sort_on_priority asc],
-    'priority_desc' => %w[sort_on_priority desc],
-    'waiting_since_asc' => %w[sort_on_waiting_since asc],
-    'waiting_since_desc' => %w[sort_on_waiting_since desc],
-    'priority_desc_created_at_asc' => %w[sort_on_priority_created_at desc],
-
-    # To be removed in v3.5.0
-    'latest' => %w[sort_on_last_activity_at desc],
-    'sort_on_created_at' => %w[sort_on_created_at asc],
-    'sort_on_priority' => %w[sort_on_priority desc],
-    'sort_on_waiting_since' => %w[sort_on_waiting_since asc]
-  }.with_indifferent_access
+  UNASSIGNED_CONDITION = Conversation.arel_table[:assignee_id].eq(nil).and(Conversation.arel_table[:assignee_agent_bot_id].eq(nil))
   # assumptions
   # inbox_id if not given, take from all conversations, else specific to inbox
   # assignee_type if not given, take 'all'
@@ -84,7 +68,7 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
     table = Conversation.arel_table
     total, unassigned, mine = count_relation(count_base).pick(
       table[:id].count,
-      table[:id].count.filter(table[:assignee_id].eq(nil)),
+      table[:id].count.filter(UNASSIGNED_CONDITION),
       table[:id].count.filter(table[:assignee_id].eq(current_user.id))
     )
 
@@ -99,7 +83,7 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
   # Keeping the original relation as a derived table preserves whether its joins
   # intentionally produce duplicates and whether a filter added DISTINCT.
   def count_relation(scope)
-    selected_scope = scope.reorder(nil).reselect(:id, :assignee_id)
+    selected_scope = scope.reorder(nil).reselect(:id, :assignee_id, :assignee_agent_bot_id)
     Conversation.from("(#{selected_scope.to_sql}) conversations")
   end
 
@@ -177,9 +161,8 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
       conversation_ids = current_account.mentions.where(user: current_user).pluck(:conversation_id)
       @conversations = @conversations.where(id: conversation_ids)
     when 'participating'
-      @conversations = Conversations::PermissionFilterService.new(
-        current_user.participating_conversations.where(account_id: current_account.id), current_user, current_account
-      ).perform
+      participant_conversation_ids = ConversationParticipant.where(account_id: current_account.id, user_id: current_user.id).select(:conversation_id)
+      @conversations = @conversations.where(id: participant_conversation_ids)
     when 'unattended'
       @conversations = @conversations.unattended
     when 'email'
@@ -237,8 +220,8 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
 
   def conversations_base_query
     @conversations.includes(
-      :taggings, :inbox, { assignee: { avatar_attachment: [:blob] } }, { contact: { avatar_attachment: [:blob] } }, :team, :contact_inbox
-    )
+      :taggings, :team, :contact_inbox, { assignee: { avatar_attachment: [:blob] } }, { contact: { avatar_attachment: [:blob] } }
+    ).preload(inbox: :channel, ai_assignee: { avatar_attachment: [:blob] })
   end
 
   # Some filters may use a plain SELECT DISTINCT, which Postgres forbids
@@ -254,10 +237,7 @@ class ConversationFinder # rubocop:disable Metrics/ClassLength
 
   def conversations
     drop_distinct_for_ordering
-    @conversations = conversations_base_query.pinned_first
-
-    sort_by, sort_order = SORT_OPTIONS[params[:sort_by]] || SORT_OPTIONS['last_activity_at_desc']
-    @conversations = @conversations.send(sort_by, sort_order)
+    @conversations = Conversations::SortService.apply(conversations_base_query.pinned_first, params[:sort_by])
 
     if params[:updated_within].present?
       @conversations.where('conversations.updated_at > ?', Time.zone.now - params[:updated_within].to_i.seconds)

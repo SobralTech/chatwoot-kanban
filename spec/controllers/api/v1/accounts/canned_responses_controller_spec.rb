@@ -54,6 +54,18 @@ RSpec.describe 'Canned Responses API', type: :request do
           [cr3, cr2, cr1].map { |record| serialized_response(record) }
         )
       end
+
+      it 'ignores null bytes in the search string' do
+        matching_response = create(:canned_response, account: account, content: 'Unique response', short_code: 'unique')
+
+        get "/api/v1/accounts/#{account.id}/canned_responses",
+            params: { search: "uni\0que" },
+            headers: agent.create_new_auth_token,
+            as: :json
+
+        expect(response).to have_http_status(:success)
+        expect(response.parsed_body).to eq([serialized_response(matching_response)])
+      end
     end
   end
 

@@ -3,6 +3,9 @@ import { defineComponent, h } from 'vue';
 import { createStore } from 'vuex';
 import { provideMessageContext } from '../../provider.js';
 import VideoChip from '../Video.vue';
+import { withFullI18n } from 'test-i18n';
+
+withFullI18n();
 
 const createStoreConfig = () =>
   createStore({

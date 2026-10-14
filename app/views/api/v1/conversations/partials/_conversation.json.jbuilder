@@ -12,12 +12,13 @@ json.meta do
       json.partial! 'api/v1/models/agent_bot_slim', formats: [:json], resource: conversation.assigned_entity
     end
     json.assignee_type 'AgentBot'
-  elsif conversation.assigned_entity&.account
+  elsif conversation.assignee_type == 'User'
     json.assignee do
       json.partial! 'api/v1/models/agent', formats: [:json], resource: conversation.assigned_entity
     end
     json.assignee_type 'User'
   end
+  json.partial! 'enterprise/api/v1/conversations/partials/assignee', conversation: conversation if ChatwootApp.enterprise?
   if conversation.team.present?
     json.team do
       json.partial! 'api/v1/models/team', formats: [:json], resource: conversation.team
@@ -27,13 +28,15 @@ json.meta do
 end
 
 json.id conversation.display_id
+# The dashboard seeds the message thread from this array and then paginates BACKWARD
+# by id (before: messages[0].id). Keep the seed as the chronologically latest message,
+# with an id tiebreaker so same-second siblings resolve to the highest id.
 last_message = if @conversation_serialization_data
                  @conversation_serialization_data.last_messages[conversation.id]
                else
-                 conversation.messages
-                             .where(account_id: conversation.account_id)
+                 conversation.messages.where(account_id: conversation.account_id)
                              .includes([{ attachments: [{ file_attachment: [:blob] }] }])
-                             .last
+                             .reorder(created_at: :desc, id: :desc).first
                end
 if last_message.blank?
   json.messages []
@@ -47,6 +50,12 @@ json.additional_attributes conversation.additional_attributes
 json.agent_last_seen_at conversation.agent_last_seen_at.to_i
 json.assignee_last_seen_at conversation.assignee_last_seen_at.to_i
 json.can_reply conversation.can_reply?
+# Temporarily disable this action to avoid message-history lookups during conversation rendering.
+json.contact_info_request do
+  json.available false
+  json.reason nil
+  json.delivery_mode nil
+end
 json.contact_last_seen_at conversation.contact_last_seen_at.to_i
 json.custom_attributes conversation.custom_attributes
 json.inbox_id conversation.inbox_id
@@ -71,5 +80,6 @@ json.priority conversation.priority
 json.waiting_since conversation.waiting_since.to_i.to_i
 json.account_pinned_at conversation.account_pin&.pinned_at&.to_i
 json.archived_at conversation.archived_at&.to_i
-json.sla_policy_id conversation.sla_policy_id
+sla_applicable = conversation.account.feature_enabled?('sla') && (!conversation.respond_to?(:sla_applicable?) || conversation.sla_applicable?)
+json.sla_policy_id sla_applicable ? conversation.sla_policy_id : nil
 json.partial! 'enterprise/api/v1/conversations/partials/conversation', conversation: conversation if ChatwootApp.enterprise?

@@ -4,6 +4,9 @@ import { ref } from 'vue';
 
 import ConversationHeader from '../ConversationHeader.vue';
 import { EMBEDDED_CONVERSATION } from 'dashboard/composables/useEmbeddedConversation';
+import { withFullI18n } from 'test-i18n';
+
+withFullI18n();
 
 vi.mock('vue-router', async importOriginal => {
   const actual = await importOriginal();

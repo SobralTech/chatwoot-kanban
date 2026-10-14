@@ -2,26 +2,31 @@
 #
 # Table name: waha_message_mappings
 #
-#  id              :bigint           not null, primary key
-#  chat_jid        :string           not null
-#  direction       :integer          not null
-#  event_type      :integer          default("message"), not null
-#  part            :integer          default(0), not null
-#  participant_jid :string
-#  created_at      :datetime         not null
-#  updated_at      :datetime         not null
-#  channel_waha_id :bigint           not null
-#  external_id     :string           not null
-#  message_id      :bigint           not null
+#  id                :bigint           not null, primary key
+#  ambiguous         :boolean          default(FALSE), not null
+#  chat_jid          :string           not null
+#  direction         :integer          not null
+#  event_type        :integer          default("message"), not null
+#  part              :integer          default(0), not null
+#  participant_jid   :string
+#  created_at        :datetime         not null
+#  updated_at        :datetime         not null
+#  anchor_message_id :bigint
+#  channel_waha_id   :bigint           not null
+#  external_id       :string           not null
+#  message_id        :bigint           not null
+#  provider_id       :text
 #
 # Indexes
 #
-#  index_waha_message_mappings_on_channel_waha_id  (channel_waha_id)
-#  index_waha_message_mappings_on_identity         (channel_waha_id,chat_jid,external_id,event_type) UNIQUE
-#  index_waha_message_mappings_on_message_id       (message_id)
+#  index_waha_message_mappings_on_anchor_message_id  (anchor_message_id)
+#  index_waha_message_mappings_on_channel_waha_id    (channel_waha_id)
+#  index_waha_message_mappings_on_identity           (channel_waha_id,chat_jid,external_id,event_type) UNIQUE
+#  index_waha_message_mappings_on_message_id         (message_id)
 #
 # Foreign Keys
 #
+#  fk_rails_...  (anchor_message_id => messages.id)
 #  fk_rails_...  (channel_waha_id => channel_waha.id)
 #  fk_rails_...  (message_id => messages.id)
 #
