@@ -102,7 +102,7 @@ const setMode = mode => {
       type="button"
       @click="setMode(REPLY_EDITOR_MODES.ASSISTANT)"
     >
-      <span class="i-woot-openai" />
+      <span class="i-ri-openai-fill size-4" />
       {{ $t('CONVERSATION.REPLYBOX.ASSISTANT') }}
     </button>
     <div
