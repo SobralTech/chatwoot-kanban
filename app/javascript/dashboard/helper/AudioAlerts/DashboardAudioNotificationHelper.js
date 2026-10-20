@@ -184,6 +184,15 @@ export class DashboardAudioNotificationHelper {
       this.playAudioEvery30Seconds();
     }
   };
+
+  // A bot handing a conversation to humans creates no notification, so it
+  // alerts on the contact-message setting, shaped like one for the filters above.
+  onConversationBotHandoff = conversation => {
+    this.onNotificationCreated({
+      notification_type: 'contact_message',
+      primary_actor: { id: conversation.id },
+    });
+  };
 }
 
 export default new DashboardAudioNotificationHelper(GlobalStore);

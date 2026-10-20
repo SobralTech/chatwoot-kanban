@@ -68,8 +68,8 @@ import {
 import {
   hasPressedEnterAndNotCmdOrShift,
   hasPressedCommandAndEnter,
+  isComposing,
   isEscape,
-  isInComposition,
 } from 'shared/helpers/KeyboardHelpers';
 import { createTypingIndicator } from '@chatwoot/utils';
 import { checkFileSizeLimit } from 'shared/helpers/FileHelper';
@@ -179,6 +179,7 @@ const createState = (content, placeholder, plugins = [], methods = {}) => {
       methods,
       plugins,
       enabledMenuOptions: editorMenuOptions.value,
+      resizableTableColumns: false,
     }),
   });
 };
@@ -811,13 +812,11 @@ function handleLineBreakWhenCmdAndEnterToSendEnabled(event) {
 }
 
 function onKeydown(event) {
+  if (isComposing(event)) return false;
   if (isEscape(event)) {
     collapseSelection(editorView);
     return true;
   }
-  // During IME / Windows OS text-suggestion composition, leave Enter to the
-  // browser/editor so the suggestion is applied natively — never suppress it.
-  if (isInComposition(event)) return false;
   if (isEnterToSendEnabled()) {
     handleLineBreakWhenEnterToSendEnabled(event);
   }
@@ -899,6 +898,10 @@ watch(
     reloadState(props.modelValue);
   }
 );
+
+watch(effectiveChannelType, () => {
+  reloadState(props.modelValue);
+});
 
 watch(
   computed(() => props.disabled),
@@ -1036,7 +1039,7 @@ useEmitter(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, content => {
       hidden
       @change="onFileChange"
     />
-    <div ref="editor" />
+    <div ref="editor" class="editor-mount" />
     <slot name="footer" />
   </div>
 </template>
@@ -1100,6 +1103,12 @@ useEmitter(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, content => {
       }
     }
   }
+}
+
+// Room for the table grips and add buttons, which sit outside the table.
+// .editor-mount keeps this off the article editor.
+.editor-mount .ProseMirror .tableWrapper {
+  @apply m-0 pt-4 pb-5 ps-5 pe-6;
 }
 
 .ProseMirror-woot-style {
@@ -1189,7 +1198,7 @@ useEmitter(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, content => {
 .popover-prosemirror-menu {
   position: relative;
 
-  .ProseMirror p:last-child {
+  .ProseMirror p:last-child:not(:is(th, td) > p) {
     margin-bottom: 10px !important;
   }
 

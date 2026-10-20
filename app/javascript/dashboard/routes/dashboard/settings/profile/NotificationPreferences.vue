@@ -8,6 +8,7 @@ import {
   requestPushPermissions,
   verifyServiceWorkerExistence,
 } from 'dashboard/helper/pushHelper.js';
+import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import ToggleSwitch from 'dashboard/components-next/switch/Switch.vue';
 import { NOTIFICATION_TYPES } from './constants';
 
@@ -30,12 +31,31 @@ export default {
     ...mapGetters({
       emailFlags: 'userNotificationSettings/getSelectedEmailFlags',
       pushFlags: 'userNotificationSettings/getSelectedPushFlags',
+      accountId: 'getCurrentAccountId',
+      isFeatureEnabledonAccount: 'accounts/isFeatureEnabledonAccount',
     }),
     hasPushAPISupport() {
       return !!('Notification' in window);
     },
+    // Missed-call notifications are produced only where phones are rung for calls
+    isMissedCallNotificationEnabled() {
+      return (
+        this.isFeatureEnabledonAccount(
+          this.accountId,
+          FEATURE_FLAGS.CHANNEL_VOICE
+        ) &&
+        this.isFeatureEnabledonAccount(
+          this.accountId,
+          FEATURE_FLAGS.MOBILE_VOICE_PUSH
+        )
+      );
+    },
     filteredNotificationTypes() {
-      return this.notificationTypes;
+      return this.notificationTypes.filter(
+        notification =>
+          notification.value !== 'voice_call_missed' ||
+          this.isMissedCallNotificationEnabled
+      );
     },
   },
   watch: {

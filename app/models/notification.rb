@@ -44,10 +44,12 @@ class Notification < ApplicationRecord
     sla_missed_first_response: 6,
     sla_missed_next_response: 7,
     sla_missed_resolution: 8,
-    contact_message: 9
+    contact_message: 9,
+    # upstream ships this as 9; renumbered because the fork's contact_message already owns 9 in production
+    voice_call_missed: 10
   }.freeze
 
-  ENABLED_NOTIFICATION_TYPES = %w[contact_message conversation_mention].freeze
+  ENABLED_NOTIFICATION_TYPES = %w[contact_message conversation_mention voice_call_missed].freeze
 
   PUSH_MESSAGE_TITLE_I18N_KEYS = {
     'conversation_creation' => 'notifications.notification_title.conversation_creation',
@@ -247,3 +249,5 @@ class Notification < ApplicationRecord
     }
   end
 end
+
+Notification.prepend_mod_with('Notification')

@@ -161,6 +161,13 @@ class ActionCableListener < BaseListener
     broadcast(account, tokens, CONVERSATION_CREATED, conversation.push_event_data, conversation: conversation)
   end
 
+  def conversation_bot_handoff(event)
+    conversation, account = extract_conversation_and_account(event)
+    tokens = authorized_user_tokens(account, conversation)
+
+    broadcast(account, tokens, CONVERSATION_BOT_HANDOFF, conversation.push_event_data, conversation: conversation)
+  end
+
   def conversation_read(event)
     conversation, account = extract_conversation_and_account(event)
     tokens = authorized_user_tokens(account, conversation)
@@ -194,8 +201,14 @@ class ActionCableListener < BaseListener
   def assignee_changed(event)
     conversation, account = extract_conversation_and_account(event)
     tokens = authorized_user_tokens(account, conversation)
+    # Model callbacks identify automatic assignment (auto-assignment or automation
+    # rules) by performed_by. The V2 AssignmentService also dispatches an event with
+    # user (the assigned agent, NOT the performer). Neither requires inferring
+    # automation from a missing Current.user.
+    automatic_assignment = [Inbox, AssignmentPolicy, AutomationRule].include?(event.data[:performed_by].class) || event.data[:user].present?
 
-    broadcast(account, tokens, ASSIGNEE_CHANGED, conversation.push_event_data, conversation: conversation)
+    broadcast(account, tokens, ASSIGNEE_CHANGED, conversation.push_event_data.merge(automatic_assignment: automatic_assignment),
+              conversation: conversation)
   end
 
   def team_changed(event)

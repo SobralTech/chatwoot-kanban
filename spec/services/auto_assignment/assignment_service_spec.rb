@@ -7,7 +7,7 @@ RSpec.describe AutoAssignment::AssignmentService do
   let(:service) { described_class.new(inbox: inbox) }
   let(:agent) { create(:user, account: account, role: :agent, availability: :online) }
   let(:agent2) { create(:user, account: account, role: :agent, availability: :online) }
-  let(:conversation) { create(:conversation, inbox: inbox, assignee: nil) }
+  let(:conversation) { create(:conversation, account: account, inbox: inbox, assignee: nil) }
 
   before do
     # Enable assignment_v2 feature for the account (basic assignment features)
@@ -132,6 +132,21 @@ RSpec.describe AutoAssignment::AssignmentService do
         )
 
         service.perform_bulk_assignment(limit: 1)
+      end
+
+      it 'delivers automatic provenance through both assignment broadcasts' do
+        conversation.update!(assignee_id: nil)
+        clear_enqueued_jobs
+        broadcasts = []
+        allow(ActionCable.server).to receive(:broadcast) do |_recipient, payload|
+          broadcasts << payload[:data] if payload[:event] == Events::Types::ASSIGNEE_CHANGED
+        end
+
+        perform_enqueued_jobs(only: ActionCableBroadcastJob) { service.perform_bulk_assignment(limit: 1) }
+
+        expect(conversation.reload.assignee_id).to eq(agent.id)
+        expect(broadcasts).not_to be_empty
+        expect(broadcasts).to all(include(assignment: include(automatic: true, assignee_id: agent.id)))
       end
     end
 

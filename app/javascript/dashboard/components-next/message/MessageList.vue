@@ -2,6 +2,7 @@
 import { computed, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Message from './Message.vue';
+import CampaignMessage from './CampaignMessage.vue';
 import { MESSAGE_TYPES } from './constants.js';
 import { useCamelCase } from 'dashboard/composables/useTransformKeys';
 import { useMapGetter } from 'dashboard/composables/store.js';
@@ -51,6 +52,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  campaignHistory: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits(['retry']);
@@ -70,6 +75,24 @@ const allMessages = computed(() => {
 
 const currentChat = useMapGetter('getSelectedChat');
 const { t } = useI18n();
+
+const timeline = computed(() => {
+  const messages = allMessages.value.map(message => ({
+    key: `message-${message.id}`,
+    createdAt: message.createdAt,
+    message,
+  }));
+  if (!props.campaignHistory.length) return messages;
+
+  return [
+    ...messages,
+    ...props.campaignHistory.map(recipient => ({
+      key: `campaign-${recipient.id}`,
+      createdAt: recipient.sent_at,
+      recipient,
+    })),
+  ].sort((a, b) => a.createdAt - b.createdAt);
+});
 
 // Cache for fetched reply messages to avoid duplicate API calls
 const fetchedReplyMessages = reactive(new Map());
@@ -113,17 +136,12 @@ const fetchReplyMessage = async (messageId, conversationId) => {
 
 /**
  * Determines if a message should be grouped with the next message
- * @param {Number} index - Index of the current message
- * @param {Array} searchList - Array of messages to check
+ * @param {Object} current - Current message
+ * @param {Object} next - Next message, absent at a campaign entry or the end
  * @returns {Boolean} - Whether the message should be grouped with next
  */
-const shouldGroupWithNext = (index, searchList) => {
-  if (index === searchList.length - 1) return false;
-
-  const current = searchList[index];
-  const next = searchList[index + 1];
-
-  if (next.status === 'failed') return false;
+const shouldGroupWithNext = (current, next) => {
+  if (!next || next.status === 'failed') return false;
 
   const nextSenderId = next.senderId ?? next.sender?.id;
   const currentSenderId = current.senderId ?? current.sender?.id;
@@ -146,15 +164,12 @@ const shouldGroupWithNext = (index, searchList) => {
 
 /**
  * Determines if a message should be grouped with the previous message
- * @param {Number} index - Index of the current message
- * @param {Array} searchList - Array of messages to check
+ * @param {Object} current - Current message
+ * @param {Object} previous - Previous message, absent at a campaign entry or the start
  * @returns {Boolean} - Whether the message should be grouped with previous
  */
-const shouldGroupWithPrevious = (index, searchList) => {
-  if (index === 0) return false;
-
-  return shouldGroupWithNext(index - 1, searchList);
-};
+const shouldGroupWithPrevious = (current, previous) =>
+  !!previous && shouldGroupWithNext(previous, current);
 
 /**
  * Gets the message that was replied to
@@ -216,13 +231,15 @@ const getInReplyToMessage = parentMessage => {
 <template>
   <ul class="px-4 bg-n-surface-1">
     <slot name="beforeAll" />
-    <template v-for="(message, index) in allMessages" :key="message.id">
+    <template v-for="(entry, index) in timeline" :key="entry.key">
       <slot
-        v-if="firstUnreadId && message.id === firstUnreadId"
+        v-if="firstUnreadId && entry.message?.id === firstUnreadId"
         name="unreadBadge"
       />
       <li
-        v-if="currentChat?.messageGapBeforeId === message.id"
+        v-if="
+          entry.message && currentChat?.messageGapBeforeId === entry.message.id
+        "
         data-message-gap
         class="list-none flex items-center gap-3 my-3 px-2"
       >
@@ -237,18 +254,24 @@ const getInReplyToMessage = parentMessage => {
         </span>
         <div class="h-px flex-1 bg-n-weak" />
       </li>
+      <CampaignMessage v-if="entry.recipient" :recipient="entry.recipient" />
       <Message
-        v-bind="message"
+        v-else
+        v-bind="entry.message"
         :is-email-inbox="isAnEmailChannel"
-        :in-reply-to="getInReplyToMessage(message)"
-        :group-with-next="shouldGroupWithNext(index, allMessages)"
-        :group-with-previous="shouldGroupWithPrevious(index, allMessages)"
+        :in-reply-to="getInReplyToMessage(entry.message)"
+        :group-with-next="
+          shouldGroupWithNext(entry.message, timeline[index + 1]?.message)
+        "
+        :group-with-previous="
+          shouldGroupWithPrevious(entry.message, timeline[index - 1]?.message)
+        "
         :inbox-supports-reply-to="inboxSupportsReplyTo"
         :current-user-id="currentUserId"
         :conversation-search-query="conversationSearchQuery"
         :active-conversation-search-result-id="activeConversationSearchResultId"
         data-clarity-mask="True"
-        @retry="emit('retry', message)"
+        @retry="emit('retry', entry.message)"
       />
     </template>
     <slot name="after" />

@@ -17,7 +17,7 @@ class Messages::NewMessageNotificationService
     conversation.preloaded_unread_incoming_messages_count = conversation.unread_incoming_messages.count
 
     conversation.inbox.members.find_each do |member|
-      next if already_notified_user_ids.include?(member.id)
+      next if already_notified?(member)
 
       NotificationBuilder.new(
         notification_type: 'contact_message',
@@ -32,7 +32,13 @@ class Messages::NewMessageNotificationService
 
   # The users could already have been notified via a mention
   # So we don't need to notify them again
+  def already_notified?(user)
+    already_notified_user_ids.include?(user.id)
+  end
+
   def already_notified_user_ids
     @already_notified_user_ids ||= conversation.notifications.where(secondary_actor: message).pluck(:user_id).to_set
   end
 end
+
+Messages::NewMessageNotificationService.prepend_mod_with('Messages::NewMessageNotificationService')

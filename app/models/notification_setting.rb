@@ -29,7 +29,7 @@ class NotificationSetting < ApplicationRecord
 
   EMAIL_NOTIFICATION_FLAGS = ::Notification::NOTIFICATION_TYPES.transform_keys { |key| "email_#{key}".to_sym }.invert.freeze
   PUSH_NOTIFICATION_FLAGS = ::Notification::NOTIFICATION_TYPES.transform_keys { |key| "push_#{key}".to_sym }.invert.freeze
-  VISIBLE_NOTIFICATION_TYPES = %w[contact_message conversation_mention].freeze
+  VISIBLE_NOTIFICATION_TYPES = %w[contact_message conversation_mention voice_call_missed].freeze
   VISIBLE_EMAIL_FLAGS = VISIBLE_NOTIFICATION_TYPES.map { |key| "email_#{key}" }.freeze
   VISIBLE_PUSH_FLAGS = VISIBLE_NOTIFICATION_TYPES.map { |key| "push_#{key}" }.freeze
 

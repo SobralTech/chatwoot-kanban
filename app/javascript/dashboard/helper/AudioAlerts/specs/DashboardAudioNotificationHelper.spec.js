@@ -155,4 +155,29 @@ describe('DashboardAudioNotificationHelper', () => {
     expect(playAudioAlert).toHaveBeenCalled();
     expect(initFaviconSwitcher).toHaveBeenCalled();
   });
+
+  it('alerts on a bot handoff when contact message alerts are enabled', () => {
+    const playAudioAlert = vi
+      .spyOn(helper, 'playAudioAlert')
+      .mockResolvedValue(undefined);
+
+    helper.set({ currentUser: { id: 1 }, audioAlertType: 'contact_message' });
+    helper.onConversationBotHandoff({ id: 42 });
+
+    expect(playAudioAlert).toHaveBeenCalled();
+  });
+
+  it('stays silent on a bot handoff when only mentions alert', () => {
+    const playAudioAlert = vi
+      .spyOn(helper, 'playAudioAlert')
+      .mockResolvedValue(undefined);
+
+    helper.set({
+      currentUser: { id: 1 },
+      audioAlertType: 'conversation_mention',
+    });
+    helper.onConversationBotHandoff({ id: 42 });
+
+    expect(playAudioAlert).not.toHaveBeenCalled();
+  });
 });

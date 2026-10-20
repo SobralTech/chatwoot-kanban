@@ -52,7 +52,7 @@ export default {
       default: false,
     },
   },
-  emits: ['open', 'close', 'replyTo'],
+  emits: ['open', 'close', 'replyTo', 'forwardEmail'],
   setup() {
     const { getPlainText } = useMessageFormatter();
 
@@ -160,6 +160,10 @@ export default {
     },
     handleReplyTo() {
       this.$emit('replyTo', this.message);
+      this.handleClose();
+    },
+    handleForwardEmail() {
+      this.$emit('forwardEmail');
       this.handleClose();
     },
     openDeleteModal() {
@@ -354,6 +358,15 @@ export default {
           <EmojiIconPicker mode="emoji" @select="handleReact($event.value)" />
         </div>
         <hr v-if="enabledOptions['wahaReact']" />
+        <MenuItem
+          v-if="enabledOptions['forwardEmail']"
+          :option="{
+            icon: 'arrow-forward',
+            label: $t('CONVERSATION.CONTEXT_MENU.FORWARD_EMAIL'),
+          }"
+          variant="icon"
+          @click.stop="handleForwardEmail"
+        />
         <MenuItem
           v-if="enabledOptions['replyTo']"
           :option="{
