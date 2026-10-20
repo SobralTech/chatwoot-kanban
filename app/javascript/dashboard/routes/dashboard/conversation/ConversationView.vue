@@ -1,8 +1,12 @@
 <script>
-import { computed } from 'vue';
+import { computed, provide } from 'vue';
 import { mapGetters } from 'vuex';
 import { useWindowSize } from '@vueuse/core';
 import { useUISettings } from 'dashboard/composables/useUISettings';
+import {
+  CONTACT_CONVERSATION_NAVIGATION,
+  useContactConversationNavigation,
+} from 'dashboard/composables/useContactConversationNavigation';
 import { useAccount } from 'dashboard/composables/useAccount';
 import ChatList from '../../../components/ChatList.vue';
 import ConversationBox from '../../../components/widgets/conversation/ConversationBox.vue';
@@ -88,6 +92,10 @@ export default {
     const { uiSettings, updateUISettings } = useUISettings();
     const { accountId } = useAccount();
     const { width: windowWidth } = useWindowSize();
+    provide(
+      CONTACT_CONVERSATION_NAVIGATION,
+      useContactConversationNavigation()
+    );
 
     return {
       uiSettings,

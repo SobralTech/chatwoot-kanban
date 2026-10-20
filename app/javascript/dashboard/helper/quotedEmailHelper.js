@@ -1,8 +1,91 @@
-import { parseISO, isValid as isValidDate } from 'date-fns';
+import { format, isValid as isValidDate, parseISO } from 'date-fns';
 import DOMPurify from 'dompurify';
 
+const NON_CONTENT_TAGS = new Set(['STYLE', 'SCRIPT', 'HEAD', 'TITLE']);
+const BLOCK_TAGS = new Set([
+  'ADDRESS',
+  'ARTICLE',
+  'ASIDE',
+  'BLOCKQUOTE',
+  'DD',
+  'DIV',
+  'DL',
+  'DT',
+  'FIELDSET',
+  'FIGCAPTION',
+  'FIGURE',
+  'FOOTER',
+  'H1',
+  'H2',
+  'H3',
+  'H4',
+  'H5',
+  'H6',
+  'HEADER',
+  'HR',
+  'LI',
+  'MAIN',
+  'NAV',
+  'OL',
+  'P',
+  'PRE',
+  'SECTION',
+  'TABLE',
+  'TR',
+  'UL',
+]);
+const TABLE_CELL_TAGS = new Set(['TD', 'TH']);
+
+const textFromNode = node => {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent;
+  }
+  if (
+    node.nodeType !== Node.ELEMENT_NODE ||
+    NON_CONTENT_TAGS.has(node.nodeName)
+  ) {
+    return '';
+  }
+  if (node.nodeName === 'BR') {
+    return '\n';
+  }
+
+  const childText = [...node.childNodes].map(textFromNode).join('');
+  if (node.nodeName === 'A') {
+    const href = node.getAttribute('href') || '';
+    if (!/^(https?|mailto):/i.test(href)) {
+      return childText;
+    }
+    // Percent-encode characters that would end the markdown link early;
+    // encodeURIComponent leaves parentheses alone.
+    const destination = href.replace(
+      /[()\s]/g,
+      c => `%${c.charCodeAt(0).toString(16)}`
+    );
+    return destination.replace(/^mailto:/i, '') === childText.trim()
+      ? childText
+      : `[${childText}](${destination})`;
+  }
+  if (node.nodeName === 'BLOCKQUOTE') {
+    const quoted = childText
+      .replace(/\n+$/, '')
+      .split('\n')
+      .map(line => (line ? `> ${line}` : '>'))
+      .join('\n');
+    return `${quoted}\n`;
+  }
+  if (BLOCK_TAGS.has(node.nodeName)) {
+    return `${childText}\n`;
+  }
+  if (TABLE_CELL_TAGS.has(node.nodeName)) {
+    return `${childText} `;
+  }
+  return childText;
+};
+
 /**
- * Extracts plain text from HTML content
+ * Extracts plain text from HTML content, keeping line breaks at block
+ * boundaries so adjacent blocks don't run together in the quoted text.
  * @param {string} html - HTML content to convert
  * @returns {string} Plain text content
  */
@@ -15,7 +98,9 @@ export const extractPlainTextFromHtml = html => {
   }
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = DOMPurify.sanitize(html);
-  return tempDiv.textContent || tempDiv.innerText || '';
+  return textFromNode(tempDiv)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 };
 
 /**
@@ -94,32 +179,21 @@ export const getEmailDate = lastEmail => {
 };
 
 /**
- * Resolves a locale string (e.g. 'pt_BR') to a BCP-47 tag Intl APIs accept.
- * @param {string} locale
- * @returns {string}
- */
-const resolveIntlLocale = locale => (locale || 'en').replace(/_/g, '-');
-
-/**
- * Formats a date into locale-aware date/time parts for the quoted email header.
+ * Formats date for quoted email header
  * @param {Date} date - Date to format
- * @param {string} locale - Active UI locale (e.g. 'en', 'pt_BR')
- * @returns {{ date: string, time: string }}
+ * @returns {string} Formatted date string
  */
-export const formatQuotedEmailDateParts = (date, locale) => {
-  const intlLocale = resolveIntlLocale(locale);
-  return {
-    date: new Intl.DateTimeFormat(intlLocale, {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(date),
-    time: new Intl.DateTimeFormat(intlLocale, {
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(date),
-  };
+export const formatQuotedEmailDate = date => {
+  try {
+    return format(date, "EEE, MMM d, yyyy 'at' p");
+  } catch (error) {
+    const fallbackDate = new Date(date);
+    if (!Number.isNaN(fallbackDate.getTime())) {
+      return format(fallbackDate, "EEE, MMM d, yyyy 'at' p");
+    }
+  }
+
+  return '';
 };
 
 /**
@@ -148,14 +222,9 @@ export const getInboxEmail = (lastEmail, inbox) => {
  * Builds quoted email header from contact (for incoming messages)
  * @param {Object} lastEmail - Last email message object
  * @param {Object} contact - Contact object
- * @param {Object} i18nContext - { t, locale }
  * @returns {string} Formatted header string
  */
-export const buildQuotedEmailHeaderFromContact = (
-  lastEmail,
-  contact,
-  { t, locale } = {}
-) => {
+export const buildQuotedEmailHeaderFromContact = (lastEmail, contact) => {
   if (!lastEmail) {
     return '';
   }
@@ -167,32 +236,27 @@ export const buildQuotedEmailHeaderFromContact = (
     return '';
   }
 
+  const formattedDate = formatQuotedEmailDate(quotedDate);
+  if (!formattedDate) {
+    return '';
+  }
+
   const senderName = getEmailSenderName(lastEmail, contact);
   const hasName = !!senderName;
   const contactLabel = hasName
     ? `${senderName} <${senderEmail}>`
     : `<${senderEmail}>`;
 
-  const { date, time } = formatQuotedEmailDateParts(quotedDate, locale);
-  return t('CONVERSATION.REPLYBOX.QUOTED_REPLY.HEADER', {
-    date,
-    time,
-    contact: contactLabel,
-  });
+  return `On ${formattedDate} ${contactLabel} wrote:`;
 };
 
 /**
  * Builds quoted email header from inbox (for outgoing messages)
  * @param {Object} lastEmail - Last email message object
  * @param {Object} inbox - Inbox object
- * @param {Object} i18nContext - { t, locale }
  * @returns {string} Formatted header string
  */
-export const buildQuotedEmailHeaderFromInbox = (
-  lastEmail,
-  inbox,
-  { t, locale } = {}
-) => {
+export const buildQuotedEmailHeaderFromInbox = (lastEmail, inbox) => {
   if (!lastEmail) {
     return '';
   }
@@ -204,18 +268,18 @@ export const buildQuotedEmailHeaderFromInbox = (
     return '';
   }
 
+  const formattedDate = formatQuotedEmailDate(quotedDate);
+  if (!formattedDate) {
+    return '';
+  }
+
   const inboxName = inbox?.name;
   const hasName = !!inboxName;
   const inboxLabel = hasName
     ? `${inboxName} <${inboxEmail}>`
     : `<${inboxEmail}>`;
 
-  const { date, time } = formatQuotedEmailDateParts(quotedDate, locale);
-  return t('CONVERSATION.REPLYBOX.QUOTED_REPLY.HEADER', {
-    date,
-    time,
-    contact: inboxLabel,
-  });
+  return `On ${formattedDate} ${inboxLabel} wrote:`;
 };
 
 /**
@@ -223,15 +287,9 @@ export const buildQuotedEmailHeaderFromInbox = (
  * @param {Object} lastEmail - Last email message object
  * @param {Object} contact - Contact object
  * @param {Object} inbox - Inbox object
- * @param {Object} i18nContext - { t, locale } used to build a locale-aware header
  * @returns {string} Formatted header string
  */
-export const buildQuotedEmailHeader = (
-  lastEmail,
-  contact,
-  inbox,
-  i18nContext = {}
-) => {
+export const buildQuotedEmailHeader = (lastEmail, contact, inbox) => {
   if (!lastEmail) {
     return '';
   }
@@ -240,168 +298,46 @@ export const buildQuotedEmailHeader = (
   const isOutgoing = lastEmail.message_type === 1;
 
   if (isOutgoing) {
-    return buildQuotedEmailHeaderFromInbox(lastEmail, inbox, i18nContext);
+    return buildQuotedEmailHeaderFromInbox(lastEmail, inbox);
   }
 
-  return buildQuotedEmailHeaderFromContact(lastEmail, contact, i18nContext);
+  return buildQuotedEmailHeaderFromContact(lastEmail, contact);
 };
 
 /**
- * Formats text as a markdown blockquote, with an optional header rendered as
- * a plain line before the blockquote (Gmail-style) rather than inside it.
+ * Formats text as markdown blockquote
  * @param {string} text - Text to format
- * @param {string} header - Optional header to prepend, outside the blockquote
- * @returns {string} Formatted header + blockquote
+ * @param {string} header - Optional header to prepend
+ * @returns {string} Formatted blockquote
  */
 export const formatQuotedTextAsBlockquote = (text, header = '') => {
   const normalizedLines = text
     ? String(text).replace(/\r\n/g, '\n').split('\n')
     : [];
 
-  const quotedBody = normalizedLines
-    .map(line => {
-      const trimmedLine = line.trimEnd();
-      return trimmedLine ? `> ${trimmedLine}` : '>';
-    })
-    .join('\n');
-
-  if (!header) {
-    return quotedBody;
-  }
-  if (!quotedBody) {
-    return header;
-  }
-
-  return `${header}\n\n${quotedBody}`;
-};
-
-const BLOCK_LEVEL_TAGS = new Set([
-  'P',
-  'DIV',
-  'TR',
-  'TABLE',
-  'LI',
-  'UL',
-  'OL',
-  'H1',
-  'H2',
-  'H3',
-  'H4',
-  'H5',
-  'H6',
-  'SECTION',
-  'ARTICLE',
-]);
-
-/**
- * Converts HTML into quoted markdown, preserving `<blockquote>` nesting depth
- * (each ancestor blockquote adds one more `>` prefix) and paragraph/block-level
- * breaks. Used when re-quoting a stored email's HTML content so that a chain
- * of replies-to-replies keeps its full hierarchy intact.
- * @param {string} html - HTML content to convert
- * @returns {string} Quoted markdown
- */
-export const convertQuotedHtmlToMarkdown = html => {
-  if (!html) {
+  if (!header && !normalizedLines.length) {
     return '';
   }
-  if (typeof document === 'undefined') {
-    return extractPlainTextFromHtml(html);
+
+  const quotedLines = [];
+
+  if (header) {
+    quotedLines.push(`> ${header}`);
+    quotedLines.push('>');
   }
 
-  const container = document.createElement('div');
-  container.innerHTML = DOMPurify.sanitize(html);
+  normalizedLines.forEach(line => {
+    const trimmedLine = line.trimEnd();
+    quotedLines.push(trimmedLine ? `> ${trimmedLine}` : '>');
+  });
 
-  const lines = [];
-  let currentLine = '';
-  let pendingBreakDepth = null; // a separator owed at this depth, before the next real content
-  let brRunCount = 0; // consecutive <br> siblings seen but not yet resolved
-
-  // Mirrors formatQuotedTextAsBlockquote's own single-level convention
-  // (content line: '> ' + text; blank continuation line: bare '>') applied
-  // `depth` times, so re-wrapping this output nests correctly: '> '.repeat(n)
-  // for content, and '> '.repeat(n - 1) + '>' for a blank continuation line.
-  const emitPendingBreak = () => {
-    if (pendingBreakDepth === null) {
-      return;
-    }
-    const depth = pendingBreakDepth;
-    lines.push(depth > 0 ? `${'> '.repeat(depth - 1)}>` : '');
-    pendingBreakDepth = null;
-  };
-
-  const flushContent = depth => {
-    if (!currentLine.trim()) {
-      currentLine = '';
-      return;
-    }
-    emitPendingBreak();
-    lines.push(`${'> '.repeat(depth)}${currentLine.trim()}`);
-    currentLine = '';
-  };
-
-  // A single <br> is just a line break within the same paragraph (flush the
-  // preceding text as its own line, nothing more). Two or more consecutive
-  // <br> siblings are Gmail/Outlook's convention for a paragraph gap — treat
-  // any run of 2+ as exactly one paragraph break, never stacking multiple
-  // blank lines for 3+. Must be resolved before any other node is processed,
-  // since <br> siblings only accumulate a count as they're walked.
-  const resolveBrRun = depth => {
-    if (brRunCount === 0) {
-      return;
-    }
-    flushContent(depth);
-    if (brRunCount >= 2 && lines.length) {
-      pendingBreakDepth = depth;
-    }
-    brRunCount = 0;
-  };
-
-  const walk = (node, depth) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      resolveBrRun(depth);
-      currentLine += node.textContent;
-      return;
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) {
-      return;
-    }
-
-    if (node.tagName === 'BR') {
-      brRunCount += 1;
-      return;
-    }
-
-    resolveBrRun(depth);
-
-    const isBlockquote = node.tagName === 'BLOCKQUOTE';
-    const isBlock = isBlockquote || BLOCK_LEVEL_TAGS.has(node.tagName);
-    const childDepth = isBlockquote ? depth + 1 : depth;
-
-    if (isBlock) {
-      flushContent(depth);
-    }
-    node.childNodes.forEach(child => walk(child, childDepth));
-    if (isBlock) {
-      resolveBrRun(childDepth);
-      flushContent(childDepth);
-      // owe a separator at `depth` before whatever sibling content comes
-      // next; discarded harmlessly if nothing ever follows
-      if (lines.length) {
-        pendingBreakDepth = depth;
-      }
-    }
-  };
-
-  container.childNodes.forEach(node => walk(node, 0));
-  resolveBrRun(0);
-  flushContent(0);
-
-  return lines.join('\n');
+  return quotedLines.join('\n');
 };
 
 /**
- * Extracts quoted email text from last email message
+ * Extracts quoted email text from last email message.
+ * Prefers the full content over the trimmed reply so the quoted thread
+ * carries the entire history, matching regular email client behavior.
  * @param {Object} lastEmail - Last email message object
  * @returns {string} Quoted email text
  */
@@ -415,9 +351,6 @@ export const extractQuotedEmailText = lastEmail => {
   const emailContent = contentAttributes.email || {};
   const textContent = emailContent.textContent || emailContent.text_content;
 
-  // Prefer `full` over `reply`: for outgoing messages they're identical, but
-  // for inbound HTML-only emails `reply` has nested blockquotes collapsed to
-  // a bare marker (content discarded), while `full` retains everything.
   if (textContent?.full) {
     return textContent.full;
   }
@@ -427,10 +360,10 @@ export const extractQuotedEmailText = lastEmail => {
 
   const htmlContent = emailContent.htmlContent || emailContent.html_content;
   if (htmlContent?.full) {
-    return convertQuotedHtmlToMarkdown(htmlContent.full);
+    return extractPlainTextFromHtml(htmlContent.full);
   }
   if (htmlContent?.reply) {
-    return convertQuotedHtmlToMarkdown(htmlContent.reply);
+    return extractPlainTextFromHtml(htmlContent.reply);
   }
 
   const fallbackContent =
@@ -439,26 +372,38 @@ export const extractQuotedEmailText = lastEmail => {
   return fallbackContent;
 };
 
-/**
- * Truncates text for preview display
- * @param {string} text - Text to truncate
- * @param {number} maxLength - Maximum length (default: 80)
- * @returns {string} Truncated text
- */
-export const truncatePreviewText = (text, maxLength = 80) => {
-  const preview = text.trim().replace(/\s+/g, ' ');
-  if (!preview) {
-    return '';
+// Keep in sync with the content length validation on Message (app/models/message.rb).
+const MAX_MESSAGE_CONTENT_LENGTH = 150000;
+
+// Outgoing content is rendered through Liquid on the server
+// (app/models/concerns/liquidable.rb); emit quoted {{ and {% tokens as
+// literals so customer-supplied expressions are never evaluated.
+const escapeLiquidTokens = text => text.replace(/\{[{%]/g, "{{ '$&' }}");
+
+// Keep whole lines from the top — the oldest history sits at the bottom,
+// and escape tokens never span lines, so the cut can't split one.
+const fitQuotedBlockWithinLimit = (quotedBlock, available) => {
+  if (quotedBlock.length <= available) {
+    return quotedBlock;
   }
 
-  if (preview.length <= maxLength) {
-    return preview;
-  }
-  return `${preview.slice(0, maxLength - 3)}...`;
+  const kept = [];
+  let length = 0;
+  quotedBlock.split('\n').every(line => {
+    const nextLength = length + line.length + (kept.length ? 1 : 0);
+    if (nextLength > available) {
+      return false;
+    }
+    kept.push(line);
+    length = nextLength;
+    return true;
+  });
+  return kept.join('\n');
 };
 
 /**
- * Appends quoted text to message
+ * Appends quoted text to message, truncating the quote so the combined
+ * content stays within the server-side message length limit.
  * @param {string} message - Original message
  * @param {string} quotedText - Text to quote
  * @param {string} header - Quote header
@@ -466,21 +411,30 @@ export const truncatePreviewText = (text, maxLength = 80) => {
  */
 export const appendQuotedTextToMessage = (message, quotedText, header) => {
   const baseMessage = message ? String(message) : '';
-  const quotedBlock = formatQuotedTextAsBlockquote(quotedText, header);
+  let quotedBlock = formatQuotedTextAsBlockquote(quotedText, header);
 
   if (!quotedBlock) {
     return baseMessage;
   }
-
-  if (!baseMessage) {
-    return quotedBlock;
-  }
+  quotedBlock = escapeLiquidTokens(quotedBlock);
 
   let separator = '\n\n';
-  if (baseMessage.endsWith('\n\n')) {
+  if (!baseMessage || baseMessage.endsWith('\n\n')) {
     separator = '';
   } else if (baseMessage.endsWith('\n')) {
     separator = '\n';
+  }
+
+  quotedBlock = fitQuotedBlockWithinLimit(
+    quotedBlock,
+    MAX_MESSAGE_CONTENT_LENGTH - baseMessage.length - separator.length
+  );
+  // A quote cut down to its header alone reads as a broken email — drop it.
+  const headerOnlyBlock = escapeLiquidTokens(
+    formatQuotedTextAsBlockquote('', header)
+  );
+  if (quotedBlock.length <= headerOnlyBlock.length) {
+    return baseMessage;
   }
 
   return `${baseMessage}${separator}${quotedBlock}`;

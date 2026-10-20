@@ -44,7 +44,7 @@ const store = useStore();
 const route = useRoute();
 const conversationHeader = ref(null);
 const { width } = useElementSize(conversationHeader);
-const { isAWebWidgetInbox } = useInbox();
+const { isAWebWidgetInbox, isAnEmailChannel } = useInbox();
 const embedded = useEmbeddedConversation();
 const { toggleContactSidebar } = useContactSidebar();
 const headerSeparator = '\u2022';
@@ -119,6 +119,11 @@ const isHMACVerified = computed(() => {
     return true;
   }
   return chatMetadata.value.hmac_verified;
+});
+
+const mailSubject = computed(() => {
+  if (!isAnEmailChannel.value) return '';
+  return props.chat.additional_attributes?.mail_subject;
 });
 
 const currentContact = computed(() =>
@@ -216,7 +221,20 @@ const toggleContactDetails = () => {
               {{ snoozedDisplayText }}
             </span>
           </div>
-          <InboxName :inbox="inbox" class="!mx-0" />
+          <div class="flex items-center min-w-0 gap-1">
+            <InboxName :inbox="inbox" class="!mx-0" />
+            <template v-if="mailSubject">
+              <span class="flex-shrink-0 text-xs text-n-slate-11">
+                {{ headerSeparator }}
+              </span>
+              <span
+                v-tooltip="mailSubject"
+                class="min-w-0 text-xs truncate text-n-slate-11"
+              >
+                {{ mailSubject }}
+              </span>
+            </template>
+          </div>
         </div>
       </div>
     </div>

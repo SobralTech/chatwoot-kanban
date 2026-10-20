@@ -1,4 +1,13 @@
-class SearchService
+class SearchService # rubocop:disable Metrics/ClassLength
+  CONVERSATION_SEARCH_SQL = <<~SQL.squish.freeze
+    cast(conversations.display_id as text) ILIKE :search
+    OR unaccent(contacts.name) ILIKE unaccent(:search)
+    OR unaccent(contacts.email) ILIKE unaccent(:search)
+    OR unaccent(contacts.phone_number) ILIKE unaccent(:search)
+    OR unaccent(contacts.identifier) ILIKE unaccent(:search)
+    OR unaccent(conversations.additional_attributes->>'mail_subject') ILIKE unaccent(:search)
+  SQL
+
   pattr_initialize [:current_user!, :current_account!, :params!, :search_type!]
 
   def account_user = @account_user ||= current_account.account_users.find_by(user: current_user)
@@ -29,17 +38,10 @@ class SearchService
   end
 
   def filter_conversations
-    search_sql = <<~SQL.squish
-      cast(conversations.display_id as text) ILIKE :search
-      OR unaccent(contacts.name) ILIKE unaccent(:search)
-      OR unaccent(contacts.email) ILIKE unaccent(:search)
-      OR unaccent(contacts.phone_number) ILIKE unaccent(:search)
-      OR unaccent(contacts.identifier) ILIKE unaccent(:search)
-    SQL
     conversations_query = visible_conversations(current_account.conversations.where(inbox_id: accessable_inbox_ids))
                           .not_archived
                           .joins('INNER JOIN contacts ON conversations.contact_id = contacts.id')
-                          .where(search_sql, search: "%#{search_query}%")
+                          .where(CONVERSATION_SEARCH_SQL, search: "%#{search_query}%")
     conversations_query = apply_inbox_id_filter(conversations_query)
 
     if current_account.feature_enabled?('advanced_search')
@@ -63,9 +65,10 @@ class SearchService
   end
 
   def advanced_search_with_fallback
-    advanced_search
-  rescue Faraday::ConnectionFailed, Searchkick::Error, Elasticsearch::Transport::Transport::Error => e
+    advanced_search.load
+  rescue Faraday::Error, Searchkick::Error, OpenSearch::Transport::Transport::Error => e
     Rails.logger.warn("Elasticsearch unavailable, falling back to SQL search: #{e.message}")
+    ChatwootExceptionTracker.new(e, user: current_user, account: current_account).capture_exception
     use_gin_search ? filter_messages_with_gin : filter_messages_with_like
   end
 
@@ -114,7 +117,7 @@ class SearchService
     query = current_account.messages.includes({ sender: { avatar_attachment: :blob } },
                                               { attachments: { file_attachment: :blob } },
                                               { conversation: { contact: { avatar_attachment: :blob } } })
-                           .where('created_at >= ?', 3.months.ago)
+                           .where('created_at >= ?', search_window_start)
                            .where.not(message_type: :activity)
     query = query.where(inbox_id: accessable_inbox_ids) unless should_skip_inbox_filtering?
     return query if account_user.administrator?
@@ -218,12 +221,15 @@ class SearchService
     query
   end
 
+  def search_window_start
+    Limits.search_time_range_limit_days.days.ago
+  end
+
   def cap_since_time(since_param)
-    max_lookback = 90.days.ago
     requested_time = Time.zone.at(since_param.to_i)
 
-    # Silently cap to max_lookback if requested time is too far back
-    [requested_time, max_lookback].max
+    # Silently cap to the search window start if requested time is too far back
+    [requested_time, search_window_start].max
   end
 
   def cap_until_time(until_param)

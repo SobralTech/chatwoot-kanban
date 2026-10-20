@@ -22,6 +22,8 @@ const createStoreConfig = () =>
     getters: {
       'inboxes/getInbox': () => () => ({}),
       getSelectedChatAttachments: () => [],
+      getMessageTranslationState: () => () => ({ pending: false }),
+      getAutoTranslate: () => ({ enabled: false }),
     },
   });
 

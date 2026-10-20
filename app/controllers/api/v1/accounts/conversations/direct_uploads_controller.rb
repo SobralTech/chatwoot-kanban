@@ -4,6 +4,7 @@ class Api::V1::Accounts::Conversations::DirectUploadsController < ActiveStorage:
   include AccessTokenAuthHelper
   include EnsureCurrentAccountHelper
   include Pundit::Authorization
+  include MfaEnforcementGuard
 
   rescue_from Pundit::NotAuthorizedError, with: :render_pundit_unauthorized
 
@@ -16,6 +17,7 @@ class Api::V1::Accounts::Conversations::DirectUploadsController < ActiveStorage:
   before_action :set_current_user, unless: :authenticate_by_access_token?
   before_action :current_account
   before_action :validate_token_api_access, if: :authenticate_by_access_token?
+  before_action :check_account_mfa_enforcement, if: :authenticate_by_access_token?
   before_action :conversation
 
   def create
@@ -25,10 +27,6 @@ class Api::V1::Accounts::Conversations::DirectUploadsController < ActiveStorage:
   end
 
   private
-
-  def authenticate_by_access_token?
-    request.headers[:api_access_token].present? || request.headers[:HTTP_API_ACCESS_TOKEN].present?
-  end
 
   def validate_token_api_access
     return if Current.account.api_and_webhooks_enabled?

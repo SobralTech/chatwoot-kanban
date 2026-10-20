@@ -17,6 +17,8 @@ const props = defineProps({
   isAnEmailChannel: { type: Boolean, default: true },
 });
 
+const emit = defineEmits(['collapse']);
+
 const EMAIL_DEFAULT_HEIGHT = 120;
 const EMAIL_MIN_HEIGHT = 80;
 const COMPACT_DEFAULT_HEIGHT = 30;
@@ -25,6 +27,7 @@ const COMPACT_MAX_HEIGHT = 142;
 const MIN_MESSAGES_HEIGHT = 200;
 const EXPAND_RATIO = 0.5;
 const RESET_DELAY_MS = 120;
+const COLLAPSE_DISTANCE = 48;
 
 const DEFAULT_HEIGHT = computed(() =>
   props.isAnEmailChannel ? EMAIL_DEFAULT_HEIGHT : COMPACT_DEFAULT_HEIGHT
@@ -40,6 +43,7 @@ const isResizing = ref(false);
 const startY = ref(0);
 const startHeight = ref(0);
 const requestedHeight = ref(0);
+const collapseProgress = ref(0);
 let resetTimeoutId = null;
 
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
@@ -110,18 +114,30 @@ const onResizeStart = event => {
   });
 };
 
-const onResizeMove = event => {
-  if (!isResizing.value) return;
-  if (event.touches) event.preventDefault();
-  editorHeight.value = clampToBounds(
-    startHeight.value + startY.value - getClientY(event)
-  );
-};
-
 const onResizeEnd = () => {
   if (!isResizing.value) return;
   isResizing.value = false;
+  collapseProgress.value = 0;
   clearDragStyles();
+};
+
+const collapseEditor = () => {
+  onResizeEnd();
+  editorHeight.value = sizeBounds.value.default;
+  emit('collapse');
+};
+
+const onResizeMove = event => {
+  if (!isResizing.value) return;
+  if (event.touches) event.preventDefault();
+  const draggedHeight = startHeight.value + startY.value - getClientY(event);
+  editorHeight.value = clampToBounds(draggedHeight);
+  collapseProgress.value = clamp(
+    (sizeBounds.value.min - draggedHeight) / COLLAPSE_DISTANCE,
+    0,
+    1
+  );
+  if (collapseProgress.value === 1) collapseEditor();
 };
 
 const resetEditorHeight = () => {
@@ -186,6 +202,7 @@ defineExpose({ toggleEditorExpand, resetEditorHeight });
       '--editor-height-transition': isResizing
         ? '0s'
         : '200ms cubic-bezier(0.4, 0, 0.2, 1)',
+      '--editor-collapse-progress': collapseProgress,
     }"
   >
     <div
@@ -197,10 +214,22 @@ defineExpose({ toggleEditorExpand, resetEditorHeight });
     >
       <div
         class="w-8 h-0.5 mt-1 rounded-full bg-n-slate-6 group-hover:bg-n-slate-8 transition-all duration-200 motion-safe:group-hover:animate-bounce"
-        :class="{ 'bg-n-slate-8 animate-bounce': isResizing }"
+        :class="{
+          'bg-n-slate-8 animate-bounce': isResizing,
+          '!bg-n-brand w-12': collapseProgress > 0,
+        }"
       />
     </div>
-    <slot />
+    <div
+      class="transition-[opacity,transform] ease-out"
+      :class="[
+        isResizing ? 'duration-0' : 'duration-200',
+        collapseProgress > 0 &&
+          'opacity-[calc(1_-_var(--editor-collapse-progress)_*_0.6)] translate-y-[calc(var(--editor-collapse-progress)_*_0.75rem)]',
+      ]"
+    >
+      <slot />
+    </div>
   </div>
 </template>
 
@@ -225,6 +254,34 @@ defineExpose({ toggleEditorExpand, resetEditorHeight });
     height: auto;
     min-height: var(--editor-min-allowed, 1.875rem);
     max-height: var(--editor-max-allowed, 7.5rem);
+  }
+
+  // Shares the resizable height between the editor and its footer-slot
+  // content (e.g. the quoted email preview); the 3rem floor keeps the
+  // editor usable at the minimum allowed height.
+  .resizable-editor-split {
+    @apply flex min-h-0 flex-col;
+
+    height: clamp(
+      var(--editor-min-allowed, 5rem),
+      var(--editor-height, 5rem),
+      var(--editor-max-allowed, 7.5rem)
+    );
+    transition: height var(--editor-height-transition);
+
+    .editor-mount {
+      @apply flex min-h-[3rem] flex-1 flex-col;
+    }
+
+    .ProseMirror-menubar-wrapper {
+      @apply flex min-h-0 flex-1 flex-col;
+    }
+
+    .resizable-editor-body {
+      @apply min-h-0 flex-1;
+
+      height: auto;
+    }
   }
 }
 </style>

@@ -1,4 +1,4 @@
-export const NOTIFICATION_TYPES = [
+export const AUDIO_ALERT_TYPES = [
   {
     label: 'PROFILE_SETTINGS.FORM.NOTIFICATIONS.TYPES.CONTACT_MESSAGE',
     value: 'contact_message',
@@ -9,4 +9,10 @@ export const NOTIFICATION_TYPES = [
   },
 ];
 
-export const AUDIO_ALERT_TYPES = NOTIFICATION_TYPES;
+export const NOTIFICATION_TYPES = [
+  ...AUDIO_ALERT_TYPES,
+  {
+    label: 'PROFILE_SETTINGS.FORM.NOTIFICATIONS.TYPES.VOICE_CALL_MISSED',
+    value: 'voice_call_missed',
+  },
+];

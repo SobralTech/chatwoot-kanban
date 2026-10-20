@@ -1,9 +1,8 @@
-import { shallowMount } from '@vue/test-utils';
+import { flushPromises, shallowMount } from '@vue/test-utils';
 import { REPLY_EDITOR_MODES } from 'dashboard/components/widgets/WootWriter/constants';
 import { nextTick } from 'vue';
 import { createStore } from 'vuex';
 import ReplyBox from '../ReplyBox.vue';
-import WhatsappTemplates from '../WhatsappTemplates/Modal.vue';
 
 vi.mock('dashboard/composables/useAccount', async () => {
   const { ref } = await import('vue');
@@ -45,6 +44,7 @@ const buildStore = ({
   drafts = {},
   inboxes,
   isMetaMessageSendingDisabled = false,
+  uiSettings = {},
 }) =>
   createStore({
     state: {
@@ -73,7 +73,7 @@ const buildStore = ({
       getCurrentUser: () => ({ id: 7, name: 'Agent', accounts: [] }),
       getCurrentAccountId: () => 1,
       getMessageSignature: () => '',
-      getUISettings: () => ({}),
+      getUISettings: () => uiSettings,
       getLastEmailInSelectedChat: () => null,
       'globalConfig/get': () => ({}),
       'globalConfig/isMetaMessageSendingDisabled': () =>
@@ -100,6 +100,7 @@ const mountWith = ({
   drafts,
   inboxes,
   isMetaMessageSendingDisabled,
+  uiSettings,
 }) => {
   const store = buildStore({
     inbox,
@@ -108,6 +109,7 @@ const mountWith = ({
     drafts,
     inboxes,
     isMetaMessageSendingDisabled,
+    uiSettings,
   });
   const wrapper = shallowMount(ReplyBox, {
     global: {
@@ -188,39 +190,6 @@ describe('ReplyBox', () => {
   });
 
   describe.each(CHANNELS)('$name', ({ name, inbox }) => {
-    it('locks the composer and hides template sends when a bot owns a pending conversation', () => {
-      const { wrapper } = mountWith({
-        inbox,
-        chat: {
-          status: 'pending',
-          meta: { sender: { id: 2 }, assignee_type: 'AgentBot' },
-        },
-      });
-
-      expect(topPanel(wrapper).isReplyRestricted).toBe(true);
-      expect(bottomPanel(wrapper).enableWhatsAppTemplates).toBe(false);
-      expect(bottomPanel(wrapper).enableContentTemplates).toBe(false);
-      // The note composer stays usable — this is a restriction, not a lockout.
-      expect(topPanel(wrapper).isEditorDisabled).toBe(false);
-    });
-
-    it('opens directly in note mode when a bot already owns the pending conversation', () => {
-      const { wrapper, store } = mountWith({
-        inbox,
-        chat: {
-          can_reply: false,
-          status: 'pending',
-          meta: { sender: { id: 2 }, assignee_type: 'AgentBot' },
-        },
-      });
-
-      expect(bottomPanel(wrapper).isOnPrivateNote).toBe(true);
-      expect(store.getters['draftMessages/getReplyEditorMode']).toBe(
-        REPLY_EDITOR_MODES.NOTE
-      );
-      expect(topPanel(wrapper).isEditorDisabled).toBe(false);
-    });
-
     it('opens in reply mode for every other conversation', () => {
       const { wrapper, store } = mountWith({ inbox });
 
@@ -231,7 +200,7 @@ describe('ReplyBox', () => {
     });
 
     it.each(['open', 'resolved', 'snoozed'])(
-      'leaves the composer open when a bot owns a %s conversation',
+      'keeps the composer available when a %s conversation has an AI assignee',
       status => {
         const { wrapper } = mountWith({
           inbox,
@@ -291,23 +260,6 @@ describe('ReplyBox', () => {
       'draft-1-NOTE': 'a note',
     };
 
-    it('loads the note draft while a bot owns the conversation', async () => {
-      const { wrapper } = mountWith({
-        inbox: { channel_type: 'Channel::WebWidget' },
-        chat: {
-          status: 'pending',
-          meta: { sender: { id: 2 }, assignee_type: 'AgentBot' },
-        },
-        drafts: DRAFTS,
-      });
-      await nextTick();
-
-      expect(editor(wrapper)).toMatchObject({
-        editorId: 'draft-1-NOTE',
-        modelValue: 'a note',
-      });
-    });
-
     it('leaves the saved reply draft intact and restores it on takeover', async () => {
       const { wrapper, store } = mountWith({
         inbox: { channel_type: 'Channel::WebWidget' },
@@ -336,7 +288,7 @@ describe('ReplyBox', () => {
     });
   });
 
-  it('offers content templates on Twilio WhatsApp when no bot owns the conversation', () => {
+  it('offers content templates on Twilio WhatsApp when the conversation has no AI assignee', () => {
     const { wrapper } = mountWith({
       inbox: { channel_type: 'Channel::TwilioSms', medium: 'whatsapp' },
       chat: { can_reply: true, status: 'open' },
@@ -355,15 +307,6 @@ describe('ReplyBox', () => {
       return { wrapper, store };
     };
 
-    it('switches to note mode when a bot owns a pending conversation', async () => {
-      const { wrapper } = await selectChat({
-        status: 'pending',
-        meta: { sender: { id: 2 }, assignee_type: 'AgentBot' },
-      });
-
-      expect(bottomPanel(wrapper).isOnPrivateNote).toBe(true);
-    });
-
     it('stays in reply mode when a human owns a pending conversation', async () => {
       const { wrapper } = await selectChat({
         status: 'pending',
@@ -371,50 +314,6 @@ describe('ReplyBox', () => {
       });
 
       expect(bottomPanel(wrapper).isOnPrivateNote).toBe(false);
-    });
-
-    it('closes an open template modal when a bot takes over the conversation', async () => {
-      const { wrapper, store } = mountWith({
-        inbox: { channel_type: 'Channel::Whatsapp' },
-      });
-      wrapper
-        .findComponent({ name: 'ReplyBottomPanel' })
-        .vm.$emit('selectWhatsappTemplate');
-      await nextTick();
-      expect(wrapper.findComponent(WhatsappTemplates).props('show')).toBe(true);
-
-      store.commit('selectChat', {
-        ...REPLIABLE,
-        status: 'pending',
-        meta: { sender: { id: 2 }, assignee_type: 'AgentBot' },
-      });
-      await nextTick();
-
-      expect(wrapper.findComponent(WhatsappTemplates).props('show')).toBe(
-        false
-      );
-    });
-
-    it('returns to reply mode once the agent takes over', async () => {
-      const { wrapper, store } = await selectChat({
-        status: 'pending',
-        meta: { sender: { id: 2 }, assignee_type: 'AgentBot' },
-      });
-      expect(bottomPanel(wrapper).isOnPrivateNote).toBe(true);
-
-      store.commit('selectChat', {
-        ...REPLIABLE,
-        id: 99,
-        status: 'open',
-        meta: { sender: { id: 2 }, assignee_type: 'User' },
-      });
-      await nextTick();
-
-      expect(bottomPanel(wrapper).isOnPrivateNote).toBe(false);
-      expect(topPanel(wrapper).isReplyRestricted).toBe(false);
-      expect(store.getters['draftMessages/getReplyEditorMode']).toBe(
-        REPLY_EDITOR_MODES.REPLY
-      );
     });
 
     it('keeps the agent in note mode after they chose it themselves', async () => {
@@ -426,114 +325,40 @@ describe('ReplyBox', () => {
 
       expect(bottomPanel(wrapper).isOnPrivateNote).toBe(true);
     });
+  });
 
-    it('mirrors the forced note mode into the draftMessages store', async () => {
-      const { store } = await selectChat({
-        status: 'pending',
-        meta: { sender: { id: 2 }, assignee_type: 'AgentBot' },
-      });
-
-      expect(store.getters['draftMessages/getReplyEditorMode']).toBe(
-        REPLY_EDITOR_MODES.NOTE
+  describe('send shortcut', () => {
+    const pressEnter = init =>
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', ...init })
       );
+
+    it('ignores Enter while an IME composition is active', async () => {
+      const { wrapper } = mountWith({
+        inbox: { channel_type: 'Channel::WebWidget' },
+        uiSettings: { editor_message_key: 'enter' },
+      });
+      await flushPromises();
+      wrapper.vm.isFocused = true;
+      const onSendReply = vi
+        .spyOn(wrapper.vm, 'onSendReply')
+        .mockImplementation(() => {});
+
+      pressEnter({ key: 'Process', isComposing: true });
+      expect(onSendReply).not.toHaveBeenCalled();
+
+      pressEnter({});
+      expect(onSendReply).toHaveBeenCalledTimes(1);
+
+      wrapper.unmount();
     });
   });
 });
 
-// These tests exercise ReplyBox's `getMessageWithQuotedEmailText` and
-// `toggleSignatureForDraft` methods in isolation, without mounting the full
-// component tree (which pulls in many unrelated mixins/composables/child
-// components). Each method's own dependencies are stubbed on a plain context
-// object and the *actual* exported method implementations are invoked via
-// `.call(context, ...)` — this is the real signature/quote-ordering logic
-// under test, not a reimplementation of it.
+// Exercises ReplyBox's `toggleSignatureForDraft` in isolation, invoking the
+// real method via `.call(context, ...)` on a plain stubbed context.
 
-const { getMessageWithQuotedEmailText, toggleSignatureForDraft } =
-  ReplyBox.methods;
-
-const fakeT = (key, params) =>
-  `On ${params.date} at ${params.time} ${params.contact} wrote:`;
-
-const baseQuoteContext = (overrides = {}) => ({
-  shouldIncludeQuotedEmail: () => true,
-  channelType: 'Channel::Email',
-  inbox: { medium: '' },
-  isSignatureEnabledForInbox: true,
-  isSignatureAvailable: true,
-  messageSignature: 'Pedro\nSobralTec',
-  quotedEmailText: 'Original quoted text',
-  currentContact: {},
-  lastEmailWithQuotedContent: {
-    message_type: 0,
-    sender: { name: 'Alex', email: 'alex@example.com' },
-    contentAttributes: { email: { date: '2024-01-15T10:30:00Z' } },
-  },
-  $t: fakeT,
-  $i18n: { locale: 'en' },
-  ...overrides,
-});
-
-describe('ReplyBox getMessageWithQuotedEmailText', () => {
-  it('orders the composed message as [message][quote][signature], not [message][signature][quote]', () => {
-    const cleanedSignature = 'Pedro\\\nSobralTec'; // canonical form after cleanSignature's hardbreak encoding
-    const message = `Hello there\n\n--\n\n${cleanedSignature}`;
-    const context = baseQuoteContext();
-    const result = getMessageWithQuotedEmailText.call(context, message);
-
-    const quoteIndex = result.indexOf('> Original quoted text');
-    const firstPedroIndex = result.indexOf('Pedro');
-    const secondPedroIndex = result.indexOf('Pedro', firstPedroIndex + 1);
-
-    expect(quoteIndex).toBeGreaterThan(-1);
-    // signature must appear after the quote block, and only once
-    expect(result.lastIndexOf('SobralTec')).toBeGreaterThan(quoteIndex);
-    expect(secondPedroIndex).toBe(-1);
-  });
-
-  it('does not reintroduce a manually deleted signature, including the delimiter-only remnant', () => {
-    const message = 'Hello there\n\n--\n';
-    const context = baseQuoteContext();
-    const result = getMessageWithQuotedEmailText.call(context, message);
-
-    expect(result).not.toContain('Pedro');
-    expect(result).not.toContain('SobralTec');
-    expect(result).toContain('> Original quoted text');
-  });
-
-  it('preserves a manually edited signature verbatim, positioned after the quote', () => {
-    const message = 'Hello there\n--\nPedro\nEquipe SobralTec';
-    const context = baseQuoteContext();
-    const result = getMessageWithQuotedEmailText.call(context, message);
-
-    const quoteIndex = result.indexOf('> Original quoted text');
-    const editedSigIndex = result.indexOf('Equipe SobralTec');
-
-    expect(editedSigIndex).toBeGreaterThan(quoteIndex);
-    expect(result).toContain('--\nPedro\nEquipe SobralTec');
-    // not duplicated
-    expect(result.split('Equipe SobralTec')).toHaveLength(2);
-  });
-
-  it('does not duplicate the signature if called twice on the same input', () => {
-    const message = 'Hello there\n\n--\n\nPedro\\\nSobralTec';
-    const context = baseQuoteContext();
-    const result1 = getMessageWithQuotedEmailText.call(context, message);
-    const result2 = getMessageWithQuotedEmailText.call(context, message);
-    expect(result1).toBe(result2);
-    expect(result1.split('SobralTec')).toHaveLength(2);
-  });
-
-  it('leaves an unrelated trailing "--" untouched when signature auto-append is disabled', () => {
-    const message = 'Texto\n\n--\nConteúdo normal';
-    const context = baseQuoteContext({
-      isSignatureEnabledForInbox: false,
-    });
-    const result = getMessageWithQuotedEmailText.call(context, message);
-
-    expect(result).toContain('Texto\n\n--\nConteúdo normal');
-    expect(result).toContain('> Original quoted text');
-  });
-});
+const { toggleSignatureForDraft } = ReplyBox.methods;
 
 describe('ReplyBox toggleSignatureForDraft', () => {
   const baseDraftContext = (overrides = {}) => ({

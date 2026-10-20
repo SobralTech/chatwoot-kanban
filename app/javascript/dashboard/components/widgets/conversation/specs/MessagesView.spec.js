@@ -1,9 +1,22 @@
 import { shallowMount } from '@vue/test-utils';
 import { createStore } from 'vuex';
+import { ref } from 'vue';
 import MessagesView from '../MessagesView.vue';
+import { CONTACT_CONVERSATION_NAVIGATION } from 'dashboard/composables/useContactConversationNavigation';
 
-vi.mock('@vueuse/core', () => ({
+vi.mock('@vueuse/core', async importOriginal => ({
+  ...(await importOriginal()),
   useElementSize: () => ({ height: 0 }),
+}));
+
+vi.mock('dashboard/composables/useCampaignHistory', () => ({
+  useCampaignHistory: () => ({
+    isCampaignHistoryReady: true,
+    visibleCampaignHistory: [],
+    hasMoreCampaignHistory: false,
+    isCampaignHistoryLoading: false,
+    loadCampaignHistory: vi.fn(),
+  }),
 }));
 
 vi.mock('dashboard/composables/useLabelSuggestions', () => ({
@@ -54,6 +67,17 @@ describe('MessagesView', () => {
       },
       global: {
         plugins: [store],
+        provide: {
+          [CONTACT_CONVERSATION_NAVIGATION]: {
+            olderConversation: ref(null),
+            newerConversation: ref(null),
+            isReadingHistory: ref(false),
+            latestConversation: ref(null),
+            leaveReadingMode: vi.fn(),
+            openConversation: vi.fn(),
+            buildConversationPath: vi.fn(),
+          },
+        },
         mocks: {
           $t: key => key,
           $route: { query: {} },

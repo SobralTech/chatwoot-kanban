@@ -1,18 +1,34 @@
 <script>
-import { ref, provide, useTemplateRef } from 'vue';
-import { useElementSize } from '@vueuse/core';
+import {
+  ref,
+  computed,
+  provide,
+  inject,
+  nextTick,
+  useTemplateRef,
+  getCurrentInstance,
+} from 'vue';
+import {
+  useElementSize,
+  useEventListener,
+  useResizeObserver,
+  useSessionStorage,
+} from '@vueuse/core';
 // composable
-import { useLabelSuggestions } from 'dashboard/composables/useLabelSuggestions';
+import { useTrack } from 'dashboard/composables';
+import { useCampaignHistory } from 'dashboard/composables/useCampaignHistory';
+import { useKeyboardEvents } from 'dashboard/composables/useKeyboardEvents';
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
-import { useContactConversationNavigation } from 'dashboard/composables/useContactConversationNavigation';
+import { CONTACT_CONVERSATION_NAVIGATION } from 'dashboard/composables/useContactConversationNavigation';
 
 // components
 import ReplyBox from './ReplyBox.vue';
 import MessageList from 'next/message/MessageList.vue';
-import ConversationLabelSuggestion from './conversation/LabelSuggestion.vue';
 import ContactConversationLink from './ContactConversationLink.vue';
 import Banner from 'dashboard/components/ui/Banner.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
+import NextButton from 'dashboard/components-next/button/Button.vue';
+import CollapsedReplyBar from './CollapsedReplyBar.vue';
 import ResizableEditorWrapper from './ResizableEditorWrapper.vue';
 import ReferralBubble from 'dashboard/components-next/Conversation/ReferralBubble.vue';
 
@@ -25,7 +41,7 @@ import inboxMixin, { INBOX_FEATURES } from 'shared/mixins/inboxMixin';
 // utils
 import { emitter } from 'shared/helpers/mitt';
 import { getTypingUsersText } from '../../../helper/commons';
-import { LocalStorage } from 'shared/helpers/localStorage';
+import { captureTimelineAnchor } from './helpers/campaignScrollAnchor';
 import {
   filterDuplicateSourceMessages,
   getReadMessages,
@@ -35,26 +51,37 @@ import {
 // constants
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { MESSAGE_TYPE } from 'shared/constants/messages';
+import { CMD_AI_ASSIST } from 'dashboard/helper/commandbar/events';
 import { REPLY_POLICY } from 'shared/constants/links';
-import wootConstants, {
-  META_RESTRICTION_STATUS_URL,
-} from 'dashboard/constants/globals';
-import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
+import { META_RESTRICTION_STATUS_URL } from 'dashboard/constants/globals';
+import { SESSION_STORAGE_KEYS } from 'dashboard/constants/sessionStorage';
+import { CONVERSATION_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
 
 // distance from the bottom of the list that still counts as "at the bottom",
 // same order as the threshold used to paginate older messages
 const NEAR_BOTTOM_THRESHOLD = 100;
 const MESSAGE_GAP_SCROLL_THRESHOLD = 100;
+const FOLD_MOTION =
+  'duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:duration-0';
+const FOLD_ACTIVE_CLASS = `transition-[grid-template-rows,opacity] [&>div]:overflow-hidden ${FOLD_MOTION}`;
+const FOLD_HIDDEN_CLASS = '[--fold-rows:0fr] opacity-0';
+const FOLD_TRANSITION = {
+  enterActiveClass: FOLD_ACTIVE_CLASS,
+  leaveActiveClass: FOLD_ACTIVE_CLASS,
+  enterFromClass: FOLD_HIDDEN_CLASS,
+  leaveToClass: FOLD_HIDDEN_CLASS,
+};
 
 export default {
   components: {
     MessageList,
     ReplyBox,
     Banner,
-    ConversationLabelSuggestion,
     ContactConversationLink,
     Spinner,
+    NextButton,
+    CollapsedReplyBar,
     ResizableEditorWrapper,
     ReferralBubble,
   },
@@ -72,31 +99,99 @@ export default {
   setup() {
     const conversationPanelRef = ref(null);
     const resizableEditorWrapperRef = ref(null);
+    const replyBoxRef = ref(null);
     const messagesViewRef = useTemplateRef('messagesViewRef');
     const topBannerRef = useTemplateRef('topBannerRef');
     const { height: containerHeight } = useElementSize(messagesViewRef);
     const { height: topBannerHeight } = useElementSize(topBannerRef);
 
     const {
-      captainTasksEnabled,
-      isLabelSuggestionFeatureEnabled,
-      getLabelSuggestions,
-    } = useLabelSuggestions();
-
-    const { olderConversation, newerConversation, buildConversationPath } =
-      useContactConversationNavigation();
+      olderConversation,
+      newerConversation,
+      isReadingHistory,
+      latestConversation,
+      leaveReadingMode,
+      openConversation,
+      buildConversationPath,
+    } = inject(CONTACT_CONVERSATION_NAVIGATION);
 
     provide('contextMenuElementTarget', conversationPanelRef);
 
+    const isReplyBoxCollapsed = useSessionStorage(
+      SESSION_STORAGE_KEYS.REPLY_BOX_COLLAPSED,
+      false
+    );
+    const isReplyFolded = computed(
+      () => isReadingHistory.value || isReplyBoxCollapsed.value
+    );
+    const canSendPublicReply = computed(
+      () => replyBoxRef.value?.canSendPublicReply ?? true
+    );
+
+    const collapseReplyBox = () => {
+      isReplyBoxCollapsed.value = true;
+      useTrack(CONVERSATION_EVENTS.COLLAPSED_REPLY_BOX);
+    };
+    const showReplyBox = () => {
+      isReplyBoxCollapsed.value = false;
+      leaveReadingMode();
+    };
+    // The editor focuses itself on these shortcuts, but only once it is shown.
+    const revealReplyBox = mode => {
+      if (!isReplyFolded.value) return;
+      showReplyBox();
+      useTrack(CONVERSATION_EVENTS.EXPANDED_REPLY_BOX, { mode });
+      nextTick(() => {
+        const replyBox = replyBoxRef.value;
+        // Switching modes drops attachments, so only switch when it changes
+        if (mode && replyBox.replyType !== mode) replyBox.setReplyMode(mode);
+        replyBox.messageEditor?.focusEditorInputField();
+      });
+    };
+    const revealOnShortcut = {
+      action: () => revealReplyBox(),
+      allowOnFocusedInput: false,
+    };
+    useKeyboardEvents({
+      'Alt+KeyP': revealOnShortcut,
+      'Alt+KeyL': revealOnShortcut,
+    });
+    // A shrinking list keeps its scrollTop, so a list resting at its end would
+    // slide under the composer. A growing one is clamped by the browser.
+    const { proxy } = getCurrentInstance();
+    let listHeight = 0;
+    useResizeObserver(conversationPanelRef, ([{ target }]) => {
+      const shrink = listHeight - target.clientHeight;
+      listHeight = target.clientHeight;
+      const { scrollTop, scrollHeight, clientHeight } = target;
+      const wasAtEnd = scrollHeight - scrollTop - clientHeight <= shrink + 1;
+      if (shrink <= 0 || !wasAtEnd) return;
+      proxy.isProgrammaticScroll = true;
+      target.scrollTop = scrollHeight - clientHeight;
+    });
+    // ReplyBox attaches pasted files from anywhere on the page, folded or not.
+    useEventListener(document, 'paste', e => {
+      if (e.clipboardData?.files.length) revealReplyBox();
+    });
+
     return {
-      captainTasksEnabled,
-      getLabelSuggestions,
-      isLabelSuggestionFeatureEnabled,
+      ...useCampaignHistory(),
       olderConversation,
       newerConversation,
+      openConversation,
       buildConversationPath,
+      isReadingHistory,
+      isReplyFolded,
+      canSendPublicReply,
+      foldMotion: FOLD_MOTION,
+      foldTransition: FOLD_TRANSITION,
+      latestConversation,
+      collapseReplyBox,
+      showReplyBox,
+      revealReplyBox,
       conversationPanelRef,
       resizableEditorWrapperRef,
+      replyBoxRef,
       messagesViewRef,
       topBannerRef,
       containerHeight,
@@ -111,8 +206,6 @@ export default {
       hasUserScrolled: false,
       isProgrammaticScroll: false,
       programmaticScrollTimer: null,
-      messageSentSinceOpened: false,
-      labelSuggestions: [],
       newMessageCount: 0,
       isNearBottom: true,
       isMessageGapLoading: false,
@@ -126,20 +219,8 @@ export default {
       currentChat: 'getSelectedChat',
       currentUserId: 'getCurrentUserID',
       listLoadingStatus: 'getAllMessagesLoaded',
-      currentAccountId: 'getCurrentAccountId',
       isMetaMessageSendingDisabled: 'globalConfig/isMetaMessageSendingDisabled',
     }),
-    isOpen() {
-      return this.currentChat?.status === wootConstants.STATUS_TYPE.OPEN;
-    },
-    shouldShowLabelSuggestions() {
-      return (
-        this.isOpen &&
-        this.captainTasksEnabled &&
-        this.isLabelSuggestionFeatureEnabled &&
-        !this.messageSentSinceOpened
-      );
-    },
     inboxId() {
       return this.currentChat.inbox_id;
     },
@@ -190,8 +271,12 @@ export default {
     shouldShowSpinner() {
       return (
         (this.currentChat && this.currentChat.dataFetched === undefined) ||
-        (!this.listLoadingStatus && this.isLoadingPrevious)
+        (!this.listLoadingStatus && this.isLoadingPrevious) ||
+        !this.isCampaignHistoryReady
       );
+    },
+    timelineMessages() {
+      return this.isCampaignHistoryReady ? this.getMessages : [];
     },
     // Check there is a instagram inbox exists with the same instagram_id
     hasDuplicateInstagramInbox() {
@@ -298,13 +383,31 @@ export default {
   },
 
   watch: {
+    isCampaignHistoryReady(ready) {
+      if (!ready) return;
+      this.onScrollToMessage({ messageId: this.$route.query.messageId });
+    },
+    visibleCampaignHistory() {
+      if (!this.conversationPanel) return;
+      const conversationId = this.currentChat.id;
+      const restoreAnchor = captureTimelineAnchor(
+        this.conversationPanel,
+        this.$route.query.messageId
+      );
+      this.$nextTick(() => {
+        if (this.currentChat.id !== conversationId) return;
+        if (!this.hasUserScrolled && !this.$route.query.messageId) {
+          this.scrollToBottom();
+        } else {
+          restoreAnchor();
+        }
+      });
+    },
     currentChat(newChat, oldChat) {
       if (newChat.id === oldChat.id) {
         return;
       }
       this.fetchAllAttachmentsFromCurrentChat();
-      this.fetchSuggestions();
-      this.messageSentSinceOpened = false;
       this.newMessageCount = 0;
       this.isNearBottom = true;
       this.messageGapLoadRequestId += 1;
@@ -320,23 +423,30 @@ export default {
         this.isMessageGapLoading = false;
       }
     },
+    // The link is appended once the neighbours arrive, below an already scrolled list.
+    newerConversation(conversation) {
+      if (!conversation) return;
+      this.$nextTick(() => {
+        if (!this.$route.query.messageId && !this.hasUserScrolled) {
+          this.scrollToBottom();
+        }
+      });
+    },
   },
 
   created() {
     this.currentScrollTarget = null;
     emitter.on(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
     emitter.on(BUS_EVENTS.MESSAGE_ADDED, this.onMessageAdded);
-    // when a message is sent we set the flag to true this hides the label suggestions,
-    // until the chat is changed and the flag is reset in the watch for currentChat
-    emitter.on(BUS_EVENTS.MESSAGE_SENT, () => {
-      this.messageSentSinceOpened = true;
-    });
+    // Anything that wants to write must bring the folded editor back first.
+    emitter.on(BUS_EVENTS.TOGGLE_REPLY_TO_MESSAGE, this.showReplyBox);
+    emitter.on(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, this.showReplyBox);
+    emitter.on(CMD_AI_ASSIST, this.showReplyBox);
   },
 
   mounted() {
     this.addScrollListener();
     this.fetchAllAttachmentsFromCurrentChat();
-    this.fetchSuggestions();
   },
 
   unmounted() {
@@ -345,47 +455,6 @@ export default {
   },
 
   methods: {
-    async fetchSuggestions() {
-      // start empty, this ensures that the label suggestions are not shown
-      this.labelSuggestions = [];
-
-      if (this.isLabelSuggestionDismissed()) {
-        return;
-      }
-
-      // Early exit if conversation already has labels - no need to suggest more
-      const existingLabels = this.currentChat?.labels || [];
-      if (existingLabels.length > 0) return;
-
-      if (!this.captainTasksEnabled || !this.isLabelSuggestionFeatureEnabled) {
-        return;
-      }
-
-      this.labelSuggestions = await this.getLabelSuggestions();
-
-      // once the labels are fetched, we need to scroll to bottom
-      // but we need to wait for the DOM to be updated
-      // so we use the nextTick method
-      this.$nextTick(() => {
-        // this param is added to route, telling the UI to navigate to the message
-        // it is triggered by the SCROLL_TO_MESSAGE method
-        // see setActiveChat on ConversationView.vue for more info
-        const { messageId } = this.$route.query;
-
-        // only trigger the scroll to bottom if the user has not scrolled
-        // and there's no active messageId that is selected in view
-        if (!messageId && !this.hasUserScrolled) {
-          this.scrollToBottom();
-        }
-      });
-    },
-    isLabelSuggestionDismissed() {
-      return LocalStorage.getFlag(
-        LOCAL_STORAGE_KEYS.DISMISSED_LABEL_SUGGESTIONS,
-        this.currentAccountId,
-        this.currentChat.id
-      );
-    },
     fetchAllAttachmentsFromCurrentChat() {
       this.$store.dispatch('fetchAllAttachments', this.currentChat.id);
     },
@@ -393,6 +462,9 @@ export default {
       this.currentScrollTarget = null;
       emitter.off(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
       emitter.off(BUS_EVENTS.MESSAGE_ADDED, this.onMessageAdded);
+      emitter.off(BUS_EVENTS.TOGGLE_REPLY_TO_MESSAGE, this.showReplyBox);
+      emitter.off(BUS_EVENTS.INSERT_INTO_RICH_EDITOR, this.showReplyBox);
+      emitter.off(CMD_AI_ASSIST, this.showReplyBox);
     },
     // a message arrived on its own (not an action the agent took). Only follow it
     // when the agent is already at the bottom, otherwise surface the pill instead
@@ -619,12 +691,14 @@ export default {
     </div>
     <MessageList
       ref="conversationPanelRef"
-      class="conversation-panel flex-shrink flex-grow basis-px flex flex-col overflow-y-auto relative h-full m-0 pb-4"
+      class="conversation-panel flex-shrink flex-grow basis-px flex flex-col overflow-y-auto relative h-full m-0 transition-[padding]"
+      :class="[foldMotion, isReplyFolded ? 'pb-16' : 'pb-4']"
       :current-user-id="currentUserId"
       :first-unread-id="unReadMessages[0]?.id"
       :is-an-email-channel="isAnEmailChannel"
       :inbox-supports-reply-to="inboxSupportsReplyTo"
-      :messages="getMessages"
+      :messages="timelineMessages"
+      :campaign-history="visibleCampaignHistory"
       :conversation-search-query="conversationSearchQuery"
       :active-conversation-search-result-id="activeConversationSearchResultId"
       :is-message-gap-loading="isMessageGapLoading"
@@ -643,9 +717,23 @@ export default {
           v-if="olderConversation && listLoadingStatus"
           direction="older"
           :conversation="olderConversation"
-          :to="buildConversationPath(olderConversation.id)"
+          :to="
+            buildConversationPath(olderConversation.id, {
+              keepFolderScope: false,
+            })
+          "
+          @navigate="openConversation(olderConversation)"
         />
         <ReferralBubble v-if="referralData" :referral="referralData" />
+        <li v-if="hasMoreCampaignHistory" class="flex justify-center py-3">
+          <NextButton
+            :label="$t('CAMPAIGN.HISTORY.LOAD_MORE')"
+            :disabled="isCampaignHistoryLoading"
+            sm
+            ghost
+            @click="loadCampaignHistory"
+          />
+        </li>
       </template>
       <template #unreadBadge>
         <li
@@ -660,23 +748,23 @@ export default {
         </li>
       </template>
       <template #after>
-        <ConversationLabelSuggestion
-          v-if="shouldShowLabelSuggestions"
-          :suggested-labels="labelSuggestions"
-          :chat-labels="currentChat.labels"
-          :conversation-id="currentChat.id"
-        />
         <ContactConversationLink
           v-if="newerConversation"
           direction="newer"
           :conversation="newerConversation"
-          :to="buildConversationPath(newerConversation.id)"
+          :to="
+            buildConversationPath(newerConversation.id, {
+              keepFolderScope: false,
+            })
+          "
+          @navigate="openConversation(newerConversation)"
         />
       </template>
     </MessageList>
     <div class="flex relative flex-col bg-n-surface-1">
       <div
-        class="absolute left-0 bottom-full flex flex-col items-center w-full gap-1 pb-1 pointer-events-none"
+        class="absolute left-0 bottom-full flex flex-col items-center w-full gap-1 pointer-events-none"
+        :class="isReplyFolded ? 'pb-16' : 'pb-1'"
       >
         <button
           v-if="newMessageCount"
@@ -702,18 +790,53 @@ export default {
         v-if="!isNearBottom"
         :title="$t('CONVERSATION.SCROLL_TO_BOTTOM')"
         :aria-label="$t('CONVERSATION.SCROLL_TO_BOTTOM')"
-        class="absolute z-10 flex items-center justify-center mb-3 border rounded-full shadow-lg right-4 bottom-full size-9 bg-n-solid-3 hover:bg-n-solid-2 text-n-slate-12 border-n-weak"
+        class="absolute z-10 flex items-center justify-center border rounded-full shadow-lg right-4 bottom-full size-9 bg-n-solid-3 hover:bg-n-solid-2 text-n-slate-12 border-n-weak"
+        :class="isReplyFolded ? 'mb-20' : 'mb-3'"
         @click="onScrollToBottomClick"
       >
         <i class="i-lucide-arrow-down size-4" />
       </button>
-      <ResizableEditorWrapper
-        ref="resizableEditorWrapperRef"
-        :container-height="Math.max(0, containerHeight - topBannerHeight)"
-        :is-an-email-channel="isAnEmailChannel"
-      >
-        <ReplyBox @toggle-editor-size="toggleReplyEditorSize" />
-      </ResizableEditorWrapper>
+      <Transition v-bind="foldTransition">
+        <div
+          v-if="isReplyFolded"
+          class="absolute inset-x-0 bottom-0 z-10 grid grid-rows-[var(--fold-rows,1fr)]"
+        >
+          <div class="min-h-0 min-w-0">
+            <CollapsedReplyBar
+              class="m-2"
+              :reply-label="
+                isReadingHistory
+                  ? $t('CONVERSATION.CONTACT_HISTORY.REPLY_TO_OLDER')
+                  : $t('CONVERSATION.REPLYBOX.REPLY')
+              "
+              :has-latest="isReadingHistory && Boolean(latestConversation)"
+              :can-reply="canSendPublicReply"
+              @open="revealReplyBox"
+              @go-to-latest="openConversation(latestConversation)"
+            />
+          </div>
+        </div>
+      </Transition>
+      <Transition v-bind="foldTransition">
+        <div
+          v-show="!isReplyFolded"
+          class="grid grid-rows-[var(--fold-rows,1fr)]"
+        >
+          <div class="min-h-0 min-w-0">
+            <ResizableEditorWrapper
+              ref="resizableEditorWrapperRef"
+              :container-height="Math.max(0, containerHeight - topBannerHeight)"
+              :is-an-email-channel="isAnEmailChannel"
+              @collapse="collapseReplyBox"
+            >
+              <ReplyBox
+                ref="replyBoxRef"
+                @toggle-editor-size="toggleReplyEditorSize"
+              />
+            </ResizableEditorWrapper>
+          </div>
+        </div>
+      </Transition>
     </div>
   </div>
 </template>

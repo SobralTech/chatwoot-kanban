@@ -32,6 +32,8 @@ const props = defineProps({
 
 const emit = defineEmits(['show', 'hide']);
 
+defineOptions({ inheritAttrs: false });
+
 const POINT_POPOVER_OPEN_EVENT = 'point-popover-open';
 
 const isActive = ref(false);
@@ -159,7 +161,7 @@ defineExpose({ show, showAt, hide, toggle });
 </script>
 
 <template>
-  <span ref="triggerRef" class="inline-flex" @click="toggle">
+  <span ref="triggerRef" v-bind="$attrs" class="inline-flex" @click="toggle">
     <slot :is-open="isActive" />
   </span>
 

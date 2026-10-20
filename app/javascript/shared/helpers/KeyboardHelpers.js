@@ -8,6 +8,12 @@ export const isEscape = e => {
   return e.key === 'Escape';
 };
 
+// IME users (Vietnamese, Chinese, Japanese, Korean) press Enter to finish a
+// word, not to send. keyCode 229 is the older way browsers report this.
+export const isComposing = e => {
+  return e.isComposing || e.keyCode === 229;
+};
+
 export const hasPressedShift = e => {
   return e.shiftKey;
 };
@@ -26,12 +32,6 @@ export const hasPressedMod = e => Boolean(isApple() ? e.metaKey : e.ctrlKey);
 export const hasPressedEnterAndNotCmdOrShift = e => {
   return isEnter(e) && !hasPressedMod(e) && !hasPressedShift(e);
 };
-
-// True while an IME / OS text-suggestion composition is in progress. `keyCode === 229`
-// is the legacy signal some browsers send for the composing keydown. Null-safe because
-// some keyboard handlers invoke `action` without an event argument.
-export const isInComposition = event =>
-  Boolean(event?.isComposing || event?.keyCode === 229);
 
 // Detects the platform-aware "send" shortcut: Cmd+Enter on Apple platforms,
 // Ctrl+Enter on Windows/Linux.

@@ -22,12 +22,14 @@ const {
   attachments,
   messageType,
   conversationSearchQuery,
+  contactSide,
+  showingOriginal,
+  isCaptainMessage,
 } = useMessageContext();
 
 const isExpandable = ref(false);
 const isExpanded = ref(false);
 const showQuotedMessage = ref(false);
-const renderOriginal = ref(false);
 const contentContainer = useTemplateRef('contentContainer');
 const emailAllowedCssProperties = [
   ...allowedCssProperties,
@@ -44,8 +46,13 @@ onMounted(() => {
 const isOutgoing = computed(() => messageType.value === MESSAGE_TYPES.OUTGOING);
 const isIncoming = computed(() => !isOutgoing.value);
 
-const { hasTranslations, translationContent } =
-  useTranslations(contentAttributes);
+const { hasTranslations, translationContent } = useTranslations(
+  contentAttributes,
+  contactSide
+);
+const showsTranslation = computed(
+  () => hasTranslations.value && !showingOriginal.value
+);
 
 const originalEmailText = computed(() => {
   const text =
@@ -66,39 +73,30 @@ const hasEmailContent = computed(() => {
   );
 });
 
-const messageContent = computed(() => {
-  // If translations exist and we're showing translations (not original)
-  if (hasTranslations.value && !renderOriginal.value) {
-    return translationContent.value;
-  }
-  // Otherwise show original content
-  return content.value;
-});
-
-const textToShow = computed(() => {
-  // If translations exist and we're showing translations (not original)
-  if (hasTranslations.value && !renderOriginal.value) {
-    return translationContent.value;
-  }
-  // Otherwise show original text
-  return originalEmailText.value;
-});
-
-const fullHTML = computed(() => {
-  // If translations exist and we're showing translations (not original)
-  if (hasTranslations.value && !renderOriginal.value) {
-    return translationContent.value;
-  }
-  // Otherwise show original HTML
-  return originalEmailHtml.value;
-});
-
-const unquotedHTML = computed(() =>
-  EmailQuoteExtractor.extractQuotes(fullHTML.value)
+const messageContent = computed(() =>
+  showsTranslation.value ? translationContent.value : content.value
 );
 
-const hasQuotedMessage = computed(() =>
-  EmailQuoteExtractor.hasQuotes(fullHTML.value)
+const textToShow = computed(() =>
+  showsTranslation.value ? translationContent.value : originalEmailText.value
+);
+
+const fullHTML = computed(() =>
+  showsTranslation.value ? translationContent.value : originalEmailHtml.value
+);
+
+const isForwarded = computed(
+  () => !!contentAttributes.value?.forwardedMessageId
+);
+
+const unquotedHTML = computed(() =>
+  isForwarded.value
+    ? fullHTML.value
+    : EmailQuoteExtractor.extractQuotes(fullHTML.value)
+);
+
+const hasQuotedMessage = computed(
+  () => !isForwarded.value && EmailQuoteExtractor.hasQuotes(fullHTML.value)
 );
 
 const renderEmailHTML = html => {
@@ -122,13 +120,13 @@ const highlightedUnquotedHTML = computed(() =>
 // Ensure unique keys when toggling between original and translated views.
 // This forces Vue to re-render the email HTML and update content correctly.
 const translationKeySuffix = computed(() => {
-  if (renderOriginal.value) return 'original';
+  if (showingOriginal.value) return 'original';
   if (hasTranslations.value) return 'translated';
   return 'original';
 });
 
 const handleSeeOriginal = () => {
-  renderOriginal.value = !renderOriginal.value;
+  showingOriginal.value = !showingOriginal.value;
 };
 </script>
 
@@ -214,9 +212,9 @@ const handleSeeOriginal = () => {
       </div>
     </section>
     <TranslationToggle
-      v-if="hasTranslations"
+      v-if="!isCaptainMessage"
       class="py-2 px-3"
-      :showing-original="renderOriginal"
+      :showing-original="showingOriginal"
       @toggle="handleSeeOriginal"
     />
     <section
