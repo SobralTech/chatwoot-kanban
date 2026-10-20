@@ -20,7 +20,6 @@ import ConversationAssistantPanel from './ConversationAssistantPanel.vue';
 import ReplyBoxBanner from './ReplyBoxBanner.vue';
 import QuotedEmailPreview from './QuotedEmailPreview.vue';
 import { REPLY_EDITOR_MODES } from 'dashboard/components/widgets/WootWriter/constants';
-import wootConstants from 'dashboard/constants/globals';
 import WootMessageEditor from 'dashboard/components/widgets/WootWriter/Editor.vue';
 import AudioRecorder from 'dashboard/components/widgets/WootWriter/AudioRecorder.vue';
 import { AUDIO_FORMATS } from 'shared/constants/messages';
@@ -238,11 +237,7 @@ export default {
       );
     },
     canSendPublicReply() {
-      return (
-        this.isWithinMessagingWindow &&
-        !this.isBotOwnedPendingConversation &&
-        !this.isInstagramReplyRestricted
-      );
+      return this.isWithinMessagingWindow && !this.isInstagramReplyRestricted;
     },
     isInstagramReplyRestricted() {
       return this.isMetaMessageSendingDisabled && this.isAnInstagramChannel;
@@ -257,9 +252,7 @@ export default {
         return true;
       }
 
-      return this.isBotOwnedPendingConversation
-        ? this.isPrivate
-        : this.replyType === REPLY_EDITOR_MODES.NOTE;
+      return this.replyType === REPLY_EDITOR_MODES.NOTE;
     },
     effectiveReplyMode() {
       if (this.isOnPrivateNote) return REPLY_EDITOR_MODES.NOTE;
@@ -280,12 +273,6 @@ export default {
         getEffectiveChannelType(this.channelType, this.inbox?.medium || '')
       );
       return !!stripped.trim();
-    },
-    isBotOwnedPendingConversation() {
-      return (
-        this.currentChat?.status === wootConstants.STATUS_TYPE.PENDING &&
-        this.currentChat?.meta?.assignee_type === 'AgentBot'
-      );
     },
     inboxId() {
       return this.currentChat.inbox_id;

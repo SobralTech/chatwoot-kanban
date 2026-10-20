@@ -357,6 +357,7 @@ class Message < ApplicationRecord
     # rails issue with order of active record callbacks being executed https://github.com/rails/rails/issues/20911
     reopen_conversation
     mark_pending_conversation_as_open_for_human_response
+    take_over_bot_pending_conversation
     set_conversation_activity
     dispatch_create_events
     send_reply
@@ -454,6 +455,14 @@ class Message < ApplicationRecord
 
   def captain_pending_conversation?
     false
+  end
+
+  # A human reply on a conversation still owned by an AgentBot takes it over.
+  def take_over_bot_pending_conversation
+    return unless human_response? && !private?
+    return unless conversation.pending? && conversation.ai_assignee_type == 'AgentBot'
+
+    conversation.update!(ai_assignee: nil, assignee: sender, status: :open)
   end
 
   def reopen_resolved_conversation
