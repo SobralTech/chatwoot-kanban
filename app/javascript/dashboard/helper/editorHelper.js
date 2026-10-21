@@ -177,12 +177,14 @@ export function findSignatureInBody(body, signature) {
 /**
  * Gets the effective channel type for formatting purposes.
  * For Twilio channels, returns WhatsApp or Twilio based on medium.
+ * WAHA delivers to WhatsApp, so it uses WhatsApp formatting.
  *
  * @param {string} channelType - The channel type
  * @param {string} medium - Optional. The medium for Twilio channels (sms/whatsapp)
  * @returns {string} - The effective channel type for formatting
  */
 export function getEffectiveChannelType(channelType, medium) {
+  if (channelType === INBOX_TYPES.WAHA) return INBOX_TYPES.WHATSAPP;
   if (channelType === INBOX_TYPES.TWILIO) {
     return medium === TWILIO_CHANNEL_MEDIUM.WHATSAPP
       ? INBOX_TYPES.WHATSAPP
