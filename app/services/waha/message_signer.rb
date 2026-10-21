@@ -3,6 +3,7 @@ class Waha::MessageSigner
 
   # WhatsApp renders *_..._* as bold-italic, so agent replies arrive prefixed
   # with the sender's name on their own line.
+  # The name is stripped because WhatsApp ignores the markers next to whitespace.
   SIGNATURE_TEMPLATE = "*_%<name>s_*:\n%<content>s".freeze
 
   # Prefixes text with the agent's signature when the inbox has signing enabled
@@ -12,7 +13,7 @@ class Waha::MessageSigner
     return text if text.blank?
     return text unless signable?
 
-    format(SIGNATURE_TEMPLATE, name: sender.available_name, content: text)
+    format(SIGNATURE_TEMPLATE, name: sender.available_name.strip, content: text)
   end
 
   private

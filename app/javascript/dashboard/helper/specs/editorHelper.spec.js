@@ -21,6 +21,7 @@ import {
   getReplyVariables,
   getContactVariables,
   getContentNode,
+  getEffectiveChannelType,
   getFormattingForEditor,
   getMenuAnchor,
   getSelectionCoords,
@@ -1541,5 +1542,11 @@ describe('createVariableInputRule', () => {
 
     expect(view.state.doc.textContent).toBe('{{contact.name}}');
     view.destroy();
+  });
+});
+
+describe('getEffectiveChannelType', () => {
+  it('uses WhatsApp formatting for WAHA inboxes', () => {
+    expect(getEffectiveChannelType('Channel::Waha')).toBe('Channel::Whatsapp');
   });
 });
