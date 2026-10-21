@@ -14,6 +14,14 @@ RSpec.describe Messages::MarkdownRendererService, type: :service do
       end
     end
 
+    context 'when channel is Channel::Waha' do
+      it 'renders WhatsApp formatting instead of raw markdown' do
+        content = "linha\\\n\\\n**negrito** <https://example.com>"
+        result = described_class.new(content, 'Channel::Waha').render
+        expect(result).to eq("linha\n\n*negrito* https://example.com")
+      end
+    end
+
     context 'when channel is Channel::Whatsapp' do
       let(:channel_type) { 'Channel::Whatsapp' }
 
