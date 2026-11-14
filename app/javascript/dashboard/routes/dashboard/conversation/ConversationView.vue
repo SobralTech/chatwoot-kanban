@@ -19,6 +19,7 @@ import ConversationSidebar from 'dashboard/components/widgets/conversation/Conve
 import ConversationSearchPanel from 'dashboard/components/widgets/conversation/ConversationSearchPanel.vue';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { EMBEDDED_CONVERSATION } from 'dashboard/composables/useEmbeddedConversation';
+import { CONVERSATION_LIST_TOGGLE } from 'dashboard/composables/useConversationListToggle';
 import { goBackEmbedded } from 'dashboard/helper/embeddedConversationHistory';
 
 export default {
@@ -38,12 +39,14 @@ export default {
               sidebarOpen: this.embeddedSidebarOpen,
               setSidebarOpen: this.setEmbeddedSidebarOpen,
               goBack: this.goBackFromEmbedded,
-              listOpen: this.embeddedListOpen,
-              canToggleList: !this.isOnExpandedLayout,
-              toggleList: this.toggleEmbeddedList,
             }
           : null
       ),
+      [CONVERSATION_LIST_TOGGLE]: computed(() => ({
+        listOpen: this.listOpen,
+        canToggle: !this.isOnExpandedLayout,
+        toggle: this.toggleList,
+      })),
     };
   },
   beforeRouteLeave(to, from, next) {
@@ -123,9 +126,13 @@ export default {
     }),
     showConversationList() {
       if (this.isEmbedded) {
-        return this.embeddedListOpen;
+        return this.listOpen;
       }
-      return this.isOnExpandedLayout ? !this.conversationId : true;
+      // Without an open conversation the list is the only content to show.
+      if (!this.conversationId) {
+        return true;
+      }
+      return this.isOnExpandedLayout ? false : this.listOpen;
     },
     showMessageView() {
       return this.conversationId ? true : !this.isOnExpandedLayout;
@@ -133,8 +140,17 @@ export default {
     isEmbedded() {
       return !!this.backRoute;
     },
-    embeddedListOpen() {
-      return !!this.uiSettings.is_embedded_conversation_list_open;
+    // Embedded conversations open focused (list collapsed) while the regular
+    // view keeps the list open until the agent collapses it, so each mode
+    // remembers its own state.
+    listOpenSettingKey() {
+      return this.isEmbedded
+        ? 'is_embedded_conversation_list_open'
+        : 'is_conversation_list_open';
+    },
+    listOpen() {
+      const isOpen = this.uiSettings[this.listOpenSettingKey];
+      return this.isEmbedded ? !!isOpen : isOpen !== false;
     },
     // An embedded conversation always has a conversation open, so on the
     // expanded layout the list would never get a column of its own: keep the
@@ -178,7 +194,7 @@ export default {
     },
   },
   watch: {
-    embeddedListOpen: {
+    listOpen: {
       immediate: true,
       handler(isOpen) {
         if (isOpen) {
@@ -406,10 +422,8 @@ export default {
     setEmbeddedSidebarOpen(value) {
       this.embeddedSidebarOpen = value;
     },
-    toggleEmbeddedList() {
-      this.updateUISettings({
-        is_embedded_conversation_list_open: !this.embeddedListOpen,
-      });
+    toggleList() {
+      this.updateUISettings({ [this.listOpenSettingKey]: !this.listOpen });
     },
     goBackFromEmbedded() {
       goBackEmbedded(this.$router, this.backRoute);
