@@ -5,7 +5,7 @@ import { useStore } from 'vuex';
 import { useElementSize } from '@vueuse/core';
 import BackButton from '../BackButton.vue';
 import EmbeddedBackButton from './EmbeddedBackButton.vue';
-import EmbeddedListToggle from './EmbeddedListToggle.vue';
+import ConversationListToggle from './ConversationListToggle.vue';
 import InboxName from '../InboxName.vue';
 import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
@@ -23,6 +23,7 @@ import {
   useContactSidebar,
   useEmbeddedConversation,
 } from 'dashboard/composables/useEmbeddedConversation';
+import { useConversationListToggle } from 'dashboard/composables/useConversationListToggle';
 import { useAgentsList } from 'dashboard/composables/useAgentsList';
 
 import { useAlert } from 'dashboard/composables';
@@ -46,6 +47,7 @@ const conversationHeader = ref(null);
 const { width } = useElementSize(conversationHeader);
 const { isAWebWidgetInbox, isAnEmailChannel } = useInbox();
 const embedded = useEmbeddedConversation();
+const listToggle = useConversationListToggle();
 const { toggleContactSidebar } = useContactSidebar();
 const headerSeparator = '\u2022';
 
@@ -162,8 +164,8 @@ const toggleContactDetails = () => {
     class="flex flex-row items-center justify-between flex-1 w-full min-w-0 gap-3 px-3 py-2 min-h-12"
   >
     <div class="flex items-center justify-start flex-1 min-w-0">
-      <EmbeddedListToggle
-        v-if="embedded?.canToggleList"
+      <ConversationListToggle
+        v-if="listToggle?.canToggle"
         class="ltr:mr-2 rtl:ml-2"
       />
       <EmbeddedBackButton v-if="embedded" class="ltr:mr-2 rtl:ml-2" />

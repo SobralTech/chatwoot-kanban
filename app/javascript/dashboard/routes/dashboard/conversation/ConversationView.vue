@@ -19,6 +19,7 @@ import ConversationSidebar from 'dashboard/components/widgets/conversation/Conve
 import ConversationSearchPanel from 'dashboard/components/widgets/conversation/ConversationSearchPanel.vue';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { EMBEDDED_CONVERSATION } from 'dashboard/composables/useEmbeddedConversation';
+import { CONVERSATION_LIST_TOGGLE } from 'dashboard/composables/useConversationListToggle';
 import { goBackEmbedded } from 'dashboard/helper/embeddedConversationHistory';
 
 export default {
@@ -38,9 +39,15 @@ export default {
               sidebarOpen: this.embeddedSidebarOpen,
               setSidebarOpen: this.setEmbeddedSidebarOpen,
               goBack: this.goBackFromEmbedded,
-              listOpen: this.embeddedListOpen,
-              canToggleList: !this.isOnExpandedLayout,
-              toggleList: this.toggleEmbeddedList,
+            }
+          : null
+      ),
+      [CONVERSATION_LIST_TOGGLE]: computed(() =>
+        this.isEmbedded
+          ? {
+              listOpen: this.listOpen,
+              canToggle: !this.isOnExpandedLayout,
+              toggle: this.toggleList,
             }
           : null
       ),
@@ -123,7 +130,7 @@ export default {
     }),
     showConversationList() {
       if (this.isEmbedded) {
-        return this.embeddedListOpen;
+        return this.listOpen;
       }
       return this.isOnExpandedLayout ? !this.conversationId : true;
     },
@@ -133,7 +140,7 @@ export default {
     isEmbedded() {
       return !!this.backRoute;
     },
-    embeddedListOpen() {
+    listOpen() {
       return !!this.uiSettings.is_embedded_conversation_list_open;
     },
     // An embedded conversation always has a conversation open, so on the
@@ -178,7 +185,7 @@ export default {
     },
   },
   watch: {
-    embeddedListOpen: {
+    listOpen: {
       immediate: true,
       handler(isOpen) {
         if (isOpen) {
@@ -406,9 +413,9 @@ export default {
     setEmbeddedSidebarOpen(value) {
       this.embeddedSidebarOpen = value;
     },
-    toggleEmbeddedList() {
+    toggleList() {
       this.updateUISettings({
-        is_embedded_conversation_list_open: !this.embeddedListOpen,
+        is_embedded_conversation_list_open: !this.listOpen,
       });
     },
     goBackFromEmbedded() {
